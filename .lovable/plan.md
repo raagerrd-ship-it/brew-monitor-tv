@@ -2,68 +2,52 @@
 
 ## Problem
 
-PWM-loggarna i synkhistoriken visar tre separata rader för vad som logiskt är en tvåstegsprocess:
+PWM OFF blockerar `run-automation` med en `sleep()` på ~50-60 sekunder, vilket förvränger timing-diagnostiken (2b visar 64s) och håller hela synkcykeln onödigt länge.
 
-1. **18:05** — `⚡ Blå 14.2° → 0°` (PWM ON adjustment, orphan-rad)
-2. **18:06** — `✈ Blå 14.3° → 0°` + `⚡ Blå 0° → 14.3°` (RAPT-send + PWM OFF i samma rad)
+## Ny arkitektur: Schemalagd PWM OFF
 
-**Förväntat beteende:**
-- System-synkloggen (decision log) ska innehålla PWM ON-aktiveringen som en del av sin pipeline
-- PWM OFF ska vara en enskild, separat rad som dyker upp efter burst-varaktigheten
+```text
+FÖRE (blockerande):
+  sync-rapt-data-quick → run-automation
+    ├─ auto-adjust-cooling (PWM ON → RAPT)
+    ├─ sleep(50s)  ← BLOCKERAR
+    └─ PWM OFF → RAPT + logg
 
-## Orsak
-
-PWM ON skapar **två** loggposter:
-- En `auto_cooling_adjustments`-rad via `logAdjustment()` i `controller-adjustments.ts` (rad 397)
-- En `RAPT_SEND` decision-step + `DUTY_PWM_BURST` i beslutsloggen
-
-ON-adjustment-raden skapas innan beslutsloggen sparas, med en liten tidsförskjutning som gör att den hamnar utanför 15-sekunders-matchningsfönstret → blir en orphan-rad med eget ⚡-badge.
-
-PWM OFF-adjustment-raden (skapad av `run-automation` rad 199) matchas till nästa System-logg istället för att stå ensam.
+EFTER (asynkron):
+  sync-rapt-data-quick → run-automation
+    └─ auto-adjust-cooling (PWM ON → RAPT)
+        └─ Sparar: pending_rapt_retries.execute_at = now() + duty_seconds
+  
+  pg_cron (varje minut) → execute-pwm-off
+    └─ Hittar rader med execute_at <= now()
+        └─ PWM OFF → RAPT + decision-logg
+```
 
 ## Plan
 
-### 1. Ta bort redundant PWM ON adjustment-loggning (backend)
-**Fil:** `supabase/functions/_shared/controller-adjustments.ts`
+### 1. Lägg till `execute_at`-kolumn på `pending_rapt_retries`
+**Migration:** Lägg till `execute_at timestamptz DEFAULT null`. Null = vanlig retry (befintligt beteende). Satt = schemalagd PWM OFF.
 
-Ta bort `logAdjustment()`-anropet för PWM ON (rad 396-405). ON-händelsen dokumenteras redan fullständigt av:
-- `DUTY_PWM_BURST` decision-steget (som syns i System-loggens pipeline)
-- `RAPT_SEND` decision-steget (som visar att kommandot skickats)
+### 2. Skapa edge function `execute-pwm-off`
+Ny funktion som:
+- Hämtar alla `pending_rapt_retries` där `reason LIKE '%PWM OFF%'` OCH `execute_at <= now()`
+- Skickar OFF-kommando till RAPT (3 retries, 10s timeout)
+- Vid lyckad: raderar retry-raden + skapar `auto_cooling_decision_logs`-post
+- Vid misslyckad: inkrementerar attempts, behåller raden
 
-Detta eliminerar den duplicerade orphan-raden.
+### 3. Skapa pg_cron-jobb för PWM OFF
+Kör `execute-pwm-off` varje minut via en DB-trigger-funktion (samma mönster som `trigger_rapt_quick_sync`).
 
-### 2. Ge PWM OFF sin egen decision-logg (backend)
-**Fil:** `supabase/functions/run-automation/index.ts`
+### 4. Uppdatera `controller-adjustments.ts`
+Sätt `execute_at: now() + duty_seconds` vid insert till `pending_rapt_retries` istället för att lägga burst-metadata i `ctx.pwmBursts`.
 
-Efter lyckad PWM OFF (rad 186-211): Skapa en **egen `auto_cooling_decision_logs`-rad** med:
-- `final_result`: t.ex. `"⚡ PWM OFF: Blå 0° → 14.3° (33s burst)"`
-- `decisions`: En minimal decision-array med burst-metadata (duty_pct, duty_seconds, controller_name)
-- `adjustment_made: true`
-
-Behåll den existerande `auto_cooling_adjustments`-inserten (rad 199) så att OFF-adjustment matchas till denna nya decision-logg via 15s-fönstret.
-
-### 3. Uppdatera UI för PWM OFF-loggar (frontend)
-**Fil:** `src/components/AutoCoolingDecisionLogs.tsx`
-
-Lägg till logik för att rendera PWM OFF decision-loggar med en kompakt vy:
-- Collapsed: Visa tidstämpel + `⚡ PWM OFF Blå 0° → 14.3°` badge
-- Expanded: Visa burst-detaljer (duration, duty%) med befintlig PWM-styling
-
-## Teknisk sammanfattning
-
-```text
-FÖRE:
-  18:05  ⚡ Blå 14.2° → 0°          ← orphan adjustment (redundant)
-  18:06  ✈ Blå 14.3° → 0° + ⚡ OFF  ← ON-send + OFF blandade
-  18:06  ⟳ System                    ← decision log
-
-EFTER:
-  18:05  ⟳ System [PWM ▶ Blå]        ← decision log med PWM ON inuti
-  18:06  ⚡ PWM OFF Blå 0° → 14.3°   ← egen decision log för OFF
-```
+### 5. Ta bort PWM sleep-blocket ur `run-automation`
+Radera hela STEP 3b (rad 136-219) — sömn, retry-loop, loggning. Allt hanteras nu av `execute-pwm-off`.
 
 ### Filer som ändras
-- `supabase/functions/_shared/controller-adjustments.ts` — Ta bort `logAdjustment` för PWM ON
-- `supabase/functions/run-automation/index.ts` — Skapa decision-logg för PWM OFF
-- `src/components/AutoCoolingDecisionLogs.tsx` — Rendera PWM OFF decision-loggar
+- **Migration:** Ny kolumn `execute_at` på `pending_rapt_retries`
+- **`supabase/functions/execute-pwm-off/index.ts`** — Ny edge function
+- **`supabase/functions/_shared/controller-adjustments.ts`** — Sätt `execute_at` vid PWM ON
+- **`supabase/functions/run-automation/index.ts`** — Ta bort sleep-blocket
+- **Migration:** pg_cron-jobb + trigger-funktion
 
