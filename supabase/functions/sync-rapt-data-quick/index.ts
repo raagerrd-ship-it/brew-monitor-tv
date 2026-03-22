@@ -1,6 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
+import { processAllSessions } from '../_shared/process-profiles-logic.ts';
+import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
+import { computeSystemHealth } from '../_shared/system-health-logic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
