@@ -450,8 +450,26 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
-  // PWM ON badges from adjustments (these are direct hw sends logged as adjustments)
+  // PWM badges from adjustments or PWM OFF decision logs
   const pwmAdjs = adjs.filter(a => a.category === 'pwm');
+  const isPwmOffLog = log.final_result.startsWith('⚡ PWM OFF:');
+  if (isPwmOffLog) {
+    // Dedicated PWM OFF decision log — extract details from the PWM_OFF decision
+    const pwmOffDecision = log.decisions.find(d => d.step === 'PWM_OFF');
+    const details = pwmOffDecision?.details as { controller_name?: string; duty_seconds?: number; duty_pct?: number; off_target?: number } | undefined;
+    const controllerName = details?.controller_name || '';
+    const shortName = controllerName.replace('Temp Controller ', '') || log.final_result.match(/PWM OFF: (.+?) /)?.[1] || '?';
+    const color = controllerColors[controllerName];
+    raptBadges.push(
+      <Badge key="pwm-off" variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+        color: color || 'hsl(45 90% 55%)',
+        borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
+      }}>
+        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM ■ {shortName} {details?.duty_seconds}s
+      </Badge>
+    );
+  }
   for (const pwm of pwmAdjs) {
     const shortName = pwm.cooler_controller_name.replace('Temp Controller ', '');
     const color = controllerColors[pwm.cooler_controller_name];
