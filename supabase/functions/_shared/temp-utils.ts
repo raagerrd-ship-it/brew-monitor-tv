@@ -383,6 +383,12 @@ export class RaptUpdateBatch {
     const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io'
     const results = await Promise.allSettled(
       this.pending.map(async ({ controllerId, targetTemp }) => {
+        // DB-only: hardware already at target, skip RAPT API call
+        if (this.hwOnlySkipIds.has(controllerId)) {
+          console.log(`⏭️ ${controllerId} → ${targetTemp}°C (DB-only, hardware already at target)`)
+          return { controllerId, success: true }
+        }
+
         const url = `${apiBaseUrl}/api/TemperatureControllers/SetTargetTemperature?temperatureControllerId=${encodeURIComponent(controllerId)}&target=${targetTemp}`
 
         for (let attempt = 1; attempt <= 3; attempt++) {
