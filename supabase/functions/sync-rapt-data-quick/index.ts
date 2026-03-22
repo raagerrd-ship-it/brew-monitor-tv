@@ -410,7 +410,7 @@ Deno.serve(async (req) => {
               ) ?? false;
 
               if (isAutomationLatency) {
-                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (old=${recentAdj![0].old_target_temp}, new=${recentAdj![0].new_target_temp}), ignorerar`);
+                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (${recentAdjs!.length} adj inom 20min), ignorerar`);
                 updateData.target_temp = preservedTarget; // Keep DB value
               } else {
                 console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
