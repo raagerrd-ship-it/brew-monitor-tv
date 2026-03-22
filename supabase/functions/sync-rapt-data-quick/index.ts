@@ -339,7 +339,6 @@ Deno.serve(async (req) => {
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
-        const hwTargetMap: Record<string, number> = {};
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
