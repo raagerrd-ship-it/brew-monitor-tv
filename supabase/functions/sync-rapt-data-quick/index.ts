@@ -394,18 +394,20 @@ Deno.serve(async (req) => {
 
               // Check if this "change" is just RAPT API latency from a recent PID/automation adjustment.
               // If the hardware value matches the old or new target of a recent adjustment, skip.
-              const { data: recentAdj } = await supabase
+              // Check ALL recent adjustments (not just the latest) to handle multi-cycle API latency.
+              // Hardware may still report a value from 2-3 cycles ago.
+              const { data: recentAdjs } = await supabase
                 .from('auto_cooling_adjustments')
                 .select('old_target_temp, new_target_temp')
                 .eq('cooler_controller_id', controller.id)
                 .gte('created_at', new Date(Date.now() - 20 * 60 * 1000).toISOString())
                 .order('created_at', { ascending: false })
-                .limit(1);
+                .limit(10);
 
-              const isAutomationLatency = recentAdj?.[0] && (
-                Math.abs(targetTemp - recentAdj[0].old_target_temp) < 0.15 ||
-                Math.abs(targetTemp - recentAdj[0].new_target_temp) < 0.15
-              );
+              const isAutomationLatency = recentAdjs?.some(adj =>
+                Math.abs(targetTemp - adj.old_target_temp) < 0.15 ||
+                Math.abs(targetTemp - adj.new_target_temp) < 0.15
+              ) ?? false;
 
               if (isAutomationLatency) {
                 console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (old=${recentAdj![0].old_target_temp}, new=${recentAdj![0].new_target_temp}), ignorerar`);
