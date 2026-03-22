@@ -313,7 +313,7 @@ export function AiTunableParameters() {
       {/* Duty cycles */}
       {Object.keys(dutyByController).length > 0 && (
         <div>
-          <SectionHeader>Duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">5–95</span></SectionHeader>
+          <SectionHeader>Duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0–100 (steg 20%)</span></SectionHeader>
           {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
         </div>
       )}

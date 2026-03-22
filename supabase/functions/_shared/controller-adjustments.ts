@@ -270,12 +270,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const cBucket = getTempBucket(ctrlTarget)
         const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
-        if (dutyParam.sampleCount >= 5 && dutyParam.value > 0.05 && dutyParam.value < 0.60) {
+        if (dutyParam.sampleCount >= 5 && dutyParam.value >= 0.1 && dutyParam.value < 0.90) {
             isPwmMode = true
             isPwmActiveSegment = true // burst model: always "active" — run-automation handles timing
-            pwmDutyPct = Math.round(dutyParam.value * 100)
-            // Burst duration: duty% of 300s cycle, min 30s, max 240s
-            pwmDutySeconds = Math.max(30, Math.min(240, Math.round(dutyParam.value * 300)))
+            // Snap to 1-minute resolution (pg_cron constraint): 0%, 20%, 40%, 60%, 80%, 100%
+            pwmDutyPct = Math.round(dutyParam.value * 5) * 20
+            // Burst duration: exact multiples of 60s (1m, 2m, 3m, 4m)
+            pwmDutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
         }
       }
     } else if (prevStableCount > 0) {
