@@ -41,6 +41,11 @@ export function BrewingDashboard() {
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode, onSyncSettingsChange);
 
+  const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Math.round(window.visualViewport?.height ?? window.innerHeight);
+  });
+
   // External timer & settings
   const externalTimer = useExternalTimer(onCachedTimerChange);
   const { timerTvModeOnly } = useExternalUserSettings();
@@ -60,6 +65,52 @@ export function BrewingDashboard() {
   }, []);
 
   const appLoadTime = useMemo(() => new Date(), []);
+
+  // Mobile: lock app height to actual visual viewport to avoid intermittent page scrolling on refresh
+  useEffect(() => {
+    if (!isMobile || isTvMode) return;
+
+    const updateViewportHeight = () => {
+      setMobileViewportHeight(Math.round(window.visualViewport?.height ?? window.innerHeight));
+    };
+
+    updateViewportHeight();
+
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+    viewport?.addEventListener("resize", updateViewportHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      viewport?.removeEventListener("resize", updateViewportHeight);
+    };
+  }, [isMobile, isTvMode]);
+
+  // Mobile: prevent document-level scrolling outside dashboard container
+  useEffect(() => {
+    if (!isMobile || isTvMode) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlHeight = html.style.height;
+    const prevBodyHeight = body.style.height;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.height = "100%";
+    body.style.height = "100%";
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      html.style.height = prevHtmlHeight;
+      body.style.height = prevBodyHeight;
+    };
+  }, [isMobile, isTvMode]);
 
   // Force overflow hidden on body in TV mode
   useEffect(() => {
@@ -135,6 +186,8 @@ export function BrewingDashboard() {
     return null;
   };
 
+  const mobileContainerHeight = mobileViewportHeight > 0 ? `${mobileViewportHeight}px` : '100dvh';
+
   return <>
     {/* Splash overlay */}
     <div
@@ -150,7 +203,7 @@ export function BrewingDashboard() {
     </div>
 
     <div className={`w-full relative flex flex-col overflow-hidden`} style={{
-      height: isMobile ? '100dvh' : getContainerHeight(),
+      height: isMobile ? mobileContainerHeight : getContainerHeight(),
       background: 'transparent',
     }}>
       {/* Album art background */}
