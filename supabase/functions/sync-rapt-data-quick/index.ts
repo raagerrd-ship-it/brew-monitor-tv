@@ -996,6 +996,8 @@ Deno.serve(async (req) => {
       }
 
       // Log RAPT_SEND entries for succeeded updates (into the automation decision log)
+      // Build controller name lookup from Phase 1c data
+      const ctrlNameMap = new Map(controllerUpdatesForHistory.map(c => [c.controller_id, c.name as string]));
       for (const [controllerId] of succeeded) {
         const pu = pendingUpdates.find(p => p.controllerId === controllerId);
         if (!pu) continue;
@@ -1004,9 +1006,10 @@ Deno.serve(async (req) => {
         // Skip logging when rounded values are identical
         if (oldTarget != null && Math.abs(Math.round(oldTarget * 10) - Math.round(newTarget * 10)) < 1) continue;
         const isPwmSend = hwOnlyIds.includes(controllerId) && newTarget === 0;
+        const controllerName = ctrlNameMap.get(controllerId) || controllerId;
         automationDecisionLog.push({
           step: 'RAPT_SEND', result: 'action',
-          message: `${controllerId}: ${oldTarget ?? '?'}°C → ${newTarget}°C`,
+          message: `${controllerName}: ${oldTarget ?? '?'}°C → ${newTarget}°C`,
           details: { controller_id: controllerId, old_target: oldTarget, new_target: newTarget, ...(isPwmSend && { is_pwm: true }) },
         });
       }
