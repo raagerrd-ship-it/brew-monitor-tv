@@ -548,40 +548,40 @@ export async function calculateCompensatedTarget(
     const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
     const isTowardTarget = newDistToBase < currentDistToBase
     
-    // Large-error recovery: if ctrlTarget is wildly wrong (e.g. after failed PWM revert
-    // or sync race condition), skip rate-limit entirely and jump to correct value.
-    if (distanceFromIdeal > LARGE_ERROR_THRESHOLD && isTowardTarget) {
-      constraints.push('large-error-bypass')
-      console.log(`🚀 Large-error bypass ${controllerName}: gap=${distanceFromIdeal.toFixed(1)}°C > ${LARGE_ERROR_THRESHOLD}°C, jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C`)
+    // Moving TOWARD baseTarget: skip rate-limit entirely.
+    // Rationale: when heating, the physical heating rate is limited by hardware,
+    // not by the software target. Rate-limiting only delays reaching the correct
+    // setpoint without slowing actual temperature change. Same principle applies
+    // to cooling recovery (raising target to stop cooling).
+    if (isTowardTarget) {
+      // Clamp to baseTarget — never overshoot past it
+      if (isIncreasing && ctrlTargetPid > baseTarget) {
+        ctrlTargetPid = baseTarget
+      } else if (!isIncreasing && ctrlTargetPid < baseTarget) {
+        ctrlTargetPid = baseTarget
+      }
+      constraints.push('toward-target-bypass')
+      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C)`)
     } else {
     
-    // When in approach zone AND moving toward baseTarget, allow faster release
-    // BUT: during ramp steps, don't release AGAINST the ramp direction.
-    // Overshoot-release: disable ramp hold when probe is within 1°C of baseTarget
-    const probeDistToTarget = Math.abs(latestCtrlForComp - baseTarget)
-    const overshootRelease = probeDistToTarget <= 1.0
-    if (overshootRelease) {
-      constraints.push('overshoot-release')
-    }
-    
-    const rampDirectionConflict = isRampStep && !overshootRelease && (
+    // Moving AWAY from baseTarget — apply rate-limit to prevent overshoot
+    const rampDirectionConflict = isRampStep && (
       (mode === 'cooling' && isIncreasing) ||
       (mode === 'heating' && !isIncreasing)
     )
     
-    if (rampDirectionConflict && isTowardTarget) {
+    if (rampDirectionConflict) {
       ctrlTargetPid = ctrlTarget
       constraints.push('ramp-hold')
       console.log(`🛑 Ramp hold ${controllerName}: ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C`)
-    } else if (isTowardTarget && distanceFromIdeal <= 0.5) {
-      console.log(`✅ Rate-limit bypass: korrigering mot mål (${distanceFromIdeal.toFixed(2)}° → baseTarget ${baseTarget}°)`)
     } else if (distanceFromIdeal > baseLimit) {
-      // Ensure minimum step of 0.1° to avoid getting stuck
       const effectiveLimit = Math.max(baseLimit, 0.1)
       ctrlTargetPid = ctrlTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
       constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
       console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
     }
+    
+    } // end away-from-target
 
     } // end large-error else
     } // end else (non-PWM)
