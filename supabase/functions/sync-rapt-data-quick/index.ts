@@ -922,6 +922,7 @@ Deno.serve(async (req) => {
         computeAllMetrics(supabase, {
           brews: allFermentingBrews ?? [],
           sessions: activeSessCheck ?? [],
+          existingMetrics: sharedBrewMetrics ?? [],
         })
           .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
           .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })
