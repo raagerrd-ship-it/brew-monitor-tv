@@ -65,24 +65,38 @@ export interface ProfilesResult {
   message?: string
 }
 
+export interface ProcessSessionsOpts {
+  /** Pre-fetched running sessions — skips DB query if provided */
+  sessions?: FermentationSession[]
+  /** Pre-fetched controllers — skips DB query if provided */
+  controllers?: any[]
+}
+
 export async function processAllSessions(
   supabase: ReturnType<typeof createClient>,
+  opts?: ProcessSessionsOpts,
 ): Promise<ProfilesResult> {
-  // Get all running sessions
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('fermentation_sessions')
-    .select('*')
-    .eq('status', 'running')
-
-  if (sessionsError) {
-    throw new Error(`Failed to fetch sessions: ${sessionsError.message}`)
+  // Get all running sessions (skip if injected)
+  let typedSessions: FermentationSession[]
+  if (opts?.sessions) {
+    typedSessions = opts.sessions
+  } else {
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('fermentation_sessions')
+      .select('*')
+      .eq('status', 'running')
+    if (sessionsError) {
+      throw new Error(`Failed to fetch sessions: ${sessionsError.message}`)
+    }
+    if (!sessions || sessions.length === 0) {
+      return { message: 'No active sessions', results: [] }
+    }
+    typedSessions = sessions as FermentationSession[]
   }
 
-  if (!sessions || sessions.length === 0) {
+  if (typedSessions.length === 0) {
     return { message: 'No active sessions', results: [] }
   }
-
-  const typedSessions = sessions as FermentationSession[]
   const results: { sessionId: string; action: string; details: any }[] = []
 
   // SAFETY: Detect duplicate controllers
