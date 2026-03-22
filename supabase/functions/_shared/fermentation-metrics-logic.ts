@@ -99,6 +99,8 @@ function calculateActivityScore(
 export interface ComputeMetricsOpts {
   /** Pre-fetched fermenting brews — skips DB query if provided */
   brews?: any[]
+  /** Pre-fetched running sessions — skips DB query if provided */
+  sessions?: any[]
 }
 
 export async function computeAllMetrics(
