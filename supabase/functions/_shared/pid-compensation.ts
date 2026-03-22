@@ -548,20 +548,14 @@ export async function calculateCompensatedTarget(
     const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
     const isTowardTarget = newDistToBase < currentDistToBase
     
-    // Moving TOWARD baseTarget: skip rate-limit entirely.
-    // Rationale: when heating, the physical heating rate is limited by hardware,
-    // not by the software target. Rate-limiting only delays reaching the correct
-    // setpoint without slowing actual temperature change. Same principle applies
-    // to cooling recovery (raising target to stop cooling).
+    // Moving TOWARD baseTarget: jump directly to baseTarget.
+    // Rationale: PI correction doesn't help during recovery — the physical
+    // heating/cooling rate is limited by hardware, not software target.
+    // Adding PI on top of baseTarget only causes overshoot without benefit.
     if (isTowardTarget) {
-      // Clamp to baseTarget — never overshoot past it
-      if (isIncreasing && ctrlTargetPid > baseTarget) {
-        ctrlTargetPid = baseTarget
-      } else if (!isIncreasing && ctrlTargetPid < baseTarget) {
-        ctrlTargetPid = baseTarget
-      }
+      ctrlTargetPid = baseTarget
       constraints.push('toward-target-bypass')
-      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C)`)
+      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C, PI ignored during recovery)`)
     } else {
     
     // Moving AWAY from baseTarget — apply rate-limit to prevent overshoot
