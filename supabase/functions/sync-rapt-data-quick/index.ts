@@ -1330,6 +1330,24 @@ Deno.serve(async (req) => {
       ]);
       const pillDataForLog = new Map((dbPillsLog || []).map((p: any) => [p.pill_id, p]));
 
+      // Preserve duty info computed in auto-adjust-cooling SYNC_DATA (sync log replaces those rows)
+      const automationDutyByControllerName = new Map<string, { dutyPct: number; dutySamples?: number }>();
+      for (const d of (automationResult?.automationDecisions ?? [])) {
+        if (d?.step !== 'SYNC_DATA' || typeof d?.message !== 'string') continue;
+        const controllerName = d.message.replace(/^Controller:\s*/, '').trim();
+        const det = (d.details ?? {}) as Record<string, unknown>;
+        const dutyPctRaw = det.duty_pct;
+        const dutySamplesRaw = det.duty_samples;
+        const dutyPct = typeof dutyPctRaw === 'number' ? dutyPctRaw : Number(dutyPctRaw);
+        const dutySamples = typeof dutySamplesRaw === 'number' ? dutySamplesRaw : Number(dutySamplesRaw);
+        if (Number.isFinite(dutyPct) && dutyPct > 0) {
+          automationDutyByControllerName.set(controllerName, {
+            dutyPct: Math.round(dutyPct),
+            dutySamples: Number.isFinite(dutySamples) && dutySamples >= 0 ? Math.round(dutySamples) : undefined,
+          });
+        }
+      }
+
       const syncDecisions: any[] = [];
       for (const cu of (dbControllersLog || [])) {
         const isGlycol = cu.is_glycol_cooler === true;
@@ -1343,6 +1361,11 @@ Deno.serve(async (req) => {
           cooling_enabled: cu.cooling_enabled,
           last_update: cu.last_update ? new Date(cu.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
         };
+        const dutyMeta = automationDutyByControllerName.get(cu.name);
+        if (dutyMeta?.dutyPct != null) {
+          details.duty_pct = dutyMeta.dutyPct;
+          if (dutyMeta.dutySamples != null) details.duty_samples = dutyMeta.dutySamples;
+        }
         if (isGlycol) details.glycol = true;
         syncDecisions.push({ step: 'SYNC_DATA', result: 'info', message: `Controller: ${cu.name}`, details });
 
