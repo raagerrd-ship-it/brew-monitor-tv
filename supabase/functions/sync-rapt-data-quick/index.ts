@@ -889,16 +889,25 @@ Deno.serve(async (req) => {
       }
       console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
 
+      // Consolidated brew_fermentation_metrics query — shared across profiles + metrics
+      const fermentingBrewIds = (allFermentingBrews ?? []).map((b: any) => b.id);
+      const { data: sharedBrewMetrics } = fermentingBrewIds.length > 0
+        ? await supabase.from('brew_fermentation_metrics')
+            .select('brew_id, fermentation_phase, activity_score, sg_rate_per_hour, eta_to_fg_hours, ready_to_crash, peak_delta, peak_sg_rate_per_hour')
+            .in('brew_id', fermentingBrewIds)
+        : { data: [] };
+
       // ── Round 1 (parallel, inlined): profiles + metrics + health-check ──
       const round1Start = Date.now();
       const round1: Promise<any>[] = [];
 
-      // Profiles — direct import call with injected sessions + controllers
+      // Profiles — direct import call with injected sessions + controllers + metrics
       if (hasActiveSessions2) {
         round1.push(
           processAllSessions(supabase, {
             sessions: activeSessCheck!,
             controllers: controllerUpdatesForHistory,
+            brewMetrics: sharedBrewMetrics ?? [],
           })
             .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
             .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
@@ -907,10 +916,11 @@ Deno.serve(async (req) => {
         round1.push(Promise.resolve({ __skipped: true }));
       }
 
-      // Metrics — direct import call with injected brews
+      // Metrics — direct import call with injected brews + sessions
       round1.push(
         computeAllMetrics(supabase, {
           brews: allFermentingBrews ?? [],
+          sessions: activeSessCheck ?? [],
         })
           .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
           .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })
@@ -968,6 +978,9 @@ Deno.serve(async (req) => {
           rapt_access_token: access_token,
           brew_sg_data,
           dryRun: true,
+          injected_controllers: controllerUpdatesForHistory,
+          injected_settings: autoCoolingRow,
+          injected_sessions: activeSessCheck ?? [],
         }, 30000);
       }
 

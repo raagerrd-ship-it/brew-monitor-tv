@@ -64,17 +64,21 @@ Deno.serve(async (req) => {
       timestamp: new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     });
 
-    // ── Load settings ────────────────────────────────────────────
-    const { data: settingsData, error: settingsError } = await supabase
-      .from('auto_cooling_settings').select('*').limit(1).single();
-
-    if (settingsError || !settingsData) {
-      log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError?.message });
-      await printSummary(supabase, 'Settings error', false);
-      return new Response(JSON.stringify({ message: 'Settings error', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // ── Load settings (use injected data from orchestrator if available) ──
+    let settings: any;
+    if (reqBody?.injected_settings) {
+      settings = reqBody.injected_settings;
+      log('SETTINGS', 'info', 'Using injected settings from orchestrator');
+    } else {
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('auto_cooling_settings').select('*').limit(1).single();
+      if (settingsError || !settingsData) {
+        log('SETTINGS', 'fail', 'Failed to fetch settings', { error: settingsError?.message });
+        await printSummary(supabase, 'Settings error', false);
+        return new Response(JSON.stringify({ message: 'Settings error', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      settings = settingsData;
     }
-
-    const settings = settingsData as any;
     const pillCompSettings = await loadPillCompSettings(supabase);
     const coolingEnabled = settings.enabled;
     const pillCompEnabled = pillCompSettings.enabled;
@@ -103,14 +107,19 @@ Deno.serve(async (req) => {
       log('RETRY', 'info', `Found ${retriesToProcess.length} pending retry(ies) from previous cycle(s)`);
     }
 
-    // ── Load controllers ─────────────────────────────────────────
-    const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
-    const allControllers = (allControllersData || []) as TempController[];
-
-    if (allControllersError || allControllers.length === 0) {
-      log('CONTROLLERS', 'fail', 'No controllers found');
-      await printSummary(supabase, 'No controllers', false);
-      return new Response(JSON.stringify({ message: 'No controllers', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // ── Load controllers (use injected data from orchestrator if available) ──
+    let allControllers: TempController[];
+    if (reqBody?.injected_controllers) {
+      allControllers = reqBody.injected_controllers as TempController[];
+      log('CONTROLLERS', 'info', `Using ${allControllers.length} injected controller(s) from orchestrator`);
+    } else {
+      const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
+      allControllers = (allControllersData || []) as TempController[];
+      if (allControllersError || allControllers.length === 0) {
+        log('CONTROLLERS', 'fail', 'No controllers found');
+        await printSummary(supabase, 'No controllers', false);
+        return new Response(JSON.stringify({ message: 'No controllers', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     // Auto-follow: all controllers with active cooling or heating, excluding the glycol cooler
@@ -171,13 +180,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Load profile data ────────────────────────────────────────
+    // ── Load profile data (use injected sessions if available) ──
     {
-      const { data: runningSessions } = await supabase
-        .from('fermentation_sessions')
-        .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp, brew_id')
-        .eq('status', 'running')
-        .in('controller_id', followedControllerIds);
+      let runningSessions: any[] | null;
+      if (reqBody?.injected_sessions) {
+        // Filter to only sessions for followed controllers
+        runningSessions = reqBody.injected_sessions.filter((s: any) =>
+          s.status === 'running' && followedControllerIds.includes(s.controller_id)
+        );
+        log('SESSIONS', 'info', `Using ${runningSessions!.length} injected session(s) from orchestrator`);
+      } else {
+        const { data } = await supabase
+          .from('fermentation_sessions')
+          .select('id, controller_id, profile_id, current_step_index, step_started_at, step_start_temp, brew_id')
+          .eq('status', 'running')
+          .in('controller_id', followedControllerIds);
+        runningSessions = data;
+      }
 
       if (runningSessions && runningSessions.length > 0) {
         // Cooloff check — only trigger for large temp changes (≥ 1°C)
@@ -455,12 +474,17 @@ Deno.serve(async (req) => {
     // ── Idle detection: skip learning when system is idle ──
     // Idle = no running fermentation sessions (any controller) AND
     // cooler already at max or cooling disabled
-    const { data: anyRunningSessions } = await supabase
-      .from('fermentation_sessions')
-      .select('id')
-      .eq('status', 'running')
-      .limit(1);
-    const hasAnySessions = (anyRunningSessions?.length ?? 0) > 0;
+    let hasAnySessions: boolean;
+    if (reqBody?.injected_sessions) {
+      hasAnySessions = reqBody.injected_sessions.some((s: any) => s.status === 'running');
+    } else {
+      const { data: anyRunningSessions } = await supabase
+        .from('fermentation_sessions')
+        .select('id')
+        .eq('status', 'running')
+        .limit(1);
+      hasAnySessions = (anyRunningSessions?.length ?? 0) > 0;
+    }
     const coolerControllerData = allControllers.find(c => (c as any).is_glycol_cooler);
     const coolerAtMaxTemp = coolerControllerData
       ? parseFloat(String(coolerControllerData.target_temp ?? '0')) >= parseFloat(String(coolerControllerData.max_target_temp ?? '25'))
