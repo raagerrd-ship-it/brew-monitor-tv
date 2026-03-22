@@ -231,10 +231,29 @@ export class RaptUpdateBatch {
     if (accessToken) this.preAuthToken = accessToken
   }
 
-  /** Queue a target temp update. If same controller is added twice, last value wins (but keeps first oldTarget). */
-  add(controllerId: string, targetTemp: number, currentTarget?: number): void {
-    // Skip no-op: don't send if hardware already at this target
+  /** Queue a target temp update. If same controller is added twice, last value wins (but keeps first oldTarget).
+   *  @param hardwareTarget - The actual target reported by RAPT hardware (if available). Used to skip redundant API calls. */
+  add(controllerId: string, targetTemp: number, currentTarget?: number, hardwareTarget?: number): void {
+    // Skip no-op: don't send if DB already at this target
     if (currentTarget !== undefined && Math.abs(targetTemp - currentTarget) < 0.05) {
+      return
+    }
+    // Skip no-op: don't send if hardware already at this target (avoids redundant RAPT API calls)
+    if (hardwareTarget !== undefined && Math.abs(targetTemp - hardwareTarget) < 0.05) {
+      // Still need to update DB if it differs
+      if (currentTarget !== undefined && Math.abs(targetTemp - currentTarget) >= 0.05) {
+        // Queue as DB-only update (mark pending but skip RAPT send)
+        const existing = this.pending.find(p => p.controllerId === controllerId)
+        if (existing) {
+          existing.targetTemp = targetTemp
+        } else {
+          this.pending.push({ controllerId, targetTemp, oldTarget: currentTarget })
+          if (!this.oldTargets.has(controllerId)) {
+            this.oldTargets.set(controllerId, currentTarget)
+          }
+        }
+        this.hwOnlySkipIds.add(controllerId)
+      }
       return
     }
     const existing = this.pending.find(p => p.controllerId === controllerId)
