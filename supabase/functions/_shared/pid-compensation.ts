@@ -506,7 +506,14 @@ export async function calculateCompensatedTarget(
 
     // Delta bypass removed — sensorDelta is already baked into baseTarget.
     // No separate "delta-driven" rate limit needed.
-    if (skipRateLimit) {
+    // Large-error recovery: if ctrlTarget is wildly wrong (e.g. after failed PWM revert
+    // or sync race condition), skip rate-limit entirely and jump to correct value.
+    // This prevents spending 20+ cycles crawling back from an incorrect target.
+    const LARGE_ERROR_THRESHOLD = 2.0 // °C
+    if (distanceFromIdeal > LARGE_ERROR_THRESHOLD && isTowardTarget) {
+      constraints.push('large-error-bypass')
+      console.log(`🚀 Large-error bypass ${controllerName}: gap=${distanceFromIdeal.toFixed(1)}°C > ${LARGE_ERROR_THRESHOLD}°C, jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C`)
+    } else if (skipRateLimit) {
       // PWM active segment — bypass rate limit entirely to ensure target moves
       // past hysteresis and actually triggers the relay
       constraints.push('pwm-bypass')
