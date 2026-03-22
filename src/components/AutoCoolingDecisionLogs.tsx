@@ -466,20 +466,23 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color || 'hsl(45 90% 55%)',
         borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM ■ {shortName} {details?.duty_seconds}s
+        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM ■ {shortName} OFF
       </Badge>
     );
   }
   for (const pwm of pwmAdjs) {
     const shortName = pwm.cooler_controller_name.replace('Temp Controller ', '');
     const color = controllerColors[pwm.cooler_controller_name];
+    // Extract duty_pct from the reason field if available
+    const dutyMatch = pwm.reason?.match(/duty[:\s]*(\d+)%/i);
+    const dutyPct = dutyMatch ? dutyMatch[1] : null;
     raptBadges.push(
       <Badge key={`pwm-${pwm.id}`} variant="default" className="text-[10px] px-1.5" style={{
         background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
         color: color || 'hsl(45 90% 55%)',
         borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />{shortName} {r1(pwm.old_target_temp)}° → {r1(pwm.new_target_temp)}°
+        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM ■ {shortName} ON{dutyPct ? ` ${dutyPct}%` : ''}
       </Badge>
     );
   }
