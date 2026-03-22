@@ -136,6 +136,8 @@ const PIPELINE_STEPS = new Set([
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
   'SYNC_FREQ',
+  // Steps rendered inline by header/pipeline (prevent "Övrigt" duplication)
+  'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'RETRY',
 ]);
 
 // --- Helpers ---
