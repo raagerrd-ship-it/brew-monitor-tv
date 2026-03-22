@@ -819,29 +819,42 @@ Deno.serve(async (req) => {
     // Automation runs in dryRun mode — returns pendingUpdates
     // instead of flushing to RAPT API. Flush happens in Phase 3.
     // ──────────────────────────────────────────────────────────
-    // Skip entirely when system is idle (no active sessions, no active cooling, cooler at max)
-    const [{ data: activeSessCheck }, { data: autoCoolingCheck2 }] = await Promise.all([
-      supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
-      supabase.from('auto_cooling_settings').select('enabled, pill_compensation_enabled, cooler_controller_id').limit(1).maybeSingle(),
-    ]);
-    const hasActiveSessions2 = activeSessCheck && activeSessCheck.length > 0;
-    const hasCoolingEnabled = autoCoolingCheck2?.enabled === true;
-    const hasPillComp = autoCoolingCheck2?.pill_compensation_enabled === true;
+    // Reuse autoCoolingRow from Phase 0 — no redundant DB query
+    const hasCoolingEnabled = autoCoolingRow?.enabled === true;
+    const hasPillComp = autoCoolingRow?.pill_compensation_enabled === true;
 
-    // Check if cooler is idle (at max temp)
+    // Check active sessions (lightweight query — needed for skip logic + profiles)
+    const { data: activeSessCheck } = await supabase
+      .from('fermentation_sessions').select('id, controller_id').eq('status', 'running').limit(100);
+    const hasActiveSessions2 = activeSessCheck && activeSessCheck.length > 0;
+
+    // Check active (non-glycol) controllers with cooling/heating from Phase 1c data
+    const hasActiveControllers = controllerUpdatesForHistory.some(c =>
+      !c.is_glycol_cooler && (c.cooling_enabled || c.heating_enabled));
+
+    // Check cooler idle status using in-memory data (fallback to DB if Phase 1 failed)
     let coolerIsIdle2 = true;
-    if (hasCoolingEnabled && autoCoolingCheck2?.cooler_controller_id) {
-      const { data: coolerCtrl } = await supabase.from('rapt_temp_controllers')
-        .select('target_temp, max_target_temp')
-        .eq('controller_id', autoCoolingCheck2.cooler_controller_id).maybeSingle();
+    if (hasCoolingEnabled && autoCoolingRow?.cooler_controller_id) {
+      const coolerCtrl = controllerUpdatesForHistory.find(
+        (c: any) => c.controller_id === autoCoolingRow.cooler_controller_id
+      );
       if (coolerCtrl) {
         const ct = parseFloat(String(coolerCtrl.target_temp ?? 0));
         const cm = parseFloat(String(coolerCtrl.max_target_temp ?? 25));
         coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
+      } else {
+        // Fallback: Phase 1 failed or cooler not in selected controllers
+        const { data: coolerCtrlDb } = await supabase.from('rapt_temp_controllers')
+          .select('target_temp, max_target_temp')
+          .eq('controller_id', autoCoolingRow.cooler_controller_id).maybeSingle();
+        if (coolerCtrlDb) {
+          const ct = parseFloat(String(coolerCtrlDb.target_temp ?? 0));
+          const cm = parseFloat(String(coolerCtrlDb.max_target_temp ?? 25));
+          coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
+        }
       }
     }
 
-    // PID only matters if there are active sessions — no sessions = nothing to compensate
     const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2);
 
     let automationResult: any = null;
@@ -850,9 +863,9 @@ Deno.serve(async (req) => {
     if (systemIsIdle) {
       console.log('⏱️ Phase 2b (automation): SKIPPED — system idle');
     } else {
-      console.log('All data synced — running automation (dryRun)...');
+      console.log('All data synced — running automation (direct calls, no middleman)...');
 
-      // Build brew_sg_data map from already-synced brew data (avoids redundant DB queries in automation)
+      // Build brew_sg_data map from already-synced brew data
       const brew_sg_data: Record<string, any> = {};
       {
         const { data: allBrews } = await supabase
@@ -875,16 +888,108 @@ Deno.serve(async (req) => {
         console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
       }
 
-      try {
-        const autoResponse = await supabase.functions.invoke('run-automation', {
-          body: { rapt_access_token: access_token, brew_sg_data, dryRun: true }
-        });
-        if (autoResponse.error) console.error('Automation error:', autoResponse.error);
-        else automationResult = autoResponse.data;
-      } catch (autoErr) {
-        console.error('Automation error:', autoErr);
+      // Direct sub-function caller (eliminates run-automation HTTP hop)
+      const callFn = async (name: string, body: any, timeoutMs: number) => {
+        const fnStart = Date.now();
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          const duration = Date.now() - fnStart;
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
+            return { __error: true, __step: name, __duration: duration };
+          }
+          const data = await response.json();
+          console.log(`  ✅ ${name}: ${duration}ms`);
+          return { ...data, __duration: duration };
+        } catch (err) {
+          const duration = Date.now() - fnStart;
+          const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
+          console.error(`${name} ${isTimeout ? 'timeout' : 'error'} (${duration}ms):`, err);
+          return { __error: true, __step: name, __duration: duration, __timeout: isTimeout };
+        }
+      };
+
+      // ── Round 1 (parallel): profiles + metrics + health-check ──
+      const round1: Promise<any>[] = [];
+
+      if (hasActiveSessions2) {
+        round1.push(callFn('process-fermentation-profiles', {}, 15000));
+      } else {
+        round1.push(Promise.resolve({ __skipped: true }));
       }
-      console.log(`⏱️ Phase 2b (automation dryRun): ${Date.now() - tPhase2b}ms`);
+
+      round1.push(callFn('compute-fermentation-metrics', {}, 15000));
+      round1.push(callFn('system-health-check', {}, 10000));
+
+      const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
+
+      // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
+      const needsCoolerRun = hasCoolingEnabled && (!hasActiveControllers ? !coolerIsIdle2 : true);
+      let pidResult: any = null;
+
+      if (needsCoolerRun || (hasPillComp && hasActiveControllers)) {
+        pidResult = await callFn('auto-adjust-cooling', {
+          rapt_access_token: access_token,
+          brew_sg_data,
+          dryRun: true,
+        }, 30000);
+      }
+
+      // Build automationResult compatible with Phase 3 expectations
+      automationResult = {
+        automationDecisions: [
+          ...(pidResult && !pidResult.__error ? (pidResult.decisionLog ?? []) : []),
+        ],
+        automationFinalResult: pidResult && !pidResult.__error ? (pidResult.message ?? null) : null,
+        automationAdjustmentMade: (pidResult?.adjustments?.length ?? 0) > 0,
+        pendingUpdates: pidResult?.pendingUpdates ?? [],
+        hwOnlyIds: pidResult?.hwOnlyIds ?? [],
+        retriesToProcess: pidResult?.retriesToProcess ?? [],
+        pendingKickControllerId: pidResult?.pendingKickControllerId ?? null,
+      };
+
+      // Health critical notification (migrated from run-automation)
+      if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical') {
+        const issuesSummary = (healthResult.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { data: recentHealthNotifs } = await supabase
+          .from('pending_notifications').select('id')
+          .eq('type', 'system_health_critical').gte('created_at', oneHourAgo).limit(1);
+        if (!recentHealthNotifs || recentHealthNotifs.length === 0) {
+          await supabase.from('pending_notifications').insert({
+            type: 'system_health_critical', title: 'Systemhälsa: Kritisk', body: issuesSummary,
+          });
+        }
+      }
+
+      // Failure alerting (migrated from run-automation)
+      const failedSteps = [
+        profilesResult?.__error && 'profiles',
+        metricsResult?.__error && 'metrics',
+        healthResult?.__error && 'health',
+        pidResult?.__error && 'pid-glycol',
+      ].filter(Boolean);
+
+      if (failedSteps.length > 0) {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { data: recentNotifs } = await supabase
+          .from('pending_notifications').select('id')
+          .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
+        if ((recentNotifs?.length ?? 0) < 3) {
+          await supabase.from('pending_notifications').insert({
+            type: 'automation_failure', title: 'Automationsfel',
+            body: `${failedSteps.length} steg misslyckades: ${failedSteps.join(', ')}`,
+          });
+        }
+      }
+
+      console.log(`⏱️ Phase 2b (automation direct): ${Date.now() - tPhase2b}ms`);
     }
 
     // ──────────────────────────────────────────────────────────
