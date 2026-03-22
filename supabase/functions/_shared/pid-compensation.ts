@@ -586,19 +586,21 @@ export async function calculateCompensatedTarget(
     } // end large-error else
     } // end else (non-PWM)
     
-    // Safety clamp: never set target above probe during cooling (would start heater)
-    // or below probe during heating (would start cooler)
+    // Safety clamp: prevent target from overshooting PAST baseTarget.
+    // Old logic clamped to probe temp, but that blocks valid recovery
+    // (e.g. cooling mode where target should be above probe to stop cooling).
+    // New logic: only clamp if target crosses baseTarget into the wrong direction.
     const probeDistToTargetFinal = Math.abs(latestCtrlForComp - baseTarget)
     const overshootReleaseFinal = probeDistToTargetFinal <= 1.0
     if (overshootReleaseFinal) {
-      if (mode === 'cooling' && ctrlTargetPid > latestCtrlForComp) {
-        ctrlTargetPid = latestCtrlForComp
+      if (mode === 'cooling' && ctrlTargetPid > baseTarget) {
+        ctrlTargetPid = baseTarget
         constraints.push('overshoot-clamp')
-        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar värmaren)`)
-      } else if (mode === 'heating' && ctrlTargetPid < latestCtrlForComp) {
-        ctrlTargetPid = latestCtrlForComp
+        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till baseTarget ${baseTarget}°C (förhindrar overshoot förbi mål)`)
+      } else if (mode === 'heating' && ctrlTargetPid < baseTarget) {
+        ctrlTargetPid = baseTarget
         constraints.push('overshoot-clamp')
-        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till probe ${latestCtrlForComp.toFixed(1)}°C (förhindrar kylaren)`)
+        console.log(`🔒 Overshoot clamp ${controllerName}: begränsar mål till baseTarget ${baseTarget}°C (förhindrar overshoot förbi mål)`)
       }
     }
   }
