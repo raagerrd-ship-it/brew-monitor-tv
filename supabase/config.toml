@@ -90,3 +90,6 @@ verify_jwt = false
 
 [functions.send-push-notification]
 verify_jwt = false
+
+[functions.execute-pwm-off]
+verify_jwt = false

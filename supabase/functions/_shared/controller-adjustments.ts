@@ -395,18 +395,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       // PWM ON is documented by DUTY_PWM_BURST + RAPT_SEND decisions — no separate adjustment log needed
 
-      // 2. Populate burst metadata for run-automation to execute sleep+OFF
-      ctx.pwmBursts.push({
-        controller_id: fc.controller_id,
-        controller_name: fc.name,
-        on_target: onTarget,
-        off_target: offTarget,
-        duty_seconds: dutySeconds,
-        duty_pct: pwmDutyPct,
-      })
-
-      // 3. Also store as pending fallback — if run-automation crashes/times out,
-      //    next cycle will still revert. run-automation deletes this on success.
+      // 2. Schedule PWM OFF via pending_rapt_retries with execute_at
+      //    pg_cron runs execute-pwm-off every minute which picks up due rows.
+      const executeAt = new Date(Date.now() + dutySeconds * 1000).toISOString()
       await supabase.from('pending_rapt_retries')
         .delete()
         .eq('controller_id', fc.controller_id)
@@ -414,7 +405,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       await supabase.from('pending_rapt_retries').insert({
         controller_id: fc.controller_id,
         target_temp: offTarget,
-        reason: `⚡ PWM OFF: hw → ${offTarget}° (db oförändrad)`,
+        reason: `⚡ PWM OFF: hw → ${offTarget}° (${dutySeconds}s burst, ${pwmDutyPct}% duty)`,
+        execute_at: executeAt,
       })
 
       // 4. Reset PI integral so PID starts fresh after PWM ends.
