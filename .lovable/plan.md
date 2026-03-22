@@ -1,47 +1,55 @@
 
 
-## Omstrukturera loggen efter synk-faser (1a–2c)
+## Optimera Phase 2a: Eliminera onödigt RAPT Telemetri-anrop
 
-### Bakgrund
-Idag grupperas loggvyn efter **typ** (Synk-data, PID-reglering, Stall, Glykol-kylare, Skickat till RAPT, Övrigt). Användaren vill att expanderat läge istället följer den faktiska synk-pipelinen med faserna som rubriker.
+### Insikt
+Phase 1 hämtar redan pillens senaste gravity, temperature och battery via `GetHydrometers` och sparar i `rapt_pills`. Phase 2a anropar sedan **ett helt annat API** (`GetTelemetry`) för att hämta historiska datapunkter — men vid snabb-synk (var 5:e min) behöver vi bara **appenda den enda nya datapunkten** som redan finns i `rapt_pills`.
 
-### Fas-mappning
-Baserat på `sync-rapt-data-quick/index.ts`:
-
+### Nuvarande flöde (onödigt)
 ```text
-1a Auth        → RAPT-autentisering (token-hämtning)
-1b Fetch       → Hämta data från RAPT API (controllers + pills)
-1c Upsert      → Spara till databas (upsert controllers/pills)
-2a Brew        → Brewfather-synk, SG-data, snapshots
-2b Auto        → Automation (PID, Stall, Glykol, PWM, RAPT-send)
-2c Hist        → Temp-historik, cleanup
+Phase 1: GetHydrometers → rapt_pills (gravity, temp, battery) ✅
+Phase 2a: GetTelemetry → hämtar SAMMA data igen som historik  ❌ ~1-3s per pill
 ```
 
-### Ändringar i `AutoCoolingDecisionLogs.tsx`
+### Optimerat flöde
+```text
+Phase 1: GetHydrometers → rapt_pills (gravity, temp, battery) ✅
+Phase 2a: Läs rapt_pills från minnet → appenda en datapunkt till sg_data ✅ ~0ms
+```
 
-#### 1. Ersätt PipelineView-sektionerna med fas-rubriker
-Istället för nuvarande sektioner (Synk-data → PID → Stall → Glykol → RAPT) blir strukturen:
+`GetTelemetry` behövs bara vid:
+- **Initial sync** (när `sg_data` är tom) — hämta hela historiken
+- **Full sync** (var 6:e timme) — fånga eventuellt missade datapunkter
 
-- **1a · Auth** — Visa timing från PHASE_TIMINGS (`1a_auth_ms`). Kort — bara tid + ev. TOKEN_REFRESH-steg
-- **1b · Hämtning** — Timing (`1b_fetch_ms`). Kort rad
-- **1c · Synk-data** — Timing (`1c_upsert_ms`). Här placeras den befintliga SYNC_DATA-tabellen (controllers + pill-data)
-- **2a · Bryggdata** — Timing (`2a_brew_ms`). BREW_SG_STATUS-rader om de inte redan visas i sync-tabellen
-- **2b · Automation** — Timing (`2b_auto_ms`). Här samlas PID-reglering, Stall-detektering, Glykol-kylare, Pass-through, PWM — alla befintliga sektioner som sub-sektioner
-- **2c · Historik** — Timing (`2c_hist_ms`). RAPT_SEND + BATCH_FLUSH (skicka till RAPT) + snapshot-info
+### Ändringar i `sync-rapt-data-quick/index.ts`
 
-#### 2. Fas-rubrik-komponent
-Ny liten komponent `PhaseHeader` som visar:
-- Fas-kod i monospace (t.ex. `1a`)
-- Fas-namn
-- Timing i ms (från PHASE_TIMINGS)
-- Röd ❌ om fasen felade
+**`customBrewSync` funktion (rad 556-708):**
 
-#### 3. Behåll befintligt innehåll
-Alla tabeller, badges, tooltips etc. behålls som de är — de flyttas bara under rätt fas-rubrik. Inga funktionella ändringar.
+1. **Ersätt `fetchPillTelemetryCorrected`** med en enkel append av senaste datapunkt från Phase 1:s `rapt_pills`-data (redan tillgänglig via `fetchedPills` i scope)
+2. **Behåll telemetri-fetch enbart** om `sg_data` är tom (initial sync) — då behövs historik
+3. **Ta bort redundanta DB-queries** (rad 567-570) — använd `fetchedPills` och `controllerUpdatesForHistory` från Phase 1 istället
+4. **Parallellisera** eventuella kvarvarande initial-sync telemetri-hämtningar med `Promise.all`
 
-#### 4. Fallback
-Om PHASE_TIMINGS saknas (t.ex. äldre loggar), visa befintlig flat layout som idag.
+### Detaljerad logik för quick-append
 
-### Filer
-- `src/components/AutoCoolingDecisionLogs.tsx` — omstrukturera `PipelineView`
+```text
+För varje custom brew:
+  1. Hitta pill via linked_pill_id / paired_device_id (befintlig logik)
+  2. Om sg_data är tom → hämta telemetrihistorik (GetTelemetry) som idag
+  3. Om sg_data har data → läs pill.gravity + pill.temperature från Phase 1
+     → Skapa en ny SgDataPoint { date: pill.last_update, value: gravity/1000, temp }
+     → Appenda till sg_data (dedup på date)
+     → Uppdatera brew_readings med ny sg_data + current_sg + current_temp etc.
+```
+
+### SG-korrektion
+- Vid quick-append: applicera `applySgCorrection` på den enda datapunkten (om enabled)
+- Vid initial-sync: befintlig logik med `fetchPillTelemetryCorrected` behålls
+
+### Uppskattad besparing
+- **~1500-3000ms** per cykel (eliminerar 1-2 externa API-anrop)
+- Phase 2a bör gå från ~3700ms till ~200-500ms
+
+### Fil
+- `supabase/functions/sync-rapt-data-quick/index.ts` — refaktorera `customBrewSync`
 
