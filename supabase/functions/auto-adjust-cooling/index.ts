@@ -338,8 +338,10 @@ Deno.serve(async (req) => {
       }
 
       // Add learned duty cycle percentage if available (for non-glycol, active controllers)
+      // Use profile target or original target for bucket (target_temp may be 0°C during PWM burst)
       if (!isGlycol && isFollowed && !isStale) {
-        const cBucket = getTempBucket(targetTemp);
+        const dutyBucketTemp = originalTarget !== targetTemp && originalTarget < 900 ? originalTarget : targetTemp;
+        const cBucket = getTempBucket(dutyBucketTemp);
         const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
         if (dutyParam.sampleCount >= 1 && dutyParam.value > 0) {
           details.duty_pct = Math.round(dutyParam.value * 100);
