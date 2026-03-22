@@ -544,18 +544,27 @@ export async function calculateCompensatedTarget(
       }
     }
     
+    // Recovery clamp: when probe is on the wrong side of baseTarget,
+    // PI must never push the hardware target further away from baseTarget.
+    // Physical recovery speed is hardware-limited — PI only causes overshoot.
+    const probeIsAboveBase = latestCtrl > baseTarget + 0.15
+    const probeIsBelowBase = latestCtrl < baseTarget - 0.15
+    const piPushesAway = (probeIsAboveBase && ctrlTargetPid > baseTarget) ||
+                         (probeIsBelowBase && ctrlTargetPid < baseTarget)
+    
     const currentDistToBase = Math.abs(ctrlTarget - baseTarget)
     const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
     const isTowardTarget = newDistToBase < currentDistToBase
     
-    // Moving TOWARD baseTarget: jump directly to baseTarget.
-    // Rationale: PI correction doesn't help during recovery — the physical
-    // heating/cooling rate is limited by hardware, not software target.
-    // Adding PI on top of baseTarget only causes overshoot without benefit.
-    if (isTowardTarget) {
+    if (piPushesAway) {
+      // Probe needs to recover toward baseTarget — clamp PI, jump to baseTarget
+      ctrlTargetPid = baseTarget
+      constraints.push('recovery-clamp')
+      console.log(`🔒 Recovery clamp ${controllerName}: probe=${latestCtrl.toFixed(1)}° ${probeIsAboveBase ? '>' : '<'} baseTarget=${baseTarget}°C, PI ignored (was pushing away)`)
+    } else if (isTowardTarget) {
       ctrlTargetPid = baseTarget
       constraints.push('toward-target-bypass')
-      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C, PI ignored during recovery)`)
+      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C)`)
     } else {
     
     // Moving AWAY from baseTarget — apply rate-limit to prevent overshoot
