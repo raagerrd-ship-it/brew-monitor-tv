@@ -594,7 +594,7 @@ Deno.serve(async (req) => {
         // Detect PWM ON sends (hardware-only with target=0)
         const isPwmSend = updateBatch.isHardwareOnly(controllerId) && target === 0;
         // Extract duty_pct from DUTY_PWM_BURST decision if available
-        const pwmBurstDecision = isPwmSend ? allDecisions.find(d => d.step === 'DUTY_PWM_BURST' && d.message?.includes(name)) : null;
+        const pwmBurstDecision = isPwmSend ? decisionLog.find(d => d.step === 'DUTY_PWM_BURST' && d.message?.includes(name)) : null;
         const pwmDutyPct = (pwmBurstDecision?.details as { duty_pct?: number } | undefined)?.duty_pct;
         log('RAPT_SEND', 'action', `${name}: ${oldTarget ?? '?'}°C → ${target}°C`, {
           controller_id: controllerId,
