@@ -199,8 +199,18 @@ Deno.serve(async (req) => {
   const automationFinalResult = pidAndGlycolData?.message ?? null;
   const automationAdjustmentMade = (pidAndGlycolData?.adjustments?.length ?? 0) > 0;
 
+  // Forward dryRun data from auto-adjust-cooling
+  const pendingUpdates = pidAndGlycolData?.pendingUpdates ?? [];
+  const hwOnlyIds = pidAndGlycolData?.hwOnlyIds ?? [];
+  const retriesToProcess = pidAndGlycolData?.retriesToProcess ?? [];
+  const pendingKickControllerId = pidAndGlycolData?.pendingKickControllerId ?? null;
+
   return new Response(
-    JSON.stringify({ ok: true, total_duration_ms: totalDuration, steps: results, automationDecisions, automationFinalResult, automationAdjustmentMade }),
+    JSON.stringify({
+      ok: true, total_duration_ms: totalDuration, steps: results,
+      automationDecisions, automationFinalResult, automationAdjustmentMade,
+      pendingUpdates, hwOnlyIds, retriesToProcess, pendingKickControllerId,
+    }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });
