@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
         const displayName = ctrlName.replace("Temp Controller ", "");
 
         await supabase.from("auto_cooling_decision_logs").insert({
-          final_result: `⚡ PWM OFF: ${displayName} 0° → ${retry.target_temp}° (${dutySecs}s)`,
+          final_result: `⚡ PWM OFF: ${displayName} → ${retry.target_temp}° (${dutyPct}%)`,
           decisions: [
             {
               step: "PWM_OFF",
