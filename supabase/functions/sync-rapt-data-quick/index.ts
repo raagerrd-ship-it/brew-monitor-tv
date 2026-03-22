@@ -1007,12 +1007,21 @@ Deno.serve(async (req) => {
           total_ms: totalMs,
         }
       });
+      // Merge automation decisions (from auto-adjust-cooling via run-automation) with sync decisions
+      // Order: automation decisions first, then sync/frequency data — single log entry per cycle
+      const automationDecisions: any[] = automationResult?.automationDecisions ?? [];
+      const allDecisions = [...automationDecisions, ...syncDecisions];
+      const automationMadeAdjustment = automationResult?.automationAdjustmentMade === true;
+      const automationFinal = automationResult?.automationFinalResult;
+      const combinedFinalResult = automationFinal
+        ? `${automationFinal} | Synkfrekvens: ${desiredInterval / 60} min (${reasons})`
+        : `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`;
       await supabase.from('auto_cooling_decision_logs').insert({
         duration_ms: totalMs,
-        decision_count: syncDecisions.length,
-        decisions: syncDecisions,
-        final_result: `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`,
-        adjustment_made: changed,
+        decision_count: allDecisions.length,
+        decisions: allDecisions,
+        final_result: combinedFinalResult,
+        adjustment_made: changed || automationMadeAdjustment,
       } as any);
     } catch (e) {
       console.error('Dynamic sync frequency error:', e);

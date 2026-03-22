@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     console.log(`${icon} [${step}] ${message}`, details ? JSON.stringify(details) : '');
   };
 
-  const printSummary = async (supabase: ReturnType<typeof createClient> | null, finalResult: string, adjustmentMade: boolean) => {
+  const printSummary = async (_supabase: ReturnType<typeof createClient> | null, finalResult: string, adjustmentMade: boolean) => {
     const duration = Date.now() - startTime;
     console.log('\n' + '='.repeat(60));
     console.log('📊 AUTO-COOLING DECISION SUMMARY');
@@ -48,15 +48,8 @@ Deno.serve(async (req) => {
       console.log(`${i + 1}. ${icon} ${entry.step}: ${entry.message}`);
     });
     console.log('='.repeat(60) + '\n');
-
-    if (supabase) {
-      try {
-        await supabase.from('auto_cooling_decision_logs').insert({
-          duration_ms: duration, decision_count: decisionLog.length,
-          decisions: decisionLog, final_result: finalResult, adjustment_made: adjustmentMade,
-        } as any);
-      } catch (e) { console.error('Error saving decision log:', e); }
-    }
+    // NOTE: DB logging is handled by sync-rapt-data-quick (merged with sync decisions)
+    // to avoid duplicate log entries per cycle.
   };
 
   let supabase: ReturnType<typeof createClient> | null = null;

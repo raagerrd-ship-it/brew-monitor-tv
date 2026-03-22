@@ -275,8 +275,13 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Extract automation decisions from pid-and-glycol step for upstream merging
+  const automationDecisions = pidAndGlycolData?.decisionLog ?? [];
+  const automationFinalResult = pidAndGlycolData?.message ?? null;
+  const automationAdjustmentMade = (pidAndGlycolData?.adjustments?.length ?? 0) > 0;
+
   return new Response(
-    JSON.stringify({ ok: true, total_duration_ms: totalDuration, steps: results }),
+    JSON.stringify({ ok: true, total_duration_ms: totalDuration, steps: results, automationDecisions, automationFinalResult, automationAdjustmentMade }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });
