@@ -1236,16 +1236,19 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                     const dutyPct = det.duty_pct as number | undefined;
                     if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                     const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
+                    const samples = det.duty_samples as number | undefined;
+                    const isLowSamples = samples != null && samples < 3;
                     return (
                       <TooltipProvider delayDuration={200}><Tooltip>
                         <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {String(dutyPct)}%
+                          <span className={`font-mono cursor-help ${isLowSamples ? 'text-amber-400/60' : dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {isLowSamples && '⚠ '}{String(dutyPct)}%
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
                           Inlärt kylbehov: {String(dutyPct)}% = {burstSecs}s burst per 5-min cykel
-                          {det.duty_samples != null && ` (${String(det.duty_samples)} mätningar)`}
+                          {samples != null && ` (${String(samples)} mätningar)`}
+                          {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
                         </TooltipContent>
                       </Tooltip></TooltipProvider>
                     );
