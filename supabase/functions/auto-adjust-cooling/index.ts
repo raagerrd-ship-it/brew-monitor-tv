@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
 
   let reqBody: any = {};
   try { reqBody = await req.json(); } catch { /* no body */ }
+  const dryRun = reqBody?.dryRun === true;
 
   const log = (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => {
     decisionLog.push({ step, result, message, details });
