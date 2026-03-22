@@ -274,7 +274,8 @@ Deno.serve(async (req) => {
       // Phase 1b: Fetch pills + controllers from RAPT API in parallel
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
-      const [fetchedPills, fetchedControllers] = await Promise.all([
+      let fetchedControllers: any[];
+      [fetchedPills, fetchedControllers] = await Promise.all([
         selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
         selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
