@@ -430,7 +430,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ── No-op: PID diff too small to justify an update ──────
-    if (pidDiff < 0.1) {
+    // 0.1° is the minimum displayable change (round1). At exactly 0.1°,
+    // the hardware often already has this value from API latency, making the call redundant.
+    if (pidDiff <= 0.1) {
       continue
     }
 

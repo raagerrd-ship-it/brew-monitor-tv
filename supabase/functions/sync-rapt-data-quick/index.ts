@@ -991,6 +991,7 @@ Deno.serve(async (req) => {
           injected_settings: autoCoolingRow,
           injected_sessions: activeSessCheck ?? [],
         }, 30000);
+        }, 30000);
       }
 
       // Build automationResult compatible with Phase 3 expectations
