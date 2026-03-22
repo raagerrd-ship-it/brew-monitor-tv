@@ -1,24 +1,18 @@
 
 
-## Kylaren: Profil = Mål
+## Nollställ kylningshastighet för Controller Blå
 
-**Problem:** Glykolkylaren visar "Profil: 22" (från `profile_target_temp` i databasen) medan "Mål: 10.5" (det faktiska `target_temp`). Kylaren har ingen fermenteringsprofil — värdet 22 är förmodligen `max_target_temp` eller ett gammalt värde som inte längre är relevant.
+**Vad:** Uppdatera raden i `fermentation_learnings` för Controller Blå (`ffa62be4-d6f7-4533-83b4-57ad93c3ac01`, parameter `thermal_rate_cooling`) från 11.81°C/h till grundvärde 2.0°C/h och återställ `sample_count` till 1.
 
-**Lösning — backend-fix i `auto-adjust-cooling/index.ts`:**
-
-I SYNC_DATA-loggningen (rad ~298–311), för glykolkylare, sätt `profile_target` till samma som `targetTemp` (ctrl_target) istället för att falla tillbaka på `controllerProfileTarget`.
-
-```typescript
-// Rad ~298, ändra:
-const originalTarget = profileTarget ?? controllerProfileTarget ?? targetTemp;
-
-// Till:
-const isGlycol = !!(controller as any).is_glycol_cooler;
-const originalTarget = isGlycol ? targetTemp : (profileTarget ?? controllerProfileTarget ?? targetTemp);
+**Hur:** Kör en SQL UPDATE via insert-verktyget:
+```sql
+UPDATE fermentation_learnings 
+SET learned_value = 2.0, 
+    sample_count = 1, 
+    last_updated_at = now() 
+WHERE controller_id = 'ffa62be4-d6f7-4533-83b4-57ad93c3ac01' 
+  AND parameter_name = 'thermal_rate_cooling';
 ```
 
-Notera: `isGlycol`-variabeln deklareras redan på rad 305, så den behöver flyttas upp eller så använder vi `controller.is_glycol_cooler` direkt i beräkningen.
-
-**Fil att ändra:** 1 fil
-- `supabase/functions/auto-adjust-cooling/index.ts` (rad ~296–305)
+Ingen kodändring behövs — enbart en datauppdatering. Värdet 2.0°C/h kommer sedan gradvis justeras av EMA-algoritmen baserat på framtida faktiska mätningar.
 
