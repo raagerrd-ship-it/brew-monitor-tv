@@ -283,11 +283,11 @@ export async function computeAllMetrics(
         .from('fermentation_step_log')
         .select('id')
         .eq('action', 'ready_to_crash')
-        .in('session_id', (sessions || []).filter((s: any) => s.brew_id === rb.brew_id).map((s: any) => s.id))
+        .in('session_id', sessionsData.filter((s: any) => s.brew_id === rb.brew_id).map((s: any) => s.id))
         .limit(1)
 
       if (!existingLog || existingLog.length === 0) {
-        const session = (sessions || []).find((s: any) => s.brew_id === rb.brew_id)
+        const session = sessionsData.find((s: any) => s.brew_id === rb.brew_id)
         if (session) {
           await supabase.from('fermentation_step_log').insert({
             session_id: session.id,

@@ -107,14 +107,19 @@ Deno.serve(async (req) => {
       log('RETRY', 'info', `Found ${retriesToProcess.length} pending retry(ies) from previous cycle(s)`);
     }
 
-    // ── Load controllers ─────────────────────────────────────────
-    const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
-    const allControllers = (allControllersData || []) as TempController[];
-
-    if (allControllersError || allControllers.length === 0) {
-      log('CONTROLLERS', 'fail', 'No controllers found');
-      await printSummary(supabase, 'No controllers', false);
-      return new Response(JSON.stringify({ message: 'No controllers', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // ── Load controllers (use injected data from orchestrator if available) ──
+    let allControllers: TempController[];
+    if (reqBody?.injected_controllers) {
+      allControllers = reqBody.injected_controllers as TempController[];
+      log('CONTROLLERS', 'info', `Using ${allControllers.length} injected controller(s) from orchestrator`);
+    } else {
+      const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
+      allControllers = (allControllersData || []) as TempController[];
+      if (allControllersError || allControllers.length === 0) {
+        log('CONTROLLERS', 'fail', 'No controllers found');
+        await printSummary(supabase, 'No controllers', false);
+        return new Response(JSON.stringify({ message: 'No controllers', decisionLog }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     // Auto-follow: all controllers with active cooling or heating, excluding the glycol cooler
