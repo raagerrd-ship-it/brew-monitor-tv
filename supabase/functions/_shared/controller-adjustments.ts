@@ -393,16 +393,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
       }
 
-      // Log the ON adjustment
-      await logAdjustment(supabase, {
-        cooler_controller_id: fc.controller_id,
-        cooler_controller_name: fc.name,
-        old_target_temp: ctrlTarget,
-        new_target_temp: onTarget,
-        lowest_followed_temp: onTarget,
-        reason: `⚡ PWM ${pwmDutyPct}% ON: hw ${ctrlTarget}° → ${onTarget}° (db oförändrad)`,
-        original_target_temp: actualTarget,
-      })
+      // PWM ON is documented by DUTY_PWM_BURST + RAPT_SEND decisions — no separate adjustment log needed
 
       // 2. Populate burst metadata for run-automation to execute sleep+OFF
       ctx.pwmBursts.push({
