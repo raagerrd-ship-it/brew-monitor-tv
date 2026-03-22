@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
       if (!isGlycol && isFollowed && !isStale) {
         const cBucket = getTempBucket(targetTemp);
         const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
-        if (dutyParam.sampleCount >= 3 && dutyParam.value > 0) {
+        if (dutyParam.sampleCount >= 1 && dutyParam.value > 0) {
           details.duty_pct = Math.round(dutyParam.value * 100);
           details.duty_samples = dutyParam.sampleCount;
         }
