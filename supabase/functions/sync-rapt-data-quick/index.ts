@@ -1231,7 +1231,7 @@ Deno.serve(async (req) => {
       // Merge automation decisions with sync decisions
       // Filter out SYNC_DATA and BREW_SG_STATUS from automation — sync generates more complete versions
       const filteredAutomationDecisions: any[] = (automationResult?.automationDecisions ?? [])
-        .filter((d: any) => d.step !== 'SYNC_DATA' && d.step !== 'BREW_SG_STATUS');
+        .filter((d: any) => d.step !== 'SYNC_DATA' && d.step !== 'BREW_SG_STATUS' && d.step !== 'RAPT_SEND');
       // Add RAPT_SEND decisions generated during Phase 3a flush
       const raptSendDecisions = automationDecisionLog.filter((d: any) => d.step === 'RAPT_SEND');
       const allDecisions = [...filteredAutomationDecisions, ...raptSendDecisions, ...syncDecisions];
