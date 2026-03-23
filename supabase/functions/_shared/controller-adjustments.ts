@@ -472,6 +472,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // The cooler will see the real target, not the temporary 0°C.
 
       continue
+    } else if (isPwmMode && pwmDutySeconds === 0) {
+      // Phase B of a low duty (e.g. 10%) — no burst this cycle, just log
+      log('DUTY_PWM_SKIP', 'info', `${fc.name}: PWM ${pwmDutyPct}% fas B — ingen burst denna cykel`)
+      continue
     }
 
     // ── No-op: PID diff too small to justify an update ──────
