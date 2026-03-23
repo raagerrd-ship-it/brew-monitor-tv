@@ -166,7 +166,7 @@ function buildFeatureBlocks(
 
       // Check if this controller has PWM active
       const pwm = pwmStatusMap.get(name);
-      const pwmBadge = pwm ? `PWM ${pwm.duty}% ${pwm.burstSeconds}s` : undefined;
+      const pwmBadge = pwm ? `PWM ${pwm.duty}%` : undefined;
       const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : undefined;
 
       const action = decisions.find(d =>
