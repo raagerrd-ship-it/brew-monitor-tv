@@ -429,13 +429,15 @@ export async function calculateCompensatedTarget(
     await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
   } else {
     // === NEAR-TARGET / CONVERGENCE (0.1 < |error| < 0.35 or -0.3..0.1) ===
-    // Small errors that fall between deadband and active PI.
-    // Apply gentle P-only correction to prevent stagnation.
-    pCorrection = avgError * mp.pGain * 0.5 // Half-strength P for gentle nudge
-    iCorrection = computeIntegral(persistedIntegral, avgError, isStaleData, mp.iDecay, mp.iGain * 0.5, mp.iClamp)
+    // Use full-strength P and I gains — the system is still actively trying to
+    // converge. Half-strength gains + extra decay caused the integral to plateau
+    // far below the correction needed, preventing convergence.
+    pCorrection = avgError * mp.pGain
+    iCorrection = computeIntegral(persistedIntegral, avgError, isStaleData, mp.iDecay, mp.iGain, mp.iClamp)
     errorCorrection = Math.max(-mp.errorCorrectionCap, Math.min(mp.errorCorrectionCap, pCorrection + iCorrection))
     
-    const decayedIntegral = iCorrection * 0.9 // Gentle decay
+    // No extra decay — computeIntegral already applies iDecay (0.90/0.95).
+    // Double-decaying killed the integral's ability to build up.
     
     const totalCompApplied = Math.abs(baseTarget - ctrlTarget)
     if (totalCompApplied > 0.1) {
@@ -446,16 +448,16 @@ export async function calculateCompensatedTarget(
         : Math.max(0, totalCompApplied - absSensorComp)
       const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
       
-      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, decayedIntegral, dampingFactor, avgError, {
+      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError, {
         learned_pi_correction: clampedLearned,
         convergence_count: convergenceCount + 1,
         last_converged_at: new Date().toISOString(),
       })
       
-      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}`)
+      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)}`)
     } else {
       // No significant compensation applied — still persist PID state to avoid losing integral
-      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, decayedIntegral, dampingFactor, avgError)
+      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
       console.log(`🔄 Near-target ${controllerName} [${mode}]: err=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, correction=${errorCorrection.toFixed(2)}°C`)
     }
   }
