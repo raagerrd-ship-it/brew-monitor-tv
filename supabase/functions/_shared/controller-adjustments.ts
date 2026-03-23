@@ -394,10 +394,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       // 1. Send ON to hardware ONLY — skip DB sync so target_temp stays at real value
       if (ctx.updateBatch) {
-        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, ctrlTarget)
+        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, offTarget)
       } else {
         // Fallback: send directly to RAPT without DB update
         await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+      }
+
+      // 1b. Persist PID-corrected target to DB so next cycle sees the updated value.
+      // This is the key mechanism: the integral builds up → ctrlTargetPid rises →
+      // DB target_temp rises → hardware revert target rises → offset eliminated.
+      if (offTarget !== ctrlTarget) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: offTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        log('PWM_DB_SYNC', 'info', `${fc.name}: DB target_temp ${ctrlTarget}° → ${offTarget}° (PID-korrigerad)`)
       }
 
       // PWM ON is documented by DUTY_PWM_BURST + RAPT_SEND decisions — no separate adjustment log needed
