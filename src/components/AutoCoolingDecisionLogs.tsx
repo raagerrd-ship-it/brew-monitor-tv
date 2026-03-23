@@ -1267,7 +1267,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
-                          Inlärt kylbehov: {String(dutyPct)}% = {totalBurstMin}m / 10-min (2×5-min cykler)
+                          Inlärt kylbehov: {String(dutyRounded)}% → kvantiserat {quantized}% = {totalBurstMin}m / 10-min (2×5-min cykler)
                           {samples != null && ` (${String(samples)} mätningar)`}
                           {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
                         </TooltipContent>
