@@ -281,7 +281,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             let feedbackDuty = dutyParam.value
             if (!ctx.skipLearning) {
               const probeNow = fc.current_temp ?? 0
-              const tempError = probeNow - actualTarget // positive = too warm, negative = overcooling
+              const tempError = probeNow - ctrlTarget // positive = too warm, negative = overcooling (compare vs hardware target, not profile)
               const PWM_FEEDBACK_DEADBAND = 0.15 // °C — no correction within this band
               if (Math.abs(tempError) > PWM_FEEDBACK_DEADBAND) {
                 // Each 0.1°C of error adjusts duty by ~2% (scale factor 0.2)
