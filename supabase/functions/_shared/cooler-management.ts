@@ -1105,12 +1105,18 @@ async function learnWarmingRate(
 
       // ── Learn steady-state duty cycle ──────────────────────
       // duty = warming_rate / cooling_rate → fraction of time cooling needs to run
-      const coolingRate = await getLearnedParam(supabase, c.controller_id, `thermal_rate_cooling`, -1)
-      if (coolingRate.sampleCount >= 3 && coolingRate.value > 0.1) {
-        const dutyCycle = Math.min(1.0, result.newValue / coolingRate.value)
-        const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${controllerBucket}`, dutyCycle, 0.01, 1.0)
-        if (Math.abs(dutyResult.oldValue - dutyResult.newValue) > 0.005) {
-          log('DUTY_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
+      // SKIP when PWM is active (pwm_stable_count >= 4) — the closed-loop
+      // PWM_FEEDBACK is the authority during steady-state and this open-loop
+      // estimate would fight the error-based corrections.
+      const pwmStableCount = (c as any).pwm_stable_count ?? 0
+      if (pwmStableCount < 4) {
+        const coolingRate = await getLearnedParam(supabase, c.controller_id, `thermal_rate_cooling`, -1)
+        if (coolingRate.sampleCount >= 3 && coolingRate.value > 0.1) {
+          const dutyCycle = Math.min(1.0, result.newValue / coolingRate.value)
+          const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${controllerBucket}`, dutyCycle, 0.01, 1.0)
+          if (Math.abs(dutyResult.oldValue - dutyResult.newValue) > 0.005) {
+            log('DUTY_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
+          }
         }
       }
     }
