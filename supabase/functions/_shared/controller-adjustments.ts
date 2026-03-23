@@ -4,7 +4,7 @@ import { computeDualSensorTarget } from './dual-sensor.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
-import { getTempBucket, getLearnedParam } from './learning-utils.ts'
+import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // Controller Adjustments — Pipeline Architecture
