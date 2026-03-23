@@ -1288,16 +1288,17 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                         );
                       }
                       if (dutyPctSync != null && dutyPctSync > 0) {
-                        const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPctSync / 100 * 300)));
+                        const quantizedSync = Math.round(dutyPctSync / 10) * 10;
+                        const totalBurstMinSync = quantizedSync / 10;
                         return (
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                PWM {dutyPctSync}%
+                                PWM {quantizedSync}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM burst-läge — duty ${dutyPctSync}%, ${burstSecs}s burst per cykel (PID hoppad denna cykel)`}
+                              {`PWM burst-läge — duty ${quantizedSync}%, ${totalBurstMinSync}m / 10-min (PID hoppad denna cykel)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
