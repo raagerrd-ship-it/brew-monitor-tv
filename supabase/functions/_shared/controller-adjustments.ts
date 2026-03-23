@@ -373,11 +373,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // The PWM OFF revert sends the PID-compensated target back to hardware.
     // Since DB target_temp was never changed, no DB update is needed on revert either.
     if (isPwmMode) {
-      // Use ctrlTarget (DB-stored pre-PWM target) as revert, NOT ctrlTargetPid.
-      // ctrlTargetPid is calculated with isPwmActiveSegment=true which can produce
-      // aggressive values that get clamped to hardware min (e.g. 4°C).
-      // ctrlTarget is stable because PWM ON is hardware-only and doesn't update DB.
-      const offTarget = round1(ctrlTarget)
+      // Use ctrlTargetPid (PID-compensated target) as revert so that the integral's
+      // correction actually takes effect after the burst.
+      // Without this, the integral builds up but the hardware target never changes,
+      // causing permanent ~0.2°C undershoot.
+      // Safety: clamp to hardware limits to prevent aggressive values.
+      const pidRevert = Math.max(fc.min_target_temp ?? -5, Math.min(fc.max_target_temp ?? 25, round1(ctrlTargetPid)))
+      const offTarget = pidRevert
       const onTarget = 0
 
       const dutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
