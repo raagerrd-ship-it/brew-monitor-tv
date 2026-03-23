@@ -1246,9 +1246,10 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 </td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
-                    const dutyPct = det.duty_pct as number | undefined;
-                    if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
-                    const burstSecs = Math.max(30, Math.min(240, Math.round(dutyPct / 100 * 300)));
+                    const dutyPctRaw = det.duty_pct as number | undefined;
+                    if (dutyPctRaw == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
+                    const dutyPct = Math.round(dutyPctRaw / 10) * 10; // ensure 10% quantization
+                    const totalBurstMin = dutyPct / 10; // 0–10 min over 2×5-min window
                     const samples = det.duty_samples as number | undefined;
                     const isLowSamples = samples != null && samples < 3;
                     return (
@@ -1259,7 +1260,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
-                          Inlärt kylbehov: {String(dutyPct)}% = {burstSecs}s burst per 5-min cykel
+                          Inlärt kylbehov: {String(dutyPct)}% = {totalBurstMin}m / 10-min (2×5-min cykler)
                           {samples != null && ` (${String(samples)} mätningar)`}
                           {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
                         </TooltipContent>
