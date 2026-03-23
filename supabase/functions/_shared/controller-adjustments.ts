@@ -277,7 +277,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             // ── Closed-loop PWM feedback ──────────────────────
             // If temp is drifting below target → duty too high → nudge down.
             // If temp is drifting above target → duty too low → nudge up.
-            // Uses a small alpha (0.1) for gentle correction per cycle.
+            // Alpha 0.25 ensures corrections survive 2-decimal storage rounding
+            // (e.g. 0.21 with correction→0.17: 0.21*0.75+0.17*0.25=0.20 → stored as 0.20, not stuck at 0.21)
             let feedbackDuty = dutyParam.value
             if (!ctx.skipLearning) {
               const probeNow = fc.current_temp ?? 0
@@ -290,7 +291,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
                 if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
                   const fbResult = await updateLearnedParam(
                     supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
-                    correctedDuty, 0.01, 1.0, 0.1, // alpha=0.1 for gentle EMA
+                    correctedDuty, 0.01, 1.0, 0.25, // alpha=0.25 to overcome 2-decimal rounding
                   )
                   feedbackDuty = fbResult.newValue
                   log('PWM_FEEDBACK', 'info', `${fc.name}: temp error ${tempError > 0 ? '+' : ''}${tempError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}%`)
