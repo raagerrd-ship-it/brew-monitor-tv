@@ -344,7 +344,7 @@ Deno.serve(async (req) => {
         const cBucket = getTempBucket(dutyBucketTemp);
         const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
         if (dutyParam.sampleCount >= 1 && dutyParam.value > 0) {
-          details.duty_pct = Math.round(dutyParam.value * 10) * 10; // quantized to 10% steps
+          details.duty_pct = Math.round(dutyParam.value * 100); // raw percentage (integer)
           details.duty_samples = dutyParam.sampleCount;
         }
       }
