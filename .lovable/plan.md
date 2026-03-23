@@ -1,30 +1,34 @@
 
 
-## Problem: Fler fält från automation-loggen skrivs över
+## Fix: Bevara PI-integral under PWM-bursts
 
-Samma bugg som `duty_pct` — synk-orchestratorn (rad 1413-1414) filtrerar bort **alla** `SYNC_DATA`-rader från automationen och genererar egna, enklare versioner. Förutom `duty_pct`/`duty_samples` (redan fixat) tappas dessa fält som UI:t faktiskt använder:
+### Problem
+PID-beräkningen körs varje cykel och ackumulerar integralen korrekt (`persistPidState` i `pid-compensation.ts`). Men direkt efter sparas integralen till 0 av PWM-blocket (rad 417-422 i `controller-adjustments.ts`). Nästa cykel startar PID från 0 igen — integralen hinner aldrig byggas upp.
 
-| Fält | Var i UI | Effekt av att det saknas |
-|------|----------|--------------------------|
-| `stale` | Röd "offline"-badge, sorting, dimming | Offline-controllrar visas som aktiva |
-| `inactive` | Grå "av"-badge, sorting, dimming | Avstängda controllrar ser aktiva ut |
-| `preserved` | "bevarad"/"hw"-badge på måltemp | Alltid "hw" istället för "bevarad" |
+Flödet idag per cykel:
+```text
+PID beräknar → integral 0.00 → 0.02 → sparas ✓
+PWM aktiveras → integral 0.02 → 0.00 → sparas ✗
+Nästa cykel: PID startar från 0.00 igen
+```
 
-Fält som **inte** används av UI (ingen effekt idag):
-- `is_actively_cooling`, `ramp_target`, `step_index`, `step_type`, `cooloff`
+### Fix
 
-### Lösning
+**Fil: `supabase/functions/_shared/controller-adjustments.ts`** (rad 417-422)
 
-**Fil: `supabase/functions/sync-rapt-data-quick/index.ts`**
+Ändra PWM-reset till att bara nollställa P-korrektionen (som är meningslös under en 0°C-burst), men bevara `accumulated_integral`:
 
-Utöka den befintliga `automationDutyByControllerName`-mappen (rad 1334) till att bli en generell "automation metadata per controller"-map som även fångar `stale`, `inactive` och `preserved` från automationens SYNC_DATA-beslut. Sedan injicera dessa tre fält i synk-versionen av SYNC_DATA (rad 1352-1370), precis som `duty_pct` redan görs.
+```typescript
+// P-term är meningslös under PWM-burst (proben kyls artificiellt av 0°C).
+// Integralen representerar systemets inlärda offset och MÅSTE bevaras,
+// annars kan PID aldrig kompensera för systematisk underskjutning.
+await supabase.from('controller_learned_compensation')
+  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+  .eq('controller_id', fc.controller_id)
+log('PID_PARTIAL_RESET', 'info', `${fc.name}: P-term nollställd inför PWM (integral bevarad)`)
+```
 
-Konkret:
-1. Byt namn på `automationDutyByControllerName` till `automationMetaByControllerName`
-2. Utöka typen med `stale?: boolean`, `inactive?: boolean`, `preserved?: boolean`
-3. Extrahera dessa fält i for-loopen (rad 1335-1349)
-4. Injicera dem i details-objektet (rad 1354-1368) med `if (meta.stale) details.stale = true` etc.
+### Förväntat resultat
 
-### Resultat
-Alla UI-synliga fält som automationen beräknar bevaras genom synk-orchestratorns logg-konsolidering.
+Integralen växer gradvis över PWM-cykler (0.02 → 0.04 → 0.06...), vilket höjer hårdvarumålet tills 0.2°C-offseten kompenseras. Duty cycle justeras automatiskt när jämvikten hittas.
 
