@@ -328,11 +328,21 @@ export function AutoCoolingDecisionLogs() {
           .flatMap(e => e.adjustments.filter(a => a.category === 'glykol'))
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 4);
+        const visible = entries.slice(0, visibleCount);
+        const hasMore = visibleCount < entries.length;
         return (
           <>
-            {entries.map((entry) => (
+            {visible.map((entry) => (
               <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} lastSuccessfulRaptSync={lastSuccessfulRaptSync} />
             ))}
+            {hasMore && (
+              <button
+                onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-lg border border-border/50 hover:border-border hover:bg-muted/30"
+              >
+                Visa fler ({entries.length - visibleCount} kvar)
+              </button>
+            )}
           </>
         );
       })()}
