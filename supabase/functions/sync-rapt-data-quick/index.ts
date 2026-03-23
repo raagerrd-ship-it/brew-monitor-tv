@@ -410,6 +410,10 @@ Deno.serve(async (req) => {
                 Math.abs(targetTemp - adj.new_target_temp) < 0.15
               ) ?? false;
 
+              // PWM burst marker: 0°C is never a legitimate manual target for PID-managed controllers.
+              // RAPT API telemetry has 3-5 min latency, so hw may still report 0°C long after PWM OFF reverted.
+              const isPwmBurstArtifact = isPidManaged && Math.abs(targetTemp) < 0.5;
+
               if (isAutomationLatency) {
                 console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (${recentAdjs!.length} adj inom 20min), ignorerar`);
                 updateData.target_temp = preservedTarget; // Keep DB value
