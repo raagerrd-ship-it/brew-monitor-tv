@@ -564,15 +564,13 @@ export async function calculateCompensatedTarget(
       constraints.push('recovery-clamp')
       console.log(`🔒 Recovery clamp ${controllerName}: probe=${latestCtrl.toFixed(1)}° ${probeIsAboveBase ? '>' : '<'} baseTarget=${baseTarget}°C, PI ignored (was pushing away)`)
     } else if (isTowardTarget) {
-      // Jump to baseTarget but PRESERVE the integral correction.
-      // The integral represents a learned systematic offset (e.g. cooling asymmetry)
-      // that must be applied regardless of direction. Without it, the system
-      // perpetually undershoots by ~0.2°C because the offset is never corrected.
-      // Only skip P-correction and rate-limits (which prevent overshoot on approach).
-      const integralOffset = iCorrection
-      ctrlTargetPid = baseTarget + integralOffset
+      // Jump toward baseTarget, skipping rate-limits for faster convergence.
+      // Use FULL errorCorrection (P+I) — not just integral — so that the
+      // proportional term continues driving the target when the probe is
+      // still away from baseTarget (e.g. heating mode, probe below base).
+      ctrlTargetPid = baseTarget + errorCorrection
       constraints.push('toward-target-bypass')
-      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C, integral=${integralOffset.toFixed(3)})`)
+      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C, PI=${errorCorrection.toFixed(3)})`)
     } else {
     
     // Moving AWAY from baseTarget — apply rate-limit to prevent overshoot
