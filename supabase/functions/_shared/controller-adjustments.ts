@@ -273,10 +273,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         if (dutyParam.sampleCount >= 5 && dutyParam.value >= 0.1 && dutyParam.value < 0.90) {
             isPwmMode = true
             isPwmActiveSegment = true // burst model: always "active" — run-automation handles timing
-            // Snap to 1-minute resolution (pg_cron constraint): 0%, 20%, 40%, 60%, 80%, 100%
-            pwmDutyPct = Math.round(dutyParam.value * 5) * 20
-            // Burst duration: exact multiples of 60s (1m, 2m, 3m, 4m)
-            pwmDutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
+            // 2-cycle model: 10%-resolution over 10-min (2×5-min) window.
+            // Quantize to nearest 10%: 0, 10, 20, …, 90, 100%
+            pwmDutyPct = Math.round(dutyParam.value * 10) * 10
+            // Total burst minutes across the 10-min window
+            const totalBurstMin = pwmDutyPct / 10 // 0–10
+            // Determine phase (A=0, B=1) from epoch: alternates every 5 minutes
+            const phase = Math.floor(Date.now() / 300000) % 2
+            // Distribute: phase A gets ceil, phase B gets floor
+            const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
+            pwmDutySeconds = currentBurstMin * 60
         }
       }
     } else if (prevStableCount > 0) {
@@ -382,7 +388,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const offTarget = pidRevert
       const onTarget = 0
 
-      const dutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
+      const dutySeconds = pwmDutySeconds
 
       log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${dutySeconds}s burst av 300s (hw=${onTarget}°C, db behåller ${ctrlTarget}°, revert=${offTarget}°C nästa cykel)`, {
         duty_pct: pwmDutyPct,
