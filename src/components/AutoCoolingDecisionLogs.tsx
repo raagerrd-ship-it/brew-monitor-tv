@@ -206,9 +206,12 @@ function parsePillCompActionTarget(msg: string): { name: string; newTarget: numb
 
 // --- Component ---
 
+const PAGE_SIZE = 20;
+
 export function AutoCoolingDecisionLogs() {
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
   const [lastSuccessfulRaptSync, setLastSuccessfulRaptSync] = useState<string | null>(null);
   const hideSync = false;
