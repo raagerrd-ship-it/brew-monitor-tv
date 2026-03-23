@@ -1281,7 +1281,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(60, Math.min(240, Math.round(pwm.duty / 100 * 300 / 60) * 60)}s burst per 5-min cykel`}
+                              {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(60, Math.min(240, Math.round(pwm.duty / 100 * 300 / 60) * 60))}s burst per 5-min cykel`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
