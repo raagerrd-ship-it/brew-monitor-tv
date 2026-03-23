@@ -1102,6 +1102,12 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
       });
     }
   });
+  // Track controllers where PWM mode is active but this phase has 0-burst
+  const pwmSkipNames = new Set<string>();
+  decisions.filter(d => d.step === 'DUTY_PWM_SKIP').forEach(d => {
+    const nameMatch = d.message.match(/^([^:]+):/);
+    if (nameMatch) pwmSkipNames.add(nameMatch[1].trim());
+  });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
   const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
@@ -1287,18 +1293,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                           </Tooltip></TooltipProvider>
                         );
                       }
-                      if (dutyPctSync != null && dutyPctSync > 0) {
-                        const quantizedSync = Math.round(dutyPctSync / 10) * 10;
-                        const totalBurstMinSync = quantizedSync / 10;
+                      if (pwmSkipNames.has(name)) {
+                        const dutyPctSync = det.duty_pct as number | undefined;
+                        const quantizedSync = dutyPctSync != null ? Math.round(dutyPctSync / 10) * 10 : 0;
                         return (
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                PWM {quantizedSync}%
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/10 text-amber-400/60`}>
+                                PWM {quantizedSync}% ⏸
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM burst-läge — duty ${quantizedSync}%, ${totalBurstMinSync}m / 10-min (PID hoppad denna cykel)`}
+                              {`PWM aktiv men fas B — ingen burst denna cykel (duty ${quantizedSync}%)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
