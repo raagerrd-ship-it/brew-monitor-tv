@@ -414,8 +414,8 @@ Deno.serve(async (req) => {
               // RAPT API telemetry has 3-5 min latency, so hw may still report 0°C long after PWM OFF reverted.
               const isPwmBurstArtifact = isPidManaged && Math.abs(targetTemp) < 0.5;
 
-              if (isAutomationLatency) {
-                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C matchar senaste automation (${recentAdjs!.length} adj inom 20min), ignorerar`);
+              if (isAutomationLatency || isPwmBurstArtifact) {
+                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C ${isPwmBurstArtifact ? 'är PWM-burst-artifact' : `matchar senaste automation (${recentAdjs!.length} adj inom 20min)`}, ignorerar`);
                 updateData.target_temp = preservedTarget; // Keep DB value
               } else {
                 console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
