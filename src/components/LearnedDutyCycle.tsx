@@ -147,9 +147,8 @@ export function LearnedDutyCycle() {
             <tbody className="divide-y divide-border/30">
               {items.map((item) => {
                 const rawPct = Math.round(item.duty * 100);
-                const quantized = Math.round(item.duty * 5) * 20;
-                const steps = quantized / 20; // 0–5
-                const burstMin = steps > 0 ? steps : 0;
+                const quantized = Math.round(item.duty * 10) * 10;
+                const totalBurstMin = quantized / 10; // 0–10 over 10-min window
                 const color = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : "text-emerald-400";
                 return (
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
@@ -157,14 +156,14 @@ export function LearnedDutyCycle() {
                     <td className={`py-1.5 text-right font-mono ${color}`}>{quantized}%</td>
                     <td className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-0.5">
-                        {[1, 2, 3, 4, 5].map((s) => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
                           <div
                             key={s}
-                            className={`h-2.5 w-1.5 rounded-[1px] ${s <= steps ? (quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : "bg-emerald-400") : "bg-muted-foreground/20"}`}
+                            className={`h-2.5 w-1 rounded-[1px] ${s <= totalBurstMin ? (quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : "bg-emerald-400") : "bg-muted-foreground/20"}`}
                           />
                         ))}
                         <span className="ml-1 font-mono text-muted-foreground text-[10px]">
-                          {burstMin > 0 ? `${burstMin}m` : "—"}
+                          {totalBurstMin > 0 ? `${totalBurstMin}m` : "—"}
                         </span>
                       </div>
                     </td>
