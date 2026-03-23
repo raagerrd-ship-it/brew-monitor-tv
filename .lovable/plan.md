@@ -1,34 +1,19 @@
 
 
-## Fix: Bevara PI-integral under PWM-bursts
 
-### Problem
-PID-beräkningen körs varje cykel och ackumulerar integralen korrekt (`persistPidState` i `pid-compensation.ts`). Men direkt efter sparas integralen till 0 av PWM-blocket (rad 417-422 i `controller-adjustments.ts`). Nästa cykel startar PID från 0 igen — integralen hinner aldrig byggas upp.
+## Fix: PID-korrigering persisteras genom PWM-cykler
 
-Flödet idag per cykel:
-```text
-PID beräknar → integral 0.00 → 0.02 → sparas ✓
-PWM aktiveras → integral 0.02 → 0.00 → sparas ✗
-Nästa cykel: PID startar från 0.00 igen
-```
+### Problem (fas 1 — löst)
+PI-integralen nollställdes vid varje PWM-burst → integralen kunde aldrig byggas upp.
 
-### Fix
+**Fix:** Bara `latest_p_correction` nollställs, `accumulated_integral` bevaras.
 
-**Fil: `supabase/functions/_shared/controller-adjustments.ts`** (rad 417-422)
+### Problem (fas 2 — löst)
+Även med bevarad integral: PID beräknade t.ex. `ctrl_target_pid = 14.6` men PWM reverterade alltid till det gamla DB-värdet (`ctrlTarget = 14.5`). PID-justeringen persisterades aldrig.
 
-Ändra PWM-reset till att bara nollställa P-korrektionen (som är meningslös under en 0°C-burst), men bevara `accumulated_integral`:
-
-```typescript
-// P-term är meningslös under PWM-burst (proben kyls artificiellt av 0°C).
-// Integralen representerar systemets inlärda offset och MÅSTE bevaras,
-// annars kan PID aldrig kompensera för systematisk underskjutning.
-await supabase.from('controller_learned_compensation')
-  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-  .eq('controller_id', fc.controller_id)
-log('PID_PARTIAL_RESET', 'info', `${fc.name}: P-term nollställd inför PWM (integral bevarad)`)
-```
+**Fix:** 
+1. `offTarget` (revert-mål) sätts nu till `ctrlTargetPid` (PID-kompenserat, klampad till hw-gränser) istället för `ctrlTarget`.
+2. DB:ns `target_temp` uppdateras till PID-värdet under PWM-bursten, så nästa cykel startar med det korrigerade målet.
 
 ### Förväntat resultat
-
-Integralen växer gradvis över PWM-cykler (0.02 → 0.04 → 0.06...), vilket höjer hårdvarumålet tills 0.2°C-offseten kompenseras. Duty cycle justeras automatiskt när jämvikten hittas.
-
+Integralen bygger 0.02-0.04 per cykel → `ctrlTargetPid` stiger → DB `target_temp` stiger → revert-mål stiger → hårdvarumålet höjs gradvis tills 0.2°C-offseten elimineras. Bör konvergera inom 5-10 cykler.
