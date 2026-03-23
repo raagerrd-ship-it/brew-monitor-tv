@@ -272,10 +272,35 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
         if (dutyParam.sampleCount >= 5 && dutyParam.value >= 0.1 && dutyParam.value < 0.90) {
             isPwmMode = true
-            isPwmActiveSegment = true // burst model: always "active" — run-automation handles timing
+            isPwmActiveSegment = true
+
+            // ── Closed-loop PWM feedback ──────────────────────
+            // If temp is drifting below target → duty too high → nudge down.
+            // If temp is drifting above target → duty too low → nudge up.
+            // Uses a small alpha (0.1) for gentle correction per cycle.
+            let feedbackDuty = dutyParam.value
+            if (!ctx.skipLearning) {
+              const probeNow = fc.current_temp ?? 0
+              const tempError = probeNow - actualTarget // positive = too warm, negative = overcooling
+              const PWM_FEEDBACK_DEADBAND = 0.15 // °C — no correction within this band
+              if (Math.abs(tempError) > PWM_FEEDBACK_DEADBAND) {
+                // Each 0.1°C of error adjusts duty by ~2% (scale factor 0.2)
+                const correction = tempError * 0.2 // overcooling (neg error) → negative correction → lower duty
+                const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
+                if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
+                  const fbResult = await updateLearnedParam(
+                    supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
+                    correctedDuty, 0.01, 1.0, 0.1, // alpha=0.1 for gentle EMA
+                  )
+                  feedbackDuty = fbResult.newValue
+                  log('PWM_FEEDBACK', 'info', `${fc.name}: temp error ${tempError > 0 ? '+' : ''}${tempError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}%`)
+                }
+              }
+            }
+
             // 2-cycle model: 10%-resolution over 10-min (2×5-min) window.
             // Quantize to nearest 10%: 0, 10, 20, …, 90, 100%
-            pwmDutyPct = Math.round(dutyParam.value * 10) * 10
+            pwmDutyPct = Math.round(feedbackDuty * 10) * 10
             // Total burst minutes across the 10-min window
             const totalBurstMin = pwmDutyPct / 10 // 0–10
             // Determine phase (A=0, B=1) from epoch: alternates every 5 minutes
