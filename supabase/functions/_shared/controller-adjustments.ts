@@ -292,12 +292,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
               if (isSampleStale) {
                 log('PWM_FEEDBACK_SKIP', 'info', `${fc.name}: hoppar feedback — sensor är ${Math.round(sampleAgeMs / 60000)} min gammal`)
               } else {
-                // Guard 2: don't increase duty while probe is still inside relay dead-zone
-                // (probe under ctrlTarget + hysteresis means relay wouldn't cool continuously yet).
+                // Guard 2: make feedback relay-aware.
+                // Above ctrlTarget but still below relay threshold should nudge duty DOWN,
+                // not up, because relay would not engage continuously in that zone.
                 let effectiveError = tempErrorRaw
-                if (effectiveError > 0 && probeNow < relayOnThreshold) {
-                  effectiveError = 0
-                  log('PWM_FEEDBACK_SKIP', 'info', `${fc.name}: +${tempErrorRaw.toFixed(2)}°C men under relätröskel ${relayOnThreshold.toFixed(1)}°C — höjer inte duty`)
+                if (tempErrorRaw > 0) {
+                  effectiveError = probeNow - relayOnThreshold
                 }
 
                 const PWM_FEEDBACK_DEADBAND = Math.max(0.15, coolingHysteresis * 0.5)
