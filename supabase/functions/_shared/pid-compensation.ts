@@ -83,7 +83,7 @@ const MODE_PARAMS = {
   heating: {
     pGain: 0.35,
     iGain: 0.10,
-    iDecay: 0.90,
+    iDecay: 0.95,
     iClamp: 1.5,
     maxRatePerCycle: null as number | null,
     maxComp: null as number | null,
