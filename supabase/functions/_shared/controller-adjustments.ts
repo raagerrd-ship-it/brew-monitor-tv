@@ -414,12 +414,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         execute_at: executeAt,
       })
 
-      // 4. Reset PI integral so PID starts fresh after PWM ends.
-      // During PWM the probe cools artificially — any accumulated integral is invalid.
+      // 4. Reset P-term only — it's invalid during PWM burst (probe cooled artificially by 0°C).
+      // Keep accumulated_integral: it represents the learned offset needed to
+      // compensate for cooling asymmetry (e.g. glycol cools fast, warms slow → systematic undershoot).
+      // Zeroing it causes permanent ~0.2°C undershoot because the integral never gets time to build.
       await supabase.from('controller_learned_compensation')
-        .update({ accumulated_integral: 0, latest_p_correction: 0, latest_i_correction: 0, updated_at: new Date().toISOString() })
+        .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
         .eq('controller_id', fc.controller_id)
-      log('PID_RESET', 'info', `${fc.name}: PI-integral nollställd inför PWM (startar rent efter revert)`)
+      log('PID_PARTIAL_RESET', 'info', `${fc.name}: P-term nollställd inför PWM (integral bevarad)`)
 
       adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
 
