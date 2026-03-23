@@ -1292,7 +1292,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                PWM {burstSecs}s
+                                PWM {dutyPctSync}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
