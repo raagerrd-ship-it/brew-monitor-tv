@@ -282,19 +282,37 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             let feedbackDuty = dutyParam.value
             if (!ctx.skipLearning) {
               const probeNow = fc.current_temp ?? 0
-              const tempError = probeNow - ctrlTarget // positive = too warm, negative = overcooling (compare vs hardware target, not profile)
-              const PWM_FEEDBACK_DEADBAND = 0.15 // °C — no correction within this band
-              if (Math.abs(tempError) > PWM_FEEDBACK_DEADBAND) {
-                // Each 0.1°C of error adjusts duty by ~2% (scale factor 0.2)
-                const correction = tempError * 0.2 // overcooling (neg error) → negative correction → lower duty
-                const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
-                if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
-                  const fbResult = await updateLearnedParam(
-                    supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
-                    correctedDuty, 0.01, 1.0, 0.25, // alpha=0.25 to overcome 2-decimal rounding
-                  )
-                  feedbackDuty = fbResult.newValue
-                  log('PWM_FEEDBACK', 'info', `${fc.name}: temp error ${tempError > 0 ? '+' : ''}${tempError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}%`)
+              const tempErrorRaw = probeNow - ctrlTarget // positive = too warm, negative = overcooling
+              const coolingHysteresis = parseFloat(String(fc.cooling_hysteresis ?? 0.2))
+              const relayOnThreshold = ctrlTarget + coolingHysteresis
+
+              // Guard 1: never learn from stale telemetry (prevents repeated nudges on old data)
+              const sampleAgeMs = fc.last_update ? Date.now() - new Date(fc.last_update).getTime() : Infinity
+              const isSampleStale = !Number.isFinite(sampleAgeMs) || sampleAgeMs > 5 * 60 * 1000
+              if (isSampleStale) {
+                log('PWM_FEEDBACK_SKIP', 'info', `${fc.name}: hoppar feedback — sensor är ${Math.round(sampleAgeMs / 60000)} min gammal`)
+              } else {
+                // Guard 2: don't increase duty while probe is still inside relay dead-zone
+                // (probe under ctrlTarget + hysteresis means relay wouldn't cool continuously yet).
+                let effectiveError = tempErrorRaw
+                if (effectiveError > 0 && probeNow < relayOnThreshold) {
+                  effectiveError = 0
+                  log('PWM_FEEDBACK_SKIP', 'info', `${fc.name}: +${tempErrorRaw.toFixed(2)}°C men under relätröskel ${relayOnThreshold.toFixed(1)}°C — höjer inte duty`)
+                }
+
+                const PWM_FEEDBACK_DEADBAND = Math.max(0.15, coolingHysteresis * 0.5)
+                if (Math.abs(effectiveError) > PWM_FEEDBACK_DEADBAND) {
+                  // Each 0.1°C of error adjusts duty by ~2% (scale factor 0.2)
+                  const correction = effectiveError * 0.2 // overcooling (neg error) → negative correction → lower duty
+                  const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
+                  if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
+                    const fbResult = await updateLearnedParam(
+                      supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
+                      correctedDuty, 0.01, 1.0, 0.25, // alpha=0.25 to overcome 2-decimal rounding
+                    )
+                    feedbackDuty = fbResult.newValue
+                    log('PWM_FEEDBACK', 'info', `${fc.name}: temp error ${effectiveError > 0 ? '+' : ''}${effectiveError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}%`)
+                  }
                 }
               }
             }
