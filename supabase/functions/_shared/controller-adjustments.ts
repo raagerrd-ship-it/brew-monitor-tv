@@ -373,11 +373,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // The PWM OFF revert sends the PID-compensated target back to hardware.
     // Since DB target_temp was never changed, no DB update is needed on revert either.
     if (isPwmMode) {
-      // Use ctrlTarget (DB-stored pre-PWM target) as revert, NOT ctrlTargetPid.
-      // ctrlTargetPid is calculated with isPwmActiveSegment=true which can produce
-      // aggressive values that get clamped to hardware min (e.g. 4°C).
-      // ctrlTarget is stable because PWM ON is hardware-only and doesn't update DB.
-      const offTarget = round1(ctrlTarget)
+      // Use ctrlTargetPid (PID-compensated target) as revert so that the integral's
+      // correction actually takes effect after the burst.
+      // Without this, the integral builds up but the hardware target never changes,
+      // causing permanent ~0.2°C undershoot.
+      // Safety: clamp to hardware limits to prevent aggressive values.
+      const pidRevert = Math.max(fc.min_target_temp ?? -5, Math.min(fc.max_target_temp ?? 25, round1(ctrlTargetPid)))
+      const offTarget = pidRevert
       const onTarget = 0
 
       const dutySeconds = Math.min(240, (pwmDutyPct / 100) * 300)
@@ -392,10 +394,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       // 1. Send ON to hardware ONLY — skip DB sync so target_temp stays at real value
       if (ctx.updateBatch) {
-        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, ctrlTarget)
+        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, offTarget)
       } else {
         // Fallback: send directly to RAPT without DB update
         await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+      }
+
+      // 1b. Persist PID-corrected target to DB so next cycle sees the updated value.
+      // This is the key mechanism: the integral builds up → ctrlTargetPid rises →
+      // DB target_temp rises → hardware revert target rises → offset eliminated.
+      if (offTarget !== ctrlTarget) {
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: offTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        log('PWM_DB_SYNC', 'info', `${fc.name}: DB target_temp ${ctrlTarget}° → ${offTarget}° (PID-korrigerad)`)
       }
 
       // PWM ON is documented by DUTY_PWM_BURST + RAPT_SEND decisions — no separate adjustment log needed
