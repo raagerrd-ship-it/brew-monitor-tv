@@ -1252,21 +1252,22 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 </td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
-                    const dutyPctRaw = det.duty_pct as number | undefined;
-                    if (dutyPctRaw == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
-                    const dutyPct = Math.round(dutyPctRaw / 10) * 10; // ensure 10% quantization
-                    const totalBurstMin = dutyPct / 10; // 0–10 min over 2×5-min window
+                    const dutyPct = det.duty_pct as number | undefined;
+                    if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
+                    const dutyRounded = Math.round(dutyPct);
+                    const quantized = Math.round(dutyPct / 10) * 10;
+                    const totalBurstMin = quantized / 10; // 0–10 min over 2×5-min window
                     const samples = det.duty_samples as number | undefined;
                     const isLowSamples = samples != null && samples < 3;
                     return (
                       <TooltipProvider delayDuration={200}><Tooltip>
                         <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${isLowSamples ? 'text-amber-400/60' : dutyPct >= 50 ? 'text-amber-400' : dutyPct >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {isLowSamples && '⚠ '}{String(dutyPct)}%
+                          <span className={`font-mono cursor-help ${isLowSamples ? 'text-amber-400/60' : dutyRounded >= 50 ? 'text-amber-400' : dutyRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {isLowSamples && '⚠ '}{String(dutyRounded)}%
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
-                          Inlärt kylbehov: {String(dutyPct)}% = {totalBurstMin}m / 10-min (2×5-min cykler)
+                          Inlärt kylbehov: {String(dutyRounded)}% → kvantiserat {quantized}% = {totalBurstMin}m / 10-min (2×5-min cykler)
                           {samples != null && ` (${String(samples)} mätningar)`}
                           {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
                         </TooltipContent>
