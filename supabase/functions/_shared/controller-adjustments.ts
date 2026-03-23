@@ -403,7 +403,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     //
     // The PWM OFF revert sends the PID-compensated target back to hardware.
     // Since DB target_temp was never changed, no DB update is needed on revert either.
-    if (isPwmMode) {
+    if (isPwmMode && pwmDutySeconds > 0) {
       // Use ctrlTargetPid (PID-compensated target) as revert so that the integral's
       // correction actually takes effect after the burst.
       // Without this, the integral builds up but the hardware target never changes,
@@ -471,6 +471,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // DO NOT mutate in-memory target_temp — DB and in-memory stay at the real PID value.
       // The cooler will see the real target, not the temporary 0°C.
 
+      continue
+    } else if (isPwmMode && pwmDutySeconds === 0) {
+      // Phase B of a low duty (e.g. 10%) — no burst this cycle, just log
+      log('DUTY_PWM_SKIP', 'info', `${fc.name}: PWM ${pwmDutyPct}% fas B — ingen burst denna cykel`)
       continue
     }
 
