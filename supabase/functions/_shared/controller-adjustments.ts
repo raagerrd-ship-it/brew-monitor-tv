@@ -271,84 +271,43 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
 
         if (dutyParam.sampleCount >= 5 && dutyParam.value >= 0.1 && dutyParam.value < 0.90) {
-            // ── PWM eligibility guards ─────────────────────────
-            // Only run cooling PWM when we have fresh telemetry AND real relay demand.
-            // Otherwise pause bursts and (optionally) decay duty to avoid overcooling.
+            isPwmMode = true
+            isPwmActiveSegment = true
+
+            // ── Closed-loop PWM feedback ──────────────────────
+            // Asymmetric: overcooling (below target) → fast correction down.
+            //             undercooling (above target) → cautious correction up.
+            // PWM always runs — pausing would cause oscillation.
             let feedbackDuty = dutyParam.value
-            const probeNow = fc.current_temp ?? 0
-            const coolingHysteresis = parseFloat(String(fc.cooling_hysteresis ?? 0.2))
-            const relayOnThreshold = ctrlTarget + coolingHysteresis
-            const maxSampleAgeMs = 12 * 60 * 1000 // allow one delayed sync cycle
-            const sampleAgeMs = fc.last_update ? Date.now() - new Date(fc.last_update).getTime() : Infinity
-            const isSampleStale = !Number.isFinite(sampleAgeMs) || sampleAgeMs > maxSampleAgeMs
-            const hasCoolingDemand = probeNow > relayOnThreshold
+            if (!ctx.skipLearning) {
+              const probeNow = fc.current_temp ?? 0
+              const tempError = probeNow - ctrlTarget // positive = too warm, negative = overcooling
 
-            if (isSampleStale) {
-              isPwmMode = false
-              isPwmActiveSegment = false
-              log('PWM_FEEDBACK_SKIP', 'info', `${fc.name}: hoppar PWM-burst — sensor är ${Math.round(sampleAgeMs / 60000)} min gammal`)
-            } else if (!hasCoolingDemand) {
-              // At/under relay threshold: no active cooling demand.
-              // Decay learned duty quickly and pause bursts.
-              if (!ctx.skipLearning) {
-                const decayTargetDuty = Math.max(0.10, feedbackDuty - 0.10)
-                if (Math.abs(decayTargetDuty - feedbackDuty) > 0.005) {
-                  const decayResult = await updateLearnedParam(
-                    supabase,
-                    fc.controller_id,
-                    `steady_state_duty:${cBucket}`,
-                    decayTargetDuty,
-                    0.01,
-                    1.0,
-                    0.6,
+              const PWM_FEEDBACK_DEADBAND = 0.10 // tight deadband for precise control
+              if (Math.abs(tempError) > PWM_FEEDBACK_DEADBAND) {
+                // Asymmetric gain: 0.3 per °C when overcooling, 0.15 per °C when undercooling
+                const gain = tempError < 0 ? 0.3 : 0.15
+                const correction = tempError * gain
+                const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
+                if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
+                  // Use higher alpha (0.4) for overcooling corrections to converge faster
+                  const alpha = tempError < 0 ? 0.4 : 0.25
+                  const fbResult = await updateLearnedParam(
+                    supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
+                    correctedDuty, 0.01, 1.0, alpha,
                   )
-                  feedbackDuty = decayResult.newValue
-                  log('PWM_FEEDBACK_DECAY', 'info', `${fc.name}: inget aktivt kylbehov (${probeNow.toFixed(2)}° ≤ relä ${relayOnThreshold.toFixed(2)}°) → duty ${(dutyParam.value * 100).toFixed(0)}→${(decayResult.newValue * 100).toFixed(0)}%`)
+                  feedbackDuty = fbResult.newValue
+                  log('PWM_FEEDBACK', 'info', `${fc.name}: error ${tempError > 0 ? '+' : ''}${tempError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}% (gain=${gain}, α=${alpha})`)
                 }
               }
-              isPwmMode = false
-              isPwmActiveSegment = false
-            } else {
-              isPwmMode = true
-              isPwmActiveSegment = true
-
-              // ── Closed-loop PWM feedback ──────────────────────
-              // If temp is drifting below target → duty too high → nudge down.
-              // If temp is drifting above relay threshold → duty too low → nudge up.
-              if (!ctx.skipLearning) {
-                const tempErrorRaw = probeNow - ctrlTarget // positive = too warm, negative = overcooling
-                let effectiveError = tempErrorRaw
-                if (tempErrorRaw > 0) {
-                  effectiveError = probeNow - relayOnThreshold
-                }
-
-                const PWM_FEEDBACK_DEADBAND = Math.max(0.15, coolingHysteresis * 0.5)
-                if (Math.abs(effectiveError) > PWM_FEEDBACK_DEADBAND) {
-                  // Each 0.1°C of error adjusts duty by ~2% (scale factor 0.2)
-                  const correction = effectiveError * 0.2
-                  const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
-                  if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
-                    const fbResult = await updateLearnedParam(
-                      supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
-                      correctedDuty, 0.01, 1.0, 0.25,
-                    )
-                    feedbackDuty = fbResult.newValue
-                    log('PWM_FEEDBACK', 'info', `${fc.name}: temp error ${effectiveError > 0 ? '+' : ''}${effectiveError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}%`)
-                  }
-                }
-              }
-
-              // 2-cycle model: 10%-resolution over 10-min (2×5-min) window.
-              // Quantize to nearest 10%: 0, 10, 20, …, 90, 100%
-              pwmDutyPct = Math.round(feedbackDuty * 10) * 10
-              // Total burst minutes across the 10-min window
-              const totalBurstMin = pwmDutyPct / 10 // 0–10
-              // Determine phase (A=0, B=1) from epoch: alternates every 5 minutes
-              const phase = Math.floor(Date.now() / 300000) % 2
-              // Distribute: phase A gets ceil, phase B gets floor
-              const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-              pwmDutySeconds = currentBurstMin * 60
             }
+
+            // 2-cycle model: 10%-resolution over 10-min (2×5-min) window.
+            pwmDutyPct = Math.round(feedbackDuty * 10) * 10
+            const totalBurstMin = pwmDutyPct / 10
+            const phase = Math.floor(Date.now() / 300000) % 2
+            const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
+            pwmDutySeconds = currentBurstMin * 60
         }
       }
     } else if (prevStableCount > 0) {
