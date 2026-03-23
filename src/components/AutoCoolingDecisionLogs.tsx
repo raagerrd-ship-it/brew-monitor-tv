@@ -1277,11 +1277,11 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                           <TooltipProvider delayDuration={200}><Tooltip>
                             <TooltipTrigger asChild>
                               <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium bg-amber-500/15 text-amber-400`}>
-                                PWM {pwm.burstSeconds}s
+                                PWM {pwm.duty}%
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(30, Math.min(240, Math.round(pwm.duty / 100 * 300)))}s burst per cykel`}
+                              {`PWM burst-läge — duty ${pwm.duty}%, ${Math.max(60, Math.min(240, Math.round(pwm.duty / 100 * 300 / 60) * 60)}s burst per 5-min cykel`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
