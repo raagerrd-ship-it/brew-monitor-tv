@@ -1103,24 +1103,8 @@ async function learnWarmingRate(
         log('WARMING_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
       }
 
-      // ── Learn steady-state duty cycle ──────────────────────
-      // duty = warming_rate / cooling_rate → fraction of time cooling needs to run
-      // SKIP when PWM is stabilising (pwm_stable_count >= 2) — the closed-loop
-      // PWM_FEEDBACK is the authority during steady-state and this open-loop
-      // estimate would fight the error-based corrections. Threshold 2 (not 4)
-      // ensures feedback-tuned values aren't overwritten by the physics model
-      // which can be inaccurate with few cooling_rate samples.
-      const pwmStableCount = (c as any).pwm_stable_count ?? 0
-      if (pwmStableCount < 2) {
-        const coolingRate = await getLearnedParam(supabase, c.controller_id, `thermal_rate_cooling`, -1)
-        if (coolingRate.sampleCount >= 3 && coolingRate.value > 0.1) {
-          const dutyCycle = Math.min(1.0, result.newValue / coolingRate.value)
-          const dutyResult = await updateLearnedParam(supabase, c.controller_id, `steady_state_duty:${controllerBucket}`, dutyCycle, 0.01, 1.0)
-          if (Math.abs(dutyResult.oldValue - dutyResult.newValue) > 0.005) {
-            log('DUTY_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} duty cycle: ${(dutyResult.oldValue * 100).toFixed(0)}→${(dutyResult.newValue * 100).toFixed(0)}% (warming ${result.newValue.toFixed(2)} / cooling ${coolingRate.value.toFixed(2)}°C/h)`)
-          }
-        }
-      }
+      // Steady-state duty cycle learning removed — the PID integral now
+      // directly accumulates the steady-state duty via the unified duty-cycle model.
     }
   }
 }

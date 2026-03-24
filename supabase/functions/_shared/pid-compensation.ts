@@ -303,6 +303,101 @@ export async function calculateCompensatedTarget(
     constraints.push(`util-sat=${Math.round(coolingUtilization * 100)}%`)
   }
 
+  // ═══════════════════════════════════════════════════════
+  // COOLING DUTY CYCLE MODEL
+  // PID output = duty cycle (0.0–1.0) instead of a target offset.
+  // The hardware is controlled via PWM bursts: 0°C = cooling ON,
+  // baseTarget = cooling OFF. Burst length = duty × 300s.
+  // The integral accumulates the steady-state duty needed at equilibrium.
+  // ═══════════════════════════════════════════════════════
+  if (mode === 'cooling') {
+    const coolingNeed = -avgError // positive when probe > baseTarget (needs cooling)
+    const DUTY_P = 0.5    // duty per °C error
+    const DUTY_I = 0.05   // duty accumulation per cycle per °C
+    const DUTY_DECAY = 0.98 // slow decay for stable steady-state
+    const DUTY_IMAX = 0.95  // max 95% from integral
+
+    // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
+    let integral = persistedIntegral
+    if (integral > 1.0) {
+      const cBucket = getTempBucket(baseTarget)
+      const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
+      integral = seed.sampleCount >= 3 ? seed.value : 0
+      console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
+    }
+
+    let dutyCycle = 0
+
+    if (Math.abs(avgError) <= 0.1) {
+      // DEADBAND: hold at integral (learned steady-state duty)
+      integral *= 0.9
+      dutyCycle = Math.max(0, integral)
+      constraints.push('deadband')
+      console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    } else if (coolingNeed < -0.1) {
+      // OVERCOOLED: stop cooling, fast-decay integral
+      integral *= 0.85
+      dutyCycle = 0
+      constraints.push('overcooled')
+      console.log(`❄️ Duty overcooled ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0%`)
+    } else {
+      // NEEDS COOLING — proportional + integral
+      pCorrection = coolingNeed * DUTY_P
+
+      if (isStaleData) {
+        console.log(`⏸️ Duty stale ${controllerName}: holding I=${integral.toFixed(3)}`)
+      } else {
+        integral = integral * DUTY_DECAY + coolingNeed * DUTY_I
+        integral = Math.max(0, Math.min(DUTY_IMAX, integral))
+      }
+      iCorrection = integral
+
+      // D-term: damp P only (integral = steady-state, must persist)
+      let raw = pCorrection * dampingFactor + integral
+
+      // Saturation guard: don't push duty past integral + 10% when hardware is maxed
+      if (isSaturated && raw > integral + 0.1) {
+        raw = integral + 0.1
+        constraints.push('duty-sat')
+      }
+
+      // Full cooling at large error (> 2°C too warm)
+      if (coolingNeed > 2.0) {
+        raw = Math.max(raw, 1.0)
+        constraints.push('full-cooling')
+      }
+
+      // Ramp rate boost: if cooling too slowly for the required ramp
+      if (rampContext && !isSaturated && _pillRate !== null) {
+        const observedRate = Math.abs(_pillRate)
+        const rateDeficit = rampContext.requiredRatePerHour - observedRate
+        if (rateDeficit > 0.1) {
+          const rampBoost = Math.min(rateDeficit * 0.2, 0.3)
+          raw = Math.min(1.0, raw + rampBoost)
+          constraints.push(`ramp-boost=${rampBoost.toFixed(2)}`)
+          console.log(`🚀 Duty ramp boost ${controllerName}: required=${rampContext.requiredRatePerHour.toFixed(2)}°/h, actual=${observedRate.toFixed(2)}°/h → +${(rampBoost * 100).toFixed(0)}%`)
+        }
+      }
+
+      dutyCycle = Math.max(0, Math.min(1.0, raw))
+      console.log(`🎯 Duty ${controllerName}: need=${coolingNeed.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, damp=${dampingFactor.toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
+    }
+
+    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
+      pCorrection, integral, dampingFactor, avgError)
+
+    return {
+      ctrlTargetPid: Math.round(baseTarget * 10) / 10, dutyCycle,
+      compensation, avgDelta, dampingFactor,
+      pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
+      errorCorrection: 0, pCorrection, iCorrection: integral,
+      learnedBaseline, deltaBucket, convergenceCount, constraints,
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // HEATING: Target-based PID (existing logic below)
+  // ═══════════════════════════════════════════════════════
   if (Math.abs(avgError) <= 0.1) {
     // === DEADBAND — within ±0.1°C of target ===
     // Average temp is at target — freeze PI error correction to prevent oscillation.

@@ -1,37 +1,44 @@
 
 
-## PWM 10%-upplösning med 2-cykelsmodell
+## Unified PID-to-Duty-Cycle Controller (Implemented)
 
-### Koncept
-Nuvarande: 5-min cykel, 1-min upplösning → **6 steg** (0, 20, 40, 60, 80, 100%).
-Nytt: 10-min fönster (2 × 5-min cykler), alternerar burst-längd → **11 steg** (0, 10, 20, …, 90, 100%).
+### Arkitektur
+```text
+Profil → Dual Sensor → PID → duty cycle (0–100%) → PWM burst varje 5-min cykel
+                                                     ├─ 0°C i (duty% × 300)s
+                                                     └─ baseTarget resten av cykeln
+```
 
-Exempel:
-- **30%** = 3 min / 10 min → Cykel A: 2 min burst, Cykel B: 1 min burst
-- **10%** = 1 min / 10 min → Cykel A: 1 min burst, Cykel B: 0 min (ingen burst)
-- **50%** = 5 min / 10 min → Cykel A: 3 min, Cykel B: 2 min
+### Hur det fungerar
+- **Cooling**: PID output = duty cycle (0.0–1.0). Hardware styrs via PWM-bursts.
+  - Stor error (> 2°C): duty = 100% (full kylning)
+  - Proportionell zon: duty = clamp(|error| × 0.5 + integral, 0, 1.0)
+  - Deadband (±0.1°C): duty = integral (inlärd steady-state)
+  - Overcooled: duty = 0%, integral dämpas
+  - D-term: dämpar P-termen nära mål (integral opåverkad)
 
-### Fas-bestämning
-Använd tidsstämpel: `Math.floor(Date.now() / 300000) % 2` ger fas 0 eller 1. Ingen extra DB-kolumn behövs.
+- **Heating**: Oförändrad target-baserad PID (RAPT styr värmare via hysteres)
 
-### Ändringar
+### PID-parametrar (cooling duty)
+```
+pGain: 0.5        # duty per °C error
+iGain: 0.05       # duty per cykel per °C
+iDecay: 0.98      # långsam decay → stabil steady-state
+iClamp: 0.95      # max 95% duty från integralen
+```
 
-**1. `controller-adjustments.ts` — kvantisering + burst-beräkning**
-- Kvantisera till 10%-steg: `Math.round(duty * 10) * 10`
-- Beräkna total burst för 10 min: `totalBurstMin = dutyPct / 10` (0–10 min)
-- Fördela på fas A/B: `fasA = Math.ceil(total/2)`, `fasB = Math.floor(total/2)`
-- Välj aktuell fas burst-längd baserat på tidsstämpeln
+### PWM-exekvering
+- 10%-upplösning via 2-cykelsmodell (2 × 5-min fönster)
+- duty 0% → ingen burst, hw target = baseTarget
+- duty 100% → ingen revert, håll 0°C hela cykeln
+- duty 10-90% → burst 0°C i N sekunder, revert till baseTarget
 
-**2. `execute-pwm-off/index.ts`** — inga ändringar behövs (hanterar redan godtyckliga burst-längder)
+### Förenklingar
+- `pwm_stable_count` — borttagen (PWM körs alltid)
+- Separat `DUTY_LEARN` — borttagen (integralen ÄR steady-state)
+- Separat `PWM_FEEDBACK` — borttagen (PID-loopen styr duty direkt)
+- Rate-limits, proximity dampening — ej nödvändiga för duty (0–1 range)
 
-**3. `LearnedDutyCycle.tsx` — UI**
-- Uppdatera kvantisering till 10%-steg, 10-segmenterad bar istället för 5
-- Uppdatera fotnot: "PWM kvantiseras i 10%-steg över 2 × 5-min cykler"
-
-**4. `AutoCoolingDecisionLogs.tsx` + `AutomationFeatureStatus.tsx`**
-- Visa nya procentsatser (redan visar `duty%`, bara siffrorna ändras)
-
-### Risker
-- Om en cykel missas (timeout) hinner systemet fortfarande korrigera nästa 5-min fönster — degraderar graciöst till ~20%-upplösning för den perioden
-- Ingen breaking change — alla befintliga 20%-värden (0, 20, 40, 60, 80) mappas exakt till nya stegen
-
+### Migration
+- Befintlig `steady_state_duty`-data seedar integralen vid första körning
+- Integraler > 1.0 (gamla °C-baserade) detekteras och konverteras automatiskt
