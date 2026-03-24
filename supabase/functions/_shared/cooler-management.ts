@@ -747,9 +747,10 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     // Calculate utilization first (needed for both active-cooling check and results)
     const utilResult = await calculateSingleUtilization(ctx.supabase, c)
-    // Consider "actively cooling" if probe exceeds threshold OR recent utilization is high
+    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high.
+    // 30% threshold avoids false "idle" when hardware hysteresis is large and relay cycles are coarse.
     const isAboveThreshold = probeTemp > targetTemp + hysteresis
-    const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.50
+    const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.30
     const isActivelyCooling = isAboveThreshold || isHighUtil
 
     results.push({
