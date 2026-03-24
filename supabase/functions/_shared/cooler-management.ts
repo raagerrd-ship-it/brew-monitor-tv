@@ -465,6 +465,28 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     return adjustments
   }
 
+  // ── Manual override cooldown: respect user's cooler changes for 30 min ──
+  // If the user manually changed the cooler target recently, don't override it.
+  if (!previousWasKick) {
+    const { data: recentManualAdj } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at, reason')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .like('reason', '%Manuell hårdvaruändring%kylare-hanterad%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (recentManualAdj) {
+      const manualCooldownMs = 30 * 60 * 1000 // 30 min cooldown
+      const timeSinceManual = Date.now() - new Date(recentManualAdj.created_at).getTime()
+      if (timeSinceManual < manualCooldownMs) {
+        log('MANUAL_COOLDOWN', 'info', `Manuell kylare-ändring detekterad för ${Math.round(timeSinceManual / 60000)}min sedan — respekterar i ${Math.round((manualCooldownMs - timeSinceManual) / 60000)}min till`)
+        return adjustments
+      }
+    }
+  }
+
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
   if (!previousWasKick) {
     const { data: lastAdjust } = await supabase
