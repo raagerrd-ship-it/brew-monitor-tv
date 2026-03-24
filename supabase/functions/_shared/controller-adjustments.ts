@@ -441,7 +441,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Only revert if hardware is stuck at a PWM extreme (0°C from a burst)
           // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
           // that causes a sync loop where RAPT reports old value, we correct, repeat.
-          if (ctrlTarget < 1) {
+          if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
