@@ -244,7 +244,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
 
     // Determine what mode the current temperature suggests
-    const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+    const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
     // Check if probe has stabilized on the WRONG side of the target.
     // "Wrong side" = suggestedMode differs from prevMode (probe overshot past target).
