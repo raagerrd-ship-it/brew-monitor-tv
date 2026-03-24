@@ -1309,7 +1309,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                         );
                       }
                       if (pwmSkipNames.has(name)) {
-                        const dutyPctSync = det.duty_pct as number | undefined;
+                        const pidDuty = pidDutyByName.get(name);
+                        const dutyPctSync = pidDuty ?? (det.duty_pct as number | undefined);
                         const quantizedSync = dutyPctSync != null ? Math.round(dutyPctSync / 10) * 10 : 0;
                         return (
                           <TooltipProvider delayDuration={200}><Tooltip>
@@ -1319,12 +1320,29 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM aktiv men fas B — ingen burst denna cykel (duty ${quantizedSync}%)`}
+                              {`PWM aktiv men fas B/0% — ingen burst denna cykel (duty ${quantizedSync}%)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
                       }
+                      // Show PID duty cycle badge for active cooling controllers
                       if (!isInactive && !isGlycol) {
+                        const pidDuty = pidDutyByName.get(name);
+                        if (pidDuty != null) {
+                          const quantizedDuty = Math.round(pidDuty / 10) * 10;
+                          return (
+                            <TooltipProvider delayDuration={200}><Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium ${quantizedDuty > 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-sky-500/10 text-sky-400/70'}`}>
+                                  PWM {quantizedDuty}%
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                {`PID duty cycle ${pidDuty}% → kvantiserat ${quantizedDuty}%`}
+                              </TooltipContent>
+                            </Tooltip></TooltipProvider>
+                          );
+                        }
                         return (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/70 font-medium">PID</span>
                         );
