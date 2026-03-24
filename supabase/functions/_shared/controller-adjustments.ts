@@ -49,7 +49,7 @@ export interface ControllerAdjustmentContext {
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
-  /** Populated by PID: maps controller_id → dual-sensor baseTarget (grundmål).
+  /** Populated by PID: maps controller_id → actualTarget (profile target).
    *  Used by cooler to plan against a stable target, not the PID-fluctuating target_temp. */
   baseTargetMap: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
