@@ -243,7 +243,10 @@ export function LearnedCompensationBaselines() {
                       {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
                     </td>
                     <td className={`py-1.5 text-right font-mono ${corrColor}`}>
-                      {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°
+                      {!isHeating
+                        ? `${Math.round(item.accumulated_integral * 100)}%`
+                        : `${item.learned_pi_correction >= 0 ? "+" : ""}${item.learned_pi_correction.toFixed(2)}°`
+                      }
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">
                       <span>{item.convergence_count}</span>
