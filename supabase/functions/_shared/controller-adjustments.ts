@@ -458,6 +458,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
       continue
     }
+  }
 
   return adjustments
 }
