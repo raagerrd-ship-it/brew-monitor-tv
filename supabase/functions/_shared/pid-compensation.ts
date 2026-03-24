@@ -46,13 +46,12 @@ async function getLearnedCoolingRate(
 // PID Control & Thermal Learning
 //
 // SSOT Naming Convention:
-//   baseTarget    = sensor-fused target from dual-sensor module
-//                   (= profileTarget - sensorDelta)
-//   profileTarget = user's desired temperature (profile_target_temp)
-//                   Used ONLY for logging and delta calculation (avgDelta)
-//   ctrlTarget    = current hardware target (target_temp before PID)
-//   ctrlTargetPid = PID-computed target sent to RAPT hardware
+//   actualTarget  = user's desired temperature (profile_target_temp)
 //   actualTemp    = fused sensor reading (avg or probe-only)
+//   ctrlTarget    = current hardware target (target_temp before PID)
+//   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
+//
+// PID error = actualTarget - actualTemp (same domain user sees)
 // ============================================================
 
 export interface PillCompensationSettings {
