@@ -247,127 +247,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // ── Pre-calculate PWM mode (burst-per-cycle model) ──
-    let isPwmActiveSegment = false
-    let isPwmMode = false
-    let pwmDutyPct = 0
-    let pwmDutySeconds = 0
-    const ctrlTempDiffPre = Math.round(Math.abs((fc.current_temp ?? 0) - ctrlTarget) * 10) / 10
-
-    // ── PWM stability counter: require 4 consecutive stable cycles before activating PWM ──
-    const PWM_STABLE_THRESHOLD = 4
-    const prevStableCount = parseInt(String((fc as any).pwm_stable_count ?? '0'), 10)
-
-    if ((stepType === 'hold' || stepType === 'standalone') && ctrlTempDiffPre < 0.3) {
-      const newStableCount = prevStableCount + 1
-      if (newStableCount !== prevStableCount) {
-        await supabase.from('rapt_temp_controllers')
-          .update({ pwm_stable_count: newStableCount })
-          .eq('controller_id', fc.controller_id)
-      }
-
-      if (newStableCount >= PWM_STABLE_THRESHOLD) {
-        const cBucket = getTempBucket(ctrlTarget)
-        const dutyParam = await getLearnedParam(supabase, fc.controller_id, `steady_state_duty:${cBucket}`, -1)
-
-        if (dutyParam.sampleCount >= 5 && dutyParam.value >= 0 && dutyParam.value < 0.90) {
-            isPwmMode = true
-            isPwmActiveSegment = true
-
-            // ── Closed-loop PWM feedback ──────────────────────
-            // Asymmetric: overcooling (below target) → fast correction down.
-            //             undercooling (above target) → cautious correction up.
-            // PWM always runs — pausing would cause oscillation.
-            let feedbackDuty = dutyParam.value
-            if (!ctx.skipLearning) {
-              const probeNow = fc.current_temp ?? 0
-              const tempError = probeNow - ctrlTarget // positive = too warm, negative = overcooling
-
-              const PWM_FEEDBACK_DEADBAND = 0.10 // tight deadband for precise control
-              if (Math.abs(tempError) > PWM_FEEDBACK_DEADBAND) {
-                // Asymmetric gain: 0.3 per °C when overcooling, 0.15 per °C when undercooling
-                const gain = tempError < 0 ? 0.3 : 0.15
-                const correction = tempError * gain
-                const correctedDuty = Math.max(0, Math.min(0.95, feedbackDuty + correction))
-                if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
-                  // Use higher alpha (0.4) for overcooling corrections to converge faster
-                  const alpha = tempError < 0 ? 0.4 : 0.25
-                  const fbResult = await updateLearnedParam(
-                    supabase, fc.controller_id, `steady_state_duty:${cBucket}`,
-                    correctedDuty, 0.01, 1.0, alpha,
-                  )
-                  feedbackDuty = fbResult.newValue
-                  log('PWM_FEEDBACK', 'info', `${fc.name}: error ${tempError > 0 ? '+' : ''}${tempError.toFixed(2)}°C → duty ${(dutyParam.value * 100).toFixed(0)}→${(fbResult.newValue * 100).toFixed(0)}% (gain=${gain}, α=${alpha})`)
-                }
-              }
-            }
-
-            // 2-cycle model: 10%-resolution over 10-min (2×5-min) window.
-            pwmDutyPct = Math.round(feedbackDuty * 10) * 10
-            const totalBurstMin = pwmDutyPct / 10
-            const phase = Math.floor(Date.now() / 300000) % 2
-            const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-            pwmDutySeconds = currentBurstMin * 60
-        }
-      }
-    } else if (prevStableCount > 0) {
-      // Temperature drifted — reset counter
-      await supabase.from('rapt_temp_controllers')
-        .update({ pwm_stable_count: 0 })
-        .eq('controller_id', fc.controller_id)
-    }
-
+    // === PID Calculation ===
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, dualSensor.baseTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext, isPwmActiveSegment, ctx.skipLearning,
+      actualTemp, probeTemp, coolingUtil, rampContext, false, ctx.skipLearning,
     )
 
-    // Safety bounds — respect hardware min/max strictly
-    const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-    const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
-    const unclamped = pidResult.ctrlTargetPid
-    let ctrlTargetPid = round1(Math.max(hwMinTemp, Math.min(maxTemp, unclamped)))
-
-    // Track if hardware min/max clamped the target
-    if (unclamped < hwMinTemp) {
-      pidResult.constraints = pidResult.constraints ?? []
-      pidResult.constraints.push(`hw-min=${hwMinTemp}`)
-    }
-    if (unclamped > maxTemp) {
-      pidResult.constraints = pidResult.constraints ?? []
-      pidResult.constraints.push(`hw-max=${maxTemp}`)
-    }
-
-    // ── Heater activation guard ──────────────────────────────
-    // When PID wants to raise target in heating mode, cap it below
-    // the heater activation threshold (probe + heating_hysteresis)
-    // so the temperature drifts up naturally without firing the heater.
-    // Only applies when error is small (holding stable, not recovering).
-    if (pidMode === 'heating' && fc.heating_enabled && fc.heating_hysteresis != null) {
-      const heatingHyst = parseFloat(String(fc.heating_hysteresis))
-      // Heater activates when probe < target - hysteresis
-      // → prevent by keeping target ≤ probe + hysteresis - buffer
-      const heaterThreshold = probeTemp + heatingHyst - 0.1
-      const avgError = dualSensor.baseTarget - actualTemp
-      const isHoldingStable = Math.abs(avgError) < 1.0
-
-      if (isHoldingStable && ctrlTargetPid > heaterThreshold) {
-        const before = ctrlTargetPid
-        ctrlTargetPid = Math.max(ctrlTarget, heaterThreshold) // never below ctrl target (profile target is virtual)
-        pidResult.constraints = pidResult.constraints ?? []
-        pidResult.constraints.push(`heat-guard=${heatingHyst}`)
-        console.log(`🔥 Heater guard ${fc.name}: capped ${before.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (probe=${probeTemp.toFixed(1)}, hyst=${heatingHyst}, threshold=${heaterThreshold.toFixed(1)})`)
-      }
-    }
-
-    // Always log PID status for visibility in decision log
+    // Log PID status
     const pillTempLog = round1(fc.pill_temp ?? 0)
     const probeTempLog = round1(fc.current_temp ?? 0)
     const avgTemp = round1(actualTemp)
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
-
-    // Sensor delta: the pure geometric correction from dual-sensor module
     const effectiveDelta = round1(sensorDelta)
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
@@ -377,7 +268,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       dual_sensors: hasDualSensors,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
-      ctrl_target_pid: round1(ctrlTargetPid),
+      ctrl_target_pid: round1(pidResult.ctrlTargetPid),
       delta: effectiveDelta,
       sensor_delta: round1(sensorDelta),
       error_correction: round1(pidResult.errorCorrection ?? 0),
@@ -389,106 +280,129 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
+      duty_cycle: pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : undefined,
       cooling_util: coolingUtil != null ? Math.round(coolingUtil * 100) : null,
       recent_util: recentUtil != null ? Math.round(recentUtil * 100) : null,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
     })
 
-    const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
-
-    // ── Duty-cycle PWM burst (hardware-only model) ──
-    // PWM sends 0°C to RAPT hardware but does NOT update DB target_temp.
-    // This keeps the DB state clean — "Mål" always shows the real PID target.
-    // PID is completely locked during active PWM cycles (checked at loop start).
-    //
-    // The PWM OFF revert sends the PID-compensated target back to hardware.
-    // Since DB target_temp was never changed, no DB update is needed on revert either.
-    if (isPwmMode && pwmDutySeconds > 0) {
-      // Use ctrlTargetPid (PID-compensated target) as revert so that the integral's
-      // correction actually takes effect after the burst.
-      // Without this, the integral builds up but the hardware target never changes,
-      // causing permanent ~0.2°C undershoot.
-      // Safety: clamp to hardware limits to prevent aggressive values.
-      const pidRevert = Math.max(fc.min_target_temp ?? -5, Math.min(fc.max_target_temp ?? 25, round1(ctrlTargetPid)))
-      const offTarget = pidRevert
-      const onTarget = 0
-
-      const dutySeconds = pwmDutySeconds
-
-      log('DUTY_PWM_BURST', 'action', `${fc.name}: duty ${pwmDutyPct}% → ${dutySeconds}s burst av 300s (hw=${onTarget}°C, db behåller ${ctrlTarget}°, revert=${offTarget}°C nästa cykel)`, {
-        duty_pct: pwmDutyPct,
-        duty_seconds: dutySeconds,
-        on_target: onTarget,
-        off_target: offTarget,
-        pid_diff: pidDiff,
-      })
-
-      // 1. Send ON to hardware ONLY — skip DB sync so target_temp stays at real value
-      if (ctx.updateBatch) {
-        ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, offTarget)
-      } else {
-        // Fallback: send directly to RAPT without DB update
-        await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+    // ═══════════════════════════════════════════════════
+    // COOLING: Unified PWM duty cycle execution
+    // PID output is a duty cycle (0–100%). Hardware is controlled
+    // via PWM bursts: 0°C = cooling ON, baseTarget = cooling OFF.
+    // ═══════════════════════════════════════════════════
+    if (pidMode === 'cooling' && pidResult.dutyCycle != null) {
+      if (!fc.cooling_enabled) {
+        log('DUTY_SKIP', 'info', `${fc.name}: cooling not enabled, skipping duty cycle`)
+        continue
       }
 
-      // 1b. Persist PID-corrected target to DB so next cycle sees the updated value.
-      // This is the key mechanism: the integral builds up → ctrlTargetPid rises →
-      // DB target_temp rises → hardware revert target rises → offset eliminated.
-      if (offTarget !== ctrlTarget) {
+      const dutyRaw = pidResult.dutyCycle
+      // 2-cycle model: 10%-resolution over 10-min (2×5-min) window
+      const dutyPct = Math.round(dutyRaw * 10) * 10
+      const totalBurstMin = dutyPct / 10
+      const phase = Math.floor(Date.now() / 300000) % 2
+      const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
+      const burstSeconds = currentBurstMin * 60
+      const revertTarget = round1(dualSensor.baseTarget)
+
+      if (dutyPct >= 100) {
+        // 100%: hold 0°C entire cycle (no revert needed)
+        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100 })
+        if (ctx.updateBatch) {
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
+        } else {
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, 0)
+        }
+        await supabase.from('pending_rapt_retries')
+          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
         await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: offTarget, updated_at: new Date().toISOString() })
+          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        log('PWM_DB_SYNC', 'info', `${fc.name}: DB target_temp ${ctrlTarget}° → ${offTarget}° (PID-korrigerad)`)
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
+        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
+      } else if (burstSeconds > 0) {
+        // 10-90%: burst at 0°C, schedule revert to baseTarget
+        log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
+          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget,
+        })
+        if (ctx.updateBatch) {
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
+        } else {
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, 0)
+        }
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        const executeAt = new Date(Date.now() + burstSeconds * 1000).toISOString()
+        await supabase.from('pending_rapt_retries')
+          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+        await supabase.from('pending_rapt_retries').insert({
+          controller_id: fc.controller_id,
+          target_temp: revertTarget,
+          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty)`,
+          execute_at: executeAt,
+        })
+        // Reset P-term during burst (probe drops artificially from 0°C target)
+        await supabase.from('controller_learned_compensation')
+          .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
+        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
+      } else {
+        // 0% or phase B idle
+        if (dutyPct === 0) {
+          log('DUTY_ZERO', 'info', `${fc.name}: duty 0% — ingen kylning`)
+          // Ensure hardware target is at baseTarget (cooling OFF)
+          if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
+            if (ctx.updateBatch) {
+              ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
+            } else {
+              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
+            }
+            await supabase.from('rapt_temp_controllers')
+              .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+              .eq('controller_id', fc.controller_id)
+            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
+          }
+        } else {
+          log('DUTY_PHASE_B', 'info', `${fc.name}: PWM ${dutyPct}% fas B — ingen burst denna cykel`)
+        }
       }
-
-      // PWM ON is documented by DUTY_PWM_BURST + RAPT_SEND decisions — no separate adjustment log needed
-
-      // 2. Schedule PWM OFF via pending_rapt_retries with execute_at
-      //    pg_cron runs execute-pwm-off every minute which picks up due rows.
-      const executeAt = new Date(Date.now() + dutySeconds * 1000).toISOString()
-      await supabase.from('pending_rapt_retries')
-        .delete()
-        .eq('controller_id', fc.controller_id)
-        .like('reason', '%PWM OFF%')
-      await supabase.from('pending_rapt_retries').insert({
-        controller_id: fc.controller_id,
-        target_temp: offTarget,
-        reason: `⚡ PWM OFF: hw → ${offTarget}° (${dutySeconds}s burst, ${pwmDutyPct}% duty)`,
-        execute_at: executeAt,
-      })
-
-      // 4. Reset P-term only — it's invalid during PWM burst (probe cooled artificially by 0°C).
-      // Keep accumulated_integral: it represents the learned offset needed to
-      // compensate for cooling asymmetry (e.g. glycol cools fast, warms slow → systematic undershoot).
-      // Zeroing it causes permanent ~0.2°C undershoot because the integral never gets time to build.
-      await supabase.from('controller_learned_compensation')
-        .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-        .eq('controller_id', fc.controller_id)
-      log('PID_PARTIAL_RESET', 'info', `${fc.name}: P-term nollställd inför PWM (integral bevarad)`)
-
-      adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
-
-      // DO NOT mutate in-memory target_temp — DB and in-memory stay at the real PID value.
-      // The cooler will see the real target, not the temporary 0°C.
-
-      continue
-    } else if (isPwmMode && pwmDutySeconds === 0) {
-      // Phase B of a low duty (e.g. 10%) — no burst this cycle, just log
-      log('DUTY_PWM_SKIP', 'info', `${fc.name}: PWM ${pwmDutyPct}% fas B — ingen burst denna cykel`)
       continue
     }
 
-    // ── No-op: PID diff too small to justify an update ──────
-    // Use strict < 0.1 so that exactly 0.1°C changes pass through.
-    // The integral needs these small steps to converge on the correct target.
-    if (pidDiff < 0.1) {
-      continue
+    // ═══════════════════════════════════════════════════
+    // HEATING: Target-based PID (unchanged logic)
+    // RAPT hardware manages heating relay via its own hysteresis.
+    // ═══════════════════════════════════════════════════
+    if (pidMode !== 'heating') continue // Edge case: cooling without cooling_enabled
+
+    const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+    const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
+    const unclamped = pidResult.ctrlTargetPid
+    let ctrlTargetPid = round1(Math.max(hwMinTemp, Math.min(maxTemp, unclamped)))
+    if (unclamped < hwMinTemp) { pidResult.constraints = pidResult.constraints ?? []; pidResult.constraints.push(`hw-min=${hwMinTemp}`) }
+    if (unclamped > maxTemp) { pidResult.constraints = pidResult.constraints ?? []; pidResult.constraints.push(`hw-max=${maxTemp}`) }
+
+    // Heater activation guard
+    if (fc.heating_enabled && fc.heating_hysteresis != null) {
+      const heatingHyst = parseFloat(String(fc.heating_hysteresis))
+      const heaterThreshold = probeTemp + heatingHyst - 0.1
+      const heatError = dualSensor.baseTarget - actualTemp
+      if (Math.abs(heatError) < 1.0 && ctrlTargetPid > heaterThreshold) {
+        const before = ctrlTargetPid
+        ctrlTargetPid = Math.max(ctrlTarget, heaterThreshold)
+        pidResult.constraints = pidResult.constraints ?? []
+        pidResult.constraints.push(`heat-guard=${heatingHyst}`)
+        console.log(`🔥 Heater guard ${fc.name}: capped ${before.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C`)
+      }
     }
 
-    // ── No-op guard: skip if we already applied this exact target ─────
-    // Prevents duplicate "PID 5.8→5.7" log entries when the PID
-    // recalculates the same compensation across consecutive cycles
-    // but RAPT hardware hasn't confirmed the change yet (API latency).
+    const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
+    if (pidDiff < 0.1) continue
+
+    // Duplicate guard
     const { data: lastAdj } = await supabase
       .from('auto_cooling_adjustments')
       .select('new_target_temp')
@@ -496,42 +410,31 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       .like('reason', '%PID%')
       .order('created_at', { ascending: false })
       .limit(1)
-    
     if (lastAdj?.[0] && Math.abs(ctrlTargetPid - lastAdj[0].new_target_temp) < 0.05) {
-      log('PID_SKIP', 'info', `${fc.name}: Target already at ${ctrlTargetPid}°C from previous cycle, skipping duplicate`)
+      log('PID_SKIP', 'info', `${fc.name}: Target already at ${ctrlTargetPid}°C, skipping duplicate`)
       continue
     }
 
-    const learnedInfo = pidResult.learnedBaseline > 0 ? `, learned=${pidResult.learnedBaseline.toFixed(2)}[${pidResult.deltaBucket}]n=${pidResult.convergenceCount}` : ''
-    const piTermInfo = pidResult.errorCorrection !== 0 ? `, PI=${pidResult.errorCorrection >= 0 ? '+' : ''}${pidResult.errorCorrection.toFixed(2)}°C(P=${pidResult.pCorrection?.toFixed(2) ?? '0'},I=${pidResult.iCorrection?.toFixed(2) ?? '0'}${learnedInfo})` : ''
-    const probeRateInfo = pidResult.probeRate != null ? `, probeRate=${pidResult.probeRate.toFixed(2)}°/h` : ''
-    const dTermInfo = pidResult.dampingFactor < 1.0
-      ? `, D-term: rate=${pidResult.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, ETA=${pidResult.etaMinutes ?? '?'}min, damp=${pidResult.dampingFactor.toFixed(2)}${piTermInfo}`
-      : `, D-term: rate=${pidResult.pillRate?.toFixed(2) ?? '?'}°/h${probeRateInfo}, damp=1.0${piTermInfo}`
-    const constraintInfo = pidResult.constraints && pidResult.constraints.length > 0 ? `, limits=[${pidResult.constraints.join(',')}]` : ''
+    const piInfo = `PI=${(pidResult.errorCorrection ?? 0) >= 0 ? '+' : ''}${(pidResult.errorCorrection ?? 0).toFixed(2)}°C`
+    const heatConstraintInfo = constraintLabels.length > 0 ? `, limits=[${constraintLabels.join(',')}]` : ''
+    log('PID_HEATING', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (${piInfo}${heatConstraintInfo})`)
 
-    log('PILL_COMP_ACTION', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`)
-
-    // Queue update in batch (or send immediately if no batch)
     let success: boolean
     if (ctx.updateBatch) {
       ctx.updateBatch.add(fc.controller_id, ctrlTargetPid, ctrlTarget)
-      success = true // Optimistic for in-memory + logging; DB write deferred to batch flush
+      success = true
     } else {
       success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, ctrlTargetPid)
     }
 
     if (success) {
-      log('PILL_COMP_ACTION', 'pass', `Set ${fc.name} to ${ctrlTargetPid}°C${ctx.updateBatch ? ' (batched)' : ''}`)
+      log('PID_HEATING', 'pass', `Set ${fc.name} to ${ctrlTargetPid}°C${ctx.updateBatch ? ' (batched)' : ''}`)
       adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: ctrlTargetPid })
-
-      // Only write to DB immediately when NOT batching.
       if (!ctx.updateBatch) {
         await supabase.from('rapt_temp_controllers')
           .update({ target_temp: ctrlTargetPid, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
       }
-
       await logAdjustment(supabase, {
         cooler_controller_id: fc.controller_id,
         cooler_controller_name: fc.name,
@@ -544,11 +447,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
         followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
         followed_hysteresis: pidResult.avgDelta,
-        reason: `🎯 PID: ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (delta=${pidResult.avgDelta.toFixed(2)}, komp=${pidResult.compensation.toFixed(2)}°C${dTermInfo}${constraintInfo})`,
+        reason: `🎯 PID: ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (heating, ${piInfo}${heatConstraintInfo})`,
         adjusted_against_timestamp: fc.last_update,
       })
     } else {
-      log('PILL_COMP_ACTION', 'fail', `Failed to update ${fc.name}`)
+      log('PID_HEATING', 'fail', `Failed to update ${fc.name}`)
     }
   }
 
