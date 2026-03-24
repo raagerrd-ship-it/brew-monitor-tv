@@ -431,6 +431,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await supabase.from('controller_learned_compensation')
           .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
+          .eq('mode', 'cooling')
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
       } else {
@@ -440,7 +441,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Only revert if hardware is stuck at a PWM extreme (0°C from a burst)
           // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
           // that causes a sync loop where RAPT reports old value, we correct, repeat.
-          if (ctrlTarget < 1) {
+          if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
@@ -520,6 +521,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await supabase.from('controller_learned_compensation')
           .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
+          .eq('mode', 'heating')
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
       } else {
