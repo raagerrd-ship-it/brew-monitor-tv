@@ -1,64 +1,63 @@
 
 
-## Code Review: Buggar och Inkonsistenser
+## Åtgärda kvarvarande buggar (Bug 2 + Bug 3)
 
-### Bug 1: Heating deadband fortfarande decayar integral (KRITISK)
+### Bug 2: Cooling DUTY_ZERO missar maxTemp-revert
 
-**Fil:** `supabase/functions/_shared/pid-compensation.ts`, rad 405
+**Problem:** När mode byter från heating till cooling kan hårdvaran stå kvar vid `maxTemp` (t.ex. 25°C) från en heating-burst. Cooling DUTY_ZERO-guarden (rad 443) kollar bara `ctrlTarget < 1` och missar detta fall.
 
-Cooling-deadbanden fixades nyligen — integralen bevaras utan decay för att behålla den inlärda steady-state duty-cykeln. Men **samma fix gjordes INTE för heating**:
+**Fix:** Utöka DUTY_ZERO-villkoret i cooling-blocket att även fånga `ctrlTarget >= maxTemp - 0.5`:
 
-```text
-// COOLING (rad 314-318) — FIXAD:
-if (Math.abs(avgError) <= 0.1) {
-  dutyCycle = Math.max(0, integral)  // ← Ingen decay, korrekt
-}
+<lov-plan>
 
-// HEATING (rad 403-408) — BUGG:
-if (Math.abs(avgError) <= 0.1) {
-  hIntegral *= 0.9                   // ← Decay kvar! Duty sjunker till 0%
-  hDutyCycle = Math.max(0, hIntegral)
-}
+## Åtgärda kvarvarande buggar (Bug 2 + Bug 3)
+
+### Bug 2: Cooling DUTY_ZERO missar maxTemp-revert
+
+**Problem:** När mode byter från heating till cooling kan hårdvaran stå kvar vid `maxTemp` (t.ex. 25°C) från en heating-burst. Cooling DUTY_ZERO-guarden (rad 443) kollar bara `ctrlTarget < 1` och missar detta fall.
+
+**Fix:** Utöka DUTY_ZERO-villkoret i cooling-blocket (rad 443) att även fånga `ctrlTarget >= maxTemp - 0.5`:
+
+```typescript
+// Rad 443 — controller-adjustments.ts
+// Före:
+if (ctrlTarget < 1) {
+
+// Efter:
+const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
 ```
 
-**Konsekvens:** När heating-mode når målet (error ≤ 0.1°C) decayar integralen med 10% varje cykel. Efter ~20 cykler har duty sjunkit till nära 0% och temperaturen börjar falla, varpå systemet måste bygga upp integralen igen → oscillation.
+---
 
-**Fix:** Ta bort `hIntegral *= 0.9` i heating-deadbanden, precis som gjordes för cooling.
+### Bug 3: P-correction nollställs för alla modes vid PWM burst
+
+**Problem:** Rad 431-433 (cooling) och 520-522 (heating) nollställer `latest_p_correction` på ALLA rader i `controller_learned_compensation` för controllern, inte bara det aktiva mode:t. Kan nollställa den andra modens inlärda P-correction i onödan.
+
+**Fix:** Lägg till `.eq('mode', ...)` filter vid P-correction reset:
+
+```typescript
+// Rad 431-433 (cooling burst) — lägg till mode-filter:
+await supabase.from('controller_learned_compensation')
+  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+  .eq('controller_id', fc.controller_id)
+  .eq('mode', 'cooling')
+
+// Rad 520-522 (heating burst) — lägg till mode-filter:
+await supabase.from('controller_learned_compensation')
+  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+  .eq('controller_id', fc.controller_id)
+  .eq('mode', 'heating')
+```
 
 ---
 
-### Bug 2: Cooling DUTY_ZERO revert-guard missar maxTemp-extremen (MINDRE)
+### Sammanfattning
 
-**Fil:** `supabase/functions/_shared/controller-adjustments.ts`, rad 443
+| Ändring | Fil | Rad |
+|---------|-----|-----|
+| DUTY_ZERO fånga maxTemp-rest | `controller-adjustments.ts` | 443 |
+| P-correction reset med mode-filter | `controller-adjustments.ts` | 431-433, 520-522 |
 
-Cooling-modens `DUTY_ZERO` revert-guard kontrollerar `ctrlTarget < 1` (dvs. hårdvaran står på 0°C från en burst). Men om systemet byter från heating till cooling efter en heating-burst, kan hårdvaran stå kvar vid `maxTemp` (t.ex. 25°C). Det finns ingen guard som revertar detta vid `dutyPct === 0` i cooling-moden.
-
-Detta är dock låg risk — mode-switchen nollställer pressure och vid nästa cykel borde systemet fånga upp det.
-
----
-
-### Potentiellt problem 3: persistPidState uppdaterar `controller_learned_compensation` per mode
-
-**Fil:** `supabase/functions/_shared/pid-compensation.ts`, rad 11-18
-
-`persistPidState` upserterar med `onConflict: 'controller_id,delta_bucket,mode,step_type'`. Det aktiva mode:t lagras nu i `fermentation_learnings.pid_current_mode` (korrekt), men den gamla `controller_learned_compensation`-tabellen har fortfarande **separata rader per mode**. Om en PWM OFF-revert skriver till denna tabell (execute-pwm-off rad 431-433 i controller-adjustments) uppdateras P-correction till 0 på **alla** mode-rader, inte bara den aktiva. Det kan nollställa den andra modens data i onödan.
-
-Inte en direkt bugg (P-correction nollställs ändå under burst), men värt att notera.
-
----
-
-## Sammanfattning
-
-| # | Prioritet | Beskrivning | Fil |
-|---|-----------|-------------|-----|
-| 1 | **Kritisk** | Heating deadband decayar integral → 0% duty | `pid-compensation.ts:405` |
-| 2 | Låg | Cooling DUTY_ZERO missar maxTemp-revert | `controller-adjustments.ts:443` |
-| 3 | Info | P-correction nollställs över alla modes vid PWM OFF | `controller-adjustments.ts:431` |
-
-### Implementationsplan
-
-1. **Ta bort `hIntegral *= 0.9`** i heating-deadbanden (pid-compensation.ts rad 405)
-2. Deploya `auto-adjust-cooling` edge function
-
-En enkel ändring — 1 rad att ta bort.
+Deploya `auto-adjust-cooling` edge function efter ändringarna.
 
