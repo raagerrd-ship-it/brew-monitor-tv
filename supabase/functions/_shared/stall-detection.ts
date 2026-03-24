@@ -282,7 +282,9 @@ export async function detectAndHandleStalls(
     }
 
     // Apply adaptive boost
-    const currentTarget = parseFloat(String(fc.target_temp ?? 20))
+    // CRITICAL: Use profile_target_temp (SSOT) not target_temp.
+    // target_temp may be at a PID-adjusted value or leftover PWM extreme.
+    const currentTarget = parseFloat(String((fc as any).profile_target_temp ?? fc.target_temp ?? 20))
     const effectiveProfileTarget = profileTarget ?? currentTarget
     const maxTemp = parseFloat(String(fc.max_target_temp ?? 25))
     const boostedTarget = currentTarget + boostDeg
