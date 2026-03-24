@@ -22,7 +22,7 @@ export function getActualTemp(
     return (pillTemp + probeTemp) / 2;
   }
 
-  return hasProbe ? probeTemp : hasPill ? pillTemp : null;
+  return hasPill ? pillTemp : hasProbe ? probeTemp : null;
 }
 
 /**
