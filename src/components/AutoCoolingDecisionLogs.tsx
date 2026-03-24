@@ -121,6 +121,7 @@ const HIDDEN_STEPS = new Set([
   'BATCH_DB', 'PILL_COMP', 'PILL_COMP_SKIP',
   'BOOTSTRAP', 'STALE_SENSOR',
   'PID_CONTROL', 'PID_SKIP', 'CONTROLLERS',
+  'MODE_HOLD', 'MODE_SWITCH',
 ]);
 
 /** All steps handled by named pipeline sections */
