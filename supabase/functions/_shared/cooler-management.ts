@@ -470,7 +470,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   if (!previousWasKick) {
     const { data: recentManualAdj } = await supabase
       .from('auto_cooling_adjustments')
-      .select('created_at, reason')
+      .select('created_at, reason, old_target_temp, new_target_temp')
       .eq('cooler_controller_id', coolerController.controller_id)
       .like('reason', '%Manuell hårdvaruändring%kylare-hanterad%')
       .order('created_at', { ascending: false })
@@ -481,8 +481,25 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const manualCooldownMs = 30 * 60 * 1000 // 30 min cooldown
       const timeSinceManual = Date.now() - new Date(recentManualAdj.created_at).getTime()
       if (timeSinceManual < manualCooldownMs) {
-        log('MANUAL_COOLDOWN', 'info', `Manuell kylare-ändring detekterad för ${Math.round(timeSinceManual / 60000)}min sedan — respekterar i ${Math.round((manualCooldownMs - timeSinceManual) / 60000)}min till`)
-        return adjustments
+        const oldManualTarget = parseFloat(String(recentManualAdj.old_target_temp ?? currentCoolerTarget))
+        const newManualTarget = parseFloat(String(recentManualAdj.new_target_temp ?? currentCoolerTarget))
+        const userRequestedLower = newManualTarget < oldManualTarget - 0.1
+        const automationRaisedAboveManual = currentCoolerTarget > newManualTarget + 0.5
+        const automationWantsLowerNow = clampedTarget < currentCoolerTarget - 0.1
+
+        // Guard against cooldown lock: if user manually lowered the cooler target,
+        // but automation later raised it above that manual level, allow a corrective
+        // lower adjustment instead of freezing at an overly warm target.
+        if (userRequestedLower && automationRaisedAboveManual && automationWantsLowerNow) {
+          log(
+            'MANUAL_COOLDOWN_BYPASS',
+            'action',
+            `Bypass cooldown: manuell sänkning ${round1(oldManualTarget)}°→${round1(newManualTarget)}° överskreds (nu ${round1(currentCoolerTarget)}°), tillåter korrigering till ${round1(clampedTarget)}°`
+          )
+        } else {
+          log('MANUAL_COOLDOWN', 'info', `Manuell kylare-ändring detekterad för ${Math.round(timeSinceManual / 60000)}min sedan — respekterar i ${Math.round((manualCooldownMs - timeSinceManual) / 60000)}min till`)
+          return adjustments
+        }
       }
     }
   }
