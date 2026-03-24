@@ -929,7 +929,19 @@ async function learnFromCurrentState(
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
+  const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
   const currentMargin = Math.abs(effectiveTarget.temp - currentCoolerTarget)
+
+  // ── Guard: skip hold_margin learning when cooler is at/near max (idle) ──
+  // When the cooler target is clamped at max_target_temp, the observed margin
+  // is artificially small (e.g. 1.0°C). Learning this value creates a
+  // self-reinforcing loop where the margin stays too small to ever cool.
+  const coolerEffectivelyIdle = currentCoolerTarget >= coolerMaxTemp - 0.5
+  if (coolerEffectivelyIdle) {
+    await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
+    log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — kylare vid max (${round1(currentCoolerTarget)}° ≈ max ${round1(coolerMaxTemp)}°), observerad marginal ${currentMargin.toFixed(1)}° är artificiellt liten`)
+    return
+  }
 
   // Use baseTarget (grundmål) for margin learning — stable and not affected by PI fluctuations
   const getBaseTarget = (c: TempController): number =>
