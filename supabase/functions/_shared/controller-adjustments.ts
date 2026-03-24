@@ -217,7 +217,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
 
-    const pidMode: 'heating' | 'cooling' = (fc.current_temp ?? 0) < ctrlTarget ? 'heating' : 'cooling'
+    // Mode detection: cooling controllers ALWAYS use duty-cycle model (even when probe < target).
+    // Only use heating mode for controllers that have heating enabled but NOT cooling.
+    const pidMode: 'heating' | 'cooling' = fc.cooling_enabled ? 'cooling'
+      : fc.heating_enabled ? 'heating'
+      : (fc.current_temp ?? 0) < ctrlTarget ? 'heating' : 'cooling'
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
