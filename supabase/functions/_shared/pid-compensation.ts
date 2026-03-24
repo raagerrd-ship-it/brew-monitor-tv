@@ -290,11 +290,11 @@ export async function calculateCompensatedTarget(
   // COOLING DUTY CYCLE MODEL
   // PID output = duty cycle (0.0–1.0) instead of a target offset.
   // The hardware is controlled via PWM bursts: 0°C = cooling ON,
-  // baseTarget = cooling OFF. Burst length = duty × 300s.
+  // actualTarget = cooling OFF. Burst length = duty × 300s.
   // The integral accumulates the steady-state duty needed at equilibrium.
   // ═══════════════════════════════════════════════════════
   if (mode === 'cooling') {
-    const coolingNeed = -avgError // positive when probe > baseTarget (needs cooling)
+    const coolingNeed = -avgError // positive when actualTemp > actualTarget (needs cooling)
     const DUTY_P = 0.5    // duty per °C error
     const DUTY_I = 0.05   // duty accumulation per cycle per °C
     const DUTY_DECAY = 0.98 // slow decay for stable steady-state
