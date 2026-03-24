@@ -1092,7 +1092,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     });
   });
   const dutyPwmByName = new Map<string, { duty: number; burstSeconds: number }>();
-  decisions.filter(d => d.step === 'DUTY_PWM_BURST').forEach(d => {
+  // Support both old (DUTY_PWM_BURST) and new (DUTY_BURST, DUTY_FULL) step names
+  decisions.filter(d => d.step === 'DUTY_PWM_BURST' || d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) {
       const det = d.details || {};
@@ -1104,9 +1105,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   });
   // Track controllers where PWM mode is active but this phase has 0-burst
   const pwmSkipNames = new Set<string>();
-  decisions.filter(d => d.step === 'DUTY_PWM_SKIP').forEach(d => {
+  // Support both old (DUTY_PWM_SKIP) and new (DUTY_PHASE_B, DUTY_ZERO) step names
+  decisions.filter(d => d.step === 'DUTY_PWM_SKIP' || d.step === 'DUTY_PHASE_B' || d.step === 'DUTY_ZERO').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) pwmSkipNames.add(nameMatch[1].trim());
+  });
+  // Build PID duty cycle map from PILL_COMP_STATUS for "Behov" column
+  const pidDutyByName = new Map<string, number>();
+  decisions.filter(d => d.step === 'PILL_COMP_STATUS').forEach(d => {
+    const name = d.message.replace('Controller: ', '');
+    const det = d.details || {};
+    const dutyCycle = det.duty_cycle as number | undefined;
+    if (dutyCycle != null) pidDutyByName.set(name, dutyCycle);
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
