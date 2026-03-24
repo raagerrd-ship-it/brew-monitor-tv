@@ -1141,9 +1141,10 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     if (nameMatch) pwmSkipNames.add(nameMatch[1].trim());
   });
   // Build PID duty cycle map from PILL_COMP_STATUS for "Behov" column
+  // Strip [cooling]/[heating] suffix so key matches SYNC_DATA controller names
   const pidDutyByName = new Map<string, number>();
   decisions.filter(d => d.step === 'PILL_COMP_STATUS').forEach(d => {
-    const name = d.message.replace('Controller: ', '');
+    const name = d.message.replace('Controller: ', '').replace(/\s*\[(cooling|heating)\]\s*$/i, '');
     const det = d.details || {};
     const dutyCycle = det.duty_cycle as number | undefined;
     if (dutyCycle != null) pidDutyByName.set(name, dutyCycle);
