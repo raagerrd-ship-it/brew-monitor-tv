@@ -470,7 +470,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(dualSensor.baseTarget)
+      const revertTarget = round1(actualTarget)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
