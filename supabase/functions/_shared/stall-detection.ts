@@ -134,11 +134,35 @@ export async function detectAndHandleStalls(
 
   log('STALL', 'info', '--- Stall detection check ---')
 
+  // Pre-load pending PWM reverts — stall detection must NOT act during active PWM bursts.
+  // During PWM, target_temp is 0°C (cooling) or maxTemp (heating) which would corrupt
+  // boost calculations if used as the base temperature.
+  const allControllerIds = [...profileOwnedControllerIds]
+  let pwmActiveIds = new Set<string>()
+  if (allControllerIds.length > 0) {
+    const { data: pendingPwm } = await supabase
+      .from('pending_rapt_retries')
+      .select('controller_id')
+      .in('controller_id', allControllerIds)
+      .like('reason', '%PWM OFF%')
+      .lt('attempts', 5)
+    if (pendingPwm) {
+      pwmActiveIds = new Set(pendingPwm.map(r => r.controller_id))
+    }
+  }
+
   for (const cId of profileOwnedControllerIds) {
    try {
     const profileTarget = profileTargetMap.get(cId)
     const fc = followedControllersFullData.find(c => c.controller_id === cId)
     if (!fc) continue
+
+    // PWM lock: skip stall detection entirely during active PWM bursts.
+    // target_temp is at a PWM extreme (0°C or maxTemp) and would corrupt boost math.
+    if (pwmActiveIds.has(cId)) {
+      log('STALL_SKIP', 'info', `${fc.name}: PWM burst aktiv — hoppar över stall-detektion`)
+      continue
+    }
 
     // Cold crash guard: never boost when profile target is below 10°C
     // (cold crash / conditioning steps should not trigger stall detection)
@@ -258,7 +282,9 @@ export async function detectAndHandleStalls(
     }
 
     // Apply adaptive boost
-    const currentTarget = parseFloat(String(fc.target_temp ?? 20))
+    // CRITICAL: Use profile_target_temp (SSOT) not target_temp.
+    // target_temp may be at a PID-adjusted value or leftover PWM extreme.
+    const currentTarget = parseFloat(String((fc as any).profile_target_temp ?? fc.target_temp ?? 20))
     const effectiveProfileTarget = profileTarget ?? currentTarget
     const maxTemp = parseFloat(String(fc.max_target_temp ?? 25))
     const boostedTarget = currentTarget + boostDeg
@@ -410,7 +436,8 @@ async function handleUnBoost(
 
   if (boostAgeHours >= 24 || (alreadyReversed.data && alreadyReversed.data.length > 0)) return
 
-  const currentTarget = parseFloat(String(fc.target_temp ?? 20))
+  // CRITICAL: Use profile_target_temp (SSOT) not target_temp
+  const currentTarget = parseFloat(String((fc as any).profile_target_temp ?? fc.target_temp ?? 20))
   const effectiveProfileTarget = profileTarget ?? currentTarget
 
   // Check if boost was applied via PID compensation
