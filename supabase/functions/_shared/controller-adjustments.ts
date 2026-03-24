@@ -204,18 +204,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Dual sensor fusion: compute baseTarget and actualTemp
+    // Dual sensor fusion: compute actualTemp
     const dualSensor = computeDualSensorTarget(
       actualTarget,
       fc.current_temp ?? null,
       fc.pill_temp ?? null,
       pillCompSettings.enabled,
     )
-    const { sensorDelta, actualTemp, enabled: hasDualSensors } = dualSensor
-    const probeTemp = fc.current_temp ?? fc.pill_temp ?? ctrlTarget
+    const { actualTemp, enabled: hasDualSensors } = dualSensor
 
-    // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
-    ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
+    // Store actualTarget for cooler management (stable target without PID fluctuation)
+    ctx.baseTargetMap.set(fc.controller_id, actualTarget)
 
     // Mode detection: overshoot-aware with stabilisation guard.
     // After active duty stops, thermal inertia can push the probe past the target.
