@@ -454,7 +454,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const isRaising = clampedTarget > currentCoolerTarget
   const oldRelayOn = coolerTemp > currentCoolerTarget + coolerHysteresis
   const newRelayOn = coolerTemp > clampedTarget + coolerHysteresis
-  if (!isRaising && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
+  // Allow lowering if diff > 1.0°C even when relay state is unchanged.
+  // This ensures the cooler preemptively positions itself for upcoming demand
+  // instead of staying too warm until a tank actually triggers its cooling relay.
+  const isSignificantLowering = !isRaising && diff > 1.0
+  if (!isRaising && !isSignificantLowering && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
