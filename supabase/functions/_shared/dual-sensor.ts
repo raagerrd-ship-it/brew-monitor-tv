@@ -48,7 +48,8 @@ export function computeDualSensorTarget(
     }
   }
 
-  const actualTemp = hasProbe ? probeTemp! : hasPill ? pillTemp! : profileTarget
+  // When fusion is disabled, prioritize pill (surface/fermentation) over probe (core/ambient)
+  const actualTemp = hasPill ? pillTemp! : hasProbe ? probeTemp! : profileTarget
   return {
     enabled: false,
     actualTemp,
