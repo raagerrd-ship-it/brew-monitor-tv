@@ -276,7 +276,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         pidMode = prevMode!
         log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabiliserad fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
           suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
-          probe: round1(probeTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
+          actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
           distance: round1(distanceToTarget),
         })
       }
