@@ -270,14 +270,16 @@ export function AiTunableParameters() {
         </div>
       </div>
 
-      {/* Smart Relay */}
+      {/* PWM/Duty Cycle info */}
       <div>
-        <SectionHeader>Smart Relay</SectionHeader>
+        <SectionHeader>PWM-styrning (kylning)</SectionHeader>
         <div className="mt-0.5">
-          <ParamRow label="Min hysteres" value={globals.smart_relay_min_hysteresis} unit="°C" boundsKey="smart_relay_min_hysteresis" />
-          <ParamRow label="Kyl under" value={globals.smart_relay_cooling_only_below} unit="°C" boundsKey="smart_relay_cooling_only_below" />
-          <ParamRow label="Värm över" value={globals.smart_relay_heating_only_above} unit="°C" boundsKey="smart_relay_heating_only_above" />
-          <ParamRow label="Strama åt" value={globals.smart_relay_tighten_after_minutes} unit=" min" boundsKey="smart_relay_tighten_after_minutes" />
+          <ParamRow label="P-gain" value="0.5" unit=" duty/°C" />
+          <ParamRow label="I-gain" value="0.05" unit=" /cykel" />
+          <ParamRow label="I-decay" value="0.98" />
+          <ParamRow label="I-max" value="95" unit="%" />
+          <ParamRow label="Deadband" value="±0.1" unit="°C" />
+          <ParamRow label="Cykel" value="5" unit=" min" />
         </div>
       </div>
 
