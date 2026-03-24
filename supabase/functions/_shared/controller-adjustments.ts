@@ -299,7 +299,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         {
           controller_id: fc.controller_id,
           parameter_name: 'mode_last_probe',
-          learned_value: round1(probeTemp),
+          learned_value: round1(actualTemp),
           sample_count: 1,
           last_updated_at: new Date().toISOString(),
         },
