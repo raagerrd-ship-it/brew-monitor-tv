@@ -1661,7 +1661,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
         <div key={`ms-${i}`} className="flex items-center gap-2 text-[11px]">
           <Info className="h-3 w-3 text-blue-500 flex-shrink-0" />
           <span className="text-foreground">
-            {m.name}: Mode <span className="font-mono font-semibold">{m.mode}</span>, switch counter <span className="font-mono font-semibold">{m.pressure}/3</span>
+            {m.name}: Mode <span className="font-mono font-semibold">{m.mode}</span>, switch counter <span className="font-mono font-semibold">{m.pressure}/6</span>
           </span>
         </div>
       ))}
