@@ -84,14 +84,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
               <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
-                {isPillCompActive && actualTemp !== null
-                  ? `${actualTemp.toFixed(1)}°`
-                  : currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°` : '—'}
+                {actualTemp !== null ? `${actualTemp.toFixed(1)}°` : '—'}
               </p>
               <p className="text-[10px] text-muted-foreground/70 mt-1">
                 {isPillCompActive
-                  ? `Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
-                  : 'Ctrl-sensor'}
+                  ? `Medel · Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
+                  : currentController.pill_temp != null
+                    ? `Pill: ${currentController.pill_temp.toFixed(1)}°`
+                    : 'Ctrl-sensor'}
               </p>
             </div>
             
