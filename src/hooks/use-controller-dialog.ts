@@ -27,6 +27,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [showTempAdjust, setShowTempAdjust] = useState(false);
   const [pillCompEnabled, setPillCompEnabled] = useState(false);
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
+  const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
+  const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
 
   // Check authentication + pill compensation setting
   useEffect(() => {
@@ -46,7 +48,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     return () => subscription.unsubscribe();
   }, []);
 
-  // Check for active fermentation session + fetch original target (SSOT: profile_target_temp)
+  // Check for active fermentation session + fetch original target + duty cycle
   useEffect(() => {
     const loadSessionAndTarget = async () => {
       // Check active session
@@ -70,6 +72,29 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         setOriginalTarget(ctrlData.profile_target_temp);
       } else {
         setOriginalTarget(null);
+      }
+
+      // Fetch latest duty cycle from decision logs
+      const { data: logData } = await supabase
+        .from('auto_cooling_decision_logs')
+        .select('decisions')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (logData?.decisions) {
+        const decisions = logData.decisions as Array<{ name?: string; step?: string; details?: Record<string, unknown> }>;
+        const pillCompStep = decisions.find(d =>
+          d.step === 'PILL_COMP_STATUS' && d.name === controller.name
+        );
+        if (pillCompStep?.details) {
+          const det = pillCompStep.details;
+          setDutyCyclePct(typeof det.duty_pct === 'number' ? det.duty_pct : null);
+          setDutyMode(typeof det.pid_mode === 'string' ? det.pid_mode as 'cooling' | 'heating' : null);
+        } else {
+          setDutyCyclePct(null);
+          setDutyMode(null);
+        }
       }
     };
 
@@ -247,5 +272,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     isActivelyHeating,
     pillCompEnabled,
     originalTarget,
+    dutyCyclePct,
+    dutyMode,
   };
 }

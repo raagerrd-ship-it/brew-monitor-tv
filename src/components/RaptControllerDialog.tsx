@@ -49,11 +49,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
     isActivelyCooling, isActivelyHeating, pillCompEnabled, originalTarget,
+    dutyCyclePct, dutyMode,
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = pillCompEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = isPillCompActive ? getActualTemp(currentController.pill_temp, currentController.current_temp, true) : null;
-  const { actualTarget, pidCompensation } = getDisplayTarget(originalTarget, currentController.target_temp);
+  const actualTemp = getActualTemp(currentController.pill_temp, currentController.current_temp, isPillCompActive);
+  const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,14 +84,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
               <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
-                {isPillCompActive && actualTemp !== null
-                  ? `${actualTemp.toFixed(1)}°`
-                  : currentController.current_temp !== null ? `${currentController.current_temp.toFixed(1)}°` : '—'}
+                {actualTemp !== null ? `${actualTemp.toFixed(1)}°` : '—'}
               </p>
               <p className="text-[10px] text-muted-foreground/70 mt-1">
                 {isPillCompActive
-                  ? `Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
-                  : 'Ctrl-sensor'}
+                  ? `Medel · Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
+                  : currentController.pill_temp != null
+                    ? `Pill: ${currentController.pill_temp.toFixed(1)}°`
+                    : 'Ctrl-sensor'}
               </p>
             </div>
             
@@ -113,9 +114,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-2xl font-bold tabular-nums text-primary">
                 {actualTarget !== null ? `${actualTarget.toFixed(1)}°` : '—'}
               </p>
-              {pidCompensation !== null && pidCompensation !== 0 ? (
+              {dutyCyclePct != null ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
-                  PID → ctrl: {currentController.target_temp?.toFixed(1)}° ({pidCompensation > 0 ? '+' : ''}{pidCompensation.toFixed(1)}°)
+                  PWM {Math.round(dutyCyclePct)}% {dutyMode === 'cooling' ? '❄️' : dutyMode === 'heating' ? '🔥' : ''}
                 </p>
               ) : currentController.pill_temp !== null && !isPillCompActive ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">

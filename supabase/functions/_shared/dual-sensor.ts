@@ -61,7 +61,7 @@ export function computeDualSensorTarget(
     }
   }
 
-  const actualTemp = hasProbe ? probeTemp! : hasPill ? pillTemp! : profileTarget
+  const actualTemp = hasPill ? pillTemp! : hasProbe ? probeTemp! : profileTarget
   return {
     enabled: false,
     baseTarget: profileTarget,
