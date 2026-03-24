@@ -152,6 +152,18 @@ function buildFeatureBlocks(
     }
   }
 
+  // Build a map of learned duty_pct from SYNC_DATA decisions
+  const syncDutyMap = new Map<string, number>();
+  for (const d of decisions) {
+    if (d.step === "SYNC_DATA" && d.details) {
+      const det = d.details as Record<string, unknown>;
+      const name = d.message.replace(/^Controller:\s*/, "").trim();
+      if (typeof det.duty_pct === "number") {
+        syncDutyMap.set(name, det.duty_pct);
+      }
+    }
+  }
+
   if (props.pillCompEnabled) {
     const controllers: ControllerLine[] = [];
 
@@ -166,8 +178,10 @@ function buildFeatureBlocks(
 
       // Check if this controller has PWM active
       const pwm = pwmStatusMap.get(name);
-      const pwmBadge = pwm ? `PWM ${pwm.duty}%` : undefined;
-      const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : undefined;
+      const syncDuty = syncDutyMap.get(name);
+      const dutyPct = pwm ? pwm.duty : syncDuty;
+      const pwmBadge = dutyPct != null ? `PWM ${dutyPct}%` : undefined;
+      const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : dutyPct != null ? "pwm" : undefined;
 
       const action = decisions.find(d =>
         d.step === "PILL_COMP_ACTION" && d.result === "action" && d.message.startsWith(name)
