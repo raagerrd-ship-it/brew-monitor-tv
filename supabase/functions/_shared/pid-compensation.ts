@@ -370,7 +370,7 @@ export async function calculateCompensatedTarget(
       pCorrection, integral, dampingFactor, avgError)
 
     return {
-      ctrlTargetPid: Math.round(baseTarget * 10) / 10, dutyCycle,
+      ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
       compensation, avgDelta, dampingFactor,
       pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
       errorCorrection: 0, pCorrection, iCorrection: integral,
