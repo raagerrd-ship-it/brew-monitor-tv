@@ -303,7 +303,7 @@ export async function calculateCompensatedTarget(
     // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
     let integral = persistedIntegral
     if (integral > 1.0) {
-      const cBucket = getTempBucket(baseTarget)
+      const cBucket = getTempBucket(actualTarget)
       const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
       integral = seed.sampleCount >= 3 ? seed.value : 0
       console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
