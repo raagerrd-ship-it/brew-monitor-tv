@@ -288,7 +288,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
                 // Asymmetric gain: 0.3 per °C when overcooling, 0.15 per °C when undercooling
                 const gain = tempError < 0 ? 0.3 : 0.15
                 const correction = tempError * gain
-                const correctedDuty = Math.max(0.05, Math.min(0.95, feedbackDuty + correction))
+                const correctedDuty = Math.max(0, Math.min(0.95, feedbackDuty + correction))
                 if (Math.abs(correctedDuty - feedbackDuty) > 0.005) {
                   // Use higher alpha (0.4) for overcooling corrections to converge faster
                   const alpha = tempError < 0 ? 0.4 : 0.25
