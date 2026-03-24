@@ -27,6 +27,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [showTempAdjust, setShowTempAdjust] = useState(false);
   const [pillCompEnabled, setPillCompEnabled] = useState(false);
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
+  const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
+  const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
 
   // Check authentication + pill compensation setting
   useEffect(() => {
