@@ -245,42 +245,49 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
-    // Check if probe has stabilized on the WRONG side of the target.
-    // "Wrong side" = suggestedMode differs from prevMode (probe overshot past target).
-    // "Stabilized" = barely moving in either direction (thermal inertia dissipated).
-    // If probe is stuck on the CORRECT side, that's a PID tuning issue, not a mode issue.
+    // Check if probe is on the WRONG side of the target and either:
+    // 1. Stabilized (barely moving) — thermal inertia dissipated
+    // 2. Diverging (moving further away from target) — active drift
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
     const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
+    let isDiverging = false
     if (onWrongSide && lastProbe != null && distanceToTarget > 0.05) {
-      const velocityAbs = Math.abs(actualTemp - lastProbe)
+      const velocity = actualTemp - lastProbe
+      const velocityAbs = Math.abs(velocity)
+      // Check if moving AWAY from target (diverging)
+      const movingAway = (suggestedMode === 'cooling' && velocity > 0.02) ||
+                         (suggestedMode === 'heating' && velocity < -0.02)
       if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
+      } else if (movingAway) {
+        isDiverging = true
       }
     }
 
     let pidMode: 'heating' | 'cooling'
-    if (isStuck) {
-      // Probe has stabilized on the wrong side — increment pressure
+    if (isStuck || isDiverging) {
+      // Probe is on wrong side and either stabilized or actively drifting away
+      const reason = isDiverging ? 'divergerar' : 'stabiliserad'
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Sustained stall on wrong side — switch mode
+        // Sustained wrong-side condition — switch mode
         pidMode = suggestedMode
         switchPressure = 0
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (stabiliserad på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
           from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
           distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
         })
       } else {
         pidMode = prevMode!
-        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabiliserad fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
           suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
           actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
           distance: round1(distanceToTarget),
         })
       }
     } else {
-      // Probe is moving (recovering/overshooting), at target, or on correct side — decay pressure
+      // Probe is recovering toward target or on correct side — decay pressure
       pidMode = prevMode ?? suggestedMode
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
