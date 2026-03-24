@@ -434,7 +434,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // 0% or phase B idle
         if (dutyPct === 0) {
           log('DUTY_ZERO', 'info', `${fc.name}: duty 0% — ingen kylning`)
-          // Ensure hardware target is at baseTarget (cooling OFF)
+          // Ensure hardware target is at actualTarget (cooling OFF)
           if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
