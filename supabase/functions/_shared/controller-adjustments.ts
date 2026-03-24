@@ -286,8 +286,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           distance: round1(distanceToTarget),
         })
       }
+    } else if (onWrongSide) {
+      // Still on wrong side, but trend is not yet clearly stuck/diverging.
+      // Keep accumulated pressure so mode-switch cannot oscillate indefinitely.
+      pidMode = prevMode ?? suggestedMode
+      if (switchPressure === 0) switchPressure = 1
     } else {
-      // Probe is recovering toward target or on correct side — decay pressure
+      // Back on correct side / near target — decay pressure
       pidMode = prevMode ?? suggestedMode
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
