@@ -403,7 +403,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
       } else if (burstSeconds > 0) {
-        // 10-90%: burst at 0°C, schedule revert to baseTarget
+        // 10-90%: burst at 0°C, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
           duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget,
         })
