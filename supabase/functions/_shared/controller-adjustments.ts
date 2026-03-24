@@ -217,11 +217,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
 
-    // Mode detection: compare probe against sensor-fused baseTarget.
-    // Use asymmetric hysteresis to prevent oscillation from overshoot:
-    //   - Stay in current mode unless the error exceeds a switch threshold.
-    //   - Small threshold (0.05°C) to enter deadband; larger (0.5°C) to switch modes.
-    // Look up previous mode from the learned compensation table.
+    // Mode detection: cycle-counter based to prevent oscillation from overshoot.
+    // The system stays in its current mode until the probe has been consistently
+    // on the "wrong side" of baseTarget for MODE_SWITCH_CYCLES consecutive cycles.
+    // Overshoot typically recovers in 1-3 cycles; requiring 6 prevents false switches.
+    const MODE_SWITCH_CYCLES = 6
+    const modeSwitchKey = `mode_switch_pressure`
+
+    // Look up previous mode from learned compensation
     const { data: prevModeRow } = await supabase.from('controller_learned_compensation')
       .select('mode')
       .eq('controller_id', fc.controller_id)
@@ -229,17 +232,51 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       .limit(1)
       .maybeSingle()
     const prevMode: 'heating' | 'cooling' | null = (prevModeRow?.mode === 'heating' || prevModeRow?.mode === 'cooling') ? prevModeRow.mode : null
-    const MODE_SWITCH_HYSTERESIS = 0.5 // °C beyond baseTarget to trigger a mode switch
+
+    // Read the switch-pressure counter
+    const { data: pressureRow } = await supabase.from('fermentation_learnings')
+      .select('learned_value')
+      .eq('controller_id', fc.controller_id)
+      .eq('parameter_name', modeSwitchKey)
+      .maybeSingle()
+    let switchPressure = pressureRow?.learned_value ?? 0
+
+    // Determine what mode the current temperature suggests
+    const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+
     let pidMode: 'heating' | 'cooling'
-    if (prevMode === 'heating') {
-      // Currently heating — only switch to cooling if probe significantly above target
-      pidMode = probeTemp > dualSensor.baseTarget + MODE_SWITCH_HYSTERESIS ? 'cooling' : 'heating'
-    } else if (prevMode === 'cooling') {
-      // Currently cooling — only switch to heating if probe significantly below target
-      pidMode = probeTemp < dualSensor.baseTarget - MODE_SWITCH_HYSTERESIS ? 'heating' : 'cooling'
+    if (prevMode && suggestedMode !== prevMode) {
+      // Temperature suggests opposite mode — increment pressure counter
+      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+      if (switchPressure >= MODE_SWITCH_CYCLES) {
+        // Sustained pressure — switch mode
+        pidMode = suggestedMode
+        switchPressure = 0 // reset after switching
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${MODE_SWITCH_CYCLES} cykler)`, {
+          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+        })
+      } else {
+        // Not enough pressure yet — stay in current mode
+        pidMode = prevMode
+        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
+        })
+      }
     } else {
-      // No previous mode — use simple comparison with small buffer
-      pidMode = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+      // Temperature agrees with current mode (or no previous mode) — reset pressure
+      pidMode = prevMode ?? suggestedMode
+      switchPressure = 0
+    }
+
+    // Persist the switch-pressure counter
+    if (!ctx.skipLearning) {
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: fc.controller_id,
+        parameter_name: modeSwitchKey,
+        learned_value: switchPressure,
+        sample_count: switchPressure,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
     }
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
