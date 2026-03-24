@@ -336,9 +336,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation ===
     const pidResult = await calculateCompensatedTarget(
-      supabase, fc.controller_id, dualSensor.baseTarget, actualTarget, ctrlTarget,
+      supabase, fc.controller_id, actualTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext, false, ctx.skipLearning,
+      actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
     )
 
     // Log PID status
