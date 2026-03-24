@@ -244,7 +244,6 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className={`py-1.5 text-right font-mono ${corrColor}`}>
                       {`${Math.round(item.accumulated_integral * 100)}%`}
-                      }
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">
                       <span>{item.convergence_count}</span>
