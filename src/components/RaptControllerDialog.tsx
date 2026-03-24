@@ -49,11 +49,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
     isActivelyCooling, isActivelyHeating, pillCompEnabled, originalTarget,
+    dutyCyclePct, dutyMode,
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = pillCompEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = isPillCompActive ? getActualTemp(currentController.pill_temp, currentController.current_temp, true) : null;
-  const { actualTarget, pidCompensation } = getDisplayTarget(originalTarget, currentController.target_temp);
+  const actualTemp = getActualTemp(currentController.pill_temp, currentController.current_temp, isPillCompActive);
+  const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
