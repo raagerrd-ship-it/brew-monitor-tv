@@ -431,8 +431,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // 0% or phase B idle
         if (dutyPct === 0) {
           log('DUTY_ZERO', 'info', `${fc.name}: duty 0% — ingen kylning`)
-          // Ensure hardware target is at actualTarget (cooling OFF)
-          if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
+          // Only revert if hardware is stuck at a PWM extreme (0°C from a burst)
+          // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
+          // that causes a sync loop where RAPT reports old value, we correct, repeat.
+          if (ctrlTarget < 1) {
+            log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
             } else {
