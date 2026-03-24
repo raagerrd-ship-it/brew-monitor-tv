@@ -362,6 +362,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       cooling_util: coolingUtil != null ? Math.round(coolingUtil * 100) : null,
       recent_util: recentUtil != null ? Math.round(recentUtil * 100) : null,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
+      switch_pressure: switchPressure,
     })
 
     // ═══════════════════════════════════════════════════
