@@ -284,7 +284,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
 
-    // Persist the switch-pressure counter + last probe temp
+    // Persist the switch-pressure counter + last probe temp + current mode
     if (!ctx.skipLearning) {
       await supabase.from('fermentation_learnings').upsert([
         {
@@ -298,6 +298,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           controller_id: fc.controller_id,
           parameter_name: 'mode_last_probe',
           learned_value: round1(actualTemp),
+          sample_count: 1,
+          last_updated_at: new Date().toISOString(),
+        },
+        {
+          controller_id: fc.controller_id,
+          parameter_name: 'pid_current_mode',
+          learned_value: pidMode === 'heating' ? 1 : 2,
           sample_count: 1,
           last_updated_at: new Date().toISOString(),
         },
