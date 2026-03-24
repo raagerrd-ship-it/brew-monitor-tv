@@ -1064,7 +1064,7 @@ async function learnFromCurrentState(
       // Threshold lowered from 2.0 to 1.2 so margins approaching min_effective can still converge
       const tighterMargin = currentMargin * 0.93  // 7% decrease (more aggressive)
       const alphaOverride = util < 0.5 ? 0.3 : undefined
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 1.0, 15.0, alphaOverride)
+      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
       log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util >= 0.7 && util < 0.99) {
       // 70–99%: good zone, but still try to nudge tighter slowly
