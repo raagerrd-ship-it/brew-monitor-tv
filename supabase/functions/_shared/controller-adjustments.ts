@@ -246,17 +246,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
 
-    // Check if the system is stuck — not recovering toward target on its own.
-    // After overshoot the temp naturally drifts back; we only switch mode when
-    // the probe has STOPPED making progress toward baseTarget for several cycles.
+    // Mode-switch guard: after overshoot (thermal inertia) the probe drifts past
+    // the target. We do NOT switch mode while the probe is still moving — it may
+    // recover on its own. Only when it has STABILIZED on the wrong side (velocity ≈ 0)
+    // and stays there for MODE_SWITCH_CYCLES do we switch.
+    //
+    // Example: cooling mode, target 15°C, probe cools past to 13°C.
+    //   - While dropping (15→13): velocity is high → NOT stuck → no pressure
+    //   - Stabilized at 13°C, not moving: velocity ≈ 0 → stuck → pressure++
+    //   - Recovering (13→14→15): velocity toward target → NOT stuck → pressure decays
+    //   - Reaches 15°C: at target → NOT stuck → pressure decays
     const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
     let isStuck = false
     if (prevMode && lastProbe != null && distanceToTarget > 0.15) {
-      // Progress = movement toward baseTarget (positive = good)
-      const progressTowardTarget = dualSensor.baseTarget > probeTemp
-        ? (probeTemp - lastProbe)   // need to go up → rising = progress
-        : (lastProbe - probeTemp)   // need to go down → falling = progress
-      if (progressTowardTarget < STALL_MIN_PROGRESS) {
+      // Probe has stabilized = barely moving in EITHER direction
+      const velocityAbs = Math.abs(probeTemp - lastProbe)
+      if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
       }
     }
