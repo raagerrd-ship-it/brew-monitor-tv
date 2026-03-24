@@ -246,45 +246,45 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
 
-    // Check if the system is making progress toward the target
-    const isOnWrongSide = prevMode ? suggestedMode !== prevMode : false
-    let isStalled = false
-    if (prevMode && lastProbe != null && !isOnWrongSide) {
-      // Probe is on the correct side — check if it's actually moving toward target
-      const progressTowardTarget = prevMode === 'heating'
-        ? (probeTemp - lastProbe) // heating: probe should be rising
-        : (lastProbe - probeTemp) // cooling: probe should be falling
-      // Stalled if not making minimum progress (and we're not already at target)
-      const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
-      if (distanceToTarget > 0.15 && progressTowardTarget < STALL_MIN_PROGRESS) {
-        isStalled = true
+    // Check if the system is stuck — not recovering toward target on its own.
+    // After overshoot the temp naturally drifts back; we only switch mode when
+    // the probe has STOPPED making progress toward baseTarget for several cycles.
+    const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
+    let isStuck = false
+    if (prevMode && lastProbe != null && distanceToTarget > 0.15) {
+      // Progress = movement toward baseTarget (positive = good)
+      const progressTowardTarget = dualSensor.baseTarget > probeTemp
+        ? (probeTemp - lastProbe)   // need to go up → rising = progress
+        : (lastProbe - probeTemp)   // need to go down → falling = progress
+      if (progressTowardTarget < STALL_MIN_PROGRESS) {
+        isStuck = true
       }
     }
 
     let pidMode: 'heating' | 'cooling'
-    if (prevMode && (isOnWrongSide || isStalled)) {
-      // Temperature suggests problems — increment pressure counter
+    if (prevMode && isStuck) {
+      // Probe is stuck — not recovering toward target. Increment pressure.
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Sustained pressure — switch mode
+        // Sustained stall — switch mode
         pidMode = suggestedMode
-        switchPressure = 0 // reset after switching
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${MODE_SWITCH_CYCLES} cykler, ${isStalled ? 'stannat' : 'fel sida'})`, {
-          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES, reason: isStalled ? 'stalled' : 'wrong_side',
+        switchPressure = 0
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (fastnad ${MODE_SWITCH_CYCLES} cykler, ej återhämtning)`, {
+          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+          distance: round1(distanceToTarget), probe: round1(probeTemp),
         })
       } else {
-        // Not enough pressure yet — stay in current mode
         pidMode = prevMode
-        const reason = isStalled ? 'stannat av' : 'fel sida'
-        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason}, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
-          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES, reason,
+        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (fastnad, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
           probe: round1(probeTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
+          distance: round1(distanceToTarget),
         })
       }
     } else {
-      // Temperature agrees with current mode and making progress — reset pressure
+      // Making progress toward target (or already at target) — decay pressure
       pidMode = prevMode ?? suggestedMode
-      if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1) // gradual decay instead of hard reset
+      if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
 
     // Persist the switch-pressure counter + last probe temp
