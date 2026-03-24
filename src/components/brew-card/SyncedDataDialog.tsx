@@ -177,14 +177,14 @@ export function SyncedDataDialog({
                     <th className="text-left py-2 font-medium">Datum</th>
                     <th className="text-right py-2 font-medium">SG</th>
                     <th className="text-right py-2 font-medium">Pill</th>
+                    {hasAvgTemp && (
+                      <th className="text-right py-2 font-medium">Snitt</th>
+                    )}
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Ctrl</th>
                     )}
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Mål</th>
-                    )}
-                    {hasAvgTemp && (
-                      <th className="text-right py-2 font-medium">Snitt</th>
                     )}
                   </tr>
                 </thead>
@@ -199,12 +199,19 @@ export function SyncedDataDialog({
                       <td className="py-1.5 text-muted-foreground">
                         {format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
                       </td>
-                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-beer-amber' : 'text-muted-foreground/40'}`}>
+                      <td className={`py-1.5 text-right font-mono ${point.sg != null ? 'text-beer-amber' : 'text-muted-foreground/40'}`}>
                         {point.sg != null ? point.sg.toFixed(4) : "-"}
                       </td>
-                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
+                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-foreground' : 'text-muted-foreground/40'}`}>
                         {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
                       </td>
+                      {hasAvgTemp && (
+                        <td className={`py-1.5 text-right font-mono ${point.auto_target_temp != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
+                          {point.auto_target_temp != null
+                            ? `${point.auto_target_temp.toFixed(1)}°`
+                            : "-"}
+                        </td>
+                      )}
                       {hasControllerData && (
                         <td className="py-1.5 text-right font-mono text-foreground">
                           {point.controller_temp != null
@@ -216,13 +223,6 @@ export function SyncedDataDialog({
                         <td className="py-1.5 text-right font-mono text-muted-foreground">
                           {point.profile_target_temp != null
                             ? `${point.profile_target_temp.toFixed(1)}°`
-                            : "-"}
-                        </td>
-                      )}
-                      {hasAvgTemp && (
-                        <td className="py-1.5 text-right font-mono text-muted-foreground/60">
-                          {point.auto_target_temp != null
-                            ? `${point.auto_target_temp.toFixed(1)}°`
                             : "-"}
                         </td>
                       )}
