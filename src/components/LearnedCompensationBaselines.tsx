@@ -292,10 +292,11 @@ export function LearnedCompensationBaselines() {
           {items.map((item) => {
             const isExpanded = expandedRows.has(item.id);
             const hasDetails = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
+            const isItemHeating = item.mode === "heating";
             if (!isExpanded || !hasDetails) return null;
             return (
               <div key={`detail-${item.id}`} className="ml-4 mb-1 flex items-center gap-3 text-[10px] text-muted-foreground/70 font-mono bg-muted/10 rounded px-2 py-1">
-                {isHeating ? (
+                {isItemHeating ? (
                   <>
                     <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
                     <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
