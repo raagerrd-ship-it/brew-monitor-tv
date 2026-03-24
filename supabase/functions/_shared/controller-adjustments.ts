@@ -250,7 +250,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // "Wrong side" = suggestedMode differs from prevMode (probe overshot past target).
     // "Stabilized" = barely moving in either direction (thermal inertia dissipated).
     // If probe is stuck on the CORRECT side, that's a PID tuning issue, not a mode issue.
-    const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
+    const distanceToTarget = Math.abs(actualTemp - actualTarget)
     const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
     if (onWrongSide && lastProbe != null && distanceToTarget > 0.15) {
