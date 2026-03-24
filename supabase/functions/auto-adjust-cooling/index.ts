@@ -655,7 +655,7 @@ Deno.serve(async (req) => {
           controller_id: controllerId,
           old_target: oldTarget,
           new_target: target,
-          ...(isPwmSend && { is_pwm: true, duty_pct: pwmDutyPct }),
+          ...(isPwmSend && { is_pwm: true, duty_pct: pwmDutyPct, ...(pwmMode && { mode: pwmMode }) }),
         });
       }
 

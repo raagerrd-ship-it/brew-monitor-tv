@@ -1166,12 +1166,16 @@ Deno.serve(async (req) => {
         const newTarget = pu.targetTemp;
         // Skip logging when rounded values are identical
         if (oldTarget != null && Math.abs(Math.round(oldTarget * 10) - Math.round(newTarget * 10)) < 1) continue;
-        const isPwmSend = hwOnlyIds.includes(controllerId) && newTarget === 0;
+        const isPwmSend = hwOnlyIds.includes(controllerId);
         const controllerName = ctrlNameMap.get(controllerId) || controllerId;
+        // Extract duty info from automation decisions for the RAPT_SEND log
+        const burstDecision = isPwmSend ? (automationResult?.automationDecisions ?? []).find((d: any) => d.step === 'DUTY_BURST' && d.message?.includes(controllerName)) : null;
+        const burstDutyPct = burstDecision?.details?.duty_pct;
+        const burstMode = burstDecision?.details?.mode;
         automationDecisionLog.push({
           step: 'RAPT_SEND', result: 'action',
           message: `${controllerName}: ${oldTarget ?? '?'}°C → ${newTarget}°C`,
-          details: { controller_id: controllerId, old_target: oldTarget, new_target: newTarget, ...(isPwmSend && { is_pwm: true }) },
+          details: { controller_id: controllerId, old_target: oldTarget, new_target: newTarget, ...(isPwmSend && { is_pwm: true, duty_pct: burstDutyPct, ...(burstMode && { mode: burstMode }) }) },
         });
       }
     } else if (pendingUpdates.length > 0 && !access_token) {
