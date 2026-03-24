@@ -225,23 +225,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const MODE_SWITCH_CYCLES = 6
     const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
 
-    // Look up previous mode from learned compensation
-    const { data: prevModeRow } = await supabase.from('controller_learned_compensation')
-      .select('mode')
-      .eq('controller_id', fc.controller_id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const prevMode: 'heating' | 'cooling' | null = (prevModeRow?.mode === 'heating' || prevModeRow?.mode === 'cooling') ? prevModeRow.mode : null
-
-    // Read the switch-pressure counter + last probe temp
+    // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
+    // NOTE: Previously read from controller_learned_compensation, but that table has
+    // SEPARATE rows per mode (upsert key includes 'mode'), so the "latest" row could
+    // flip between heating/cooling depending on which was persisted last — causing
+    // false mode switches. fermentation_learnings has one row per parameter_name.
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
+    const prevModeValue = pressureMap.get('pid_current_mode')
+    // pid_current_mode: 1 = heating, 2 = cooling
+    const prevMode: 'heating' | 'cooling' | null = prevModeValue === 1 ? 'heating' : prevModeValue === 2 ? 'cooling' : null
 
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
