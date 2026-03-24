@@ -394,320 +394,81 @@ export async function calculateCompensatedTarget(
       learnedBaseline, deltaBucket, convergenceCount, constraints,
     }
   }
+  // ═══════════════════════════════════════════════════════
+  // HEATING DUTY CYCLE MODEL
+  // Mirror of cooling: PID output = duty cycle (0.0–1.0).
+  // Hardware controlled via PWM: maxTemp = heating ON,
+  // baseTarget = heating OFF. Burst length = duty × 300s.
+  // ═══════════════════════════════════════════════════════
+  // mode === 'heating' guaranteed here (cooling returns early above)
+  const heatingNeed = avgError // positive when probe < baseTarget (needs heating)
+  const HEAT_P = 0.5
+  const HEAT_I = 0.05
+  const HEAT_DECAY = 0.98
+  const HEAT_IMAX = 0.95
 
-  // ═══════════════════════════════════════════════════════
-  // HEATING: Target-based PID (existing logic below)
-  // ═══════════════════════════════════════════════════════
+  // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
+  let hIntegral = persistedIntegral
+  if (Math.abs(hIntegral) > 1.0) {
+    hIntegral = 0
+    console.log(`🔄 Heating duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → 0 duty`)
+  }
+
+  let hDutyCycle = 0
+
   if (Math.abs(avgError) <= 0.1) {
-    // === DEADBAND — within ±0.1°C of target ===
-    // Average temp is at target — freeze PI error correction to prevent oscillation.
-    // BUT: still apply delta compensation so the hardware target stays offset
-    // to maintain the equilibrium (e.g., target 8°C with delta 1.7°C → hw target 6.3°C).
-    const decayedIntegral = persistedIntegral * 0.9
-    
-    // baseTarget already has sensorDelta baked in — use it directly
-    const deadbandCtrlTarget = Math.round(baseTarget * 10) / 10
-    
-    console.log(`✅ Deadband ${controllerName} [${mode}]: avgError=${avgError.toFixed(2)}°C (vid mål), integral ${persistedIntegral.toFixed(3)} → ${decayedIntegral.toFixed(3)}, target=${deadbandCtrlTarget}°C (baseTarget=${baseTarget.toFixed(1)}°C)`)
-
-    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, 0, decayedIntegral, dampingFactor, avgError)
+    // DEADBAND: hold at integral (learned steady-state duty)
+    hIntegral *= 0.9
+    hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
-
-    return { ctrlTargetPid: deadbandCtrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection: 0, pCorrection: 0, iCorrection: decayedIntegral, learnedBaseline, deltaBucket, convergenceCount, constraints }
-  } else if (avgError >= 0.35) {
-    // === UNDERSHOOT ===
-    pCorrection = avgError * mp.pGain
-
-    if (isStaleData) {
-      iCorrection = persistedIntegral
-      console.log(`📊 I-term ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)} (ingen ny data)`)
-    } else {
-      iCorrection = computeIntegral(persistedIntegral, avgError, false, mp.iDecay, mp.iGain, mp.iClamp)
-      console.log(`📊 I-term ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)}, gain=${mp.iGain}, decay=${mp.iDecay})`)
-    }
-
-    const calculatedPI = pCorrection + iCorrection
-    errorCorrection = Math.min(Math.max(calculatedPI, learnedBaseline), mp.errorCorrectionCap)
-    
-    if (dampingFactor < 1.0) {
-      const dampedCorrection = errorCorrection * dampingFactor
-      errorCorrection = Math.max(dampedCorrection, learnedBaseline)
-      console.log(`🎛️ PI damped by D-term: ${calculatedPI.toFixed(2)} × ${dampingFactor.toFixed(2)} = ${errorCorrection.toFixed(2)}°C (baseline=${learnedBaseline.toFixed(2)})`)
-    }
-    
-    if (isSaturated && errorCorrection > learnedBaseline && learnedBaseline > 0) {
-      const prevComp = Math.abs(baseTarget - ctrlTarget)
-      if (errorCorrection > prevComp) {
-        errorCorrection = prevComp
-        console.log(`⚡ Saturation cap: begränsar PI till ${errorCorrection.toFixed(2)}°C (hårdvaran redan vid max)`)
-      }
-    }
-    
-    // === Ramp-rate-aware PI boost ===
-    // During ramp steps, use the learned cooling_rate to detect if the system
-    // is cooling too slowly for the required ramp. If so, boost PI to push
-    // the target lower, giving the cooler more thermal headroom.
-    if (rampContext && mode === 'cooling' && !isSaturated && _pillRate !== null) {
-      const { requiredRatePerHour, tempBucket: rampBucket, loadBucket: rampLoad } = rampContext
-      const learnedCoolingRate = await getLearnedCoolingRate(supabase, controllerId, rampBucket, rampLoad)
-      if (learnedCoolingRate != null && learnedCoolingRate > 0.05) {
-        const observedRate = Math.abs(_pillRate) // current rate
-        const rateDeficit = requiredRatePerHour - observedRate
-        if (rateDeficit > 0.1) {
-          // System is cooling too slowly — boost PI proportionally to the deficit
-          const rateBoost = Math.min(rateDeficit / learnedCoolingRate, 1.0) * mp.pGain
-          const boostedCorrection = errorCorrection + rateBoost
-          const cappedBoost = Math.min(boostedCorrection, mp.errorCorrectionCap)
-          console.log(`🚀 Ramp rate boost ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h, learned=${learnedCoolingRate.toFixed(2)}°C/h → PI +${rateBoost.toFixed(2)}°C (${errorCorrection.toFixed(2)}→${cappedBoost.toFixed(2)})`)
-          errorCorrection = cappedBoost
-          constraints.push(`ramp-boost=${rateBoost.toFixed(2)}`)
-        } else {
-          console.log(`✅ Ramp rate OK ${controllerName}: required=${requiredRatePerHour.toFixed(2)}°C/h, actual=${observedRate.toFixed(2)}°C/h`)
-        }
-      }
-    }
-    
-    if (learnedBaseline > 0) {
-      console.log(`🧠 Learned baseline ${controllerName} [${deltaBucket}/${stepType}/${mode}]: ${learnedBaseline.toFixed(2)}°C (n=${convergenceCount}), calc PI=${calculatedPI.toFixed(2)}°C, använder=${errorCorrection.toFixed(2)}°C`)
-    }
-    // === Pill overshoot guard (COOLING ONLY) ===
-    // When COOLING and the pill is already ABOVE its virtual target, positive PI would push
-    // the hardware target up, disengaging the cooler and letting the pill rise further.
-    // pillVirtualTarget mirrors baseTarget into pill domain: profileTarget + (profileTarget - baseTarget).
-    // Fix: block positive PI when pill > pillVirtualTarget in cooling mode.
-    // In HEATING mode, pill being above target is normal (thermal stratification).
-    if (mode === 'cooling') {
-      const latestPillForGuard = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : null
-      // Pill's virtual target = mirror of baseTarget in pill domain
-      // baseTarget is adjusted DOWN for probe → pill target is adjusted UP by same amount
-      const pillVirtualTarget = profileTarget + (profileTarget - baseTarget)
-      if (latestPillForGuard != null && latestPillForGuard > pillVirtualTarget + 0.3 && errorCorrection > 0) {
-        console.log(`🛡️ Pill overshoot guard ${controllerName}: pill ${latestPillForGuard.toFixed(1)}°C > pillMål ${pillVirtualTarget.toFixed(1)}°C + 0.3 — begränsar positiv PI (${errorCorrection.toFixed(2)}→0)`)
-        errorCorrection = 0
-        constraints.push('pill-guard')
-      }
-    }
-
-    console.log(`📈 PI-term ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=+${pCorrection.toFixed(2)}°C, I=+${iCorrection.toFixed(2)}°C, learned=${learnedBaseline.toFixed(2)}°C, total=+${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
-
-    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
-  } else if (avgError < -0.3) {
-    // === OVERSHOOT ===
-    pCorrection = avgError * mp.pGain
-
-    if (isStaleData) {
-      iCorrection = persistedIntegral
-      console.log(`📊 I-term overshoot ${controllerName} [${mode}]: STALE — behåller integral=${persistedIntegral.toFixed(3)}`)
-    } else {
-      iCorrection = computeIntegral(persistedIntegral, avgError, false, mp.iDecay, mp.iGain, mp.iClamp)
-      console.log(`📊 I-term overshoot ${controllerName} [${mode}]: integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)} (err=${avgError.toFixed(2)})`)
-    }
-
-    errorCorrection = Math.max(pCorrection + iCorrection, -mp.errorCorrectionCap)
-    
-    if (dampingFactor < 1.0) {
-      const dampedCorrection = errorCorrection * dampingFactor
-      errorCorrection = Math.min(dampedCorrection, 0)
-      console.log(`🎛️ PI overshoot damped by D-term: ${(pCorrection + iCorrection).toFixed(2)} × ${dampingFactor.toFixed(2)} = ${errorCorrection.toFixed(2)}°C`)
-    }
-    
-    if (isSaturated && errorCorrection < 0) {
-      const prevComp = baseTarget - ctrlTarget
-      if (errorCorrection < prevComp && prevComp < 0) {
-        errorCorrection = prevComp
-        console.log(`⚡ Saturation cap (overshoot): begränsar PI till ${errorCorrection.toFixed(2)}°C`)
-      }
-    }
-    
-    console.log(`📉 PI-term overshoot ${controllerName} [${mode}]: medel=${currentProbeForError.toFixed(1)}°C, grundmål=${baseTarget}°C, profil=${profileTarget}°C, fel=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}°C, I=${iCorrection.toFixed(2)}°C, total=${errorCorrection.toFixed(2)}°C${isSaturated ? ' [SATURATED]' : ''}`)
-
-    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
+    console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
+  } else if (heatingNeed < -0.1) {
+    // OVERHEATED: stop heating, fast-decay integral
+    hIntegral *= 0.85
+    hDutyCycle = 0
+    constraints.push('overheated')
+    console.log(`🔥 Heating overheated ${controllerName}: err=${avgError.toFixed(2)}°, I→${hIntegral.toFixed(3)}, duty=0%`)
   } else {
-    // === NEAR-TARGET / CONVERGENCE (0.1 < |error| < 0.35 or -0.3..0.1) ===
-    // Use full-strength P and I gains — the system is still actively trying to
-    // converge. Half-strength gains + extra decay caused the integral to plateau
-    // far below the correction needed, preventing convergence.
-    pCorrection = avgError * mp.pGain
-    iCorrection = computeIntegral(persistedIntegral, avgError, isStaleData, mp.iDecay, mp.iGain, mp.iClamp)
-    errorCorrection = Math.max(-mp.errorCorrectionCap, Math.min(mp.errorCorrectionCap, pCorrection + iCorrection))
-    
-    // No extra decay — computeIntegral already applies iDecay (0.90/0.95).
-    // Double-decaying killed the integral's ability to build up.
-    
-    const totalCompApplied = Math.abs(baseTarget - ctrlTarget)
-    if (totalCompApplied > 0.1) {
-      const alpha = convergenceCount < 5 ? mp.convergenceAlpha0 : mp.convergenceAlphaN
-      const absSensorComp = Math.abs(avgDelta)
-      const newLearned = learnedBaseline > 0
-        ? learnedBaseline * (1 - alpha) + (absSensorComp > 0 ? totalCompApplied - absSensorComp : 0) * alpha
-        : Math.max(0, totalCompApplied - absSensorComp)
-      const clampedLearned = Math.max(0, Math.min(newLearned, mp.errorCorrectionCap))
-      
-      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError, {
-        learned_pi_correction: clampedLearned,
-        convergence_count: convergenceCount + 1,
-        last_converged_at: new Date().toISOString(),
-      })
-      
-      console.log(`🎓 Lärde ${controllerName} [${deltaBucket}/${stepType}]: ny baseline=${clampedLearned.toFixed(2)}°C (alpha=${alpha}, n=${convergenceCount + 1}), integral ${persistedIntegral.toFixed(3)} → ${iCorrection.toFixed(3)}`)
+    // NEEDS HEATING — proportional + integral
+    pCorrection = heatingNeed * HEAT_P
+
+    if (isStaleData) {
+      console.log(`⏸️ Heating stale ${controllerName}: holding I=${hIntegral.toFixed(3)}`)
     } else {
-      // No significant compensation applied — still persist PID state to avoid losing integral
-      await persistPidState(supabase, controllerId, deltaBucket, mode, stepType, pCorrection, iCorrection, dampingFactor, avgError)
-      console.log(`🔄 Near-target ${controllerName} [${mode}]: err=${avgError.toFixed(2)}°C, P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, correction=${errorCorrection.toFixed(2)}°C`)
+      hIntegral = hIntegral * HEAT_DECAY + heatingNeed * HEAT_I
+      hIntegral = Math.max(0, Math.min(HEAT_IMAX, hIntegral))
     }
+    iCorrection = hIntegral
+
+    // D-term: damp P only (integral = steady-state, must persist)
+    let raw = pCorrection * dampingFactor + hIntegral
+
+    // Saturation guard
+    if (isSaturated && raw > hIntegral + 0.1) {
+      raw = hIntegral + 0.1
+      constraints.push('duty-sat')
+    }
+
+    // Full heating at large error (> 2°C too cold)
+    if (heatingNeed > 2.0) {
+      raw = Math.max(raw, 1.0)
+      constraints.push('full-heating')
+    }
+
+    hDutyCycle = Math.max(0, Math.min(1.0, raw))
+    console.log(`🎯 Heating duty ${controllerName}: need=${heatingNeed.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${hIntegral.toFixed(3)}, damp=${dampingFactor.toFixed(2)}, duty=${(hDutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
 
-  // Core formula: baseTarget already has sensorDelta baked in, just add PI correction
-  let ctrlTargetPid = baseTarget + errorCorrection
+  await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
+    pCorrection, hIntegral, dampingFactor, avgError)
 
-  // Safety bounds — PID can't drift too far from baseTarget
-  ctrlTargetPid = Math.max(baseTarget - effectiveMaxComp, Math.min(baseTarget + effectiveMaxComp, ctrlTargetPid))
-
-  // Directional clamp: during ramp/gradual_ramp steps, never push target past baseTarget
-  // in the wrong direction. Hold steps need bidirectional compensation.
-  const isRampStep = ['ramp', 'gradual_ramp'].includes(stepType)
-  if (isRampStep) {
-    if (mode === 'cooling' && ctrlTargetPid > baseTarget) {
-      console.log(`🔒 Directional clamp [cooling/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${baseTarget.toFixed(1)}°C (kan inte överskrida baseTarget under ramp)`)
-      constraints.push('dir-clamp')
-      ctrlTargetPid = baseTarget
-    } else if (mode === 'heating' && ctrlTargetPid < baseTarget) {
-      console.log(`🔒 Directional clamp [heating/${stepType}]: ${ctrlTargetPid.toFixed(1)}°C → ${baseTarget.toFixed(1)}°C (kan inte understiga baseTarget under ramp)`)
-      constraints.push('dir-clamp')
-      ctrlTargetPid = baseTarget
-    }
+  return {
+    ctrlTargetPid: Math.round(baseTarget * 10) / 10, dutyCycle: hDutyCycle,
+    compensation, avgDelta, dampingFactor,
+    pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
+    errorCorrection: 0, pCorrection, iCorrection: hIntegral,
+    learnedBaseline, deltaBucket, convergenceCount, constraints,
   }
-
-  // Asymmetric rate limit
-  const diff = ctrlTargetPid - ctrlTarget
-  const distanceFromIdeal = Math.abs(diff)
-  const isIncreasing = diff > 0
-
-  {
-    // Compute isTowardTarget early so scaleFactor can use it
-    const earlyNewDistToBase = Math.abs(ctrlTargetPid - baseTarget)
-    const earlyCurrentDistToBase = Math.abs(ctrlTarget - baseTarget)
-    const earlyIsTowardTarget = earlyNewDistToBase < earlyCurrentDistToBase
-
-    // Proximity dampening: slow down when approaching target to prevent overshoot.
-    // BUT: only apply when moving AWAY from target. When recovering toward target,
-    // use full rate — dampening recovery is counterproductive (causes unnecessary cooling).
-    const scaleFactor = earlyIsTowardTarget
-      ? 1.0
-      : Math.min(1.0, Math.max(minScaleFactor, distanceFromIdeal / 2.0))
-    const latestPill = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].pill_temp)) : (actualTemp ?? baseTarget)
-    const latestCtrl = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? baseTarget)
-    const currentAvg = actualTemp ?? (latestPill + latestCtrl) / 2
-
-    // High-delta damping: when pill-probe delta is very large, reduce max rate
-    // to prevent aggressive changes that cause oscillation in a thermally stratified system
-    const HIGH_DELTA_THRESHOLD = 4.0 // °C — above this, start reducing rate (raised from 3.0)
-    const deltaRateScale = absDelta > HIGH_DELTA_THRESHOLD
-      ? Math.max(0.5, 1.0 - (absDelta - HIGH_DELTA_THRESHOLD) * 0.1)
-      : 1.0
-    const deltaScaledMaxRate = effectiveMaxRate * deltaRateScale
-    if (deltaRateScale < 1.0) {
-      constraints.push(`delta-damp=${deltaRateScale.toFixed(2)}`)
-      console.log(`🌊 High-delta damping ${controllerName}: delta=${absDelta.toFixed(1)}°C > ${HIGH_DELTA_THRESHOLD}°C, rate ${effectiveMaxRate}→${deltaScaledMaxRate.toFixed(2)}°C/cykel (×${deltaRateScale.toFixed(2)})`)
-    }
-
-    // Delta bypass removed — sensorDelta is already baked into baseTarget.
-    // No separate "delta-driven" rate limit needed.
-    // Large-error recovery + PWM bypass + normal rate-limit handled below
-    // after isTowardTarget is computed.
-    const LARGE_ERROR_THRESHOLD = 2.0 // °C
-    if (skipRateLimit) {
-      // PWM active segment — bypass rate limit entirely to ensure target moves
-      // past hysteresis and actually triggers the relay
-      constraints.push('pwm-bypass')
-      console.log(`⚡ PWM rate-limit bypass ${controllerName}: skipRateLimit=true, target ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (diff=${distanceFromIdeal.toFixed(2)}°C)`)
-    } else {
-    
-    let baseLimit: number
-    if (mode === 'cooling') {
-      // Compare probe against baseTarget — both in probe domain (no domain mismatch)
-      const probeBelowTarget = latestCtrl < baseTarget - 0.2
-      const upwardLimit = probeBelowTarget ? deltaScaledMaxRate : mp.upwardRelease
-      baseLimit = isIncreasing ? Math.min(deltaScaledMaxRate * scaleFactor, upwardLimit) : deltaScaledMaxRate * scaleFactor
-      if (probeBelowTarget && isIncreasing) {
-        console.log(`🔥 Probe (${latestCtrl.toFixed(1)}°) under baseTarget (${baseTarget}°) — släpper uppåt-limit till ${upwardLimit}°C/cykel`)
-      }
-    } else {
-      const probeAboveTarget = latestCtrl > baseTarget + 0.2
-      const downwardLimit = probeAboveTarget ? deltaScaledMaxRate : mp.upwardRelease
-      baseLimit = isIncreasing ? deltaScaledMaxRate * scaleFactor : Math.min(deltaScaledMaxRate * scaleFactor, downwardLimit)
-      if (probeAboveTarget && !isIncreasing) {
-        console.log(`❄️ Probe (${latestCtrl.toFixed(1)}°) över baseTarget (${baseTarget}°) — släpper nedåt-limit till ${downwardLimit}°C/cykel`)
-      }
-    }
-    
-    // Recovery clamp: when probe is on the wrong side of baseTarget,
-    // PI must never push the hardware target further away from baseTarget.
-    // Physical recovery speed is hardware-limited — PI only causes overshoot.
-    const probeIsAboveBase = latestCtrl > baseTarget + 0.15
-    const probeIsBelowBase = latestCtrl < baseTarget - 0.15
-    const piPushesAway = (probeIsAboveBase && ctrlTargetPid > baseTarget) ||
-                         (probeIsBelowBase && ctrlTargetPid < baseTarget)
-    
-    const currentDistToBase = Math.abs(ctrlTarget - baseTarget)
-    const newDistToBase = Math.abs(ctrlTargetPid - baseTarget)
-    const isTowardTarget = newDistToBase < currentDistToBase
-    
-    if (piPushesAway) {
-      // Probe needs to recover toward baseTarget — clamp PI, jump to baseTarget
-      ctrlTargetPid = baseTarget
-      constraints.push('recovery-clamp')
-      console.log(`🔒 Recovery clamp ${controllerName}: probe=${latestCtrl.toFixed(1)}° ${probeIsAboveBase ? '>' : '<'} baseTarget=${baseTarget}°C, PI ignored (was pushing away)`)
-    } else if (isTowardTarget) {
-      // Jump toward baseTarget, skipping rate-limits for faster convergence.
-      // Use FULL errorCorrection (P+I) — not just integral — so that the
-      // proportional term continues driving the target when the probe is
-      // still away from baseTarget (e.g. heating mode, probe below base).
-      ctrlTargetPid = baseTarget + errorCorrection
-      constraints.push('toward-target-bypass')
-      console.log(`✅ Toward-target bypass ${controllerName}: jumping ${ctrlTarget.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C (baseTarget=${baseTarget}°C, PI=${errorCorrection.toFixed(3)})`)
-    } else {
-    
-    // Moving AWAY from baseTarget — apply rate-limit to prevent overshoot
-    const rampDirectionConflict = isRampStep && (
-      (mode === 'cooling' && isIncreasing) ||
-      (mode === 'heating' && !isIncreasing)
-    )
-    
-    if (rampDirectionConflict) {
-      ctrlTargetPid = ctrlTarget
-      constraints.push('ramp-hold')
-      console.log(`🛑 Ramp hold ${controllerName}: ramp-riktning=${mode}, håller target=${ctrlTarget.toFixed(1)}°C`)
-    } else if (distanceFromIdeal > baseLimit) {
-      const effectiveLimit = Math.max(baseLimit, 0.1)
-      ctrlTargetPid = ctrlTarget + (isIncreasing ? effectiveLimit : -effectiveLimit)
-      constraints.push(`rate-limit=${effectiveLimit.toFixed(2)}`)
-      console.log(`🎯 Rate-limit (${isIncreasing ? '↑' : '↓'}): ${effectiveLimit.toFixed(2)}°C (scale=${scaleFactor.toFixed(2)}, max=${effectiveMaxRate}, mode=${mode})`)
-    }
-    
-    } // end away-from-target else
-    } // end else (non-PWM)
-    
-    // Safety clamp: never let target cross baseTarget in either direction.
-    if (mode === 'cooling' && ctrlTargetPid > baseTarget) {
-      ctrlTargetPid = baseTarget
-      constraints.push('overshoot-clamp')
-    } else if (mode === 'heating' && ctrlTargetPid < baseTarget) {
-      ctrlTargetPid = baseTarget
-      constraints.push('overshoot-clamp')
-    }
-  }
-
-  ctrlTargetPid = Math.round(ctrlTargetPid * 10) / 10
-
-  if (Math.abs(ctrlTargetPid - ctrlTarget) < 0.05) {
-    console.log(`🎯 PID ${controllerName}: redan nära mål (${ctrlTarget}°C ≈ ${ctrlTargetPid}°C), skippar`)
-    return { ctrlTargetPid: ctrlTarget, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
-  }
-
-  console.log(`🎯 PID ${controllerName}: baseTarget=${baseTarget}°C, profil=${profileTarget}°C, sensorΔ=${avgDelta.toFixed(2)}°C [${deltaBucket}], damping=${dampingFactor.toFixed(2)}, PI=+${errorCorrection.toFixed(2)}°C (P=${pCorrection.toFixed(2)}, I=${iCorrection.toFixed(2)}, learned=${learnedBaseline.toFixed(2)}), ctrl_target_pid=${ctrlTargetPid}°C (ctrl_target=${ctrlTarget}°C)`)
-
-  return { ctrlTargetPid, compensation, avgDelta, dampingFactor, pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes, errorCorrection, pCorrection, iCorrection, learnedBaseline, deltaBucket, convergenceCount, constraints }
 }
 
 // ============================================================

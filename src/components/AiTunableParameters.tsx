@@ -272,7 +272,7 @@ export function AiTunableParameters() {
 
       {/* PWM/Duty Cycle info */}
       <div>
-        <SectionHeader>PWM-styrning (kylning)</SectionHeader>
+        <SectionHeader>PWM-styrning (kylning &amp; värme)</SectionHeader>
         <div className="mt-0.5">
           <ParamRow label="P-gain" value="0.5" unit=" duty/°C" />
           <ParamRow label="I-gain" value="0.05" unit=" /cykel" />
