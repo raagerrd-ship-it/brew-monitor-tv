@@ -1433,53 +1433,32 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
       bgColor="hsl(220 70% 55% / 0.05)"
     >
       <div className="overflow-x-auto -mx-2 px-2">
-      <table className="w-full text-[10px] min-w-[520px]">
+      <table className="w-full text-[10px] min-w-[360px]">
         <thead>
           <tr className="text-muted-foreground/80 border-b border-border/40 bg-[hsl(220_70%_55%/0.08)]">
             <th className="text-left py-1 pr-2 pl-1.5 font-semibold whitespace-nowrap">Controller</th>
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
-            <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Δ</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">PI</th>
-            <th className="text-center py-1 px-0 font-medium text-muted-foreground/30">=</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>Nytt mål</th>
-            <th className="text-center py-1 px-0 font-medium text-muted-foreground/20">│</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl mål</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Diff</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Duty</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
           </tr>
         </thead>
         <tbody>
           {pidStatusEntries.map((d, i) => {
             const det = d.details || {};
             const name = d.message.replace('Controller: ', '');
-            const delta = det.delta as number;
-            const rawDelta = (det.raw_delta as number) ?? delta;
-            const loggedComp = (det.compensation as number) ?? rawDelta ?? 0;
-            const comp = rawDelta ?? loggedComp;
-            const errCorr = (det.error_correction as number) ?? 0;
-            const pCorr = det.p_correction as number;
-            const iCorr = det.i_correction as number;
-            const learnedBaseline = det.learned_baseline as number;
-            const rawComp = det.raw_compensation as number;
-            const damping = det.damping as number;
             const mode = det.mode as string;
             const action = actionByName.get(name);
             const actualTempVal = det.actual_temp as number ?? det.avg_temp as number;
             const dualSensors = det.dual_sensors as boolean;
             const actualTargetVal = det.actual_target as number ?? det.base_target as number;
             const ctrlTarget = det.ctrl_target as number;
-            const ctrlTargetPid = det.ctrl_target_pid as number;
-            const rawCtrlTargetPid = det.raw_ctrl_target_pid as number;
+            const dutyCyclePct = det.duty_pct as number;
+            const pCorr = det.p_correction as number;
+            const iCorr = det.i_correction as number;
             const statusLimits = (det.limits as string[]) ?? [];
-
-            const formulaResult = actualTargetVal != null && comp != null
-              ? actualTargetVal - comp + (errCorr ?? 0)
-              : null;
-
-            const diff = formulaResult != null && ctrlTarget != null
-              ? formulaResult - ctrlTarget
-              : null;
+            const damping = det.damping as number;
+            const ctrlTargetPid = det.ctrl_target_pid as number;
 
             return (
               <React.Fragment key={i}>
@@ -1495,151 +1474,75 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                   </div>
                   {(() => {
                     const brakes: { label: string; tip: string }[] = [];
-                     const rawVal = formulaResult;
-                     const clampedVal = ctrlTargetPid;
-                     const clampDiff = rawVal != null && clampedVal != null ? rawVal - clampedVal : null;
-                     const clampDiffStr = clampDiff != null && Math.abs(clampDiff) >= 0.05 ? `${clampDiff >= 0 ? '+' : ''}${r1(clampDiff)}° begränsat` : '';
                     if (statusLimits.length > 0) {
-                      if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: `Begränsar mål till probe-temp för att inte starta fel läge. ${clampDiffStr}` });
+                      if (statusLimits.includes('overshoot-clamp')) brakes.push({ label: '🔒 Overshoot', tip: 'Begränsar mål till probe-temp för att inte starta fel läge.' });
                       if (statusLimits.includes('overshoot-release')) brakes.push({ label: '🛑 Release', tip: 'Probe nära mål — overshoot-skydd aktivt' });
-                      if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: `Håller target under ramp — låter profilen komma ikapp. ${clampDiffStr}` });
+                      if (statusLimits.includes('ramp-hold')) brakes.push({ label: '🔒 Ramp', tip: 'Håller target under ramp — låter profilen komma ikapp.' });
                       if (statusLimits.includes('approach-release')) {
-                        const dist = actualTempVal != null && actualTargetVal != null ? Math.abs(actualTempVal - actualTargetVal) : null;
-                        const approachC2 = statusLimits.find(c => c.startsWith('approach='));
-                        const scale = approachC2 ? approachC2.split('=')[1] : null;
-                        const distStr = dist != null ? ` Avstånd: ${r1(dist)}° från mål.` : '';
-                        const scaleStr = scale ? ` Δ-skalning: ×${scale}.` : '';
-                        const releaseStr = ' Släpper vid <1° från mål.';
-                        brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål.${distStr}${scaleStr}${releaseStr} ${clampDiffStr}` });
+                        const approachC = statusLimits.find(c => c.startsWith('approach='));
+                        const scale = approachC ? approachC.split('=')[1] : null;
+                        brakes.push({ label: '🚀 Approach', tip: `Rate-limitad mot mål.${scale ? ` Δ-skalning: ×${scale}.` : ''}` });
                       }
-                      if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: `Kan inte överskrida profilmål under ramp. ${clampDiffStr}` });
+                      if (statusLimits.includes('dir-clamp')) brakes.push({ label: '🔒 Riktning', tip: 'Kan inte överskrida profilmål under ramp.' });
                       const rateLimitC = statusLimits.find(c => c.startsWith('rate-limit='));
-                      if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel. ${clampDiffStr}` }); }
+                      if (rateLimitC) { const v = rateLimitC.split('=')[1]; brakes.push({ label: `⏱ ${v}°/c`, tip: `Max ändring ${v}°C per cykel.` }); }
                       const hwMin = statusLimits.find(c => c.startsWith('hw-min='));
-                      if (hwMin) brakes.push({ label: `⬇ Min ${hwMin.split('=')[1]}°`, tip: `Hårdvarugräns min ${hwMin.split('=')[1]}°C. ${clampDiffStr}` });
+                      if (hwMin) brakes.push({ label: `⬇ Min ${hwMin.split('=')[1]}°`, tip: `Hårdvarugräns min ${hwMin.split('=')[1]}°C.` });
                       const hwMax = statusLimits.find(c => c.startsWith('hw-max='));
-                      if (hwMax) brakes.push({ label: `⬆ Max ${hwMax.split('=')[1]}°`, tip: `Hårdvarugräns max ${hwMax.split('=')[1]}°C. ${clampDiffStr}` });
-                      const approachC = statusLimits.find(c => c.startsWith('approach='));
-                      if (approachC) brakes.push({ label: `🎯 ${approachC.split('=')[1]}`, tip: `Approach-skalning: delta-komp × ${approachC.split('=')[1]} (nära mål)` });
-                      const deltaDamp = statusLimits.find(c => c.startsWith('delta-damp='));
-                      if (deltaDamp) brakes.push({ label: `🌊 ${deltaDamp.split('=')[1]}`, tip: `Hög delta-dämpning: rate × ${deltaDamp.split('=')[1]} (Δ > 4°C)` });
-                      const utilSat = statusLimits.find(c => c.startsWith('util-sat='));
-                      if (utilSat) brakes.push({ label: `⚡ Util ${utilSat.split('=')[1]}`, tip: `Kylkretsen körs ${utilSat.split('=')[1]} av tiden — hårdvaran maxad, PID begränsas` });
+                      if (hwMax) brakes.push({ label: `⬆ Max ${hwMax.split('=')[1]}°`, tip: `Hårdvarugräns max ${hwMax.split('=')[1]}°C.` });
                       const heatGuard = statusLimits.find(c => c.startsWith('heat-guard='));
-                      if (heatGuard) brakes.push({ label: `🔥 Heat-guard`, tip: `PID begränsad för att inte aktivera värmaren (hysteres ${heatGuard.split('=')[1]}°C). Temperaturen tillåts stiga naturligt.` });
+                      if (heatGuard) brakes.push({ label: '🔥 Heat-guard', tip: `PID begränsad för att inte aktivera värmaren.` });
                     } else if (action?.brakes && action.brakes.length > 0) {
                       action.brakes.forEach(b => brakes.push({ label: b, tip: '' }));
                     }
                     return brakes.length > 0 ? (
-                      <div className="flex flex-col gap-0.5 mt-0.5">
-                        <div className="flex flex-wrap gap-0.5">
-                          {brakes.map((b, bi) => (
-                            <span key={bi} className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap">{b.label}</span>
-                          ))}
-                        </div>
-                        {brakes.filter(b => b.tip).map((b, bi) => (
-                          <span key={bi} className="text-[8px] text-muted-foreground/70 leading-tight">{b.tip}</span>
+                      <div className="flex flex-wrap gap-0.5 mt-0.5">
+                        {brakes.map((b, bi) => (
+                          <TooltipProvider key={bi} delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 whitespace-nowrap cursor-help">{b.label}</span>
+                              </TooltipTrigger>
+                              {b.tip && <TooltipContent side="top" className="text-xs max-w-[250px]">{b.tip}</TooltipContent>}
+                            </Tooltip>
+                          </TooltipProvider>
                         ))}
-                      </div>
-                    ) : damping != null && damping < 1.0 ? (
-                      <div className="mt-0.5">
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-[8px] px-1 py-0 rounded bg-sky-500/15 text-sky-400 cursor-help">damp={r1(damping)}</span>
-                            </TooltipTrigger>
-                             <TooltipContent side="top" className="text-[10px]">
-                               D-term dämpning: kompensation × {r1(damping)} (närmar sig mål)
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
                       </div>
                     ) : null;
                   })()}
                 </td>
                 <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
                   {r1(actualTempVal)}°
-                  {dualSensors && <span className="text-[8px] text-muted-foreground ml-0.5"></span>}
                 </td>
-                <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
                 <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>
                   {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
                 </td>
-                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                  color: comp != null && Math.abs(comp) > 0.05 ? 'hsl(210 80% 60%)' : undefined
-                }}>
-                {comp != null ? (
-                    Math.abs(comp) > 0.01 ? (
+                <td className="py-1 px-1.5 text-right whitespace-nowrap">
+                  {dutyCyclePct != null ? (
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="cursor-help border-b border-dotted border-current/30">{r1(comp)}°</span>
-                        </TooltipTrigger>
-                         <TooltipContent side="top" className="text-[10px] max-w-[200px]">
-                           <div className="space-y-0.5">
-                             <div>Rå Δ = avg − probe = {(det.raw_delta as number) != null ? `${(det.raw_delta as number) >= 0 ? '+' : ''}${r1(det.raw_delta as number)}°` : delta != null ? `${delta >= 0 ? '+' : ''}${r1(delta)}°` : '?'}</div>
-                            {damping != null && damping < 1.0 && <div>× damp {r1(damping)}</div>}
-                            <div className="border-t border-border/30 pt-0.5 font-medium">= {r1(comp)}° effektiv kompensation</div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    ) : <span className="text-muted-foreground/40">0</span>
-                  ) : <span className="text-muted-foreground/40">—</span>}
-                </td>
-                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{
-                  color: errCorr != null && Math.abs(errCorr) > 0.05 ? 'hsl(160 60% 50%)' : undefined
-                }}>
-                  {errCorr != null ? (
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className={`cursor-help border-b border-dotted border-current/30 ${Math.abs(errCorr) <= 0.01 ? 'text-muted-foreground/40' : ''}`}>
-                            {Math.abs(errCorr) > 0.01 ? `${errCorr >= 0 ? '+' : ''}${r1(errCorr)}°` : '0'}
+                          <span className={`cursor-help border-b border-dotted border-current/30 font-mono font-medium ${
+                            dutyCyclePct > 50 ? 'text-amber-400' : dutyCyclePct > 10 ? 'text-foreground' : 'text-muted-foreground'
+                          }`}>
+                            {Math.round(dutyCyclePct)}%
                           </span>
                         </TooltipTrigger>
-                         <TooltipContent side="top" className="text-[10px] max-w-[200px]">
-                           <div className="space-y-0.5">
-                             <div>P = {pCorr != null ? `${pCorr >= 0 ? '+' : ''}${r1(pCorr)}°` : '?'}</div>
-                            <div>I = {iCorr != null ? `${iCorr >= 0 ? '+' : ''}${r1(iCorr)}°` : '?'}</div>
-                            {learnedBaseline != null && Math.abs(learnedBaseline) > 0.01 && errCorr >= 0 && (
-                               <div>Inlärd = {r1(learnedBaseline)}°</div>
-                             )}
-                            <div className="border-t border-border/30 pt-0.5 font-medium">= {errCorr >= 0 ? '+' : ''}{r1(errCorr)}° totalt</div>
+                        <TooltipContent side="top" className="text-[10px] max-w-[200px]">
+                          <div className="space-y-0.5">
+                            <div>P = {pCorr != null ? `${Math.round(pCorr * 100)}%` : '?'}</div>
+                            <div>I = {iCorr != null ? `${Math.round(iCorr * 100)}%` : '?'}</div>
+                            <div className="border-t border-border/30 pt-0.5 font-medium">
+                              = {Math.round(dutyCyclePct)}% duty {mode === 'cooling' ? '❄️' : mode === 'heating' ? '🔥' : ''}
+                            </div>
                           </div>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   ) : <span className="text-muted-foreground/40">—</span>}
                 </td>
-                <td className="py-1 px-0 text-center text-muted-foreground/25">=</td>
-                 <td className="py-1 px-1.5 text-right font-bold whitespace-nowrap" style={{ color: 'hsl(var(--ferment-green))' }}>
-                   {formulaResult != null ? (
-                     ctrlTargetPid != null && Math.abs(formulaResult - ctrlTargetPid) >= 0.05 ? (
-                       <TooltipProvider delayDuration={200}>
-                         <Tooltip>
-                           <TooltipTrigger asChild>
-                             <span className="cursor-help border-b border-dotted border-current/30">{r1(formulaResult)}°</span>
-                           </TooltipTrigger>
-                            <TooltipContent side="top" className="text-[10px]">
-                              <div>Formel: {r1(formulaResult)}° → Hårdvara: {r1(ctrlTargetPid)}°</div>
-                             {statusLimits.length > 0 && <div className="text-muted-foreground">{statusLimits.join(', ')}</div>}
-                           </TooltipContent>
-                         </Tooltip>
-                       </TooltipProvider>
-                     ) : `${r1(formulaResult)}°`
-                   ) : ctrlTargetPid != null ? `${r1(ctrlTargetPid)}°` : '—'}
-                 </td>
-                <td className="py-1 px-0 text-center text-muted-foreground/15">│</td>
                 <td className="py-1 px-1.5 text-right text-muted-foreground/50 whitespace-nowrap">
                   {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
-                </td>
-                <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{
-                  color: diff != null && Math.abs(diff) > 0.05
-                    ? (diff < 0 ? 'hsl(210 80% 60%)' : 'hsl(38 92% 50%)')
-                    : undefined
-                }}>
-                  {diff != null && Math.abs(diff) > 0.05 ? `${diff >= 0 ? '+' : ''}${r1(diff)}°` : '—'}
                 </td>
               </tr>
               </React.Fragment>
