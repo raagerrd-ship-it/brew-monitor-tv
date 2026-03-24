@@ -1264,24 +1264,26 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 </td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
-                    const dutyPct = det.duty_pct as number | undefined;
+                    // Prefer PID-calculated duty cycle from PILL_COMP_STATUS
+                    const pidDuty = pidDutyByName.get(name);
+                    const dutyPct = pidDuty ?? (det.duty_pct as number | undefined);
                     if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                     const dutyRounded = Math.round(dutyPct);
                     const quantized = Math.round(dutyPct / 10) * 10;
                     const totalBurstMin = quantized / 10; // 0–10 min over 2×5-min window
-                    const samples = det.duty_samples as number | undefined;
-                    const isLowSamples = samples != null && samples < 3;
+                    const isPidSource = pidDuty != null;
                     return (
                       <TooltipProvider delayDuration={200}><Tooltip>
                         <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${isLowSamples ? 'text-amber-400/60' : dutyRounded >= 50 ? 'text-amber-400' : dutyRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {isLowSamples && '⚠ '}{String(dutyRounded)}%
+                          <span className={`font-mono cursor-help ${dutyRounded >= 50 ? 'text-amber-400' : dutyRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {String(dutyRounded)}%
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
-                          Inlärt kylbehov: {String(dutyRounded)}% → kvantiserat {quantized}% = {totalBurstMin}m / 10-min (2×5-min cykler)
-                          {samples != null && ` (${String(samples)} mätningar)`}
-                          {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
+                          {isPidSource
+                            ? `PID duty cycle: ${String(dutyRounded)}% → kvantiserat ${quantized}% = ${totalBurstMin}m / 10-min`
+                            : `Inlärt kylbehov: ${String(dutyRounded)}% → kvantiserat ${quantized}% = ${totalBurstMin}m / 10-min`
+                          }
                         </TooltipContent>
                       </Tooltip></TooltipProvider>
                     );
