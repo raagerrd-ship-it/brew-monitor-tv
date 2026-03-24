@@ -217,13 +217,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
 
-    // Mode detection: cycle-counter based to prevent oscillation from overshoot.
-    // The system stays in its current mode until the probe has been consistently
-    // "stalled" — either on the wrong side of baseTarget OR not making progress
-    // toward the target despite active duty — for MODE_SWITCH_CYCLES consecutive cycles.
-    // Overshoot typically recovers in 1-3 cycles; requiring 6 prevents false switches.
+    // Mode detection: overshoot-aware with stabilisation guard.
+    // After active duty stops, thermal inertia can push the probe past the target.
+    // We do NOT switch mode while the probe is still drifting — it may recover
+    // passively. Only when the probe has STABILIZED on the wrong side (velocity ≈ 0,
+    // i.e. not moving in either direction) for MODE_SWITCH_CYCLES consecutive cycles
+    // do we conclude the current mode cannot hold temperature and switch.
     const MODE_SWITCH_CYCLES = 6
-    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stalled
+    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
 
     // Look up previous mode from learned compensation
     const { data: prevModeRow } = await supabase.from('controller_learned_compensation')
@@ -246,20 +247,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
 
-    // Mode-switch guard: after overshoot (thermal inertia) the probe drifts past
-    // the target. We do NOT switch mode while the probe is still moving — it may
-    // recover on its own. Only when it has STABILIZED on the wrong side (velocity ≈ 0)
-    // and stays there for MODE_SWITCH_CYCLES do we switch.
-    //
-    // Example: cooling mode, target 15°C, probe cools past to 13°C.
-    //   - While dropping (15→13): velocity is high → NOT stuck → no pressure
-    //   - Stabilized at 13°C, not moving: velocity ≈ 0 → stuck → pressure++
-    //   - Recovering (13→14→15): velocity toward target → NOT stuck → pressure decays
-    //   - Reaches 15°C: at target → NOT stuck → pressure decays
+    // Check if probe has stabilized on the WRONG side of the target.
+    // "Wrong side" = suggestedMode differs from prevMode (probe overshot past target).
+    // "Stabilized" = barely moving in either direction (thermal inertia dissipated).
+    // If probe is stuck on the CORRECT side, that's a PID tuning issue, not a mode issue.
     const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
+    const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
-    if (prevMode && lastProbe != null && distanceToTarget > 0.15) {
-      // Probe has stabilized = barely moving in EITHER direction
+    if (onWrongSide && lastProbe != null && distanceToTarget > 0.15) {
       const velocityAbs = Math.abs(probeTemp - lastProbe)
       if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
@@ -267,27 +262,27 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     let pidMode: 'heating' | 'cooling'
-    if (prevMode && isStuck) {
-      // Probe is stuck — not recovering toward target. Increment pressure.
+    if (isStuck) {
+      // Probe has stabilized on the wrong side — increment pressure
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Sustained stall — switch mode
+        // Sustained stall on wrong side — switch mode
         pidMode = suggestedMode
         switchPressure = 0
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (fastnad ${MODE_SWITCH_CYCLES} cykler, ej återhämtning)`, {
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (stabiliserad på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
           from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
           distance: round1(distanceToTarget), probe: round1(probeTemp),
         })
       } else {
-        pidMode = prevMode
-        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (fastnad, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+        pidMode = prevMode!
+        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabiliserad fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
           suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
           probe: round1(probeTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
           distance: round1(distanceToTarget),
         })
       }
     } else {
-      // Making progress toward target (or already at target) — decay pressure
+      // Probe is moving (recovering/overshooting), at target, or on correct side — decay pressure
       pidMode = prevMode ?? suggestedMode
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
