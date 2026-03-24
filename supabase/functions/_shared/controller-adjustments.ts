@@ -223,7 +223,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // passively. Only when the probe has STABILIZED on the wrong side (velocity ≈ 0,
     // i.e. not moving in either direction) for MODE_SWITCH_CYCLES consecutive cycles
     // do we conclude the current mode cannot hold temperature and switch.
-    const MODE_SWITCH_CYCLES = 6
+    const MODE_SWITCH_CYCLES = 3
     const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
 
     // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
