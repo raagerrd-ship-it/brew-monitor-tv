@@ -152,6 +152,18 @@ function buildFeatureBlocks(
     }
   }
 
+  // Build a map of learned duty_pct from SYNC_DATA decisions
+  const syncDutyMap = new Map<string, number>();
+  for (const d of decisions) {
+    if (d.step === "SYNC_DATA" && d.details) {
+      const det = d.details as Record<string, unknown>;
+      const name = d.message.replace(/^Controller:\s*/, "").trim();
+      if (typeof det.duty_pct === "number") {
+        syncDutyMap.set(name, det.duty_pct);
+      }
+    }
+  }
+
   if (props.pillCompEnabled) {
     const controllers: ControllerLine[] = [];
 
