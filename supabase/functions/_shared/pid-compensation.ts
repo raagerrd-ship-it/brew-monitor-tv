@@ -46,13 +46,12 @@ async function getLearnedCoolingRate(
 // PID Control & Thermal Learning
 //
 // SSOT Naming Convention:
-//   baseTarget    = sensor-fused target from dual-sensor module
-//                   (= profileTarget - sensorDelta)
-//   profileTarget = user's desired temperature (profile_target_temp)
-//                   Used ONLY for logging and delta calculation (avgDelta)
-//   ctrlTarget    = current hardware target (target_temp before PID)
-//   ctrlTargetPid = PID-computed target sent to RAPT hardware
+//   actualTarget  = user's desired temperature (profile_target_temp)
 //   actualTemp    = fused sensor reading (avg or probe-only)
+//   ctrlTarget    = current hardware target (target_temp before PID)
+//   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
+//
+// PID error = actualTarget - actualTemp (same domain user sees)
 // ============================================================
 
 export interface PillCompensationSettings {
@@ -95,32 +94,28 @@ const MODE_PARAMS = {
 }
 
 /**
- * Calculate PID-compensated target temperature.
+ * Calculate PID duty cycle for temperature control.
  *
- * The baseTarget is the sensor-fused "grundmål" from the dual-sensor module:
- *   baseTarget = profileTarget - (pill - probe) / 2
+ * PID error = actualTarget - actualTemp (same domain user sees).
+ * Output is a duty cycle (0–1), not a temperature offset.
  *
- * PID only adds/subtracts error correction on top of baseTarget:
- *   ctrlTargetPid = baseTarget + errorCorrection
- *
- * @param baseTarget     Sensor-fused target from dual-sensor module (grundmål)
- * @param profileTarget  User's desired temperature (for logging and delta calc only)
+ * @param actualTarget   User's desired temperature (profile_target_temp)
+ * @param _unused        Kept for signature compat (was profileTarget)
  * @param ctrlTarget     The current hardware target (target_temp before PID)
  * @param actualTemp     Pre-computed fused sensor reading (avg or probe-only)
- * @param probeTemp      The controller's probe temperature
  */
 export async function calculateCompensatedTarget(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
-  baseTarget: number,
-  profileTarget: number,
+  actualTarget: number,
+  _unused: number,
   ctrlTarget: number,
   controllerName: string,
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown',
   actualTemp?: number,
-  probeTemp?: number,
+  _probeTemp?: number,
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   skipRateLimit?: boolean,
@@ -132,10 +127,9 @@ export async function calculateCompensatedTarget(
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
   const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
 
-  // Sensor delta: derived from baseTarget vs profileTarget
-  // baseTarget already has sensorDelta baked in from dual-sensor module
-  const avgDelta = Math.round((profileTarget - baseTarget) * 100) / 100
-  const absDelta = Math.abs(avgDelta)
+  // No sensor delta needed — PID works directly in actual_temp / actual_target domain
+  const avgDelta = 0
+  const compensation = 0
 
   // Fetch delta history — still needed for D-term rate calculations
   const { data: deltaHistory } = await supabase
@@ -147,13 +141,9 @@ export async function calculateCompensatedTarget(
 
   if (!deltaHistory || deltaHistory.length === 0) {
     if (actualTemp == null) {
-      console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar baseTarget`)
-      return { ctrlTargetPid: baseTarget, compensation: 0, avgDelta: 0 }
+      console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar actualTarget`)
+      return { ctrlTargetPid: actualTarget, compensation: 0, avgDelta: 0 }
     }
-  }
-
-  if (absDelta < 0.1) {
-    console.log(`✅ PID ${controllerName}: sensorΔ ${avgDelta.toFixed(2)}°C < 0.1 — kör PI utan sensorkorrigering`)
   }
 
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
@@ -181,7 +171,7 @@ export async function calculateCompensatedTarget(
       _probeRate = (ctrlNow - ctrlOld) / timeDiffHours
 
       const currentAvg = (pillNow + ctrlNow) / 2
-      const avgDistance = currentAvg - baseTarget
+      const avgDistance = currentAvg - actualTarget
 
       const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
       if (Math.abs(avgDistance) > 0.1 && isConverging) {
@@ -191,22 +181,16 @@ export async function calculateCompensatedTarget(
         const etaHours = avgRate > 0.01 ? Math.abs(avgDistance) / avgRate : 99
         _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${baseTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${actualTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
         _etaMinutes = null
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${baseTarget}°C (ej mot mål eller för långsam), damping=1.0`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${actualTarget}°C (ej mot mål eller för långsam), damping=1.0`)
       }
     }
   }
 
-  // compensation is kept as a return value for logging compatibility.
-  // It equals avgDelta (profileTarget - baseTarget), but is NOT applied in the formula —
-  // baseTarget already has sensorDelta baked in.
-  const compensation = avgDelta
-  const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? baseTarget)
-
   // === Adaptive PI-term ===
-  const deltaBucket = absDelta > 3 ? 'high' : absDelta > 1.5 ? 'medium' : 'low'
+  const deltaBucket = 'low' // No sensor delta buckets needed anymore
 
   let learnedRow: any = null;
   {
@@ -270,12 +254,11 @@ export async function calculateCompensatedTarget(
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
   }
 
-  // Error: probe vs baseTarget (both in probe domain, no domain mismatch)
-  // profileTarget is only for logging — PID works entirely in baseTarget domain.
-  const currentProbeForError = probeTemp ?? (deltaHistory?.[0]
+  // Error: actualTarget - actualTemp (same domain as user sees)
+  const currentTempForError = actualTemp ?? (deltaHistory?.[0]
     ? parseFloat(String(deltaHistory[0].controller_temp))
-    : baseTarget)
-  const avgError = baseTarget - currentProbeForError
+    : actualTarget)
+  const avgError = actualTarget - currentTempForError
 
   let pCorrection = 0
   let iCorrection = 0
@@ -307,11 +290,11 @@ export async function calculateCompensatedTarget(
   // COOLING DUTY CYCLE MODEL
   // PID output = duty cycle (0.0–1.0) instead of a target offset.
   // The hardware is controlled via PWM bursts: 0°C = cooling ON,
-  // baseTarget = cooling OFF. Burst length = duty × 300s.
+  // actualTarget = cooling OFF. Burst length = duty × 300s.
   // The integral accumulates the steady-state duty needed at equilibrium.
   // ═══════════════════════════════════════════════════════
   if (mode === 'cooling') {
-    const coolingNeed = -avgError // positive when probe > baseTarget (needs cooling)
+    const coolingNeed = -avgError // positive when actualTemp > actualTarget (needs cooling)
     const DUTY_P = 0.5    // duty per °C error
     const DUTY_I = 0.05   // duty accumulation per cycle per °C
     const DUTY_DECAY = 0.98 // slow decay for stable steady-state
@@ -320,7 +303,7 @@ export async function calculateCompensatedTarget(
     // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
     let integral = persistedIntegral
     if (integral > 1.0) {
-      const cBucket = getTempBucket(baseTarget)
+      const cBucket = getTempBucket(actualTarget)
       const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
       integral = seed.sampleCount >= 3 ? seed.value : 0
       console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
@@ -387,7 +370,7 @@ export async function calculateCompensatedTarget(
       pCorrection, integral, dampingFactor, avgError)
 
     return {
-      ctrlTargetPid: Math.round(baseTarget * 10) / 10, dutyCycle,
+      ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
       compensation, avgDelta, dampingFactor,
       pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
       errorCorrection: 0, pCorrection, iCorrection: integral,
@@ -398,10 +381,10 @@ export async function calculateCompensatedTarget(
   // HEATING DUTY CYCLE MODEL
   // Mirror of cooling: PID output = duty cycle (0.0–1.0).
   // Hardware controlled via PWM: maxTemp = heating ON,
-  // baseTarget = heating OFF. Burst length = duty × 300s.
+  // actualTarget = heating OFF. Burst length = duty × 300s.
   // ═══════════════════════════════════════════════════════
   // mode === 'heating' guaranteed here (cooling returns early above)
-  const heatingNeed = avgError // positive when probe < baseTarget (needs heating)
+  const heatingNeed = avgError // positive when actualTemp < actualTarget (needs heating)
   const HEAT_P = 0.5
   const HEAT_I = 0.05
   const HEAT_DECAY = 0.98
@@ -463,7 +446,7 @@ export async function calculateCompensatedTarget(
     pCorrection, hIntegral, dampingFactor, avgError)
 
   return {
-    ctrlTargetPid: Math.round(baseTarget * 10) / 10, dutyCycle: hDutyCycle,
+    ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle: hDutyCycle,
     compensation, avgDelta, dampingFactor,
     pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
     errorCorrection: 0, pCorrection, iCorrection: hIntegral,

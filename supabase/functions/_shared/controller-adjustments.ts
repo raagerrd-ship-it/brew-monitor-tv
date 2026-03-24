@@ -49,7 +49,7 @@ export interface ControllerAdjustmentContext {
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
-  /** Populated by PID: maps controller_id → dual-sensor baseTarget (grundmål).
+  /** Populated by PID: maps controller_id → actualTarget (profile target).
    *  Used by cooler to plan against a stable target, not the PID-fluctuating target_temp. */
   baseTargetMap: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
@@ -204,18 +204,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Dual sensor fusion: compute baseTarget and actualTemp
+    // Dual sensor fusion: compute actualTemp
     const dualSensor = computeDualSensorTarget(
       actualTarget,
       fc.current_temp ?? null,
       fc.pill_temp ?? null,
       pillCompSettings.enabled,
     )
-    const { sensorDelta, actualTemp, enabled: hasDualSensors } = dualSensor
-    const probeTemp = fc.current_temp ?? fc.pill_temp ?? ctrlTarget
+    const { actualTemp, enabled: hasDualSensors } = dualSensor
 
-    // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
-    ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
+    // Store actualTarget for cooler management (stable target without PID fluctuation)
+    ctx.baseTargetMap.set(fc.controller_id, actualTarget)
 
     // Mode detection: overshoot-aware with stabilisation guard.
     // After active duty stops, thermal inertia can push the probe past the target.
@@ -245,17 +244,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
 
     // Determine what mode the current temperature suggests
-    const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+    const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
     // Check if probe has stabilized on the WRONG side of the target.
     // "Wrong side" = suggestedMode differs from prevMode (probe overshot past target).
     // "Stabilized" = barely moving in either direction (thermal inertia dissipated).
     // If probe is stuck on the CORRECT side, that's a PID tuning issue, not a mode issue.
-    const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
+    const distanceToTarget = Math.abs(actualTemp - actualTarget)
     const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
     if (onWrongSide && lastProbe != null && distanceToTarget > 0.15) {
-      const velocityAbs = Math.abs(probeTemp - lastProbe)
+      const velocityAbs = Math.abs(actualTemp - lastProbe)
       if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
       }
@@ -271,13 +270,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         switchPressure = 0
         log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (stabiliserad på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
           from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
-          distance: round1(distanceToTarget), probe: round1(probeTemp),
+          distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
         })
       } else {
         pidMode = prevMode!
         log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabiliserad fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
           suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
-          probe: round1(probeTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
+          actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
           distance: round1(distanceToTarget),
         })
       }
@@ -300,7 +299,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         {
           controller_id: fc.controller_id,
           parameter_name: 'mode_last_probe',
-          learned_value: round1(probeTemp),
+          learned_value: round1(actualTemp),
           sample_count: 1,
           last_updated_at: new Date().toISOString(),
         },
@@ -337,34 +336,25 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation ===
     const pidResult = await calculateCompensatedTarget(
-      supabase, fc.controller_id, dualSensor.baseTarget, actualTarget, ctrlTarget,
+      supabase, fc.controller_id, actualTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, probeTemp, coolingUtil, rampContext, false, ctx.skipLearning,
+      actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
     )
 
     // Log PID status
-    const pillTempLog = round1(fc.pill_temp ?? 0)
-    const probeTempLog = round1(fc.current_temp ?? 0)
-    const avgTemp = round1(actualTemp)
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
-    const effectiveDelta = round1(sensorDelta)
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
-      pill_temp: pillTempLog,
-      probe_temp: probeTempLog,
-      actual_temp: avgTemp,
+      pill_temp: round1(fc.pill_temp ?? 0),
+      probe_temp: round1(fc.current_temp ?? 0),
+      actual_temp: round1(actualTemp),
       dual_sensors: hasDualSensors,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
-      delta: effectiveDelta,
-      sensor_delta: round1(sensorDelta),
-      error_correction: round1(pidResult.errorCorrection ?? 0),
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
-      learned_baseline: round1(pidResult.learnedBaseline ?? 0),
       damping: round1(pidResult.dampingFactor),
-      raw_ctrl_target_pid: round1(dualSensor.baseTarget + (pidResult.errorCorrection ?? 0)),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
@@ -392,7 +382,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(dualSensor.baseTarget)
+      const revertTarget = round1(actualTarget)
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
@@ -410,7 +400,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
       } else if (burstSeconds > 0) {
-        // 10-90%: burst at 0°C, schedule revert to baseTarget
+        // 10-90%: burst at 0°C, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
           duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget,
         })
@@ -441,7 +431,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // 0% or phase B idle
         if (dutyPct === 0) {
           log('DUTY_ZERO', 'info', `${fc.name}: duty 0% — ingen kylning`)
-          // Ensure hardware target is at baseTarget (cooling OFF)
+          // Ensure hardware target is at actualTarget (cooling OFF)
           if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
@@ -463,7 +453,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // ═══════════════════════════════════════════════════
     // HEATING: Unified PWM duty cycle execution
     // PID output is a duty cycle (0–100%). Hardware is controlled
-    // via PWM bursts: maxTemp = heating ON, baseTarget = heating OFF.
+    // via PWM bursts: maxTemp = heating ON, actualTarget = heating OFF.
     // ═══════════════════════════════════════════════════
     if (pidMode === 'heating' && pidResult.dutyCycle != null) {
       if (!fc.heating_enabled) {
@@ -477,7 +467,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(dualSensor.baseTarget)
+      const revertTarget = round1(actualTarget)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
@@ -497,7 +487,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
       } else if (burstSeconds > 0) {
-        // 10-90%: burst at maxTemp, schedule revert to baseTarget
+        // 10-90%: burst at maxTemp, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: heating duty ${dutyPct}% → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
           duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode: 'heating',
         })
