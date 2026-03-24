@@ -253,7 +253,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
     const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
-    if (onWrongSide && lastProbe != null && distanceToTarget > 0.15) {
+    if (onWrongSide && lastProbe != null && distanceToTarget > 0.05) {
       const velocityAbs = Math.abs(actualTemp - lastProbe)
       if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
