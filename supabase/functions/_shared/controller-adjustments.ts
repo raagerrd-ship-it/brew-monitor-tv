@@ -169,9 +169,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   const controllerIds = followedControllersFullData.map(c => c.controller_id)
   const { data: pendingPwmReverts } = await supabase
     .from('pending_rapt_retries')
-    .select('controller_id, target_temp')
+    .select('controller_id, target_temp, attempts')
     .in('controller_id', controllerIds)
     .like('reason', '%PWM OFF%')
+    .lt('attempts', 5)  // SAFETY: exclude dead rows — execute-pwm-off stops at 5
   const pwmRevertMap = new Map(
     (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
   )
@@ -529,8 +530,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // 0% or phase B idle
         if (dutyPct === 0) {
           log('DUTY_ZERO', 'info', `${fc.name}: heating duty 0% — ingen uppvärmning`)
-          // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst)
-          if (ctrlTarget >= maxTemp - 0.5) {
+          // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst,
+          // or 0°C from a previous cooling burst after mode switch)
+          if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)

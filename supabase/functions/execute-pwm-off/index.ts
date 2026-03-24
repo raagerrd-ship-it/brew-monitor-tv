@@ -14,6 +14,52 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // ── SAFETY: Clean up dead PWM OFF rows (attempts ≥ 5) ──
+  // These would permanently lock PID if left in the table.
+  const { data: deadRows } = await supabase
+    .from("pending_rapt_retries")
+    .select("id, controller_id, target_temp, attempts, reason")
+    .like("reason", "%PWM OFF%")
+    .gte("attempts", 5);
+
+  if (deadRows && deadRows.length > 0) {
+    for (const dead of deadRows) {
+      console.error(`🚨 SAFETY: PWM OFF stuck for ${dead.controller_id} after ${dead.attempts} attempts — cleaning up`);
+      
+      // Try one final time to revert hardware to safe target
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            controllerId: dead.controller_id,
+            action: "setTargetTemperature",
+            value: dead.target_temp,
+            source: "pwm",
+            pwm_label: `PWM OFF recovery: → ${dead.target_temp}°`,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (finalErr) {
+        console.error(`🚨 Final recovery attempt failed for ${dead.controller_id}: ${finalErr}`);
+      }
+
+      // Delete the stuck row so PID can resume
+      await supabase.from("pending_rapt_retries").delete().eq("id", dead.id);
+      
+      // Send critical notification
+      await supabase.from("pending_notifications").insert({
+        type: "pwm_stuck",
+        title: "PWM-kommando fastnat",
+        body: `PWM OFF för controller ${dead.controller_id} misslyckades ${dead.attempts} gånger. Raden har rensats och PID återupptas. Kontrollera att hårdvaran har rätt måltemperatur (${dead.target_temp}°C).`,
+        controller_id: dead.controller_id,
+      });
+    }
+  }
+
   // Find all scheduled PWM OFF commands that are due
   const { data: pendingOffs, error } = await supabase
     .from("pending_rapt_retries")
@@ -25,7 +71,7 @@ Deno.serve(async (req) => {
 
   if (error || !pendingOffs || pendingOffs.length === 0) {
     return new Response(
-      JSON.stringify({ ok: true, processed: 0, reason: error ? error.message : "no pending" }),
+      JSON.stringify({ ok: true, processed: 0, deadCleaned: deadRows?.length ?? 0, reason: error ? error.message : "no pending" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
