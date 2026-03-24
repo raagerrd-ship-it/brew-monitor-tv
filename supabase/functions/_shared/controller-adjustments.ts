@@ -344,7 +344,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Log PID status
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
-    log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
+    log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name} [${pidMode}]`, {
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
       actual_temp: round1(actualTemp),
