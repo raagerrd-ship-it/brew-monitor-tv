@@ -520,7 +520,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // 0% or phase B idle
         if (dutyPct === 0) {
           log('DUTY_ZERO', 'info', `${fc.name}: heating duty 0% — ingen uppvärmning`)
-          if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
+          // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst)
+          if (ctrlTarget >= maxTemp - 0.5) {
+            log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
             } else {
