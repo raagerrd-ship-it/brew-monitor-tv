@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateLearnedParam, getLearnedParam } from './learning-utils.ts'
+import { updateLearnedParam, getLearnedParam, getTempBucket } from './learning-utils.ts'
 
 /** Persist PID state to controller_learned_compensation */
 async function persistPidState(
