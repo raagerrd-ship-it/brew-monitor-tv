@@ -312,8 +312,9 @@ export async function calculateCompensatedTarget(
     let dutyCycle = 0
 
     if (Math.abs(avgError) <= 0.1) {
-      // DEADBAND: hold at integral (learned steady-state duty)
-      integral *= 0.9
+      // DEADBAND: hold integral steady (this IS the learned steady-state duty)
+      // Do NOT decay — the integral represents the duty needed to maintain temperature.
+      // Decaying it causes the system to lose its learned baseline and stop cooling.
       dutyCycle = Math.max(0, integral)
       constraints.push('deadband')
       console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
