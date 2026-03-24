@@ -225,11 +225,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
     // Dual sensor fusion: compute actualTemp
+    // Per-brew override: if brew has pill_compensation=false, disable dual sensors for this controller
+    const dualEnabled = perBrewDualMap.has(fc.controller_id)
+      ? perBrewDualMap.get(fc.controller_id)!
+      : pillCompSettings.enabled
     const dualSensor = computeDualSensorTarget(
       actualTarget,
       fc.current_temp ?? null,
       fc.pill_temp ?? null,
-      pillCompSettings.enabled,
+      dualEnabled,
     )
     const { actualTemp, enabled: hasDualSensors } = dualSensor
 
