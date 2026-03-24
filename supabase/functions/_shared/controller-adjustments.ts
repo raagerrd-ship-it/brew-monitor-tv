@@ -169,9 +169,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   const controllerIds = followedControllersFullData.map(c => c.controller_id)
   const { data: pendingPwmReverts } = await supabase
     .from('pending_rapt_retries')
-    .select('controller_id, target_temp')
+    .select('controller_id, target_temp, attempts')
     .in('controller_id', controllerIds)
     .like('reason', '%PWM OFF%')
+    .lt('attempts', 5)  // SAFETY: exclude dead rows — execute-pwm-off stops at 5
   const pwmRevertMap = new Map(
     (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
   )
