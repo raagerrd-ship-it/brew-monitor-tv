@@ -272,5 +272,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     isActivelyHeating,
     pillCompEnabled,
     originalTarget,
+    dutyCyclePct,
+    dutyMode,
   };
 }
