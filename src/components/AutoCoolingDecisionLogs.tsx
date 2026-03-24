@@ -406,7 +406,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // RAPT_SEND badges — actual hardware commands sent
   for (const send of raptSends) {
-    const details = send.details as { old_target?: number; new_target?: number; controller_id?: string; duty_pct?: number; is_pwm?: boolean } | undefined;
+    const details = send.details as { old_target?: number; new_target?: number; controller_id?: string; duty_pct?: number; is_pwm?: boolean; mode?: string } | undefined;
     // Extract short controller name from message (e.g. "Temp Controller Gul: 0°C → 6.4°C")
     const nameMatch = send.message?.match(/^(.+?):\s/);
     const shortName = nameMatch ? nameMatch[1].replace('Temp Controller ', '') : '?';
@@ -415,17 +415,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const oldT = details?.old_target ?? null;
     const newT = details?.new_target ?? null;
 
-    // Detect PWM ON sends (target = 0°C or marked as PWM)
+    // Detect PWM ON sends (marked as PWM, or target=0 for cooling, or very high target for heating)
     const isPwmOn = details?.is_pwm || (newT === 0 && oldT != null && oldT > 0);
     if (isPwmOn) {
       const dutyPctVal = details?.duty_pct;
+      const modeIcon = details?.mode === 'heating' ? '🔥' : '❄️';
       raptBadges.push(
         <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
           background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
           color: color || 'hsl(45 90% 55%)',
           borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
         }}>
-          <Zap className="h-2.5 w-2.5 mr-0.5" />PWM · {shortName} ON{dutyPctVal ? ` ${dutyPctVal}%` : ''}
+          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : 'ON'}
         </Badge>
       );
     } else {
