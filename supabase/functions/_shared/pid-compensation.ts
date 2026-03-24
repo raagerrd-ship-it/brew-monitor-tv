@@ -94,32 +94,28 @@ const MODE_PARAMS = {
 }
 
 /**
- * Calculate PID-compensated target temperature.
+ * Calculate PID duty cycle for temperature control.
  *
- * The baseTarget is the sensor-fused "grundmål" from the dual-sensor module:
- *   baseTarget = profileTarget - (pill - probe) / 2
+ * PID error = actualTarget - actualTemp (same domain user sees).
+ * Output is a duty cycle (0–1), not a temperature offset.
  *
- * PID only adds/subtracts error correction on top of baseTarget:
- *   ctrlTargetPid = baseTarget + errorCorrection
- *
- * @param baseTarget     Sensor-fused target from dual-sensor module (grundmål)
- * @param profileTarget  User's desired temperature (for logging and delta calc only)
+ * @param actualTarget   User's desired temperature (profile_target_temp)
+ * @param _unused        Kept for signature compat (was profileTarget)
  * @param ctrlTarget     The current hardware target (target_temp before PID)
  * @param actualTemp     Pre-computed fused sensor reading (avg or probe-only)
- * @param probeTemp      The controller's probe temperature
  */
 export async function calculateCompensatedTarget(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
-  baseTarget: number,
-  profileTarget: number,
+  actualTarget: number,
+  _unused: number,
   ctrlTarget: number,
   controllerName: string,
   settings: PillCompensationSettings,
   mode: 'heating' | 'cooling' = 'cooling',
   stepType: string = 'unknown',
   actualTemp?: number,
-  probeTemp?: number,
+  _probeTemp?: number,
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   skipRateLimit?: boolean,
