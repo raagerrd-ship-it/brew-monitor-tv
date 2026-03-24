@@ -127,10 +127,9 @@ export async function calculateCompensatedTarget(
   const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
   const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
 
-  // Sensor delta: derived from baseTarget vs profileTarget
-  // baseTarget already has sensorDelta baked in from dual-sensor module
-  const avgDelta = Math.round((profileTarget - baseTarget) * 100) / 100
-  const absDelta = Math.abs(avgDelta)
+  // No sensor delta needed — PID works directly in actual_temp / actual_target domain
+  const avgDelta = 0
+  const compensation = 0
 
   // Fetch delta history — still needed for D-term rate calculations
   const { data: deltaHistory } = await supabase
@@ -142,13 +141,9 @@ export async function calculateCompensatedTarget(
 
   if (!deltaHistory || deltaHistory.length === 0) {
     if (actualTemp == null) {
-      console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar baseTarget`)
-      return { ctrlTargetPid: baseTarget, compensation: 0, avgDelta: 0 }
+      console.log(`⚠️ PID ${controllerName}: ingen deltahistorik och inga sensorvärden — returnerar actualTarget`)
+      return { ctrlTargetPid: actualTarget, compensation: 0, avgDelta: 0 }
     }
-  }
-
-  if (absDelta < 0.1) {
-    console.log(`✅ PID ${controllerName}: sensorΔ ${avgDelta.toFixed(2)}°C < 0.1 — kör PI utan sensorkorrigering`)
   }
 
   // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
@@ -176,7 +171,7 @@ export async function calculateCompensatedTarget(
       _probeRate = (ctrlNow - ctrlOld) / timeDiffHours
 
       const currentAvg = (pillNow + ctrlNow) / 2
-      const avgDistance = currentAvg - baseTarget
+      const avgDistance = currentAvg - actualTarget
 
       const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
       if (Math.abs(avgDistance) > 0.1 && isConverging) {
@@ -186,22 +181,16 @@ export async function calculateCompensatedTarget(
         const etaHours = avgRate > 0.01 ? Math.abs(avgDistance) / avgRate : 99
         _etaMinutes = Math.round(etaHours * 60)
         dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${baseTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
+        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${actualTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
       } else {
         _etaMinutes = null
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${baseTarget}°C (ej mot mål eller för långsam), damping=1.0`)
+        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${actualTarget}°C (ej mot mål eller för långsam), damping=1.0`)
       }
     }
   }
 
-  // compensation is kept as a return value for logging compatibility.
-  // It equals avgDelta (profileTarget - baseTarget), but is NOT applied in the formula —
-  // baseTarget already has sensorDelta baked in.
-  const compensation = avgDelta
-  const latestCtrlForComp = deltaHistory?.[0] ? parseFloat(String(deltaHistory[0].controller_temp)) : (probeTemp ?? baseTarget)
-
   // === Adaptive PI-term ===
-  const deltaBucket = absDelta > 3 ? 'high' : absDelta > 1.5 ? 'medium' : 'low'
+  const deltaBucket = 'low' // No sensor delta buckets needed anymore
 
   let learnedRow: any = null;
   {
