@@ -456,7 +456,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // ═══════════════════════════════════════════════════
     // HEATING: Unified PWM duty cycle execution
     // PID output is a duty cycle (0–100%). Hardware is controlled
-    // via PWM bursts: maxTemp = heating ON, baseTarget = heating OFF.
+    // via PWM bursts: maxTemp = heating ON, actualTarget = heating OFF.
     // ═══════════════════════════════════════════════════
     if (pidMode === 'heating' && pidResult.dutyCycle != null) {
       if (!fc.heating_enabled) {
