@@ -137,7 +137,9 @@ const PIPELINE_STEPS = new Set([
   'RAPT_SEND',
   'SYNC_FREQ', 'TOKEN_REFRESH',
   // Steps rendered inline by header/pipeline (prevent "Övrigt" duplication)
-  'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'RETRY', 'PWM_OFF',
+  'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'DUTY_PWM_SKIP',
+  'DUTY_BURST', 'DUTY_FULL', 'DUTY_ZERO', 'DUTY_PHASE_B', 'DUTY_SKIP',
+  'RETRY', 'PWM_OFF',
 ]);
 
 // --- Helpers ---
@@ -1092,7 +1094,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     });
   });
   const dutyPwmByName = new Map<string, { duty: number; burstSeconds: number }>();
-  decisions.filter(d => d.step === 'DUTY_PWM_BURST').forEach(d => {
+  // Support both old (DUTY_PWM_BURST) and new (DUTY_BURST, DUTY_FULL) step names
+  decisions.filter(d => d.step === 'DUTY_PWM_BURST' || d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) {
       const det = d.details || {};
@@ -1104,9 +1107,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   });
   // Track controllers where PWM mode is active but this phase has 0-burst
   const pwmSkipNames = new Set<string>();
-  decisions.filter(d => d.step === 'DUTY_PWM_SKIP').forEach(d => {
+  // Support both old (DUTY_PWM_SKIP) and new (DUTY_PHASE_B, DUTY_ZERO) step names
+  decisions.filter(d => d.step === 'DUTY_PWM_SKIP' || d.step === 'DUTY_PHASE_B' || d.step === 'DUTY_ZERO').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) pwmSkipNames.add(nameMatch[1].trim());
+  });
+  // Build PID duty cycle map from PILL_COMP_STATUS for "Behov" column
+  const pidDutyByName = new Map<string, number>();
+  decisions.filter(d => d.step === 'PILL_COMP_STATUS').forEach(d => {
+    const name = d.message.replace('Controller: ', '');
+    const det = d.details || {};
+    const dutyCycle = det.duty_cycle as number | undefined;
+    if (dutyCycle != null) pidDutyByName.set(name, dutyCycle);
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
@@ -1252,24 +1264,26 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 </td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
-                    const dutyPct = det.duty_pct as number | undefined;
+                    // Prefer PID-calculated duty cycle from PILL_COMP_STATUS
+                    const pidDuty = pidDutyByName.get(name);
+                    const dutyPct = pidDuty ?? (det.duty_pct as number | undefined);
                     if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                     const dutyRounded = Math.round(dutyPct);
                     const quantized = Math.round(dutyPct / 10) * 10;
                     const totalBurstMin = quantized / 10; // 0–10 min over 2×5-min window
-                    const samples = det.duty_samples as number | undefined;
-                    const isLowSamples = samples != null && samples < 3;
+                    const isPidSource = pidDuty != null;
                     return (
                       <TooltipProvider delayDuration={200}><Tooltip>
                         <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${isLowSamples ? 'text-amber-400/60' : dutyRounded >= 50 ? 'text-amber-400' : dutyRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {isLowSamples && '⚠ '}{String(dutyRounded)}%
+                          <span className={`font-mono cursor-help ${dutyRounded >= 50 ? 'text-amber-400' : dutyRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {String(dutyRounded)}%
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
-                          Inlärt kylbehov: {String(dutyRounded)}% → kvantiserat {quantized}% = {totalBurstMin}m / 10-min (2×5-min cykler)
-                          {samples != null && ` (${String(samples)} mätningar)`}
-                          {isLowSamples && ' — få mätpunkter, kan vara opålitligt'}
+                          {isPidSource
+                            ? `PID duty cycle: ${String(dutyRounded)}% → kvantiserat ${quantized}% = ${totalBurstMin}m / 10-min`
+                            : `Inlärt kylbehov: ${String(dutyRounded)}% → kvantiserat ${quantized}% = ${totalBurstMin}m / 10-min`
+                          }
                         </TooltipContent>
                       </Tooltip></TooltipProvider>
                     );
@@ -1295,7 +1309,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                         );
                       }
                       if (pwmSkipNames.has(name)) {
-                        const dutyPctSync = det.duty_pct as number | undefined;
+                        const pidDuty = pidDutyByName.get(name);
+                        const dutyPctSync = pidDuty ?? (det.duty_pct as number | undefined);
                         const quantizedSync = dutyPctSync != null ? Math.round(dutyPctSync / 10) * 10 : 0;
                         return (
                           <TooltipProvider delayDuration={200}><Tooltip>
@@ -1305,12 +1320,29 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs max-w-[220px]">
-                              {`PWM aktiv men fas B — ingen burst denna cykel (duty ${quantizedSync}%)`}
+                              {`PWM aktiv men fas B/0% — ingen burst denna cykel (duty ${quantizedSync}%)`}
                             </TooltipContent>
                           </Tooltip></TooltipProvider>
                         );
                       }
+                      // Show PID duty cycle badge for active cooling controllers
                       if (!isInactive && !isGlycol) {
+                        const pidDuty = pidDutyByName.get(name);
+                        if (pidDuty != null) {
+                          const quantizedDuty = Math.round(pidDuty / 10) * 10;
+                          return (
+                            <TooltipProvider delayDuration={200}><Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded cursor-help font-medium ${quantizedDuty > 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-sky-500/10 text-sky-400/70'}`}>
+                                  PWM {quantizedDuty}%
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs max-w-[220px]">
+                                {`PID duty cycle ${pidDuty}% → kvantiserat ${quantizedDuty}%`}
+                              </TooltipContent>
+                            </Tooltip></TooltipProvider>
+                          );
+                        }
                         return (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/70 font-medium">PID</span>
                         );
