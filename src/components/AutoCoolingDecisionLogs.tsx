@@ -427,7 +427,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
           color: color || 'hsl(45 90% 55%)',
           borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
         }}>
-          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : 'ON'}
+          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – ON
         </Badge>
       );
     } else {
@@ -492,16 +492,42 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const controllerName = details?.controller_name || '';
     const shortName = controllerName.replace('Temp Controller ', '') || log.final_result.match(/PWM OFF: (.+?) /)?.[1] || '?';
     const color = controllerColors[controllerName];
+    const dutyPctVal = details?.duty_pct;
+    // Detect mode from message (heating keyword)
+    const offModeIcon = pwmOffDecision?.message?.toLowerCase().includes('heating') ? '🔥' : '❄️';
     raptBadges.push(
       <Badge key="pwm-off" variant="default" className="text-[10px] px-1.5" style={{
         background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
         color: color || 'hsl(45 90% 55%)',
         borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM · {shortName} OFF
+        <Zap className="h-2.5 w-2.5 mr-0.5" />{offModeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – OFF
       </Badge>
     );
   }
+
+  // PWM SKIP badges — phase B or duty 0% skips (no hardware burst this cycle)
+  const dutySkipDecisions = log.decisions.filter(d => d.step === 'DUTY_PHASE_B' || d.step === 'DUTY_ZERO');
+  for (const skipD of dutySkipDecisions) {
+    const nameMatch = skipD.message.match(/^([^:]+):/);
+    const fullName = nameMatch ? nameMatch[1].trim() : '';
+    const shortName = fullName.replace('Temp Controller ', '');
+    const color = controllerColors[fullName];
+    const dutyMatch = skipD.message.match(/PWM (\d+)%/);
+    const dutyPctVal = dutyMatch ? dutyMatch[1] : '0';
+    const isHeating = skipD.message.toLowerCase().includes('heating') || skipD.message.includes('uppvärmning');
+    const modeIcon = isHeating ? '🔥' : '❄️';
+    raptBadges.push(
+      <Badge key={`skip-${skipD.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
+        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
+        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+      }}>
+        <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal}% – SKIP
+      </Badge>
+    );
+  }
+
   for (const pwm of pwmAdjs) {
     const shortName = pwm.cooler_controller_name.replace('Temp Controller ', '');
     const color = controllerColors[pwm.cooler_controller_name];
