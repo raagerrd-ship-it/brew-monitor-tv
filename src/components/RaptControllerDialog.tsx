@@ -114,9 +114,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-2xl font-bold tabular-nums text-primary">
                 {actualTarget !== null ? `${actualTarget.toFixed(1)}°` : '—'}
               </p>
-              {pidCompensation !== null && pidCompensation !== 0 ? (
+              {dutyCyclePct != null ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
-                  PID → ctrl: {currentController.target_temp?.toFixed(1)}° ({pidCompensation > 0 ? '+' : ''}{pidCompensation.toFixed(1)}°)
+                  PWM {Math.round(dutyCyclePct)}% {dutyMode === 'cooling' ? '❄️' : dutyMode === 'heating' ? '🔥' : ''}
                 </p>
               ) : currentController.pill_temp !== null && !isPillCompActive ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
