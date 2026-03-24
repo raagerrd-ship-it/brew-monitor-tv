@@ -254,12 +254,11 @@ export async function calculateCompensatedTarget(
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: senaste mätning ${new Date(newestDataTime).toISOString()} ≤ senaste PID ${new Date(lastPidRunTime).toISOString()} — hoppar över I-ackumulering`)
   }
 
-  // Error: probe vs baseTarget (both in probe domain, no domain mismatch)
-  // profileTarget is only for logging — PID works entirely in baseTarget domain.
-  const currentProbeForError = probeTemp ?? (deltaHistory?.[0]
+  // Error: actualTarget - actualTemp (same domain as user sees)
+  const currentTempForError = actualTemp ?? (deltaHistory?.[0]
     ? parseFloat(String(deltaHistory[0].controller_temp))
-    : baseTarget)
-  const avgError = baseTarget - currentProbeForError
+    : actualTarget)
+  const avgError = actualTarget - currentTempForError
 
   let pCorrection = 0
   let iCorrection = 0
