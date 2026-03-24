@@ -204,7 +204,7 @@ export function LearnedCompensationBaselines() {
                 <th className="text-left font-medium pb-1 w-[14%]"></th>
                 <th className="text-left font-medium pb-1 w-[18%]">Delta</th>
                 <th className="text-left font-medium pb-1 w-[16%]">Steg</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Korr.</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Duty/Korr</th>
                 <th className="text-right font-medium pb-1 w-[18%]">Konv.</th>
                 <th className="text-right font-medium pb-1 w-[14%]"></th>
               </tr>
@@ -243,7 +243,10 @@ export function LearnedCompensationBaselines() {
                       {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
                     </td>
                     <td className={`py-1.5 text-right font-mono ${corrColor}`}>
-                      {item.learned_pi_correction >= 0 ? "+" : ""}{item.learned_pi_correction.toFixed(2)}°
+                      {!isHeating
+                        ? `${Math.round(item.accumulated_integral * 100)}%`
+                        : `${item.learned_pi_correction >= 0 ? "+" : ""}${item.learned_pi_correction.toFixed(2)}°`
+                      }
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground">
                       <span>{item.convergence_count}</span>
@@ -289,14 +292,27 @@ export function LearnedCompensationBaselines() {
           {items.map((item) => {
             const isExpanded = expandedRows.has(item.id);
             const hasDetails = item.latest_p_correction !== 0 || item.latest_i_correction !== 0 || item.latest_avg_error !== 0;
+            const isItemHeating = item.mode === "heating";
             if (!isExpanded || !hasDetails) return null;
             return (
               <div key={`detail-${item.id}`} className="ml-4 mb-1 flex items-center gap-3 text-[10px] text-muted-foreground/70 font-mono bg-muted/10 rounded px-2 py-1">
-                <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
-                <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
-                <span>D={item.latest_d_damping.toFixed(2)}</span>
-                <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
-                <span className="text-muted-foreground/40">∫={item.accumulated_integral >= 0 ? "+" : ""}{item.accumulated_integral.toFixed(3)}</span>
+                {isItemHeating ? (
+                  <>
+                    <span>P={item.latest_p_correction >= 0 ? "+" : ""}{item.latest_p_correction.toFixed(2)}</span>
+                    <span>I={item.latest_i_correction >= 0 ? "+" : ""}{item.latest_i_correction.toFixed(3)}</span>
+                    <span>D={item.latest_d_damping.toFixed(2)}</span>
+                    <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
+                    <span className="text-muted-foreground/40">∫={item.accumulated_integral >= 0 ? "+" : ""}{item.accumulated_integral.toFixed(3)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>P={Math.round(item.latest_p_correction * 100)}%</span>
+                    <span>I={Math.round(item.latest_i_correction * 100)}%</span>
+                    <span>D={item.latest_d_damping.toFixed(2)}</span>
+                    <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
+                    <span className="text-muted-foreground/40">duty={Math.round(item.accumulated_integral * 100)}%</span>
+                  </>
+                )}
               </div>
             );
           })}

@@ -180,7 +180,7 @@ export function LearnedDutyCycle() {
       ))}
 
       <p className="text-[10px] text-muted-foreground/60 italic">
-        PWM kvantiseras i 10%-steg över 2 × 5-min cykler. Burst fördelas A/B: t.ex. 30% = 2m + 1m.
+        Duty cycle styrs nu direkt av PID-integralvärdet. PWM kvantiseras i 10%-steg (A/B-cykler à 5 min).
       </p>
     </div>
   );
