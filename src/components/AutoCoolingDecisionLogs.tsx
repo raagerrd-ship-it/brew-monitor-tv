@@ -427,7 +427,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
           color: color || 'hsl(45 90% 55%)',
           borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
         }}>
-          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : 'ON'}
+          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – ON
         </Badge>
       );
     } else {
