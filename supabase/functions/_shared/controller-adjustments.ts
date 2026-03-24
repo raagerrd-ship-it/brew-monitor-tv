@@ -346,24 +346,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const probeTempLog = round1(fc.current_temp ?? 0)
     const avgTemp = round1(actualTemp)
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
-    const effectiveDelta = round1(sensorDelta)
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name}`, {
-      pill_temp: pillTempLog,
-      probe_temp: probeTempLog,
-      actual_temp: avgTemp,
+      pill_temp: round1(fc.pill_temp ?? 0),
+      probe_temp: round1(fc.current_temp ?? 0),
+      actual_temp: round1(actualTemp),
       dual_sensors: hasDualSensors,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
-      delta: effectiveDelta,
-      sensor_delta: round1(sensorDelta),
-      error_correction: round1(pidResult.errorCorrection ?? 0),
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
-      learned_baseline: round1(pidResult.learnedBaseline ?? 0),
       damping: round1(pidResult.dampingFactor),
-      raw_ctrl_target_pid: round1(dualSensor.baseTarget + (pidResult.errorCorrection ?? 0)),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
