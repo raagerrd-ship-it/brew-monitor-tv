@@ -204,7 +204,7 @@ export function LearnedCompensationBaselines() {
                 <th className="text-left font-medium pb-1 w-[14%]"></th>
                 <th className="text-left font-medium pb-1 w-[18%]">Delta</th>
                 <th className="text-left font-medium pb-1 w-[16%]">Steg</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Korr.</th>
+                <th className="text-right font-medium pb-1 w-[20%]">Duty/Korr</th>
                 <th className="text-right font-medium pb-1 w-[18%]">Konv.</th>
                 <th className="text-right font-medium pb-1 w-[14%]"></th>
               </tr>
