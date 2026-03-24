@@ -375,87 +375,89 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ═══════════════════════════════════════════════════
-    // HEATING: Target-based PID (unchanged logic)
-    // RAPT hardware manages heating relay via its own hysteresis.
+    // HEATING: Unified PWM duty cycle execution
+    // PID output is a duty cycle (0–100%). Hardware is controlled
+    // via PWM bursts: maxTemp = heating ON, baseTarget = heating OFF.
     // ═══════════════════════════════════════════════════
-    if (pidMode !== 'heating') continue // Edge case: cooling without cooling_enabled
-
-    const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-    const hwMinTemp = parseFloat(String(fc.min_target_temp ?? '-5'))
-    const unclamped = pidResult.ctrlTargetPid
-    let ctrlTargetPid = round1(Math.max(hwMinTemp, Math.min(maxTemp, unclamped)))
-    if (unclamped < hwMinTemp) { pidResult.constraints = pidResult.constraints ?? []; pidResult.constraints.push(`hw-min=${hwMinTemp}`) }
-    if (unclamped > maxTemp) { pidResult.constraints = pidResult.constraints ?? []; pidResult.constraints.push(`hw-max=${maxTemp}`) }
-
-    // Heater activation guard
-    if (fc.heating_enabled && fc.heating_hysteresis != null) {
-      const heatingHyst = parseFloat(String(fc.heating_hysteresis))
-      const heaterThreshold = probeTemp + heatingHyst - 0.1
-      const heatError = dualSensor.baseTarget - actualTemp
-      if (Math.abs(heatError) < 1.0 && ctrlTargetPid > heaterThreshold) {
-        const before = ctrlTargetPid
-        ctrlTargetPid = Math.max(ctrlTarget, heaterThreshold)
-        pidResult.constraints = pidResult.constraints ?? []
-        pidResult.constraints.push(`heat-guard=${heatingHyst}`)
-        console.log(`🔥 Heater guard ${fc.name}: capped ${before.toFixed(1)}→${ctrlTargetPid.toFixed(1)}°C`)
+    if (pidMode === 'heating' && pidResult.dutyCycle != null) {
+      if (!fc.heating_enabled) {
+        log('DUTY_SKIP', 'info', `${fc.name}: heating not enabled, skipping duty cycle`)
+        continue
       }
-    }
 
-    const pidDiff = Math.round(Math.abs(ctrlTargetPid - ctrlTarget) * 10) / 10
-    if (pidDiff < 0.1) continue
+      const dutyRaw = pidResult.dutyCycle
+      const dutyPct = Math.round(dutyRaw * 10) * 10
+      const totalBurstMin = dutyPct / 10
+      const phase = Math.floor(Date.now() / 300000) % 2
+      const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
+      const burstSeconds = currentBurstMin * 60
+      const revertTarget = round1(dualSensor.baseTarget)
+      const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+      const onTarget = round1(maxTemp) // heating ON = max temp
 
-    // Duplicate guard
-    const { data: lastAdj } = await supabase
-      .from('auto_cooling_adjustments')
-      .select('new_target_temp')
-      .eq('cooler_controller_id', fc.controller_id)
-      .like('reason', '%PID%')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (lastAdj?.[0] && Math.abs(ctrlTargetPid - lastAdj[0].new_target_temp) < 0.05) {
-      log('PID_SKIP', 'info', `${fc.name}: Target already at ${ctrlTargetPid}°C, skipping duplicate`)
+      if (dutyPct >= 100) {
+        // 100%: hold maxTemp entire cycle
+        log('DUTY_FULL', 'action', `${fc.name}: heating duty 100% → ${onTarget}°C hela cykeln`, { duty_pct: 100, mode: 'heating' })
+        if (ctx.updateBatch) {
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
+        } else {
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+        }
+        await supabase.from('pending_rapt_retries')
+          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
+        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
+      } else if (burstSeconds > 0) {
+        // 10-90%: burst at maxTemp, schedule revert to baseTarget
+        log('DUTY_BURST', 'action', `${fc.name}: heating duty ${dutyPct}% → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
+          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode: 'heating',
+        })
+        if (ctx.updateBatch) {
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
+        } else {
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+        }
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        const executeAt = new Date(Date.now() + burstSeconds * 1000).toISOString()
+        await supabase.from('pending_rapt_retries')
+          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+        await supabase.from('pending_rapt_retries').insert({
+          controller_id: fc.controller_id,
+          target_temp: revertTarget,
+          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, heating)`,
+          execute_at: executeAt,
+        })
+        await supabase.from('controller_learned_compensation')
+          .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
+        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
+      } else {
+        // 0% or phase B idle
+        if (dutyPct === 0) {
+          log('DUTY_ZERO', 'info', `${fc.name}: heating duty 0% — ingen uppvärmning`)
+          if (Math.abs(ctrlTarget - revertTarget) >= 0.1) {
+            if (ctx.updateBatch) {
+              ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
+            } else {
+              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
+            }
+            await supabase.from('rapt_temp_controllers')
+              .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+              .eq('controller_id', fc.controller_id)
+            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
+          }
+        } else {
+          log('DUTY_PHASE_B', 'info', `${fc.name}: heating PWM ${dutyPct}% fas B — ingen burst denna cykel`)
+        }
+      }
       continue
     }
-
-    const piInfo = `PI=${(pidResult.errorCorrection ?? 0) >= 0 ? '+' : ''}${(pidResult.errorCorrection ?? 0).toFixed(2)}°C`
-    const heatConstraintInfo = constraintLabels.length > 0 ? `, limits=[${constraintLabels.join(',')}]` : ''
-    log('PID_HEATING', 'action', `${fc.name}: PID ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (${piInfo}${heatConstraintInfo})`)
-
-    let success: boolean
-    if (ctx.updateBatch) {
-      ctx.updateBatch.add(fc.controller_id, ctrlTargetPid, ctrlTarget)
-      success = true
-    } else {
-      success = await setControllerTargetTemp(supabaseUrl, serviceRoleKey, fc.controller_id, ctrlTargetPid)
-    }
-
-    if (success) {
-      log('PID_HEATING', 'pass', `Set ${fc.name} to ${ctrlTargetPid}°C${ctx.updateBatch ? ' (batched)' : ''}`)
-      adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: ctrlTargetPid })
-      if (!ctx.updateBatch) {
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: ctrlTargetPid, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-      }
-      await logAdjustment(supabase, {
-        cooler_controller_id: fc.controller_id,
-        cooler_controller_name: fc.name,
-        old_target_temp: ctrlTarget,
-        new_target_temp: ctrlTargetPid,
-        original_target_temp: actualTarget,
-        lowest_followed_temp: actualTarget,
-        followed_controller_id: fc.controller_id,
-        followed_controller_name: fc.name,
-        followed_current_temp: parseFloat(String(fc.pill_temp ?? fc.current_temp ?? '0')),
-        followed_target_temp: parseFloat(String(fc.current_temp ?? '0')),
-        followed_hysteresis: pidResult.avgDelta,
-        reason: `🎯 PID: ${actualTarget.toFixed(1)}°C → ${ctrlTargetPid.toFixed(1)}°C (heating, ${piInfo}${heatConstraintInfo})`,
-        adjusted_against_timestamp: fc.last_update,
-      })
-    } else {
-      log('PID_HEATING', 'fail', `Failed to update ${fc.name}`)
-    }
-  }
 
   return adjustments
 }
