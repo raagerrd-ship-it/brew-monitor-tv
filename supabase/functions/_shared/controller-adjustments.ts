@@ -217,9 +217,30 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Store baseTarget for cooler management (stable grundmål without PI fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, dualSensor.baseTarget)
 
-    // Mode detection: compare probe against sensor-fused baseTarget (not ctrlTarget
-    // which may be 0°C or maxTemp during a PWM burst). Both modes use duty cycle now.
-    const pidMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+    // Mode detection: compare probe against sensor-fused baseTarget.
+    // Use asymmetric hysteresis to prevent oscillation from overshoot:
+    //   - Stay in current mode unless the error exceeds a switch threshold.
+    //   - Small threshold (0.05°C) to enter deadband; larger (0.5°C) to switch modes.
+    // Look up previous mode from the learned compensation table.
+    const { data: prevModeRow } = await supabase.from('controller_learned_compensation')
+      .select('mode')
+      .eq('controller_id', fc.controller_id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const prevMode: 'heating' | 'cooling' | null = (prevModeRow?.mode === 'heating' || prevModeRow?.mode === 'cooling') ? prevModeRow.mode : null
+    const MODE_SWITCH_HYSTERESIS = 0.5 // °C beyond baseTarget to trigger a mode switch
+    let pidMode: 'heating' | 'cooling'
+    if (prevMode === 'heating') {
+      // Currently heating — only switch to cooling if probe significantly above target
+      pidMode = probeTemp > dualSensor.baseTarget + MODE_SWITCH_HYSTERESIS ? 'cooling' : 'heating'
+    } else if (prevMode === 'cooling') {
+      // Currently cooling — only switch to heating if probe significantly below target
+      pidMode = probeTemp < dualSensor.baseTarget - MODE_SWITCH_HYSTERESIS ? 'heating' : 'cooling'
+    } else {
+      // No previous mode — use simple comparison with small buffer
+      pidMode = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
+    }
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
