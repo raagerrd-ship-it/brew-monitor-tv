@@ -436,7 +436,8 @@ async function handleUnBoost(
 
   if (boostAgeHours >= 24 || (alreadyReversed.data && alreadyReversed.data.length > 0)) return
 
-  const currentTarget = parseFloat(String(fc.target_temp ?? 20))
+  // CRITICAL: Use profile_target_temp (SSOT) not target_temp
+  const currentTarget = parseFloat(String((fc as any).profile_target_temp ?? fc.target_temp ?? 20))
   const effectiveProfileTarget = profileTarget ?? currentTarget
 
   // Check if boost was applied via PID compensation
