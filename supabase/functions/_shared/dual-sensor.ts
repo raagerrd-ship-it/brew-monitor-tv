@@ -1,18 +1,14 @@
 // ============================================================
 // Dual Sensor Fusion
 //
-// Pure function that computes the controller base target from
-// the profile target and two temperature sensors (pill + probe).
+// Pure function that computes the fused "actual temperature"
+// from two temperature sensors (pill + probe).
 //
 // Formula (enabled):
-//   sensorDelta = (pillTemp - probeTemp) / 2
-//   baseTarget  = profileTarget - sensorDelta
-//   actualTemp  = (pillTemp + probeTemp) / 2
+//   actualTemp = (pillTemp + probeTemp) / 2
 //
 // Formula (disabled or single sensor):
-//   sensorDelta = 0
-//   baseTarget  = profileTarget
-//   actualTemp  = probeTemp ?? pillTemp
+//   actualTemp = probeTemp ?? pillTemp
 //
 // This module has NO side effects, NO DB calls, NO learned parameters.
 // It is the single source of truth for sensor fusion across
@@ -22,23 +18,17 @@
 export interface DualSensorResult {
   /** Whether dual sensor fusion is active */
   enabled: boolean
-  /** Target for the controller probe (input to PID) */
-  baseTarget: number
-  /** (pill - probe) / 2 — the geometric correction */
-  sensorDelta: number
-  /** Fused temperature reading for PID error calculation */
+  /** Fused temperature reading */
   actualTemp: number
 }
 
 /**
- * Compute the dual-sensor-adjusted target and fused temperature.
+ * Compute the fused actual temperature from two sensors.
  *
  * When enabled and both sensors are available:
- *   baseTarget = profileTarget - (pill - probe) / 2
  *   actualTemp = (pill + probe) / 2
  *
  * When disabled or only one sensor:
- *   baseTarget = profileTarget
  *   actualTemp = probe ?? pill ?? profileTarget
  */
 export function computeDualSensorTarget(
@@ -52,20 +42,15 @@ export function computeDualSensorTarget(
   const dualActive = enabled && hasProbe && hasPill
 
   if (dualActive) {
-    const sensorDelta = (pillTemp! - probeTemp!) / 2
     return {
       enabled: true,
-      baseTarget: Math.round((profileTarget - sensorDelta) * 10) / 10,
-      sensorDelta: Math.round(sensorDelta * 100) / 100,
       actualTemp: (pillTemp! + probeTemp!) / 2,
     }
   }
 
-  const actualTemp = hasPill ? pillTemp! : hasProbe ? probeTemp! : profileTarget
+  const actualTemp = hasProbe ? probeTemp! : hasPill ? pillTemp! : profileTarget
   return {
     enabled: false,
-    baseTarget: profileTarget,
-    sensorDelta: 0,
     actualTemp,
   }
 }
