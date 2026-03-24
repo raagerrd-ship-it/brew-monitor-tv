@@ -125,7 +125,7 @@ export function LearnedThermalRates() {
       ))}
 
       <p className="text-[10px] text-muted-foreground/60 italic">
-        PID-kompensation begränsas automatiskt när hastigheten når ≥80% av inlärd max (saturation).
+        Duty cycle begränsas automatiskt vid ≥80% av inlärd max (saturation). Kylning styrs alltid via PWM.
       </p>
     </div>
   );

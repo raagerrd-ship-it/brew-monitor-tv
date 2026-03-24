@@ -312,10 +312,10 @@ export function AiTunableParameters() {
         </div>
       )}
 
-      {/* Duty cycles */}
+      {/* Duty cycles (legacy, kept for historical data) */}
       {Object.keys(dutyByController).length > 0 && (
         <div>
-          <SectionHeader>Duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0–100 (steg 20%)</span></SectionHeader>
+          <SectionHeader>Duty cycle (äldre) <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">nu via PID-integral</span></SectionHeader>
           {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
         </div>
       )}
