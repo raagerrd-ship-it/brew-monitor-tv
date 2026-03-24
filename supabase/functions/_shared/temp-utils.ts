@@ -391,9 +391,10 @@ export class RaptUpdateBatch {
     for (let i = 0; i < this.pending.length; i++) {
       const p = this.pending[i]
       const r = results[i]
+      // Always store the target in applied map so retry logic can retrieve it
+      this.applied.set(p.controllerId, p.targetTemp)
       if (r.status === 'fulfilled' && r.value.success) {
         resultMap.set(p.controllerId, true)
-        this.applied.set(p.controllerId, p.targetTemp)
         console.log(`✅ ${p.controllerId} → ${p.targetTemp}°C`)
       } else {
         resultMap.set(p.controllerId, false)
