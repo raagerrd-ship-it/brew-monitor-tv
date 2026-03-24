@@ -270,7 +270,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         switchPressure = 0
         log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (stabiliserad på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
           from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
-          distance: round1(distanceToTarget), probe: round1(probeTemp),
+          distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
         })
       } else {
         pidMode = prevMode!
