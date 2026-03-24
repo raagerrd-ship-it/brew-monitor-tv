@@ -137,7 +137,9 @@ const PIPELINE_STEPS = new Set([
   'RAPT_SEND',
   'SYNC_FREQ', 'TOKEN_REFRESH',
   // Steps rendered inline by header/pipeline (prevent "Övrigt" duplication)
-  'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'RETRY', 'PWM_OFF',
+  'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'DUTY_PWM_SKIP',
+  'DUTY_BURST', 'DUTY_FULL', 'DUTY_ZERO', 'DUTY_PHASE_B', 'DUTY_SKIP',
+  'RETRY', 'PWM_OFF',
 ]);
 
 // --- Helpers ---
