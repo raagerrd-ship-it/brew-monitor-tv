@@ -381,10 +381,10 @@ export async function calculateCompensatedTarget(
   // HEATING DUTY CYCLE MODEL
   // Mirror of cooling: PID output = duty cycle (0.0–1.0).
   // Hardware controlled via PWM: maxTemp = heating ON,
-  // baseTarget = heating OFF. Burst length = duty × 300s.
+  // actualTarget = heating OFF. Burst length = duty × 300s.
   // ═══════════════════════════════════════════════════════
   // mode === 'heating' guaranteed here (cooling returns early above)
-  const heatingNeed = avgError // positive when probe < baseTarget (needs heating)
+  const heatingNeed = avgError // positive when actualTemp < actualTarget (needs heating)
   const HEAT_P = 0.5
   const HEAT_I = 0.05
   const HEAT_DECAY = 0.98
