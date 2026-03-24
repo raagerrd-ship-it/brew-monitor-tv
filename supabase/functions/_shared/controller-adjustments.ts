@@ -222,7 +222,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // passively. Only when the probe has STABILIZED on the wrong side (velocity ≈ 0,
     // i.e. not moving in either direction) for MODE_SWITCH_CYCLES consecutive cycles
     // do we conclude the current mode cannot hold temperature and switch.
-    const MODE_SWITCH_CYCLES = 6
+    const MODE_SWITCH_CYCLES = 3
     const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
 
     // Look up previous mode from learned compensation
@@ -253,7 +253,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
     const onWrongSide = prevMode != null && suggestedMode !== prevMode
     let isStuck = false
-    if (onWrongSide && lastProbe != null && distanceToTarget > 0.15) {
+    if (onWrongSide && lastProbe != null && distanceToTarget > 0.05) {
       const velocityAbs = Math.abs(actualTemp - lastProbe)
       if (velocityAbs < STALL_MIN_PROGRESS) {
         isStuck = true
