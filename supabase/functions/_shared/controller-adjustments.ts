@@ -521,6 +521,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await supabase.from('controller_learned_compensation')
           .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
+          .eq('mode', 'heating')
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
       } else {
