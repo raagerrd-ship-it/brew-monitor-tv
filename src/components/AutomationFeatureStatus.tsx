@@ -178,8 +178,10 @@ function buildFeatureBlocks(
 
       // Check if this controller has PWM active
       const pwm = pwmStatusMap.get(name);
-      const pwmBadge = pwm ? `PWM ${pwm.duty}%` : undefined;
-      const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : undefined;
+      const syncDuty = syncDutyMap.get(name);
+      const dutyPct = pwm ? pwm.duty : syncDuty;
+      const pwmBadge = dutyPct != null ? `PWM ${dutyPct}%` : undefined;
+      const pwmBadgeVariant: "pwm" | "pid" | undefined = pwm ? "pwm" : dutyPct != null ? "pwm" : undefined;
 
       const action = decisions.find(d =>
         d.step === "PILL_COMP_ACTION" && d.result === "action" && d.message.startsWith(name)
