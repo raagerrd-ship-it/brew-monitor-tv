@@ -1646,8 +1646,25 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     </div>
   ) : null;
 
-  const otherContent = otherEntries.length > 0 ? (
+  // Build mode switch pressure info from PILL_COMP_STATUS
+  const modeSwitchInfo = pidStatusEntries.map(d => {
+    const det = d.details || {};
+    const name = (d.message || '').replace(/^Controller:\s*/, '').replace(/\s*\[.*\]$/, '');
+    const pressure = det.switch_pressure as number | undefined;
+    const mode = det.mode as string | undefined;
+    return { name, pressure: pressure ?? 0, mode: mode ?? '?' };
+  }).filter(m => m.name);
+
+  const otherContent = (otherEntries.length > 0 || modeSwitchInfo.length > 0) ? (
     <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
+      {modeSwitchInfo.map((m, i) => (
+        <div key={`ms-${i}`} className="flex items-center gap-2 text-[11px]">
+          <Info className="h-3 w-3 text-blue-500 flex-shrink-0" />
+          <span className="text-foreground">
+            {m.name}: Mode <span className="font-mono font-semibold">{m.mode}</span>, switch counter <span className="font-mono font-semibold">{m.pressure}/3</span>
+          </span>
+        </div>
+      ))}
       {otherEntries.map((d, i) => (
         <div key={i} className="flex items-start gap-2 text-[11px]">
           <div className="mt-0.5 flex-shrink-0">
