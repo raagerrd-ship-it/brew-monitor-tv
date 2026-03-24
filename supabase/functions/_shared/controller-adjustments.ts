@@ -219,10 +219,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Mode detection: cycle-counter based to prevent oscillation from overshoot.
     // The system stays in its current mode until the probe has been consistently
-    // on the "wrong side" of baseTarget for MODE_SWITCH_CYCLES consecutive cycles.
+    // "stalled" — either on the wrong side of baseTarget OR not making progress
+    // toward the target despite active duty — for MODE_SWITCH_CYCLES consecutive cycles.
     // Overshoot typically recovers in 1-3 cycles; requiring 6 prevents false switches.
     const MODE_SWITCH_CYCLES = 6
-    const modeSwitchKey = `mode_switch_pressure`
+    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stalled
 
     // Look up previous mode from learned compensation
     const { data: prevModeRow } = await supabase.from('controller_learned_compensation')
@@ -233,50 +234,77 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       .maybeSingle()
     const prevMode: 'heating' | 'cooling' | null = (prevModeRow?.mode === 'heating' || prevModeRow?.mode === 'cooling') ? prevModeRow.mode : null
 
-    // Read the switch-pressure counter
-    const { data: pressureRow } = await supabase.from('fermentation_learnings')
-      .select('learned_value')
+    // Read the switch-pressure counter + last probe temp
+    const { data: pressureRows } = await supabase.from('fermentation_learnings')
+      .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .eq('parameter_name', modeSwitchKey)
-      .maybeSingle()
-    let switchPressure = pressureRow?.learned_value ?? 0
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe'])
+    const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
+    let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
+    const lastProbe = pressureMap.get('mode_last_probe') ?? null
 
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = probeTemp > dualSensor.baseTarget + 0.05 ? 'cooling' : 'heating'
 
+    // Check if the system is making progress toward the target
+    const isOnWrongSide = prevMode ? suggestedMode !== prevMode : false
+    let isStalled = false
+    if (prevMode && lastProbe != null && !isOnWrongSide) {
+      // Probe is on the correct side — check if it's actually moving toward target
+      const progressTowardTarget = prevMode === 'heating'
+        ? (probeTemp - lastProbe) // heating: probe should be rising
+        : (lastProbe - probeTemp) // cooling: probe should be falling
+      // Stalled if not making minimum progress (and we're not already at target)
+      const distanceToTarget = Math.abs(probeTemp - dualSensor.baseTarget)
+      if (distanceToTarget > 0.15 && progressTowardTarget < STALL_MIN_PROGRESS) {
+        isStalled = true
+      }
+    }
+
     let pidMode: 'heating' | 'cooling'
-    if (prevMode && suggestedMode !== prevMode) {
-      // Temperature suggests opposite mode — increment pressure counter
+    if (prevMode && (isOnWrongSide || isStalled)) {
+      // Temperature suggests problems — increment pressure counter
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
         // Sustained pressure — switch mode
         pidMode = suggestedMode
         switchPressure = 0 // reset after switching
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${MODE_SWITCH_CYCLES} cykler)`, {
-          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${MODE_SWITCH_CYCLES} cykler, ${isStalled ? 'stannat' : 'fel sida'})`, {
+          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES, reason: isStalled ? 'stalled' : 'wrong_side',
         })
       } else {
         // Not enough pressure yet — stay in current mode
         pidMode = prevMode
-        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
-          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
+        const reason = isStalled ? 'stannat av' : 'fel sida'
+        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason}, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES, reason,
+          probe: round1(probeTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
         })
       }
     } else {
-      // Temperature agrees with current mode (or no previous mode) — reset pressure
+      // Temperature agrees with current mode and making progress — reset pressure
       pidMode = prevMode ?? suggestedMode
-      switchPressure = 0
+      if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1) // gradual decay instead of hard reset
     }
 
-    // Persist the switch-pressure counter
+    // Persist the switch-pressure counter + last probe temp
     if (!ctx.skipLearning) {
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: fc.controller_id,
-        parameter_name: modeSwitchKey,
-        learned_value: switchPressure,
-        sample_count: switchPressure,
-        last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
+      await supabase.from('fermentation_learnings').upsert([
+        {
+          controller_id: fc.controller_id,
+          parameter_name: 'mode_switch_pressure',
+          learned_value: switchPressure,
+          sample_count: switchPressure,
+          last_updated_at: new Date().toISOString(),
+        },
+        {
+          controller_id: fc.controller_id,
+          parameter_name: 'mode_last_probe',
+          learned_value: round1(probeTemp),
+          sample_count: 1,
+          last_updated_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'controller_id,parameter_name' })
     }
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
