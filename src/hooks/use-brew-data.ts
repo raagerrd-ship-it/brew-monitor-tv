@@ -325,12 +325,23 @@ export function useBrewData(): UseBrewDataReturn {
       const adjData = adjRes.data;
 
       // Extract PILL_COMP_STATUS from the most recent decision log
+      // controller_id is not in details, so match by name from message: "Controller: Temp Controller Blå [cooling]"
       const dutyByControllerId = new Map<string, { duty: number; mode: 'cooling' | 'heating' | null }>();
       const latestDecisions = (decisionRes.data?.[0]?.decisions as any[]) || [];
+      
+      // Build name→controller_id map from loaded controllers
+      const nameToIdMap = new Map<string, string>();
+      (controllersRef.current || []).forEach((c: TempController) => {
+        nameToIdMap.set(c.name, c.controller_id);
+      });
+      
       for (const d of latestDecisions) {
         if (d.step === 'PILL_COMP_STATUS' && d.details) {
           const det = d.details;
-          const cid = det.controller_id as string | undefined;
+          // Parse controller name from message: "Controller: Temp Controller Blå [cooling]"
+          const nameMatch = d.message?.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
+          const controllerName = nameMatch?.[1]?.trim();
+          const cid = controllerName ? nameToIdMap.get(controllerName) : null;
           if (cid && typeof det.duty_cycle === 'number') {
             dutyByControllerId.set(cid, {
               duty: Math.round(det.duty_cycle),
