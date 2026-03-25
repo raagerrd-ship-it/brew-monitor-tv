@@ -312,11 +312,11 @@ export function AiTunableParameters() {
         </div>
       )}
 
-      {/* Duty cycles (legacy, kept for historical data) */}
+      {/* Steady-state duty cycles */}
       {Object.keys(dutyByController).length > 0 && (
         <div>
-          <SectionHeader>Duty cycle (äldre) <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">nu via PID-integral</span></SectionHeader>
-          {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
+          <SectionHeader>Steady-state duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.0–1.0</span></SectionHeader>
+          {renderGroupedSection(dutyByController, (n) => n.replace("steady_state_duty:", ""))}
         </div>
       )}
 
