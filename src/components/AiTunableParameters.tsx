@@ -102,7 +102,7 @@ export function AiTunableParameters() {
         supabase
           .from("fermentation_learnings")
           .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.duty_cycle:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
+          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.steady_state_duty:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
           .order("last_updated_at", { ascending: false }),
         supabase
           .from("rapt_temp_controllers")
@@ -156,7 +156,7 @@ export function AiTunableParameters() {
   const marginEntries = perController.filter((p) => p.parameter_name.startsWith("cooler_margin:"));
   const holdMarginEntries = perController.filter((p) => p.parameter_name.startsWith("hold_margin:"));
   const rampMarginEntries = perController.filter((p) => p.parameter_name.startsWith("ramp_margin:"));
-  const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("duty_cycle:"));
+  const dutyCycleEntries = perController.filter((p) => p.parameter_name.startsWith("steady_state_duty:"));
   const coolingRateEntries = perController.filter((p) => p.parameter_name.startsWith("cooling_rate:"));
   const warmingRateEntries = perController.filter((p) => p.parameter_name.startsWith("warming_rate:"));
 
@@ -312,11 +312,11 @@ export function AiTunableParameters() {
         </div>
       )}
 
-      {/* Duty cycles (legacy, kept for historical data) */}
+      {/* Steady-state duty cycles */}
       {Object.keys(dutyByController).length > 0 && (
         <div>
-          <SectionHeader>Duty cycle (äldre) <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">nu via PID-integral</span></SectionHeader>
-          {renderGroupedSection(dutyByController, (n) => n.replace("duty_cycle:", ""), "%")}
+          <SectionHeader>Steady-state duty cycle <span className="font-mono text-[9px] text-muted-foreground/50 normal-case">0.0–1.0</span></SectionHeader>
+          {renderGroupedSection(dutyByController, (n) => n.replace("steady_state_duty:", ""))}
         </div>
       )}
 
