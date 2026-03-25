@@ -11,7 +11,7 @@ interface ControllerTempChartProps {
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6', pillCompEnabled = false }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
-  const tempLabel = pillCompEnabled ? 'Medel (probe+pill)' : 'Aktuell temp';
+  const tempLabel = pillCompEnabled ? 'Probe-temp' : 'Aktuell temp';
 
   if (loading) {
     return (
