@@ -323,6 +323,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
 
+    // Capability guard: never select a mode the hardware cannot execute.
+    // This prevents endless DUTY_SKIP loops and ensures heating-only controllers
+    // can always drop to duty 0 (heater OFF) when above target.
+    if (fc.heating_enabled && !fc.cooling_enabled && pidMode !== 'heating') {
+      log('MODE_FORCE', 'info', `${fc.name}: cooling ej tillgängligt, tvingar mode=heating`)
+      pidMode = 'heating'
+      switchPressure = 0
+    } else if (fc.cooling_enabled && !fc.heating_enabled && pidMode !== 'cooling') {
+      log('MODE_FORCE', 'info', `${fc.name}: heating ej tillgängligt, tvingar mode=cooling`)
+      pidMode = 'cooling'
+      switchPressure = 0
+    }
+
     // Persist the switch-pressure counter + last probe temp + current mode
     if (!ctx.skipLearning) {
       await supabase.from('fermentation_learnings').upsert([
