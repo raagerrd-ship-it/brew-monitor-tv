@@ -498,7 +498,7 @@ Svara ENBART med JSON (inget annat).`;
       'thermal_rate', 'glycol_cooler_rate',
     ]);
     const VALID_LEARNING_PREFIXES = [
-      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:', 'warming_rate:',
+      'hold_margin:', 'ramp_margin:', 'steady_state_duty:', 'cooling_rate:', 'warming_rate:',
     ];
     function isValidLearningParam(param: string): boolean {
       if (VALID_LEARNING_EXACT.has(param)) return true;
