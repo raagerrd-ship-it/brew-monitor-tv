@@ -366,7 +366,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     // If cooler relay is already off (0% util), no need to send another shutdown
     const coolerAlreadyOff = coolerUtil != null && coolerUtil < 0.01
     if (coolerAlreadyOff) {
-      log('COOLER_IDLE', 'info', `Alla controllers aktiverade 0% — kylare aktiverad 0% (avstängd), skippar`)
+      log('COOLER_IDLE', 'info', `Alla controllers behov 0% — kylare aktiverad 0% (avstängd), skippar`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
