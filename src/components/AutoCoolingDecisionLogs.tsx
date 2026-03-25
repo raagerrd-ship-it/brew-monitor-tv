@@ -1622,7 +1622,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
 
   const coolerContent = coolerEntries.length > 0 ? (
     <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
-      <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} />
+      <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} pidDutyByName={pidDutyByName} />
     </PipelineSection>
   ) : null;
 
