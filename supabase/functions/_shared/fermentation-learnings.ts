@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateLearnedParam } from './learning-utils.ts'
 
 /**
  * Save fermentation learnings when a profile completes.
