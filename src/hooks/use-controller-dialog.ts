@@ -30,23 +30,41 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
 
-  // Check authentication + pill compensation setting
+  // Check authentication + pill compensation setting (per-brew override > global)
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
 
-    supabase.from('auto_cooling_settings').select('pill_compensation_enabled').limit(1).single()
-      .then(({ data }) => {
-        if (data) setPillCompEnabled(data.pill_compensation_enabled ?? false);
-      });
+    // Load global setting first, then override with per-brew setting if available
+    (async () => {
+      const { data: globalSettings } = await supabase
+        .from('auto_cooling_settings')
+        .select('pill_compensation_enabled')
+        .limit(1)
+        .single();
+      let enabled = globalSettings?.pill_compensation_enabled ?? false;
+
+      // Per-brew override: if a brew is linked to this controller, use its pill_compensation
+      const { data: brewData } = await supabase
+        .from('brew_readings')
+        .select('pill_compensation')
+        .eq('linked_controller_id', controller.controller_id)
+        .limit(1)
+        .maybeSingle();
+      if (brewData != null) {
+        enabled = brewData.pill_compensation;
+      }
+
+      setPillCompEnabled(enabled);
+    })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [controller.controller_id]);
 
   // Check for active fermentation session + fetch original target + duty cycle
   useEffect(() => {
