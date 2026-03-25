@@ -436,6 +436,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Persist last duty cycle for mode-switch guard
     const computedDutyPct = pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : 0
+
+    // Post-PID safety: if PID still has active duty in the current mode,
+    // any switch pressure accumulated from stale pid_last_duty data is invalid.
+    // Reset it to prevent false mode switches while the system is actively working.
+    if (computedDutyPct > 0 && switchPressure > 0) {
+      log('MODE_PRESSURE_RESET', 'info', `${fc.name}: duty ${computedDutyPct}% aktiv, nollställer switch pressure ${switchPressure} → 0`)
+      switchPressure = 0
+      if (!ctx.skipLearning) {
+        await supabase.from('fermentation_learnings').upsert({
+          controller_id: fc.controller_id,
+          parameter_name: 'mode_switch_pressure',
+          learned_value: 0,
+          sample_count: 0,
+          last_updated_at: new Date().toISOString(),
+        }, { onConflict: 'controller_id,parameter_name' })
+      }
+    }
     if (!ctx.skipLearning) {
       await supabase.from('fermentation_learnings').upsert({
         controller_id: fc.controller_id,
