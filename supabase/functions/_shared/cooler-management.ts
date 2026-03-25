@@ -181,7 +181,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   for (const u of utilizations) {
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
     const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)?.duty_pct ?? 0
-    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}${pwmDuty > 0 ? ` pwm=${pwmDuty}%` : ''}`, {
+    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°) behov=${u.utilization != null ? Math.round(u.utilization * 100) : '?'}%${pwmDuty > 0 ? ` (pwm=${pwmDuty}%)` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
       mid_utilization: u.midUtilization != null ? Math.round(u.midUtilization * 100) : null,
@@ -357,18 +357,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
-  // ── All tanks at 0% utilization AND no PID cooling duty → turn cooler off ──
-  // If no tank is cooling (hardware or PWM), raise cooler target to max so the
-  // relay stays off.
-  const anyPidCoolingDuty = ctx.pwmBursts?.some(b => b.duty_pct > 0) ?? false
+  // ── All tanks at 0% effective utilization (incl. PID duty) → turn cooler off ──
+  // utilization already includes max(hardware_util, pid_duty), so no separate PWM check needed
   const allTanksZeroUtil = utilizations.length > 0 && utilizations.every(
     u => u.utilization != null && u.utilization < 0.01
-  ) && !anyPidCoolingDuty
+  )
   if (allTanksZeroUtil && !previousWasKick) {
     // If cooler relay is already off (0% util), no need to send another shutdown
     const coolerAlreadyOff = coolerUtil != null && coolerUtil < 0.01
     if (coolerAlreadyOff) {
-      log('COOLER_IDLE', 'info', `Alla controllers aktiverade 0% — kylare aktiverad 0% (avstängd), skippar`)
+      log('COOLER_IDLE', 'info', `Alla controllers behov 0% — kylare aktiverad 0% (avstängd), skippar`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
@@ -541,13 +539,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       return adjustments
     }
 
-    // Even if probe > target+hysteresis right now, block if utilization is very low
-    // (tank's cooling relay barely running → no real demand for lower cooler)
-    // BUT: skip this guard if PID has assigned a non-zero duty (PWM mode — hardware util is 0%)
+    // Even if probe > target+hysteresis right now, block if effective utilization is very low
+    // (utilization already includes max(hardware_util, pid_duty))
     const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
-    const lowestPwmDuty = ctx.pwmBursts?.find(b => b.controller_id === effectiveTarget.controllerId)?.duty_pct ?? 0
-    if (lowestUtil?.utilization != null && lowestUtil.utilization < 0.10 && lowestPwmDuty === 0) {
-      log('DEMAND_GUARD', 'info', `Tank kyler momentant men util=${Math.round(lowestUtil.utilization * 100)}% — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
+    if (lowestUtil?.utilization != null && lowestUtil.utilization < 0.10) {
+      log('DEMAND_GUARD', 'info', `Tank kyler momentant men behov=${Math.round(lowestUtil.utilization * 100)}% — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
@@ -750,20 +746,24 @@ async function calculateCoolingUtilizations(
     const probeTemp = parseFloat(String(c.current_temp ?? c.pill_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-    // Calculate utilization first (needed for both active-cooling check and results)
+    // Calculate hardware utilization (needed for raw data fields)
     const utilResult = await calculateSingleUtilization(ctx.supabase, c)
-    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high
-    // OR PID has assigned a non-zero cooling duty (PWM mode — hardware util may be 0%)
-    const isAboveThreshold = probeTemp > targetTemp + hysteresis
-    const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.30
+    // PID duty cycle is the primary demand signal; hardware util is fallback
     const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
-    const hasPidCoolingDuty = pwmDuty > 0
-    const isActivelyCooling = isAboveThreshold || isHighUtil || hasPidCoolingDuty
+    const pwmDutyFraction = pwmDuty / 100 // convert 0-100% to 0-1 fraction
+    // Effective utilization = max(PID duty, hardware util)
+    // PID duty reflects the calculated cooling need; hardware util reflects actual relay runtime
+    const hwUtil = utilResult.rolling
+    const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
+    // Consider "actively cooling" if probe exceeds threshold OR effective util is meaningfully high
+    const isAboveThreshold = probeTemp > targetTemp + hysteresis
+    const isHighUtil = effectiveUtil != null && effectiveUtil >= 0.30
+    const isActivelyCooling = isAboveThreshold || isHighUtil
 
     results.push({
       controllerId: c.controller_id,
       controllerName: c.name,
-      utilization: utilResult.rolling,
+      utilization: effectiveUtil,
       recentUtilization: utilResult.recent,
       midUtilization: utilResult.mid,
       oldestUtilization: utilResult.oldest,
