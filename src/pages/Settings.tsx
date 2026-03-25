@@ -582,8 +582,6 @@ export default function Settings() {
                   <SettingsDivider />
                   <LearnedStallBoostValues />
                   <SettingsDivider />
-                  <LearnedThermalRates />
-                  <SettingsDivider />
                   <LearnedDutyCycle />
                 </SettingsSection>
 
