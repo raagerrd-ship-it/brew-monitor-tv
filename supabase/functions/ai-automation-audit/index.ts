@@ -508,7 +508,7 @@ Svara ENBART med JSON (inget annat).`;
     // Dynamic bounds/step for prefix-matched learning params
     function getLearningBounds(param: string): [number, number] | null {
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return [0.5, 8.0];
-      if (param.startsWith('duty_cycle:')) return [5, 95];
+      if (param.startsWith('steady_state_duty:')) return [0, 1.0];
       if (param.startsWith('cooling_rate:')) return [0.01, 2.0];
       if (param.startsWith('warming_rate:')) return [0.01, 10.0];
       return BOUNDS[param] ?? null;
