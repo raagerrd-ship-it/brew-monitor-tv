@@ -216,8 +216,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     const duty = brew.dutyPct;
     const mode = brew.dutyMode;
     const isCooling = mode === 'cooling';
-    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
-    const modeIcon = isCooling ? '❄️' : '🔥';
+    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(0 70% 50%)';
 
     return (
       <TooltipProvider delayDuration={200}>
