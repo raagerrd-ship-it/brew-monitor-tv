@@ -14,7 +14,7 @@ import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
-import { LearnedThermalRates } from "@/components/LearnedThermalRates";
+
 import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
 import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
@@ -581,8 +581,6 @@ export default function Settings() {
                   <LearnedCompensationBaselines />
                   <SettingsDivider />
                   <LearnedStallBoostValues />
-                  <SettingsDivider />
-                  <LearnedThermalRates />
                   <SettingsDivider />
                   <LearnedDutyCycle />
                 </SettingsSection>
