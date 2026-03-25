@@ -260,13 +260,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
     const prevModeValue = pressureMap.get('pid_current_mode')
     // pid_current_mode: 1 = heating, 2 = cooling
     const prevMode: 'heating' | 'cooling' | null = prevModeValue === 1 ? 'heating' : prevModeValue === 2 ? 'cooling' : null
+    const lastDutyPct = pressureMap.get('pid_last_duty') ?? 0
 
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
@@ -297,13 +298,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const reason = isDiverging ? 'divergerar' : 'stabiliserad'
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Sustained wrong-side condition — switch mode
-        pidMode = suggestedMode
-        switchPressure = 0
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
-          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
-          distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
-        })
+        // Duty-zero guard: block mode switch if previous duty > 0%
+        // PWM must wind down to 0% before we allow switching modes
+        if (lastDutyPct > 0) {
+          pidMode = prevMode!
+          log('MODE_DUTY_HOLD', 'info', `${fc.name}: blockerar byte ${prevMode} → ${suggestedMode} — duty ${lastDutyPct}% > 0, väntar på 0%`, {
+            from: prevMode, to: suggestedMode, last_duty: lastDutyPct,
+          })
+        } else {
+          // Sustained wrong-side condition with duty at 0% — switch mode
+          pidMode = suggestedMode
+          switchPressure = 0
+          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
+            from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+            distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
+          })
+        }
       } else {
         pidMode = prevMode!
         log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
@@ -421,6 +431,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
       switch_pressure: switchPressure,
     })
+
+    // Persist last duty cycle for mode-switch guard
+    const computedDutyPct = pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : 0
+    if (!ctx.skipLearning) {
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: fc.controller_id,
+        parameter_name: 'pid_last_duty',
+        learned_value: computedDutyPct,
+        sample_count: 1,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+    }
 
     // ═══════════════════════════════════════════════════
     // COOLING: Unified PWM duty cycle execution
