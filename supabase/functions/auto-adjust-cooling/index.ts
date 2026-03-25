@@ -536,6 +536,7 @@ Deno.serve(async (req) => {
         updateBatch,
         baseTargetMap,
         skipLearning: systemIsIdle,
+        pwmBursts,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);

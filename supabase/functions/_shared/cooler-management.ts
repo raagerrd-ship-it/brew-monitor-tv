@@ -749,11 +749,13 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     // Calculate utilization first (needed for both active-cooling check and results)
     const utilResult = await calculateSingleUtilization(ctx.supabase, c)
-    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high.
-    // 30% threshold avoids false "idle" when hardware hysteresis is large and relay cycles are coarse.
+    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high
+    // OR PID has assigned a non-zero cooling duty (PWM mode — hardware util may be 0%)
     const isAboveThreshold = probeTemp > targetTemp + hysteresis
     const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.30
-    const isActivelyCooling = isAboveThreshold || isHighUtil
+    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
+    const hasPidCoolingDuty = pwmDuty > 0
+    const isActivelyCooling = isAboveThreshold || isHighUtil || hasPidCoolingDuty
 
     results.push({
       controllerId: c.controller_id,
