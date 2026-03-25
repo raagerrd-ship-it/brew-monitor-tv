@@ -148,6 +148,8 @@ export function useBrewPage(brewId: string | undefined) {
           overshootReason: null,
           originalTarget: null,
           pidReason: null,
+          dutyPct: null,
+          dutyMode: null,
           fermentationTrend,
         };
 

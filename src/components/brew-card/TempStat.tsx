@@ -211,16 +211,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     );
   })() : null;
 
-  // PID compensation bar
-  const pidBar = !isInactive && profileTarget !== null && targetTemp !== null && targetTemp !== undefined ? (() => {
-    const compensation = targetTemp - profileTarget;
-    const clampedComp = Math.max(-2, Math.min(2, compensation));
-    const compensationPct = ((clampedComp + 2) / 4) * 100;
-    const centerPct = 50;
-    const isNeg = compensation < 0;
-    const barLeft = isNeg ? compensationPct : centerPct;
-    const barWidth = Math.abs(compensationPct - centerPct);
-    const barColor = isNeg ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
+  // PWM Duty Cycle bar
+  const dutyBar = !isInactive && brew.dutyPct !== null && brew.dutyPct !== undefined ? (() => {
+    const duty = brew.dutyPct;
+    const mode = brew.dutyMode;
+    const isCooling = mode === 'cooling';
+    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
+    const modeIcon = isCooling ? '❄️' : '🔥';
 
     return (
       <TooltipProvider delayDuration={200}>
@@ -236,13 +233,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
                     boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
                   }}
                 >
-                  {/* Filled bar from center to compensation */}
+                  {/* Filled bar from 0 to duty% */}
                   <div 
-                    className="absolute top-0 bottom-0 rounded-full"
+                    className="absolute top-0 bottom-0 left-0 rounded-full"
                     style={{ 
-                      left: `${barLeft}%`, 
-                      width: `${Math.max(barWidth, 1)}%`,
+                      width: `${Math.max(duty, 1)}%`,
                       background: barColor,
+                      opacity: 0.7,
                       boxShadow: `0 0 8px ${barColor}`,
                     }} 
                   />
@@ -251,62 +248,50 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
                     className="absolute inset-0 rounded-full pointer-events-none"
                     style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
                   />
-                  {/* Center line */}
-                  <div 
-                    className="absolute top-[-1px] bottom-[-1px] w-[1px]"
-                    style={{ left: '50%', background: 'hsl(0 0% 100% / 0.3)' }}
-                  />
-                  {/* Marker dot */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{ 
-                      left: `${compensationPct}%`, 
-                      top: '50%',
-                      width: '6px',
-                      height: '6px',
-                      background: barColor,
-                      transform: 'translate(-3px, -50%)',
-                      boxShadow: `0 0 6px ${barColor}`,
-                    }} 
-                  />
+                  {/* Marker dot at duty position */}
+                  {duty > 0 && (
+                    <div 
+                      className="absolute rounded-full"
+                      style={{ 
+                        left: `${duty}%`, 
+                        top: '50%',
+                        width: '6px',
+                        height: '6px',
+                        background: barColor,
+                        transform: 'translate(-3px, -50%)',
+                        boxShadow: `0 0 6px ${barColor}`,
+                      }} 
+                    />
+                  )}
                 </div>
               </div>
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
-                <span>-2.0</span>
-                <span className="text-muted-foreground/40">PID {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°</span>
-                <span>+2.0</span>
+                <span>0%</span>
+                <span className="text-muted-foreground/40">PWM {duty}% {modeIcon}</span>
+                <span>100%</span>
               </div>
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-[260px]">
             <div className="space-y-0.5">
-              <p className="font-medium">PID-kompensation: {compensation >= 0 ? '+' : ''}{compensation.toFixed(1)}°</p>
+              <p className="font-medium">PWM Duty: {duty}% {modeIcon} {isCooling ? 'Kylning' : 'Värmning'}</p>
               {(() => {
                 const reason = brew.pidReason;
                 if (!reason) return null;
-                // Parse PI info from reason: "🎯 PID: X°C → Y°C (delta=..., komp=...°C, D-term: ..., PI=+0.50°C(P=0.30,I=0.20, learned=0.15[d3.4]n=12))"
                 const piMatch = reason.match(/PI=([+-]?\d+\.?\d*)°C\(P=([+-]?\d+\.?\d*),I=([+-]?\d+\.?\d*)/);
-                const kompMatch = reason.match(/komp=([+-]?\d+\.?\d*)°C/);
                 const deltaMatch = reason.match(/delta=([+-]?\d+\.?\d*)/);
-                const dampMatch = reason.match(/damp=([+-]?\d+\.?\d*)/);
                 const learnedMatch = reason.match(/learned=([+-]?\d+\.?\d*)\[([^\]]+)\]n=(\d+)/);
-                const limitsMatch = reason.match(/limits=\[([^\]]+)\]/);
                 
                 return (
                   <>
                     <div className="border-t border-border/50 my-1" />
                     {deltaMatch && <p>Delta (pill−probe): {deltaMatch[1]}°</p>}
-                    {kompMatch && <p>Kompensation: {kompMatch[1]}°</p>}
-                    {dampMatch && parseFloat(dampMatch[1]) < 1.0 && <p>D-dämpning: {dampMatch[1]}</p>}
                     {piMatch && (
                       <p>PI-korrigering: {piMatch[1]}° <span className="text-muted-foreground">(P={piMatch[2]}, I={piMatch[3]})</span></p>
                     )}
                     {learnedMatch && (
                       <p>Inlärd baseline: {learnedMatch[1]}° <span className="text-muted-foreground">[{learnedMatch[2]}] n={learnedMatch[3]}</span></p>
-                    )}
-                    {limitsMatch && (
-                      <p className="text-warning">Begränsningar: {limitsMatch[1]}</p>
                     )}
                   </>
                 );
@@ -336,7 +321,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     >
       <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
         {spanBar}
-        {pidBar}
+        {dutyBar}
       </div>
     </StatCard>
   );
