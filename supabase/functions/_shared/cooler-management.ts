@@ -357,13 +357,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
-  // ── All tanks at 0% utilization AND no PID cooling duty → turn cooler off ──
-  // If no tank is cooling (hardware or PWM), raise cooler target to max so the
-  // relay stays off.
-  const anyPidCoolingDuty = ctx.pwmBursts?.some(b => b.duty_pct > 0) ?? false
+  // ── All tanks at 0% effective utilization (incl. PID duty) → turn cooler off ──
+  // utilization already includes max(hardware_util, pid_duty), so no separate PWM check needed
   const allTanksZeroUtil = utilizations.length > 0 && utilizations.every(
     u => u.utilization != null && u.utilization < 0.01
-  ) && !anyPidCoolingDuty
+  )
   if (allTanksZeroUtil && !previousWasKick) {
     // If cooler relay is already off (0% util), no need to send another shutdown
     const coolerAlreadyOff = coolerUtil != null && coolerUtil < 0.01
