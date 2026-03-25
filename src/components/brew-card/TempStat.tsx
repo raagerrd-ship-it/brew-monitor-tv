@@ -321,7 +321,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     >
       <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
         {spanBar}
-        {pidBar}
+        {dutyBar}
       </div>
     </StatCard>
   );
