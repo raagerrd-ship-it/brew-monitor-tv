@@ -432,6 +432,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       switch_pressure: switchPressure,
     })
 
+    // Persist last duty cycle for mode-switch guard
+    const computedDutyPct = pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : 0
+    if (!ctx.skipLearning) {
+      await supabase.from('fermentation_learnings').upsert({
+        controller_id: fc.controller_id,
+        parameter_name: 'pid_last_duty',
+        learned_value: computedDutyPct,
+        sample_count: 1,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'controller_id,parameter_name' })
+    }
+
     // ═══════════════════════════════════════════════════
     // COOLING: Unified PWM duty cycle execution
     // PID output is a duty cycle (0–100%). Hardware is controlled
