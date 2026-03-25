@@ -276,7 +276,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // 1. Stabilized (barely moving) — thermal inertia dissipated
     // 2. Diverging (moving further away from target) — active drift
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
-    const onWrongSide = prevMode != null && suggestedMode !== prevMode
+    // Mode switching only makes sense when BOTH heating and cooling are available
+    const canSwitchMode = fc.heating_enabled && fc.cooling_enabled
+    const onWrongSide = canSwitchMode && prevMode != null && suggestedMode !== prevMode
     let isStuck = false
     let isDiverging = false
     if (onWrongSide && lastProbe != null && distanceToTarget > 0.05) {
