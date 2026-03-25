@@ -61,7 +61,7 @@ export function LearnedThermalProfile() {
 
   const loadData = useCallback(async () => {
     try {
-      const patterns = ["cooling_rate:%", "warming_rate:%", "hold_margin:%", "ramp_margin:%", "cooling_capacity:%"];
+      const patterns = ["cooling_rate:%", "hold_margin:%", "ramp_margin:%", "cooling_capacity:%"];
       const allEntries: LearnedEntry[] = [];
 
       const results = await Promise.all(
