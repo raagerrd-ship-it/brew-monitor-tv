@@ -298,13 +298,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const reason = isDiverging ? 'divergerar' : 'stabiliserad'
       switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Sustained wrong-side condition — switch mode
-        pidMode = suggestedMode
-        switchPressure = 0
-        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
-          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
-          distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
-        })
+        // Duty-zero guard: block mode switch if previous duty > 0%
+        // PWM must wind down to 0% before we allow switching modes
+        if (lastDutyPct > 0) {
+          pidMode = prevMode!
+          log('MODE_DUTY_HOLD', 'info', `${fc.name}: blockerar byte ${prevMode} → ${suggestedMode} — duty ${lastDutyPct}% > 0, väntar på 0%`, {
+            from: prevMode, to: suggestedMode, last_duty: lastDutyPct,
+          })
+        } else {
+          // Sustained wrong-side condition with duty at 0% — switch mode
+          pidMode = suggestedMode
+          switchPressure = 0
+          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
+            from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+            distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
+          })
+        }
       } else {
         pidMode = prevMode!
         log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
