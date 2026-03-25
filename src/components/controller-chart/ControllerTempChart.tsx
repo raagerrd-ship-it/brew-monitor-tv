@@ -88,7 +88,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
                 if (name === 'coolingPercent') return [`${value}%`, 'Kylning'];
-                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? 'Aktuell' : 'Mål'];
+                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? tempLabel : 'Mål'];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
             />
