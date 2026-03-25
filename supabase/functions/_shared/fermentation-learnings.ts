@@ -15,7 +15,6 @@ export async function saveFermentationLearnings(
     const [
       { count: pidAdjCount },
       { count: stallBoostCount },
-      { data: learnedComps },
     ] = await Promise.all([
       supabase
         .from('auto_cooling_adjustments')
@@ -27,10 +26,6 @@ export async function saveFermentationLearnings(
         .select('id', { count: 'exact', head: true })
         .eq('controller_id', controllerId)
         .gte('created_at', sessionStartedAt),
-      supabase
-        .from('controller_learned_compensation')
-        .select('convergence_count, latest_avg_error')
-        .eq('controller_id', controllerId),
     ])
 
     console.log(`🎓 Fermentation learning for ${controllerId}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}`)
