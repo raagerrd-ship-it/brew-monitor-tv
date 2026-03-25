@@ -6,10 +6,12 @@ import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from '
 interface ControllerTempChartProps {
   controllerId: string;
   controllerColor?: string;
+  pillCompEnabled?: boolean;
 }
 
-export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
+export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6', pillCompEnabled = false }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
+  const tempLabel = pillCompEnabled ? 'Probe-temp' : 'Aktuell temp';
 
   if (loading) {
     return (
@@ -86,13 +88,13 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
                 if (name === 'coolingPercent') return [`${value}%`, 'Kylning'];
-                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? 'Aktuell' : 'Mål'];
+                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? tempLabel : 'Mål'];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
             />
             <Legend 
               formatter={(value) => {
-                if (value === 'currentTemp') return 'Aktuell temp';
+                if (value === 'currentTemp') return tempLabel;
                 if (value === 'targetTemp') return 'Måltemp';
                 return 'Kylning %';
               }}
