@@ -113,7 +113,7 @@ export function LearnedThermalRates() {
                 <tr key={`${item.controller_id}-${item.mode}`}>
                   <td className="py-1.5">{MODE_LABELS[item.mode] ?? item.mode}</td>
                   <td className={`py-1.5 text-right font-mono ${item.mode === 'heating' ? 'text-orange-400' : 'text-blue-400'}`}>
-                    {item.rate.toFixed(2)}°C/h
+                    {(item.rate / 60).toFixed(3)}°C/min
                   </td>
                   <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
                   <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
