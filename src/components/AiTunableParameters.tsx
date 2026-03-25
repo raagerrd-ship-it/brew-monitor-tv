@@ -102,7 +102,7 @@ export function AiTunableParameters() {
         supabase
           .from("fermentation_learnings")
           .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.duty_cycle:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
+          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.steady_state_duty:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
           .order("last_updated_at", { ascending: false }),
         supabase
           .from("rapt_temp_controllers")
