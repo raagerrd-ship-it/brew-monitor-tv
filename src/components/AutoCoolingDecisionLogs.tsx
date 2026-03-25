@@ -661,7 +661,7 @@ function CoolerSubSection({ label, icon, children }: { label: string; icon: Reac
 
 // --- Cooler Decision View ---
 
-function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[] }) {
+function CoolerDecisionView({ entries, recentCoolerAdjs, pidDutyByName }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[]; pidDutyByName: Map<string, number> }) {
   const status = entries.find(d => d.step === 'COOLER_STATUS');
   const effectiveTarget = entries.find(d => d.step === 'EFFECTIVE_TARGET');
   const marginCalc = entries.find(d => d.step === 'MARGIN_CALC');
