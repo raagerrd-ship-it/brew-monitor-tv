@@ -44,6 +44,8 @@ export interface CoolerContext {
   baseTargetMap?: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
+  /** PWM bursts from PID — used to detect active cooling need even when hardware util is 0% */
+  pwmBursts?: Array<{ controller_id: string; duty_pct: number }>
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -178,7 +180,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   for (const u of utilizations) {
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
-    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}`, {
+    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)?.duty_pct ?? 0
+    log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°)${u.utilization != null ? ` util=${Math.round(u.utilization * 100)}%` : ''}${pwmDuty > 0 ? ` pwm=${pwmDuty}%` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
       mid_utilization: u.midUtilization != null ? Math.round(u.midUtilization * 100) : null,
@@ -354,13 +357,13 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
   }
 
-  // ── All tanks at 0% utilization → turn cooler off ─────────
-  // If no tank is cooling, raise cooler target to max so the relay stays
-  // off. Setting target just above current temp + hysteresis margin so
-  // automation can bring it back down quickly when a tank needs cooling.
+  // ── All tanks at 0% utilization AND no PID cooling duty → turn cooler off ──
+  // If no tank is cooling (hardware or PWM), raise cooler target to max so the
+  // relay stays off.
+  const anyPidCoolingDuty = ctx.pwmBursts?.some(b => b.duty_pct > 0) ?? false
   const allTanksZeroUtil = utilizations.length > 0 && utilizations.every(
     u => u.utilization != null && u.utilization < 0.01
-  )
+  ) && !anyPidCoolingDuty
   if (allTanksZeroUtil && !previousWasKick) {
     // If cooler relay is already off (0% util), no need to send another shutdown
     const coolerAlreadyOff = coolerUtil != null && coolerUtil < 0.01
@@ -747,11 +750,13 @@ async function calculateCoolingUtilizations(
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
     // Calculate utilization first (needed for both active-cooling check and results)
     const utilResult = await calculateSingleUtilization(ctx.supabase, c)
-    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high.
-    // 30% threshold avoids false "idle" when hardware hysteresis is large and relay cycles are coarse.
+    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high
+    // OR PID has assigned a non-zero cooling duty (PWM mode — hardware util may be 0%)
     const isAboveThreshold = probeTemp > targetTemp + hysteresis
     const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.30
-    const isActivelyCooling = isAboveThreshold || isHighUtil
+    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
+    const hasPidCoolingDuty = pwmDuty > 0
+    const isActivelyCooling = isAboveThreshold || isHighUtil || hasPidCoolingDuty
 
     results.push({
       controllerId: c.controller_id,
