@@ -1260,13 +1260,32 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
+                    // For glycol cooler: show max PID duty from followed controllers
+                    if (isGlycol) {
+                      const allDuties = Array.from(pidDutyByName.values());
+                      if (allDuties.length === 0) return <span className="text-muted-foreground/40 font-mono">—</span>;
+                      const maxDuty = Math.max(...allDuties);
+                      const maxRounded = Math.round(maxDuty);
+                      return (
+                        <TooltipProvider delayDuration={200}><Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`font-mono cursor-help ${maxRounded >= 50 ? 'text-amber-400' : maxRounded >= 25 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                              {String(maxRounded)}%
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            {`Högsta kylbehov från controllers: ${String(maxRounded)}%`}
+                          </TooltipContent>
+                        </Tooltip></TooltipProvider>
+                      );
+                    }
                     // Prefer PID-calculated duty cycle from PILL_COMP_STATUS
                     const pidDuty = pidDutyByName.get(name);
                     const dutyPct = pidDuty ?? (det.duty_pct as number | undefined);
                     if (dutyPct == null) return <span className="text-muted-foreground/40 font-mono">—</span>;
                     const dutyRounded = Math.round(dutyPct);
                     const quantized = Math.round(dutyPct / 10) * 10;
-                    const totalBurstMin = quantized / 10; // 0–10 min over 2×5-min window
+                    const totalBurstMin = quantized / 10;
                     const isPidSource = pidDuty != null;
                     return (
                       <TooltipProvider delayDuration={200}><Tooltip>
