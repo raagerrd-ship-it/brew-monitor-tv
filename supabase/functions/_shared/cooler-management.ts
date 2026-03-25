@@ -539,13 +539,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       return adjustments
     }
 
-    // Even if probe > target+hysteresis right now, block if utilization is very low
-    // (tank's cooling relay barely running → no real demand for lower cooler)
-    // BUT: skip this guard if PID has assigned a non-zero duty (PWM mode — hardware util is 0%)
+    // Even if probe > target+hysteresis right now, block if effective utilization is very low
+    // (utilization already includes max(hardware_util, pid_duty))
     const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
-    const lowestPwmDuty = ctx.pwmBursts?.find(b => b.controller_id === effectiveTarget.controllerId)?.duty_pct ?? 0
-    if (lowestUtil?.utilization != null && lowestUtil.utilization < 0.10 && lowestPwmDuty === 0) {
-      log('DEMAND_GUARD', 'info', `Tank kyler momentant men util=${Math.round(lowestUtil.utilization * 100)}% — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
+    if (lowestUtil?.utilization != null && lowestUtil.utilization < 0.10) {
+      log('DEMAND_GUARD', 'info', `Tank kyler momentant men behov=${Math.round(lowestUtil.utilization * 100)}% — avvaktar sänkning (${currentCoolerTarget}°C → ${clampedTarget}°C)`)
       await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
