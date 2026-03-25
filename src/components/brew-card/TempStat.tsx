@@ -267,7 +267,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
                 <span>0%</span>
-                <span className="text-muted-foreground/40">PWM {duty}% {modeIcon}</span>
+                <span className="text-muted-foreground/40">PWM {duty}%</span>
                 <span>100%</span>
               </div>
             </div>
