@@ -274,7 +274,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-[260px]">
             <div className="space-y-0.5">
-              <p className="font-medium">PWM Duty: {duty}% {modeIcon} {isCooling ? 'Kylning' : 'Värmning'}</p>
+              <p className="font-medium">PWM Duty: {duty}% — {isCooling ? 'Kylning' : 'Värmning'}</p>
               {(() => {
                 const reason = brew.pidReason;
                 if (!reason) return null;
