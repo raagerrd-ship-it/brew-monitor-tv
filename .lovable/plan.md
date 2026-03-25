@@ -1,46 +1,50 @@
 
 
-## Byt PID-kompensationsbaren till PWM Duty Cycle-bar
+# Analys: Oanvända inlärda parametrar
 
-### Vad ändras
+## Sammanfattning
 
-Den nuvarande "PID-kompensationsbaren" i TempStat visar hur mycket controllerns måltemperatur har justerats (±2°C). Eftersom systemet nu alltid kör PWM är det mer relevant att visa **duty cycle** (0–100%) med mode-indikation (❄️/🔥).
+Jag har gått igenom all automation och identifierat inlärda parametrar (`fermentation_learnings`) som antingen skrivs men aldrig läses, eller läses men aldrig skrivs av automationen.
 
-### Dataflöde
+## Fynd
 
-1. **Källa:** `auto_cooling_adjustments`-tabellen har redan `duty_pct` och `pid_mode` i PID-loggarna (🎯-poster).
-2. **Befintlig hämtning:** `use-brew-data.ts` hämtar redan dessa poster (`pidMatch`) men extraherar bara `reason`-strängen.
-3. **Nytt:** Extrahera `duty_pct` och `pid_mode` direkt från `pidMatch`-posten och lägg till på `BrewData`.
+### 1. `avg_convergence_error` — SKRIVS men LÄSES ALDRIG
+- **Var den skrivs:** `fermentation-learnings.ts` (vid profil-avslut)
+- **Var den läses:** Ingenstans
+- **Slutsats:** Helt oanvänd. Kan tas bort.
 
-### Plan
+### 2. `cooling_capacity:{load}` — SKRIVS men ANVÄNDS INTE i beslut
+- **Var den skrivs:** `cooler-management.ts` (vid ≥95% utilization)
+- **Var den läses:** Enbart av UI-komponenten `LearnedThermalProfile.tsx` för visning
+- **Slutsats:** Ingen automationslogik använder detta värde. Enbart kosmetiskt. Kan behållas om du vill se det i UI, men det påverkar inget.
 
-**1. Utöka BrewData-typen** (`src/types/brew.ts`)
-- Lägg till `dutyPct: number | null` och `dutyMode: 'cooling' | 'heating' | null`
+### 3. `steady_state_duty:{bucket}` — LÄSES men SKRIVS ALDRIG av automation
+- **Var den läses:**
+  - `pid-compensation.ts` — som seed för integral vid migration
+  - `cooler-management.ts` — prediktiv kylarberedskap
+  - `auto-adjust-cooling/index.ts` — visa `duty_pct` i loggar
+- **Var den skrivs:** Ingenstans automatiskt. Enbart AI audit kan skriva den (via whitelist `duty_cycle:`, men det är ett annat parameternamn!)
+- **Slutsats:** Denna parameter finns aldrig i databasen om inte AI audit har skapat den. Alla 3 läsningarna faller tillbaka till default (-1 eller 0), så de fungerar men gör ingenting. **Bör antingen börja skrivas automatiskt (t.ex. från PID-integralens steady-state) eller tas bort.**
 
-**2. Hämta duty-data** (`src/hooks/use-brew-data.ts`)
-- I befintlig overshoot/PID-fetch: parsa `duty_pct` och `pid_mode` ur `pidMatch.reason` (formatet `🎯 PID: ... duty=XX%...mode=cooling/heating`)
-- Alternativt: utöka `select()` att inkludera `details`-kolumnen om den finns, eller parsa från reason-strängen som redan görs i controller-dialogen
-- Mappa till `dutyPct` och `dutyMode` på brew-objektet
+### 4. `duty_cycle:{bucket}` i AI audit whitelist — NAMNKONFLIKT
+- AI audit har `duty_cycle:` som prefix i sin whitelist
+- Men automationen läser `steady_state_duty:` — de matchar inte!
+- **Slutsats:** Även om AI:n skriver `duty_cycle:warm` så läser ingen det. Det bör vara `steady_state_duty:` i whitelisten, eller så bör läsningarna ändras.
 
-**3. Ersätt PID-baren med PWM-bar** (`src/components/brew-card/TempStat.tsx`)
-- Byt ut `pidBar` (rad 214–300):
-  - Skala: 0–100% (vänster till höger)
-  - Fylld bar från 0% till aktuell duty
-  - Färg: blå (❄️ cooling) eller amber (🔥 heating)
-  - Mode-ikon i skalans etikett
-  - Tooltip: visar duty %, mode, P/I-komponenter (parsade från `pidReason` som idag)
-- Skall-etiketter: `0%` vänster, `PWM XX% ❄️/🔥` center, `100%` höger
+## Rekommenderad plan
 
-**4. Samma vy i use-brew-page.ts**
-- Sätt `dutyPct: null` och `dutyMode: null` som defaults (för bryggsidor utan automation)
+1. **Ta bort `avg_convergence_error`** — radera skrivningen i `fermentation-learnings.ts`
+2. **Fixa `steady_state_duty` — välj ETT av:**
+   - **Alt A:** Börja skriva `steady_state_duty:{bucket}` automatiskt från PID-regulatorn (t.ex. spara integralen som duty vid stabil drift)
+   - **Alt B:** Ta bort alla läsningar av `steady_state_duty:` (de gör ändå inget nu)
+3. **Fixa AI audit namnkonflikt** — ändra `duty_cycle:` till `steady_state_duty:` i whitelisten (om Alt A väljs)
+4. **Valfritt:** Behåll eller ta bort `cooling_capacity` (enbart kosmetisk)
 
-### Visuellt resultat
+## Teknisk omfattning
 
-```text
-Nuvarande PID-bar:        Ny PWM-bar:
--2.0  PID +0.3°  +2.0     0%   PWM 20% ❄️   100%
-[====|==●===|====]         [████●·············]
-```
-
-Baren fylls från vänster proportionellt mot duty cycle, med en markör-dot vid aktuellt värde. Samma glaseffekt och stil som spanBar.
+- `supabase/functions/_shared/fermentation-learnings.ts` — ta bort `avg_convergence_error`-skrivning
+- `supabase/functions/_shared/controller-adjustments.ts` — eventuellt lägga till `steady_state_duty`-skrivning
+- `supabase/functions/ai-automation-audit/index.ts` — fixa whitelist `duty_cycle:` → `steady_state_duty:`
+- `supabase/functions/_shared/pid-compensation.ts` — beroende på val
+- `supabase/functions/_shared/cooler-management.ts` — beroende på val
 
