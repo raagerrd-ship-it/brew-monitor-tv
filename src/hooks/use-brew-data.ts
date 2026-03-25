@@ -351,7 +351,6 @@ export function useBrewData(): UseBrewDataReturn {
         }
       }
     }
-    }
 
     return brewReadings.map((reading: any) => {
       const originalSgData = reading.sg_data || [];
