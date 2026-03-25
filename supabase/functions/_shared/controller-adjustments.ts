@@ -296,37 +296,39 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (isStuck || isDiverging) {
       // Probe is on wrong side and either stabilized or actively drifting away
       const reason = isDiverging ? 'divergerar' : 'stabiliserad'
-      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
-      if (switchPressure >= MODE_SWITCH_CYCLES) {
-        // Duty-zero guard: block mode switch if previous duty > 0%
-        // PWM must wind down to 0% before we allow switching modes
-        if (lastDutyPct > 0) {
-          pidMode = prevMode!
-          log('MODE_DUTY_HOLD', 'info', `${fc.name}: blockerar byte ${prevMode} → ${suggestedMode} — duty ${lastDutyPct}% > 0, väntar på 0%`, {
-            from: prevMode, to: suggestedMode, last_duty: lastDutyPct,
-          })
-        } else {
+
+      // Duty-zero gate: pressure only starts counting once duty has reached 0%
+      if (lastDutyPct > 0) {
+        // Don't accumulate pressure yet — wait for current mode to wind down
+        pidMode = prevMode!
+        log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%, ${reason})`, {
+          from: prevMode, to: suggestedMode, last_duty: lastDutyPct, pressure: switchPressure,
+        })
+      } else {
+        // Duty is 0% — now we can accumulate pressure
+        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        if (switchPressure >= MODE_SWITCH_CYCLES) {
           // Sustained wrong-side condition with duty at 0% — switch mode
           pidMode = suggestedMode
           switchPressure = 0
-          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler)`, {
+          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler efter duty=0%)`, {
             from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
             distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
           })
+        } else {
+          pidMode = prevMode!
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}, duty=0%)`, {
+            suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
+            actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
+            distance: round1(distanceToTarget),
+          })
         }
-      } else {
-        pidMode = prevMode!
-        log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
-          suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
-          actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
-          distance: round1(distanceToTarget),
-        })
       }
     } else if (onWrongSide) {
       // Still on wrong side, but trend is not yet clearly stuck/diverging.
-      // Keep accumulated pressure so mode-switch cannot oscillate indefinitely.
+      // Only start pressure if duty is already 0%
       pidMode = prevMode ?? suggestedMode
-      if (switchPressure === 0) switchPressure = 1
+      if (lastDutyPct === 0 && switchPressure === 0) switchPressure = 1
     } else {
       // Back on correct side / near target — decay pressure
       pidMode = prevMode ?? suggestedMode
