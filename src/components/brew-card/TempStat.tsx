@@ -90,12 +90,13 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     ? () => onControllerClick(controller) 
     : undefined;
 
-  // Temperature span bar: visual range showing pill↔controller with target marker
-  const spanBar = hasBothSensors && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
-    const pTemp = pillTemp!;       // pill (surface)
-    const cTemp = probeTemp!; // controller (core)
-    const profileT = profileTarget ?? targetTemp; // Profilmål (originalmål)
-    const compensatedT = targetTemp; // Pill-kompenserat controllermål
+  // Temperature span bar: visual range showing sensor(s) relative to target
+  const hasAnySensor = (pillTemp !== null || probeTemp !== null);
+  const spanBar = hasAnySensor && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
+    const pTemp = pillTemp;       // pill (surface) — may be null
+    const cTemp = probeTemp;      // controller (core) — may be null
+    const profileT = profileTarget ?? targetTemp;
+    const compensatedT = targetTemp;
     
     // Fixed range: profile target ±3°
     const rangeMin = profileT - 3;
@@ -104,14 +105,24 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     
     const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
     
-    const ctrlPct = pct(cTemp);
-    const pillPct = pct(pTemp);
+    const ctrlPct = cTemp !== null ? pct(cTemp) : null;
+    const pillPct = pTemp !== null ? pct(pTemp) : null;
     const profilePct = pct(profileT);
     const compensatedPct = pct(compensatedT);
-    const leftPct = Math.min(ctrlPct, pillPct);
-    const rightPct = Math.max(ctrlPct, pillPct);
+    
+    // Span bar: if both sensors, show range; if single, show a thin marker
+    const hasBoth = ctrlPct !== null && pillPct !== null;
+    const leftPct = hasBoth ? Math.min(ctrlPct, pillPct) : (ctrlPct ?? pillPct!);
+    const rightPct = hasBoth ? Math.max(ctrlPct, pillPct) : leftPct;
     
     const showCompensatedMarker = Math.abs(profileT - compensatedT) >= 0.1;
+
+    // Scale labels
+    const leftLabel = cTemp !== null ? `${cTemp.toFixed(1)}°` : `${(pTemp!).toFixed(1)}°`;
+    const rightLabel = hasBoth ? `${pTemp!.toFixed(1)}°` : '';
+    const centerLabel = hasBoth
+      ? `Δ ${delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°` : '—'}`
+      : (cTemp !== null ? 'Probe' : 'Pill');
 
     return (
       <TooltipProvider delayDuration={200}>
@@ -128,13 +139,15 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
                     boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
                   }}
                 >
-                  {/* Colored span bar from ctrl to pill */}
+                  {/* Colored span bar */}
                   <div 
                     className="absolute h-full rounded-full"
                     style={{ 
                       left: `${leftPct}%`, 
                       width: `${Math.max(rightPct - leftPct, 2)}%`,
-                      background: `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`,
+                      background: hasBoth
+                        ? `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`
+                        : (cTemp !== null ? 'hsl(var(--temp-blue) / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'),
                     }} 
                   />
                   {/* Glass highlight */}
@@ -170,7 +183,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
                       }} 
                     />
                   )}
-                  {/* Average temp dot */}
+                  {/* Display temp dot */}
                   <div 
                     className="absolute rounded-full"
                     style={{ 
@@ -187,21 +200,21 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
               </div>
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
-                <span>{cTemp.toFixed(1)}°</span>
-                <span className="text-muted-foreground/40">Δ {delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°` : '—'}</span>
-                <span>{pTemp.toFixed(1)}°</span>
+                <span>{leftLabel}</span>
+                <span className="text-muted-foreground/40">{centerLabel}</span>
+                <span>{rightLabel}</span>
               </div>
             </div>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
             <div className="space-y-0.5">
-              <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>
-              <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>
+              {cTemp !== null && <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>}
+              {pTemp !== null && <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>}
               <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Profilmål: {profileT.toFixed(1)}°</p>
               {showCompensatedMarker && (
                 <p><span style={{ color: 'hsl(38 92% 50% / 0.7)' }}>┊</span> Kompenserat: {compensatedT.toFixed(1)}°</p>
               )}
-              <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>
+              {hasBoth && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>}
               {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
               {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
             </div>
