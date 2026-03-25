@@ -1196,7 +1196,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
-          <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
+          
           <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Behov</th>
           <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
@@ -1258,39 +1258,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 <td className="py-1 px-1.5 text-right whitespace-nowrap">{r2(det.ctrl_temp as number)}</td>
                 <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
                 <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
-                <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                  {util ? (() => {
-                    const utilTip = buildUtilTooltip({
-                      lastUpdate: util.lastUpdate,
-                      recentPct: util.recentPct,
-                      midPct: util.midPct,
-                      oldestPct: util.oldestPct,
-                      ancientPct: util.ancientPct,
-                      pct: util.pct,
-                      prevAt: util.prevAt,
-                      p2At: util.p2At,
-                      anchorAt: util.anchorAt,
-                      p4At: util.p4At,
-                    });
-                    return (
-                      <TooltipProvider delayDuration={200}><Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
-                      </Tooltip></TooltipProvider>
-                    );
-                  })() : (
-                    <TooltipProvider delayDuration={200}><Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
-                    </Tooltip></TooltipProvider>
-                  )}
-                </td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
                     // Prefer PID-calculated duty cycle from PILL_COMP_STATUS
@@ -1414,7 +1381,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 })();
                 return (
                 <tr className="border-b border-border/10 bg-[hsl(38_92%_50%/0.04)]">
-                  <td colSpan={8} className="py-1 px-1.5 pl-4">
+                  <td colSpan={7} className="py-1 px-1.5 pl-4">
                     <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap">
                       <span className="flex items-center gap-1" style={{ color: 'hsl(38 92% 50%)' }}>
                         <Pill className="h-2.5 w-2.5" />
