@@ -1196,7 +1196,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Profil</th>
-          <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Kyla</th>
+          
           <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Behov</th>
           <th className="text-center py-1 px-1.5 font-semibold whitespace-nowrap">Status</th>
           <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">RAPT</th>
