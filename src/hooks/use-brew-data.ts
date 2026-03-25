@@ -307,14 +307,40 @@ export function useBrewData(): UseBrewDataReturn {
     
     const overshootMap = new Map<string, { reason: string | null; original_target: number | null; pidReason: string | null; dutyPct: number | null; dutyMode: 'cooling' | 'heating' | null }>();
     if (allControllerIds.length > 0) {
-      const { data: adjData } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
-        .or(allControllerIds.map((id: string) => `followed_controller_id.eq.${id},cooler_controller_id.eq.${id}`).join(','))
-        .or('reason.like.🌡️%,reason.like.🎯%,reason.like.⚡ PWM%ON%')
-        .order('created_at', { ascending: false });
+      // Fetch overshoot/PID adjustments and duty cycle in parallel
+      const [adjRes, decisionRes] = await Promise.all([
+        supabase
+          .from('auto_cooling_adjustments')
+          .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
+          .or(allControllerIds.map((id: string) => `followed_controller_id.eq.${id},cooler_controller_id.eq.${id}`).join(','))
+          .or('reason.like.🌡️%,reason.like.🎯%')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('auto_cooling_decision_logs')
+          .select('decisions')
+          .order('created_at', { ascending: false })
+          .limit(1),
+      ]);
       
-      // For each controller, find the most recent overshoot + PID + PWM adjustment
+      const adjData = adjRes.data;
+
+      // Extract PILL_COMP_STATUS from the most recent decision log
+      const dutyByControllerId = new Map<string, { duty: number; mode: 'cooling' | 'heating' | null }>();
+      const latestDecisions = (decisionRes.data?.[0]?.decisions as any[]) || [];
+      for (const d of latestDecisions) {
+        if (d.step === 'PILL_COMP_STATUS' && d.details) {
+          const det = d.details;
+          const cid = det.controller_id as string | undefined;
+          if (cid && typeof det.duty_cycle === 'number') {
+            dutyByControllerId.set(cid, {
+              duty: Math.round(det.duty_cycle),
+              mode: det.mode === 'cooling' ? 'cooling' : det.mode === 'heating' ? 'heating' : null,
+            });
+          }
+        }
+      }
+      
+      // For each controller, find the most recent overshoot + PID adjustment
       const uniqueIds = [...new Set(allControllerIds)] as string[];
       for (const cid of uniqueIds) {
         const records = (adjData || []).filter((a: any) => 
@@ -322,31 +348,18 @@ export function useBrewData(): UseBrewDataReturn {
         );
         const overshootMatch = records.find((a: any) => a.reason?.startsWith('🌡️'));
         const pidMatch = records.find((a: any) => a.reason?.startsWith('🎯'));
-        const pwmMatch = records.find((a: any) => a.reason?.startsWith('⚡ PWM') && a.reason?.includes('ON'));
         const overshootAge = overshootMatch ? Date.now() - new Date(overshootMatch.created_at).getTime() : Infinity;
         
-        // Parse duty from PWM entry: "⚡ PWM 17% ON: ..."
-        let dutyPct: number | null = null;
-        if (pwmMatch) {
-          const dm = pwmMatch.reason.match(/PWM (\d+)%/);
-          if (dm) dutyPct = parseInt(dm[1], 10);
-        }
+        const dutyInfo = dutyByControllerId.get(cid);
         
-        // Parse mode from PID reason: "(heating, ..." or "(cooling, ..."
-        let dutyMode: 'cooling' | 'heating' | null = null;
-        if (pidMatch?.reason) {
-          if (pidMatch.reason.includes('(heating')) dutyMode = 'heating';
-          else if (pidMatch.reason.includes('(cooling')) dutyMode = 'cooling';
-        }
-        
-        if (overshootMatch || pidMatch || pwmMatch) {
+        if (overshootMatch || pidMatch || dutyInfo) {
           overshootMap.set(cid, {
             reason: overshootMatch && overshootAge < 6 * 60 * 60 * 1000 
               ? overshootMatch.reason.replace('🌡️ ', '') : null,
             original_target: pidMatch?.original_target_temp ?? overshootMatch?.original_target_temp ?? null,
             pidReason: pidMatch?.reason ?? null,
-            dutyPct,
-            dutyMode,
+            dutyPct: dutyInfo?.duty ?? null,
+            dutyMode: dutyInfo?.mode ?? null,
           });
         }
       }
