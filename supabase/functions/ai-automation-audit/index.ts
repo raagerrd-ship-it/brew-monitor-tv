@@ -253,7 +253,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
 - cooler_margin:{bucket}: Marginal för glykolkylaren per temperatur-bucket (cold/cool/warm/hot). Range: 0.5-8.0.
 - hold_margin:{bucket}:{load}[:{activity}]: Optimal marginal under hold-steg. Activity = activity_high/activity_low. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
 - ramp_margin:{bucket}:{load}[:{activity}]: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
-- duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
+- steady_state_duty:{bucket}: Inlärd steady-state duty cycle (0.0–1.0) per temperaturzon. Range: 0.0-1.0. MAX ÄNDRING: ±0.1 per audit.
 - cooling_rate:{bucket}:{load}[:{activity}]: Inlärd kylhastighet (°C/min). Activity = activity_high/activity_low. Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
 - warming_rate:{bucket}: Passiv uppvärmningshastighet (°C/h) per temperaturzon. Justeras om prediktiv styrning gör felbedömningar. Range: 0.01-10.0. MAX ÄNDRING: ±0.5 per audit.
 
@@ -498,7 +498,7 @@ Svara ENBART med JSON (inget annat).`;
       'thermal_rate', 'glycol_cooler_rate',
     ]);
     const VALID_LEARNING_PREFIXES = [
-      'hold_margin:', 'ramp_margin:', 'duty_cycle:', 'cooling_rate:', 'warming_rate:',
+      'hold_margin:', 'ramp_margin:', 'steady_state_duty:', 'cooling_rate:', 'warming_rate:',
     ];
     function isValidLearningParam(param: string): boolean {
       if (VALID_LEARNING_EXACT.has(param)) return true;
@@ -508,14 +508,14 @@ Svara ENBART med JSON (inget annat).`;
     // Dynamic bounds/step for prefix-matched learning params
     function getLearningBounds(param: string): [number, number] | null {
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return [0.5, 8.0];
-      if (param.startsWith('duty_cycle:')) return [5, 95];
+      if (param.startsWith('steady_state_duty:')) return [0, 1.0];
       if (param.startsWith('cooling_rate:')) return [0.01, 2.0];
       if (param.startsWith('warming_rate:')) return [0.01, 10.0];
       return BOUNDS[param] ?? null;
     }
     function getLearningMaxStep(param: string): number | null {
       if (param.startsWith('hold_margin:') || param.startsWith('ramp_margin:')) return 1.0;
-      if (param.startsWith('duty_cycle:')) return 10;
+      if (param.startsWith('steady_state_duty:')) return 0.1;
       if (param.startsWith('cooling_rate:')) return 0.1;
       if (param.startsWith('warming_rate:')) return 0.5;
       return MAX_STEP[param] ?? null;
