@@ -167,16 +167,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // Pre-load per-brew pill_compensation overrides.
   // If a brew has pill_compensation=false, dual sensors are disabled for that controller
   // even when the global setting is ON.
-  const brewIds = [...ctx.sessionBrewIdMap.values()]
+  // Look up ALL brews linked to followed controllers (not just session brews),
+  // because a brew can be linked via linked_controller_id without an active session.
   const perBrewDualMap = new Map<string, boolean>() // controller_id → dual enabled
-  if (brewIds.length > 0) {
+  const allFollowedIds = followedControllersFullData.map(c => c.controller_id)
+  if (allFollowedIds.length > 0) {
     const { data: brewSettings } = await supabase
       .from('brew_readings')
       .select('id, pill_compensation, linked_controller_id')
-      .in('id', brewIds)
+      .in('linked_controller_id', allFollowedIds)
+      .eq('pill_compensation', false)
     if (brewSettings) {
       for (const b of brewSettings) {
-        if (b.linked_controller_id && b.pill_compensation === false) {
+        if (b.linked_controller_id) {
           perBrewDualMap.set(b.linked_controller_id, false)
         }
       }
