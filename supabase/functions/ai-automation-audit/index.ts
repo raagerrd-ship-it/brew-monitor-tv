@@ -253,7 +253,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
 - cooler_margin:{bucket}: Marginal för glykolkylaren per temperatur-bucket (cold/cool/warm/hot). Range: 0.5-8.0.
 - hold_margin:{bucket}:{load}[:{activity}]: Optimal marginal under hold-steg. Activity = activity_high/activity_low. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
 - ramp_margin:{bucket}:{load}[:{activity}]: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
-- duty_cycle:{bucket}: Inlärd duty cycle (%) per temperaturzon. Range: 5-95. MAX ÄNDRING: ±10 per audit.
+- steady_state_duty:{bucket}: Inlärd steady-state duty cycle (0.0–1.0) per temperaturzon. Range: 0.0-1.0. MAX ÄNDRING: ±0.1 per audit.
 - cooling_rate:{bucket}:{load}[:{activity}]: Inlärd kylhastighet (°C/min). Activity = activity_high/activity_low. Range: 0.01-2.0. MAX ÄNDRING: ±0.1 per audit.
 - warming_rate:{bucket}: Passiv uppvärmningshastighet (°C/h) per temperaturzon. Justeras om prediktiv styrning gör felbedömningar. Range: 0.01-10.0. MAX ÄNDRING: ±0.5 per audit.
 

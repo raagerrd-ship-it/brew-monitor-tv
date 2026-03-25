@@ -34,16 +34,7 @@ export async function saveFermentationLearnings(
         .eq('controller_id', controllerId),
     ])
 
-    const avgError = learnedComps && learnedComps.length > 0
-      ? learnedComps.reduce((sum, c) => sum + Math.abs(parseFloat(String(c.latest_avg_error))), 0) / learnedComps.length
-      : null
-
-    // Use shared EMA learning (SSOT) instead of raw upsert
-    if (avgError !== null) {
-      await updateLearnedParam(supabase, controllerId, 'avg_convergence_error', avgError, 0, 10)
-    }
-
-    console.log(`🎓 Fermentation learning for ${controllerId}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}, avg_error=${avgError?.toFixed(2) ?? 'N/A'}`)
+    console.log(`🎓 Fermentation learning for ${controllerId}: duration=${sessionDurationHours.toFixed(0)}h, adjustments=${pidAdjCount ?? 0}, stall_boosts=${stallBoostCount ?? 0}`)
   } catch (learnError) {
     console.error('Error saving fermentation learnings:', learnError)
   }
