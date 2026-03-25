@@ -357,7 +357,6 @@ export function useBrewData(): UseBrewDataReturn {
       }
       
       // For each controller, find the most recent overshoot + PID adjustment
-      const uniqueIds = [...new Set(allControllerIds)] as string[];
       for (const cid of uniqueIds) {
         const records = (adjData || []).filter((a: any) => 
           a.followed_controller_id === cid || a.cooler_controller_id === cid
