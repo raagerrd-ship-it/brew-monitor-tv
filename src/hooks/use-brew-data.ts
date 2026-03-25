@@ -307,8 +307,9 @@ export function useBrewData(): UseBrewDataReturn {
     
     const overshootMap = new Map<string, { reason: string | null; original_target: number | null; pidReason: string | null; dutyPct: number | null; dutyMode: 'cooling' | 'heating' | null }>();
     if (allControllerIds.length > 0) {
-      // Fetch overshoot/PID adjustments and duty cycle in parallel
-      const [adjRes, decisionRes] = await Promise.all([
+      // Fetch overshoot/PID adjustments, duty cycle, and controller names in parallel
+      const uniqueIds = [...new Set(allControllerIds)] as string[];
+      const [adjRes, decisionRes, controllerNamesRes] = await Promise.all([
         supabase
           .from('auto_cooling_adjustments')
           .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
@@ -320,6 +321,10 @@ export function useBrewData(): UseBrewDataReturn {
           .select('decisions')
           .order('created_at', { ascending: false })
           .limit(1),
+        supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, name')
+          .in('controller_id', uniqueIds),
       ]);
       
       const adjData = adjRes.data;
