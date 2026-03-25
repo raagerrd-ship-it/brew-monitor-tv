@@ -40,6 +40,8 @@ export interface BrewData {
   overshootReason: string | null;
   originalTarget: number | null;
   pidReason: string | null;
+  dutyPct: number | null;
+  dutyMode: 'cooling' | 'heating' | null;
   fermentationTrend?: {
     rate6h: number | null;
     rate12h: number | null;

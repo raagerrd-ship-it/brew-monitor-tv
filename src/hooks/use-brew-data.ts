@@ -417,6 +417,22 @@ export function useBrewData(): UseBrewDataReturn {
         pidReason: reading.linked_controller_id
           ? overshootMap.get(reading.linked_controller_id)?.pidReason ?? null
           : null,
+        dutyPct: (() => {
+          const reason = reading.linked_controller_id
+            ? overshootMap.get(reading.linked_controller_id)?.pidReason ?? null
+            : null;
+          if (!reason) return null;
+          const m = reason.match(/duty=(\d+)%/);
+          return m ? parseInt(m[1], 10) : null;
+        })(),
+        dutyMode: (() => {
+          const reason = reading.linked_controller_id
+            ? overshootMap.get(reading.linked_controller_id)?.pidReason ?? null
+            : null;
+          if (!reason) return null;
+          const m = reason.match(/mode=(cooling|heating)/);
+          return m ? m[1] as 'cooling' | 'heating' : null;
+        })(),
         fermentationTrend,
         fermentationMetrics: (() => {
           const m = metricsMap.get(reading.id);
