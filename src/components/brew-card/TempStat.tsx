@@ -216,8 +216,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
     const duty = brew.dutyPct;
     const mode = brew.dutyMode;
     const isCooling = mode === 'cooling';
-    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(38 92% 50%)';
-    const modeIcon = isCooling ? '❄️' : '🔥';
+    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(0 70% 50%)';
 
     return (
       <TooltipProvider delayDuration={200}>
@@ -268,14 +267,14 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
               {/* Scale labels */}
               <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
                 <span>0%</span>
-                <span className="text-muted-foreground/40">PWM {duty}% {modeIcon}</span>
+                <span className="text-muted-foreground/40">PWM {duty}%</span>
                 <span>100%</span>
               </div>
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-[260px]">
             <div className="space-y-0.5">
-              <p className="font-medium">PWM Duty: {duty}% {modeIcon} {isCooling ? 'Kylning' : 'Värmning'}</p>
+              <p className="font-medium">PWM Duty: {duty}% — {isCooling ? 'Kylning' : 'Värmning'}</p>
               {(() => {
                 const reason = brew.pidReason;
                 if (!reason) return null;
