@@ -661,7 +661,7 @@ function CoolerSubSection({ label, icon, children }: { label: string; icon: Reac
 
 // --- Cooler Decision View ---
 
-function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[] }) {
+function CoolerDecisionView({ entries, recentCoolerAdjs, pidDutyByName }: { entries: DecisionEntry[]; recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[]; pidDutyByName: Map<string, number> }) {
   const status = entries.find(d => d.step === 'COOLER_STATUS');
   const effectiveTarget = entries.find(d => d.step === 'EFFECTIVE_TARGET');
   const marginCalc = entries.find(d => d.step === 'MARGIN_CALC');
@@ -756,74 +756,26 @@ function CoolerDecisionView({ entries, recentCoolerAdjs }: { entries: DecisionEn
       <CoolerSubSection label="Lägsta behov" icon={<TrendingDown className="h-2.5 w-2.5" />}>
         {effectiveTarget ? (() => {
           const effCtrlName = effectiveDet.controller as string;
-          const matchingUtil = utilEntries.find(u => u.message.split(':')[0].trim() === effCtrlName);
-          const mDet = matchingUtil?.details || {};
-          const mUtilMatch = matchingUtil?.message.match(/util=(\d+)%/);
-          const mUtilPct = mUtilMatch ? parseInt(mUtilMatch[1]) : null;
-          const mTip = buildUtilTooltip({
-            lastUpdate: mDet.last_update as string | null,
-            recentPct: mDet.recent_utilization as number | null,
-            midPct: mDet.mid_utilization as number | null,
-            oldestPct: mDet.oldest_utilization as number | null,
-            ancientPct: mDet.ancient_utilization as number | null,
-            pct: mUtilPct,
-            prevAt: mDet.prev_at as string | null,
-            p2At: mDet.p2_at as string | null,
-            anchorAt: mDet.anchor_at as string | null,
-            p4At: mDet.p4_at as string | null,
-          });
+          const effDuty = pidDutyByName.get(effCtrlName);
+          const effDutyRounded = effDuty != null ? Math.round(effDuty) : null;
           return (
             <>
               <span className="font-mono font-medium" style={{ color: 'hsl(210 80% 60%)' }}>
                 {r1((effectiveTarget.details?.temp ?? effectiveTarget.details?.effective_target) as number)}°
               </span>
-              {mTip !== 'Ingen data ännu' ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-muted-foreground text-[10px] cursor-help">({effCtrlName}{mUtilPct != null ? ` ${mUtilPct}%` : ''})</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs whitespace-pre-line">{mTip}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <span className="text-muted-foreground text-[10px]">({effCtrlName})</span>
-              )}
-              {/* Extra tank utilizations */}
-              {utilEntries.map((u, i) => {
-                const isActive = u.message.includes('❄️');
-                const name = u.message.split(':')[0].trim();
-                const utilMatch = u.message.match(/util=(\d+)%/);
-                const utilPct = utilMatch ? parseInt(utilMatch[1]) : null;
-                if (effCtrlName && name === effCtrlName) return null;
-                const uDet = u.details || {};
-                const tankUtilTip = buildUtilTooltip({
-                  lastUpdate: uDet.last_update as string | null,
-                  recentPct: uDet.recent_utilization as number | null,
-                  midPct: uDet.mid_utilization as number | null,
-                  oldestPct: uDet.oldest_utilization as number | null,
-                  ancientPct: uDet.ancient_utilization as number | null,
-                  pct: utilPct,
-                  prevAt: uDet.prev_at as string | null,
-                  p2At: uDet.p2_at as string | null,
-                  anchorAt: uDet.anchor_at as string | null,
-                  p4At: uDet.p4_at as string | null,
-                });
+              <span className="text-muted-foreground text-[10px]">({effCtrlName}{effDutyRounded != null ? ` ${effDutyRounded}%` : ''})</span>
+              {Array.from(pidDutyByName.entries()).map(([name, duty], i) => {
+                if (name === effCtrlName) return null;
+                const dutyRounded = Math.round(duty);
+                const isActive = dutyRounded > 0;
                 return (
-                  <Tooltip key={i}>
-                    <TooltipTrigger asChild>
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-help">
-                        <span>{isActive ? '❄️' : '⏸️'}</span>
-                        <span>{name}</span>
-                        {utilPct != null ? (
-                          <span className={`font-mono font-medium ${utilPct >= 80 ? 'text-amber-400' : utilPct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {utilPct}%
-                          </span>
-                        ) : (
-                          <span className="font-mono text-muted-foreground/50">—</span>
-                        )}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs whitespace-pre-line">{tankUtilTip}</TooltipContent>
-                  </Tooltip>
+                  <span key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span>{isActive ? '❄️' : '⏸️'}</span>
+                    <span>{name}</span>
+                    <span className={`font-mono font-medium ${dutyRounded >= 80 ? 'text-amber-400' : dutyRounded >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {dutyRounded}%
+                    </span>
+                  </span>
                 );
               })}
             </>
@@ -1622,7 +1574,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
 
   const coolerContent = coolerEntries.length > 0 ? (
     <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
-      <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} />
+      <CoolerDecisionView entries={coolerEntries} recentCoolerAdjs={recentCoolerAdjs} pidDutyByName={pidDutyByName} />
     </PipelineSection>
   ) : null;
 
