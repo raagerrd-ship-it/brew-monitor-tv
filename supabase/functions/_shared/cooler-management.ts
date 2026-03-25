@@ -44,6 +44,8 @@ export interface CoolerContext {
   baseTargetMap?: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
+  /** PWM bursts from PID — used to detect active cooling need even when hardware util is 0% */
+  pwmBursts?: Array<{ controller_id: string; duty_pct: number }>
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
