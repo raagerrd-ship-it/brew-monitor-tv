@@ -750,20 +750,24 @@ async function calculateCoolingUtilizations(
     const probeTemp = parseFloat(String(c.current_temp ?? c.pill_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-    // Calculate utilization first (needed for both active-cooling check and results)
+    // Calculate hardware utilization (needed for raw data fields)
     const utilResult = await calculateSingleUtilization(ctx.supabase, c)
-    // Consider "actively cooling" if probe exceeds threshold OR utilization is meaningfully high
-    // OR PID has assigned a non-zero cooling duty (PWM mode — hardware util may be 0%)
-    const isAboveThreshold = probeTemp > targetTemp + hysteresis
-    const isHighUtil = utilResult.rolling != null && utilResult.rolling >= 0.30
+    // PID duty cycle is the primary demand signal; hardware util is fallback
     const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
-    const hasPidCoolingDuty = pwmDuty > 0
-    const isActivelyCooling = isAboveThreshold || isHighUtil || hasPidCoolingDuty
+    const pwmDutyFraction = pwmDuty / 100 // convert 0-100% to 0-1 fraction
+    // Effective utilization = max(PID duty, hardware util)
+    // PID duty reflects the calculated cooling need; hardware util reflects actual relay runtime
+    const hwUtil = utilResult.rolling
+    const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
+    // Consider "actively cooling" if probe exceeds threshold OR effective util is meaningfully high
+    const isAboveThreshold = probeTemp > targetTemp + hysteresis
+    const isHighUtil = effectiveUtil != null && effectiveUtil >= 0.30
+    const isActivelyCooling = isAboveThreshold || isHighUtil
 
     results.push({
       controllerId: c.controller_id,
       controllerName: c.name,
-      utilization: utilResult.rolling,
+      utilization: effectiveUtil,
       recentUtilization: utilResult.recent,
       midUtilization: utilResult.mid,
       oldestUtilization: utilResult.oldest,
