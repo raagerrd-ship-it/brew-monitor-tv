@@ -267,6 +267,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const prevModeValue = pressureMap.get('pid_current_mode')
     // pid_current_mode: 1 = heating, 2 = cooling
     const prevMode: 'heating' | 'cooling' | null = prevModeValue === 1 ? 'heating' : prevModeValue === 2 ? 'cooling' : null
+    const lastDutyPct = pressureMap.get('pid_last_duty') ?? 0
 
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
