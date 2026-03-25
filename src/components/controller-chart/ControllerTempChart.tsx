@@ -6,10 +6,12 @@ import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from '
 interface ControllerTempChartProps {
   controllerId: string;
   controllerColor?: string;
+  pillCompEnabled?: boolean;
 }
 
-export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
+export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6', pillCompEnabled = false }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
+  const tempLabel = pillCompEnabled ? 'Medel (probe+pill)' : 'Aktuell temp';
 
   if (loading) {
     return (
