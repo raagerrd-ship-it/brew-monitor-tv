@@ -1259,39 +1259,6 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 <td className="py-1 px-1.5 text-right whitespace-nowrap">{r1(det.ctrl_target as number)}</td>
                 <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>{r1(det.profile_target as number)}</td>
                 <td className="py-1 px-1.5 text-center whitespace-nowrap">
-                  {util ? (() => {
-                    const utilTip = buildUtilTooltip({
-                      lastUpdate: util.lastUpdate,
-                      recentPct: util.recentPct,
-                      midPct: util.midPct,
-                      oldestPct: util.oldestPct,
-                      ancientPct: util.ancientPct,
-                      pct: util.pct,
-                      prevAt: util.prevAt,
-                      p2At: util.p2At,
-                      anchorAt: util.anchorAt,
-                      p4At: util.p4At,
-                    });
-                    return (
-                      <TooltipProvider delayDuration={200}><Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className={`font-mono cursor-help ${util.pct != null && util.pct >= 80 ? 'text-amber-400' : util.pct != null && util.pct >= 40 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {util.active ? '❄️' : '⏸️'}{util.pct != null ? ` ${util.pct}%` : ' —'}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs whitespace-pre-line">{utilTip}</TooltipContent>
-                      </Tooltip></TooltipProvider>
-                    );
-                  })() : (
-                    <TooltipProvider delayDuration={200}><Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-muted-foreground/40 font-mono cursor-help">- %</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">Ingen kyldata för denna controller</TooltipContent>
-                    </Tooltip></TooltipProvider>
-                  )}
-                </td>
-                <td className="py-1 px-1.5 text-center whitespace-nowrap">
                   {(() => {
                     // Prefer PID-calculated duty cycle from PILL_COMP_STATUS
                     const pidDuty = pidDutyByName.get(name);
