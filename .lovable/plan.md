@@ -1,63 +1,46 @@
 
 
-## Åtgärda kvarvarande buggar (Bug 2 + Bug 3)
+## Byt PID-kompensationsbaren till PWM Duty Cycle-bar
 
-### Bug 2: Cooling DUTY_ZERO missar maxTemp-revert
+### Vad ändras
 
-**Problem:** När mode byter från heating till cooling kan hårdvaran stå kvar vid `maxTemp` (t.ex. 25°C) från en heating-burst. Cooling DUTY_ZERO-guarden (rad 443) kollar bara `ctrlTarget < 1` och missar detta fall.
+Den nuvarande "PID-kompensationsbaren" i TempStat visar hur mycket controllerns måltemperatur har justerats (±2°C). Eftersom systemet nu alltid kör PWM är det mer relevant att visa **duty cycle** (0–100%) med mode-indikation (❄️/🔥).
 
-**Fix:** Utöka DUTY_ZERO-villkoret i cooling-blocket att även fånga `ctrlTarget >= maxTemp - 0.5`:
+### Dataflöde
 
-<lov-plan>
+1. **Källa:** `auto_cooling_adjustments`-tabellen har redan `duty_pct` och `pid_mode` i PID-loggarna (🎯-poster).
+2. **Befintlig hämtning:** `use-brew-data.ts` hämtar redan dessa poster (`pidMatch`) men extraherar bara `reason`-strängen.
+3. **Nytt:** Extrahera `duty_pct` och `pid_mode` direkt från `pidMatch`-posten och lägg till på `BrewData`.
 
-## Åtgärda kvarvarande buggar (Bug 2 + Bug 3)
+### Plan
 
-### Bug 2: Cooling DUTY_ZERO missar maxTemp-revert
+**1. Utöka BrewData-typen** (`src/types/brew.ts`)
+- Lägg till `dutyPct: number | null` och `dutyMode: 'cooling' | 'heating' | null`
 
-**Problem:** När mode byter från heating till cooling kan hårdvaran stå kvar vid `maxTemp` (t.ex. 25°C) från en heating-burst. Cooling DUTY_ZERO-guarden (rad 443) kollar bara `ctrlTarget < 1` och missar detta fall.
+**2. Hämta duty-data** (`src/hooks/use-brew-data.ts`)
+- I befintlig overshoot/PID-fetch: parsa `duty_pct` och `pid_mode` ur `pidMatch.reason` (formatet `🎯 PID: ... duty=XX%...mode=cooling/heating`)
+- Alternativt: utöka `select()` att inkludera `details`-kolumnen om den finns, eller parsa från reason-strängen som redan görs i controller-dialogen
+- Mappa till `dutyPct` och `dutyMode` på brew-objektet
 
-**Fix:** Utöka DUTY_ZERO-villkoret i cooling-blocket (rad 443) att även fånga `ctrlTarget >= maxTemp - 0.5`:
+**3. Ersätt PID-baren med PWM-bar** (`src/components/brew-card/TempStat.tsx`)
+- Byt ut `pidBar` (rad 214–300):
+  - Skala: 0–100% (vänster till höger)
+  - Fylld bar från 0% till aktuell duty
+  - Färg: blå (❄️ cooling) eller amber (🔥 heating)
+  - Mode-ikon i skalans etikett
+  - Tooltip: visar duty %, mode, P/I-komponenter (parsade från `pidReason` som idag)
+- Skall-etiketter: `0%` vänster, `PWM XX% ❄️/🔥` center, `100%` höger
 
-```typescript
-// Rad 443 — controller-adjustments.ts
-// Före:
-if (ctrlTarget < 1) {
+**4. Samma vy i use-brew-page.ts**
+- Sätt `dutyPct: null` och `dutyMode: null` som defaults (för bryggsidor utan automation)
 
-// Efter:
-const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
+### Visuellt resultat
+
+```text
+Nuvarande PID-bar:        Ny PWM-bar:
+-2.0  PID +0.3°  +2.0     0%   PWM 20% ❄️   100%
+[====|==●===|====]         [████●·············]
 ```
 
----
-
-### Bug 3: P-correction nollställs för alla modes vid PWM burst
-
-**Problem:** Rad 431-433 (cooling) och 520-522 (heating) nollställer `latest_p_correction` på ALLA rader i `controller_learned_compensation` för controllern, inte bara det aktiva mode:t. Kan nollställa den andra modens inlärda P-correction i onödan.
-
-**Fix:** Lägg till `.eq('mode', ...)` filter vid P-correction reset:
-
-```typescript
-// Rad 431-433 (cooling burst) — lägg till mode-filter:
-await supabase.from('controller_learned_compensation')
-  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-  .eq('controller_id', fc.controller_id)
-  .eq('mode', 'cooling')
-
-// Rad 520-522 (heating burst) — lägg till mode-filter:
-await supabase.from('controller_learned_compensation')
-  .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-  .eq('controller_id', fc.controller_id)
-  .eq('mode', 'heating')
-```
-
----
-
-### Sammanfattning
-
-| Ändring | Fil | Rad |
-|---------|-----|-----|
-| DUTY_ZERO fånga maxTemp-rest | `controller-adjustments.ts` | 443 |
-| P-correction reset med mode-filter | `controller-adjustments.ts` | 431-433, 520-522 |
-
-Deploya `auto-adjust-cooling` edge function efter ändringarna.
+Baren fylls från vänster proportionellt mot duty cycle, med en markör-dot vid aktuellt värde. Samma glaseffekt och stil som spanBar.
 
