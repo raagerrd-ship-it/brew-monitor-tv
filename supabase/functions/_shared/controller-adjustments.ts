@@ -444,6 +444,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         sample_count: 1,
         last_updated_at: new Date().toISOString(),
       }, { onConflict: 'controller_id,parameter_name' })
+
+      // Learn steady-state duty cycle when within deadband (system at equilibrium)
+      if (pidResult.dutyCycle != null && Math.abs(pidResult.avgDelta) <= 0.1 && pidResult.iCorrection != null) {
+        const dutyBucket = getTempBucket(actualTarget)
+        await updateLearnedParam(supabase, fc.controller_id, `steady_state_duty:${dutyBucket}`, pidResult.iCorrection, 0, 1.0)
+      }
     }
 
     // ═══════════════════════════════════════════════════
