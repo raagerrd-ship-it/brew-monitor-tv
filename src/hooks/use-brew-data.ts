@@ -334,9 +334,9 @@ export function useBrewData(): UseBrewDataReturn {
       const dutyByControllerId = new Map<string, { duty: number; mode: 'cooling' | 'heating' | null }>();
       const latestDecisions = (decisionRes.data?.[0]?.decisions as any[]) || [];
       
-      // Build name→controller_id map from loaded controllers
+      // Build name→controller_id map from DB query
       const nameToIdMap = new Map<string, string>();
-      (controllersRef.current || []).forEach((c: TempController) => {
+      (controllerNamesRes.data || []).forEach((c: any) => {
         nameToIdMap.set(c.name, c.controller_id);
       });
       
