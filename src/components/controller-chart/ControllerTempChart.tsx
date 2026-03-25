@@ -94,7 +94,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             />
             <Legend 
               formatter={(value) => {
-                if (value === 'currentTemp') return 'Aktuell temp';
+                if (value === 'currentTemp') return tempLabel;
                 if (value === 'targetTemp') return 'Måltemp';
                 return 'Kylning %';
               }}
