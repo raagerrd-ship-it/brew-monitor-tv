@@ -400,7 +400,7 @@ export async function calculateCompensatedTarget(
 
   let hDutyCycle = 0
 
-  if (Math.abs(avgError) <= 0.1) {
+  if (Math.abs(avgError) <= 0.05) {
     // DEADBAND: hold at integral (learned steady-state duty) — no decay
     hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
