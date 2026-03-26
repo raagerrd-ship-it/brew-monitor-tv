@@ -21,6 +21,7 @@ interface UseBrewChartDataProps {
   controllerId?: string;
   brewId?: string;
   smoothLines: boolean;
+  /** @deprecated ignored — dual sensor is per-controller now */
   pillCompensation?: boolean;
 }
 
@@ -44,7 +45,6 @@ export function useBrewChartData({
   controllerId: _controllerId,
   brewId,
   smoothLines,
-  pillCompensation = true,
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
