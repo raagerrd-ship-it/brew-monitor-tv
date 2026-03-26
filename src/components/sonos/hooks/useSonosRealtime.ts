@@ -93,19 +93,20 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           };
         }
 
-        // Same track → only next_* + state + fill missing art
+        // Same track → only next_* + state + fill missing/updated art
         accepted = true;
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
         const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
-        const needsBg = !prev.bg_image_url && incoming.bg_image_url;
-        const needsWidget = !prev.widget_art_url && incoming.widget_art_url;
+        // Accept bg if missing OR if server sent a different one (Phase 2 after track change)
+        const bgChanged = incoming.bg_image_url && stripQs(incoming.bg_image_url) !== stripQs(prev.bg_image_url);
+        const widgetChanged = incoming.widget_art_url && stripQs(incoming.widget_art_url) !== stripQs(prev.widget_art_url);
 
         // Preload next images
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
         if (nextWidgetNew) { const img = new Image(); img.src = incoming.next_widget_art_url!; }
 
-        if (needsBg) {
+        if (bgChanged) {
           pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
           onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
           bgSentRef.current = incoming.bg_image_url;
@@ -115,7 +116,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
         }
 
-        const hasChanges = nextBgNew || nextWidgetNew || needsBg || needsWidget
+        const hasChanges = nextBgNew || nextWidgetNew || bgChanged || widgetChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
@@ -124,8 +125,8 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         return {
           ...prev,
           playback_state: incoming.playback_state,
-          ...(needsBg ? { bg_image_url: incoming.bg_image_url } : {}),
-          ...(needsWidget ? { widget_art_url: incoming.widget_art_url } : {}),
+          ...(bgChanged ? { bg_image_url: incoming.bg_image_url } : {}),
+          ...(widgetChanged ? { widget_art_url: incoming.widget_art_url } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
           ...(nextBgNew ? { next_bg_image_url: incoming.next_bg_image_url } : {}),
