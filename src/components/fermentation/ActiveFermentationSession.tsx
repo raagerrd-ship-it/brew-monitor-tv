@@ -205,7 +205,6 @@ export function ActiveFermentationSession({
                   originalGravity={originalGravity}
                   activityScore={activityScore}
                   attenuation={attenuation}
-                  pillCompEnabled={pillCompEnabled}
                 />
                 <StepConditionsDisplay
                   currentStep={currentStep}
