@@ -137,11 +137,11 @@ export function RaptControllersManagement() {
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Mål</p>
                     <p className="text-xl font-bold tabular-nums text-primary">
-                      {pillCompEnabled && originalTargets[controller.controller_id] != null
+                      {originalTargets[controller.controller_id] != null
                         ? `${originalTargets[controller.controller_id].toFixed(1)}°`
                         : controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
                     </p>
-                    {pillCompEnabled && originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
+                    {originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
                       <p className="text-[10px] text-muted-foreground/70 mt-0.5">
                         Ctrl-mål (PID): {controller.target_temp.toFixed(1)}°
                       </p>

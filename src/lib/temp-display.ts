@@ -1,28 +1,18 @@
 /**
  * Centralized "actual temperature" calculation.
  *
- * SSOT Naming:
- *   actualTemp   = fused sensor reading (avg or probe-only)
- *   actualTarget = user's desired target (profile_target_temp)
- *   ctrlTargetPid = PID-adjusted target sent to hardware
- *
- * Rules:
- *  - pillCompEnabled ON + both sensors available → average(pill, probe)
- *  - pillCompEnabled OFF (or only one sensor)   → probe ?? pill
+ * SSOT: actual_temp is pre-calculated by the sync engine and stored on the controller.
+ * This function provides a fallback for cases where actual_temp isn't available yet.
  */
 export function getActualTemp(
   pillTemp: number | null | undefined,
   probeTemp: number | null | undefined,
-  pillCompEnabled: boolean,
+  _pillCompEnabled?: boolean, // deprecated, kept for backward compat
 ): number | null {
   const hasPill = pillTemp != null;
   const hasProbe = probeTemp != null;
 
-  if (pillCompEnabled && hasPill && hasProbe) {
-    return (pillTemp + probeTemp) / 2;
-  }
-
-  return hasPill ? pillTemp : hasProbe ? probeTemp : null;
+  return hasProbe ? probeTemp : hasPill ? pillTemp : null;
 }
 
 /**

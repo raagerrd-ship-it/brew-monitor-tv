@@ -455,7 +455,7 @@ export function AutomationFeatureStatus(props: Props) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment]);
+  }, [autoCoolingEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment]);
 
   if (blocks.length === 0) return null;
 

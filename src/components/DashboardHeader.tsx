@@ -281,7 +281,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    )}
 
                    {(() => {
-                     const displayTemp = getActualTemp(controller.pill_temp, controller.current_temp, pillCompEnabled);
+                      const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
                        fontSize: isMobile ? undefined : '16px',
