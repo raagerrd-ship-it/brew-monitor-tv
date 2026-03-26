@@ -155,7 +155,7 @@ export function useBrewPage(brewId: string | undefined) {
         setBrew(brewData);
         setPills(responseData.pills || []);
         setControllers(responseData.controllers || []);
-        setPillCompEnabled(responseData.pillCompEnabled ?? false);
+        setControllers(responseData.controllers || []);
       } catch (err) {
         console.error('Error fetching brew:', err);
         setError("Kunde inte hämta öl-data");
