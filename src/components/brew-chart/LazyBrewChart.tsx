@@ -35,7 +35,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brewId, compact, brewCount, pillCompensation }),
+        body: JSON.stringify({ brewId, compact, brewCount }),
         signal,
       });
 
