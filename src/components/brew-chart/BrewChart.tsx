@@ -52,7 +52,6 @@ function BrewChartComponent({
     controllerId: shouldRenderChart ? controllerId : undefined,
     brewId,
     smoothLines,
-    pillCompensation,
   });
 
   // Memoize sorted events
