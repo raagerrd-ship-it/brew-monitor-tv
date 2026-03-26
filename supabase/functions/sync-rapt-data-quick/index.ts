@@ -330,12 +330,11 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count')
+          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count, dual_sensor_enabled')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
         const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
-        const isPillCompEnabled = autoCoolingRow?.enabled && autoCoolingRow?.pill_compensation_enabled;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
