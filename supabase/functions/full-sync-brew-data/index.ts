@@ -435,6 +435,7 @@ Deno.serve(async (req) => {
           pill_temp: s.pill_temp,
           controller_temp: s.controller_temp,
           profile_target_temp: s.profile_target_temp,
+          actual_temp: s.actual_temp ?? null,
         })
       }
     }
