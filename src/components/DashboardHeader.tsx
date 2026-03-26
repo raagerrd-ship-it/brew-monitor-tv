@@ -95,7 +95,7 @@ export function DashboardHeader({
             {sonosSlot ?? <Logo />}
           </div>
 
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
             {controllers.length > 0 && (
               <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
             )}
