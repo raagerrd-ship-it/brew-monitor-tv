@@ -635,12 +635,12 @@ export async function loadPillCompSettings(
 ): Promise<PillCompensationSettings> {
   const { data: acSettings } = await supabase
     .from('auto_cooling_settings')
-    .select('pill_compensation_enabled, pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation, pill_compensation_damping')
+    .select('pill_compensation_rate_limit, pill_compensation_emergency_threshold, pill_compensation_min_scale, pill_compensation_max_compensation, pill_compensation_damping')
     .limit(1)
     .maybeSingle()
 
   return {
-    enabled: (acSettings as any)?.pill_compensation_enabled ?? true,
+    enabled: true, // Now per-controller (dual_sensor_enabled), kept true for backward compat
     rateLimit: parseFloat(String((acSettings as any)?.pill_compensation_rate_limit ?? 0.8)),
     emergencyThreshold: parseFloat(String((acSettings as any)?.pill_compensation_emergency_threshold ?? 3.0)),
     minScale: parseFloat(String((acSettings as any)?.pill_compensation_min_scale ?? 0.15)),

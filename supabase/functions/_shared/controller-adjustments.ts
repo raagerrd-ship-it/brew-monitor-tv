@@ -204,18 +204,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Dual sensor fusion: compute actualTemp
-    // Per-brew override: if brew has pill_compensation=false, disable dual sensors for this controller
-    const dualEnabled = perBrewDualMap.has(fc.controller_id)
-      ? perBrewDualMap.get(fc.controller_id)!
-      : pillCompSettings.enabled
-    const dualSensor = computeDualSensorTarget(
-      actualTarget,
-      fc.current_temp ?? null,
-      fc.pill_temp ?? null,
-      dualEnabled,
-    )
-    const { actualTemp, enabled: hasDualSensors } = dualSensor
+    // Dual sensor fusion: read pre-computed actual_temp from sync engine,
+    // or compute from controller's own dual_sensor_enabled flag
+    const dualEnabled = (fc as any).dual_sensor_enabled ?? false
+    const actualTemp = (fc as any).actual_temp != null
+      ? parseFloat(String((fc as any).actual_temp))
+      : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled).actualTemp
 
     // Store actualTarget for cooler management (stable target without PID fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, actualTarget)
