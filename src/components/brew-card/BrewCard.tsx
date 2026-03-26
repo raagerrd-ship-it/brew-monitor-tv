@@ -365,7 +365,6 @@ function BrewCardComponent({
               devices={devices} 
               updatedFields={updatedFields}
               onControllerClick={onControllerClick}
-              pillCompEnabled={pillCompEnabled}
             />
             <AttenuationStat brew={brew} updatedFields={updatedFields} />
           </div>
