@@ -190,10 +190,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
       }
 
       const timeComplete = elapsedHours >= currentStep.duration_hours
-      const rampingUp = currentStep.target_temp > startTemp
-      const rampCheckTemp = rampingUp
-        ? (controller.pill_temp ?? controller.current_temp)
-        : (controller.current_temp ?? controller.pill_temp)
+      const rampCheckTemp = getResolvedTemp(controller)
       const tempReached = rampCheckTemp !== null &&
         Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
 
