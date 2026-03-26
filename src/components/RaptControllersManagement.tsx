@@ -12,11 +12,7 @@ import { useControllersManagement } from "@/hooks";
 import { getActualTemp } from "@/lib/temp-display";
 
 
-interface RaptControllersManagementProps {
-  pillCompEnabled?: boolean;
-}
-
-export function RaptControllersManagement({ pillCompEnabled = false }: RaptControllersManagementProps) {
+export function RaptControllersManagement() {
   const {
     controllers, pills, selectedControllers, selectedControllersData,
     coolerControllerId, loading, editingLimitsId,
