@@ -30,7 +30,7 @@ export function BrewingDashboard() {
 
   // Use the optimized brew data hook
   const {
-    brews, pills, controllers, loading, updatedFields, isAuthenticated, pillCompEnabled,
+    brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
     onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange, onCachedTimerChange,
   } = useBrewData();
