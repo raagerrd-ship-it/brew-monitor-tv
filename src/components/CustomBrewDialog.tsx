@@ -224,7 +224,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
-        setPillCompensation(editBrew.pill_compensation ?? true);
+        // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
           const date = new Date(editBrew.fermentation_start);
