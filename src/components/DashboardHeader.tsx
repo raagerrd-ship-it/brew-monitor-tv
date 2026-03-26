@@ -97,7 +97,7 @@ export function DashboardHeader({
 
           <div className="flex-1 flex items-center justify-center">
             {controllers.length > 0 && (
-              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
+              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
             )}
           </div>
 
