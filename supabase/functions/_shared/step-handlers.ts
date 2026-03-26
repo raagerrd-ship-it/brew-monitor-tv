@@ -174,7 +174,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
     } else {
       actionTaken = 'profile_target_set'
       actionDetails = { profile_target: currentStep.target_temp, step_type: 'immediate_ramp' }
-      console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
+      console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (actual: ${immRampCheckTemp}°C)`)
     }
   } else {
     // Linear ramp
