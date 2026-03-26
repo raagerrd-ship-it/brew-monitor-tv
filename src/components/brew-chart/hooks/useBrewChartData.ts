@@ -104,7 +104,7 @@ export function useBrewChartData({
         const hasBoth = row.controller_temp != null && row.pill_temp != null;
         const avgTemp = hasBoth
           ? (row.controller_temp! + row.pill_temp) / 2
-          : null;
+          : row.pill_temp ?? row.controller_temp ?? null;
         const tempSpan = hasBoth
           ? Math.abs(row.pill_temp - row.controller_temp!)
           : null;
@@ -112,8 +112,8 @@ export function useBrewChartData({
           date: row.recorded_at,
           value: row.sg,
           temp: row.pill_temp,
-          pillTemp: row.pill_temp,
-          controllerTemp: row.controller_temp,
+          pillTemp: hasBoth ? row.pill_temp : null,
+          controllerTemp: hasBoth ? row.controller_temp : null,
           targetTemp: row.profile_target_temp,
           avgTemp,
           tempSpan,
