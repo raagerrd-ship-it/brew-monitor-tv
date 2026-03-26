@@ -29,15 +29,12 @@ function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
 }
 
 /**
- * Pick the correct sensor for temperature comparison based on direction.
- * Warming up → pill (surface heats first, more responsive)
- * Cooling down → probe (core cools first via glycol contact)
+ * Get the resolved temperature for a controller.
+ * SSOT: always prefer actual_temp (pre-calculated by sync engine).
+ * Falls back to probe → pill if actual_temp is not available.
  */
-function getDirectionalTemp(controller: TempController, targetTemp: number, referenceTemp: number): number | null {
-  const rampingUp = targetTemp > referenceTemp
-  return rampingUp
-    ? (controller.pill_temp ?? controller.current_temp ?? null)
-    : (controller.current_temp ?? controller.pill_temp ?? null)
+function getResolvedTemp(controller: TempController): number | null {
+  return controller.actual_temp ?? controller.current_temp ?? controller.pill_temp ?? null
 }
 
 export function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
