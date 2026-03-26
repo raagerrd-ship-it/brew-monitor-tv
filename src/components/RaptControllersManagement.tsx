@@ -25,11 +25,9 @@ export function RaptControllersManagement() {
 
   // SSOT: profile_target_temp is always available on the controller row — no extra fetch needed
   const originalTargets: Record<string, number> = {};
-  if (pillCompEnabled) {
-    for (const c of controllers) {
-      if (!c.is_glycol_cooler && c.profile_target_temp != null) {
-        originalTargets[c.controller_id] = c.profile_target_temp;
-      }
+  for (const c of controllers) {
+    if (!c.is_glycol_cooler && c.profile_target_temp != null) {
+      originalTargets[c.controller_id] = c.profile_target_temp;
     }
   }
 
