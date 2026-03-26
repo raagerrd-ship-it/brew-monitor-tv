@@ -60,8 +60,8 @@ export function ActiveFermentationSession({
 
   if (loading || !session) return null;
 
-  // Compute actual temp using SSOT logic (average of pill+probe when pillComp enabled)
-  const actualTemp = getActualTemp(controllerData?.pill_temp, controllerData?.current_temp, pillCompEnabled);
+  // Compute actual temp: use pre-calculated actual_temp from controller, fallback to probe
+  const actualTemp = (controllerData as any)?.actual_temp ?? getActualTemp(controllerData?.pill_temp, controllerData?.current_temp);
 
   const currentStep = session.steps?.[session.current_step_index];
   const progress = calculateProgress();
