@@ -869,7 +869,7 @@ export function useBrewData(): UseBrewDataReturn {
     updatedFields,
     brewEvents,
     isAuthenticated,
-    pillCompEnabled,
+    
     loadBrews,
     loadRaptData,
     loadBrewEvents,
