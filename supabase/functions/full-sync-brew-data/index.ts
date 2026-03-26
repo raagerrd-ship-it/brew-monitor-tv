@@ -304,11 +304,12 @@ Deno.serve(async (req) => {
                 if (record.linked_controller_id) {
                   const { data: ctrl } = await supabase
                     .from('rapt_temp_controllers')
-                    .select('current_temp, profile_target_temp')
+                    .select('current_temp, profile_target_temp, actual_temp')
                     .eq('controller_id', record.linked_controller_id)
                     .maybeSingle()
                   ctrlTemp = ctrl?.current_temp ?? null
                   profileTarget = ctrl?.profile_target_temp ?? null
+                  var ctrlActualTemp: number | null = ctrl?.actual_temp ?? null
                 }
                 pendingFullSyncSnapshots.push({
                   brewId: record.id,
