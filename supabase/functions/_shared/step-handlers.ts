@@ -114,8 +114,9 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
     durationComplete = true
   }
 
-  if (brewData && currentStep.target_sg !== null && currentStep.sg_comparison) {
-    sgTargetMet = isSgConditionMet(brewData.sg_data, currentStep.target_sg, currentStep.sg_comparison)
+  const sgComparison = currentStep.sg_comparison ?? 'below'
+  if (brewData && currentStep.target_sg !== null) {
+    sgTargetMet = isSgConditionMet(brewData.sg_data, currentStep.target_sg, sgComparison)
     if (sgTargetMet) {
       const latest = getLatestSg(brewData.sg_data)
       actionDetails = {
