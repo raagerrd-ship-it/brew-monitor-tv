@@ -1310,6 +1310,7 @@ Deno.serve(async (req) => {
           pill_temp: latest.temp ?? null,
           controller_temp: ctrl?.current_temp ?? null,
           profile_target_temp: ctrl?.profile_target_temp ?? null,
+          actual_temp: ctrl?.actual_temp ?? null,
         });
         count++;
       }
