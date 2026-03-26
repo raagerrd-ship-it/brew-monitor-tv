@@ -282,16 +282,16 @@ function BrewChartComponent({
             tooltipType="none"
           />
 
-          {/* Pill temp - Area with gradient when pill_comp off, faint Line when on */}
+          {/* Pill temp - always faint secondary line */}
           <Area
             yAxisId="temp"
             type={areaType}
             dataKey="pillTemp"
-            stroke={pillCompensation ? COLORS.tempFaint : COLORS.temp}
-            strokeWidth={pillCompensation ? DATA_SERIES_CONFIG.pillTemp.strokeWidth : DATA_SERIES_CONFIG.avgTemp.strokeWidth}
-            fill={pillCompensation ? "transparent" : `url(#avgTempGrad-${chartIndex})`}
+            stroke={COLORS.tempFaint}
+            strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
+            fill="transparent"
             dot={false}
-            activeDot={{ r: (pillCompensation ? DATA_SERIES_CONFIG.pillTemp.dotRadius : DATA_SERIES_CONFIG.avgTemp.dotRadius), fill: pillCompensation ? "hsl(var(--temp-blue) / 0.5)" : COLORS.temp }}
+            activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
             name="pillTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
