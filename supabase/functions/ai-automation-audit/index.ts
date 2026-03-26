@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
     const systemPrompt = `Du är en expert-AI som övervakar ett automatiserat bryggeri-temperaturkontrollsystem. Din uppgift är att analysera systemets prestanda och göra direkta parameterändringar om det behövs.
 
 ## Systemöversikt
-- PI(D)-regulator kompenserar för skillnaden mellan pill-temp (vätskans temp) och controller-temp (prob-temp)
+- PI(D)-regulator kompenserar för skillnaden mellan pill-temp (vätskans temp) och controller-temp (prob-temp). Dual-sensor (pill+probe medelvärde) konfigureras per controller via dual_sensor_enabled.
 - Glykolkylare sänks automatiskt under lägsta följda controller
 - Stall-detektion upptäcker avstannad jäsning och applicerar temperatur-boost
 - Inlärda parametrar sparas per controller i fermentation_learnings
