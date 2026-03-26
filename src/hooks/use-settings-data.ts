@@ -554,7 +554,7 @@ export function useSettingsData() {
     // Auto-cooling
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
-    pillCompEnabled, pillCompMaxCompensation,
+    pillCompMaxCompensation,
     stallDetectionEnabled, stallBoostDegrees, overshootPreventionEnabled, aiAuditEnabled, sgTempCorrectionEnabled,
     lastAutoCoolingCheck, lastAdjustment,
     // Controllers & devices
