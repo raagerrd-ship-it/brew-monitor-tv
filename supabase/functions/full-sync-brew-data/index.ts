@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
     }
 
     let brewUpdatesCount = 0
-    let pendingFullSyncSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = []
+    let pendingFullSyncSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null; actual_temp?: number | null }[] = []
 
     if (brewfatherEnabled && visibleBatchIds.size > 0) {
       const brewfatherBatchIds = [...visibleBatchIds].filter(id => !id.startsWith('custom_'))
@@ -304,11 +304,12 @@ Deno.serve(async (req) => {
                 if (record.linked_controller_id) {
                   const { data: ctrl } = await supabase
                     .from('rapt_temp_controllers')
-                    .select('current_temp, profile_target_temp')
+                    .select('current_temp, profile_target_temp, actual_temp')
                     .eq('controller_id', record.linked_controller_id)
                     .maybeSingle()
                   ctrlTemp = ctrl?.current_temp ?? null
                   profileTarget = ctrl?.profile_target_temp ?? null
+                  var ctrlActualTemp: number | null = ctrl?.actual_temp ?? null
                 }
                 pendingFullSyncSnapshots.push({
                   brewId: record.id,
@@ -317,6 +318,7 @@ Deno.serve(async (req) => {
                   pill_temp: latest.temp,
                   controller_temp: ctrlTemp,
                   profile_target_temp: profileTarget,
+                  actual_temp: typeof ctrlActualTemp !== 'undefined' ? ctrlActualTemp : null,
                 })
               }
             }
@@ -433,6 +435,7 @@ Deno.serve(async (req) => {
           pill_temp: s.pill_temp,
           controller_temp: s.controller_temp,
           profile_target_temp: s.profile_target_temp,
+          actual_temp: s.actual_temp ?? null,
         })
       }
     }
