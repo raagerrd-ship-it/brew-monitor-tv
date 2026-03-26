@@ -271,8 +271,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // 6-cycle stabilisation guard and switch immediately.
     // This only applies when the profile has moved the target clearly
     // past the current temp in the opposite direction of the current mode.
-    const profileStatus = ctx.profileStatusMap.get(fc.controller_id)
-    const isProfileRamp = profileStatus?.currentStepType === 'gradual_ramp' || profileStatus?.currentStepType === 'ramp'
+    const profileSwitchStatus = ctx.profileStatusMap.get(fc.controller_id)
+    const isProfileRamp = profileSwitchStatus?.currentStepType === 'gradual_ramp' || profileSwitchStatus?.currentStepType === 'ramp'
     const profileDirectedSwitch = canSwitchMode && prevMode != null && suggestedMode !== prevMode
       && isProfileRamp && distanceToTarget > 0.3
 
