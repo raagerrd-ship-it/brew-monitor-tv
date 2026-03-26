@@ -15,8 +15,6 @@ export interface BrewCardProps {
   hasAlbumArtBackground?: boolean;
   /** Number of brews displayed - affects TV chart proportions */
   brewCount?: number;
-  /** Whether pill compensation is enabled (affects actual temp calculation) */
-  pillCompEnabled?: boolean;
 }
 
 export interface DeviceMatch {
