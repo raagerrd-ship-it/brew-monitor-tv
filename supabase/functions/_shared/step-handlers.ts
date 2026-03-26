@@ -128,9 +128,7 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
   }
 
   const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps, session.current_step_index)
-  const holdCheckTemp = controller && holdEffectiveTarget
-    ? getDirectionalTemp(controller, holdEffectiveTarget, controller.current_temp ?? holdEffectiveTarget)
-    : (controller?.pill_temp ?? controller?.current_temp ?? null)
+  const holdCheckTemp = controller ? getResolvedTemp(controller) : null
   const holdTempOk = !holdEffectiveTarget || !controller ||
     (holdCheckTemp !== null && Math.abs(holdCheckTemp - holdEffectiveTarget) <= 0.3)
 
