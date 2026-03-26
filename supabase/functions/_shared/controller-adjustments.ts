@@ -160,31 +160,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   } = ctx
   const adjustments: AdjustmentResult[] = []
 
-  // PID always runs — the "Dubbla temperaturgivare" toggle only controls
-  // whether actual_temp is an average of pill+probe or just probe.
-  log('PID_CONTROL', 'info', `PID control check (dual sensors: ${pillCompSettings.enabled ? 'ON' : 'OFF'})`)
-
-  // Pre-load per-brew pill_compensation overrides.
-  // If a brew has pill_compensation=false, dual sensors are disabled for that controller
-  // even when the global setting is ON.
-  // Look up ALL brews linked to followed controllers (not just session brews),
-  // because a brew can be linked via linked_controller_id without an active session.
-  const perBrewDualMap = new Map<string, boolean>() // controller_id → dual enabled
-  const allFollowedIds = followedControllersFullData.map(c => c.controller_id)
-  if (allFollowedIds.length > 0) {
-    const { data: brewSettings } = await supabase
-      .from('brew_readings')
-      .select('id, pill_compensation, linked_controller_id')
-      .in('linked_controller_id', allFollowedIds)
-      .eq('pill_compensation', false)
-    if (brewSettings) {
-      for (const b of brewSettings) {
-        if (b.linked_controller_id) {
-          perBrewDualMap.set(b.linked_controller_id, false)
-        }
-      }
-    }
-  }
+  // PID always runs — dual-sensor is now per controller (dual_sensor_enabled)
+  log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
   // Pre-load pending PWM reverts to detect controllers in active PWM cycles.
   // During PWM, PID is completely locked — no calculations or adjustments.
