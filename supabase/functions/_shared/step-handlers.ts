@@ -163,10 +163,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
     const immStartTemp = session.step_start_temp ?? controller?.target_temp ?? currentStep.target_temp
-    const immRampingUp = currentStep.target_temp > immStartTemp
-    const immRampCheckTemp = immRampingUp
-      ? (controller?.pill_temp ?? controller?.current_temp ?? null)
-      : (controller?.current_temp ?? controller?.pill_temp ?? null)
+    const immRampCheckTemp = controller ? getResolvedTemp(controller) : null
 
     if (controller && immRampCheckTemp !== null &&
       Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
