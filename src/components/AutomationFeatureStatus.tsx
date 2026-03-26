@@ -163,7 +163,7 @@ function buildFeatureBlocks(
     }
   }
 
-  if (props.pillCompEnabled) {
+  if (true) { // PID compensation — always show for followed controllers
     const controllers: ControllerLine[] = [];
 
     for (const c of allNonCooler) {
