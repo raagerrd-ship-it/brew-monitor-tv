@@ -229,7 +229,6 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <ControllerTempChart 
               controllerId={controller.controller_id} 
               controllerColor={controllerColor}
-              pillCompEnabled={isPillCompActive}
             />
           </div>
         </div>
