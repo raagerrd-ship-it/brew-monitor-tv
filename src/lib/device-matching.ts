@@ -41,10 +41,9 @@ export function findDevicesForBrew(
     }
   }
 
-  // If pill_compensation is explicitly disabled, hide controller from frontend
-  if (brew.pill_compensation === false) {
-    return { pill: matchingPill, controller: null };
-  }
+  // pill_compensation=false only disables PID compensation logic,
+  // but the controller is still needed for target temps, actual_temp, etc.
+
 
   return { pill: matchingPill, controller: matchingController };
 }
