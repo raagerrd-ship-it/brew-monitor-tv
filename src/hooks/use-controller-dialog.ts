@@ -47,21 +47,22 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   useEffect(() => {
     const loadSessionAndTarget = async () => {
       // Check active session
-      const { data: sessionData } = await supabase
-        .from('fermentation_sessions')
-        .select('id')
-        .eq('controller_id', controller.controller_id)
-        .in('status', ['running', 'paused'])
-        .maybeSingle();
+      const [{ data: sessionData }, { data: ctrlData }] = await Promise.all([
+        supabase
+          .from('fermentation_sessions')
+          .select('id')
+          .eq('controller_id', controller.controller_id)
+          .in('status', ['running', 'paused'])
+          .maybeSingle(),
+        supabase
+          .from('rapt_temp_controllers')
+          .select('profile_target_temp, dual_sensor_enabled')
+          .eq('controller_id', controller.controller_id)
+          .single(),
+      ]);
 
       setHasActiveSession(!!sessionData);
-
-      // SSOT: profile_target_temp is always the user's desired target
-      const { data: ctrlData } = await supabase
-        .from('rapt_temp_controllers')
-        .select('profile_target_temp')
-        .eq('controller_id', controller.controller_id)
-        .single();
+      setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
 
       if (ctrlData?.profile_target_temp != null) {
         setOriginalTarget(ctrlData.profile_target_temp);
