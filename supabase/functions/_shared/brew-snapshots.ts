@@ -10,6 +10,7 @@ export interface SnapshotData {
   pill_temp: number | null;
   controller_temp: number | null;
   profile_target_temp: number | null;
+  actual_temp?: number | null;
 }
 
 export async function createBrewSnapshot(
