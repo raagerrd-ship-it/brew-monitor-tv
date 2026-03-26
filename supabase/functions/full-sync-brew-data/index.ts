@@ -301,6 +301,7 @@ Deno.serve(async (req) => {
                 // Look up controller state for this brew
                 let ctrlTemp: number | null = null
                 let profileTarget: number | null = null
+                let ctrlActualTemp: number | null = null
                 if (record.linked_controller_id) {
                   const { data: ctrl } = await supabase
                     .from('rapt_temp_controllers')
@@ -309,7 +310,7 @@ Deno.serve(async (req) => {
                     .maybeSingle()
                   ctrlTemp = ctrl?.current_temp ?? null
                   profileTarget = ctrl?.profile_target_temp ?? null
-                  var ctrlActualTemp: number | null = ctrl?.actual_temp ?? null
+                  ctrlActualTemp = ctrl?.actual_temp ?? null
                 }
                 pendingFullSyncSnapshots.push({
                   brewId: record.id,
@@ -318,7 +319,7 @@ Deno.serve(async (req) => {
                   pill_temp: latest.temp,
                   controller_temp: ctrlTemp,
                   profile_target_temp: profileTarget,
-                  actual_temp: typeof ctrlActualTemp !== 'undefined' ? ctrlActualTemp : null,
+                  actual_temp: ctrlActualTemp,
                 })
               }
             }
