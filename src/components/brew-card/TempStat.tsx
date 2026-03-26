@@ -12,10 +12,9 @@ interface TempStatProps {
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
   onControllerClick?: (controller: import("@/types/brew").TempController) => void;
-  pillCompEnabled?: boolean;
 }
 
-function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pillCompEnabled = false }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
 
