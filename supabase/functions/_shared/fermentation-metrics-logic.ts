@@ -22,8 +22,8 @@ function determineFermentationPhase(
   const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   const now = Date.now()
 
-  const twelveHoursAgo = now - 12 * 60 * 60 * 1000
-  const recent = sorted.filter(p => new Date(p.date).getTime() > twelveHoursAgo)
+  const sixHoursAgo = now - 6 * 60 * 60 * 1000
+  const recent = sorted.filter(p => new Date(p.date).getTime() > sixHoursAgo)
   if (recent.length < 2) return { phase: 'unknown', sgRatePerHour: 0 }
 
   const newest = recent[0]
