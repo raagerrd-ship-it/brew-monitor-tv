@@ -164,6 +164,19 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </div>
           )}
 
+          {/* Dual Sensor Toggle — only for non-cooler controllers with a pill */}
+          {!isCooler && currentController.pill_temp != null && isAuthenticated && (
+            <div className="flex items-center justify-between py-2 px-1">
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium">Dubbla givare</p>
+                <p className="text-[10px] text-muted-foreground/70">Medelvärde av pill + probe</p>
+              </div>
+              <Switch
+                checked={dualSensorEnabled}
+                onCheckedChange={() => toggleDualSensor()}
+              />
+            </div>
+          )}
           {/* Heating/Cooling Status */}
           <div className="flex gap-2">
             <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${

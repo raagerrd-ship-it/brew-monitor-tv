@@ -253,6 +253,15 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     ctrl.target_temp != null &&
     ctrl.current_temp < (ctrl.target_temp - heatingHyst);
 
+  const toggleDualSensor = useCallback(async () => {
+    const newValue = !dualSensorEnabled;
+    setDualSensorEnabled(newValue);
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ dual_sensor_enabled: newValue } as any)
+      .eq('controller_id', controller.controller_id);
+  }, [controller.controller_id, dualSensorEnabled]);
+
   return {
     loading,
     isAuthenticated,
@@ -266,7 +275,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     setTargetTemperature,
     isActivelyCooling,
     isActivelyHeating,
-    pillCompEnabled,
+    dualSensorEnabled,
+    toggleDualSensor,
     originalTarget,
     dutyCyclePct,
     dutyMode,
