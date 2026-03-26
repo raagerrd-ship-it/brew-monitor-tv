@@ -1293,7 +1293,7 @@ Deno.serve(async (req) => {
       const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
       const { data: ctrls } = ctrlIds.length > 0
         ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, profile_target_temp, last_update')
+            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update')
             .in('controller_id', ctrlIds)
         : { data: [] as any[] };
       const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
