@@ -20,47 +20,63 @@ Deno.serve(async (req) => {
 
   const results: { step: string; status: string; duration_ms: number; error?: string; details?: any }[] = [];
 
-  // Helper to call an edge function with timeout protection
+  // Helper to call an edge function with timeout protection and retry
   async function runStep(
     name: string,
     functionName: string,
     body: Record<string, unknown> = {},
-    timeoutMs: number = 20000
+    timeoutMs: number = 20000,
+    retries: number = 2
   ) {
-    const stepStart = Date.now();
-    try {
-      const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      const stepStart = Date.now();
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
 
-      const duration_ms = Date.now() - stepStart;
+        const duration_ms = Date.now() - stepStart;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        results.push({ step: name, status: "error", duration_ms, error: `${response.status}: ${errorText}` });
+        if (!response.ok) {
+          const errorText = await response.text();
+          // Retry on transient errors (404 during deploy, 502/503 gateway)
+          if (attempt < retries && [404, 502, 503].includes(response.status)) {
+            console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in 3s...`);
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          results.push({ step: name, status: "error", duration_ms, error: `${response.status}: ${errorText}` });
+          return null;
+        }
+
+        const data = await response.json();
+        results.push({ step: name, status: "ok", duration_ms, details: data });
+        return data;
+      } catch (err) {
+        const duration_ms = Date.now() - stepStart;
+        const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+        if (attempt < retries && !isTimeout) {
+          console.warn(`${name} attempt ${attempt}/${retries} error, retrying in 3s...`);
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        results.push({
+          step: name,
+          status: isTimeout ? "timeout" : "error",
+          duration_ms,
+          error: isTimeout ? `Timeout after ${timeoutMs}ms` : String(err),
+        });
         return null;
       }
-
-      const data = await response.json();
-      results.push({ step: name, status: "ok", duration_ms, details: data });
-      return data;
-    } catch (err) {
-      const duration_ms = Date.now() - stepStart;
-      const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
-      results.push({
-        step: name,
-        status: isTimeout ? "timeout" : "error",
-        duration_ms,
-        error: isTimeout ? `Timeout after ${timeoutMs}ms` : String(err),
-      });
-      return null;
     }
+    results.push({ step: name, status: "error", duration_ms: 0, error: "All retries exhausted" });
+    return null;
   }
 
   // Check what needs to run

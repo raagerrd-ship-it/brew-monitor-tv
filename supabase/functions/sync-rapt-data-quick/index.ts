@@ -965,30 +965,45 @@ Deno.serve(async (req) => {
       const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
 
       // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
-      const callFn = async (name: string, body: any, timeoutMs: number) => {
-        const fnStart = Date.now();
-        try {
-          const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(timeoutMs),
-          });
-          const duration = Date.now() - fnStart;
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
-            return { __error: true, __step: name, __duration: duration };
+      const callFn = async (name: string, body: any, timeoutMs: number, retries = 2) => {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          const fnStart = Date.now();
+          try {
+            const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(timeoutMs),
+            });
+            const duration = Date.now() - fnStart;
+            if (!response.ok) {
+              const errorText = await response.text();
+              // Retry on transient errors (404 during deploy, 502/503 gateway)
+              if (attempt < retries && [404, 502, 503].includes(response.status)) {
+                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in 3s...`);
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+              }
+              console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
+              return { __error: true, __step: name, __duration: duration };
+            }
+            const data = await response.json();
+            if (attempt > 1) console.log(`  ✅ ${name}: ${duration}ms (retry ${attempt})`);
+            else console.log(`  ✅ ${name}: ${duration}ms`);
+            return { ...data, __duration: duration };
+          } catch (err) {
+            const duration = Date.now() - fnStart;
+            const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
+            if (attempt < retries && !isTimeout) {
+              console.warn(`${name} attempt ${attempt}/${retries} error, retrying in 3s...`);
+              await new Promise(r => setTimeout(r, 3000));
+              continue;
+            }
+            console.error(`${name} ${isTimeout ? 'timeout' : 'error'} (${duration}ms):`, err);
+            return { __error: true, __step: name, __duration: duration, __timeout: isTimeout };
           }
-          const data = await response.json();
-          console.log(`  ✅ ${name}: ${duration}ms`);
-          return { ...data, __duration: duration };
-        } catch (err) {
-          const duration = Date.now() - fnStart;
-          const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
-          console.error(`${name} ${isTimeout ? 'timeout' : 'error'} (${duration}ms):`, err);
-          return { __error: true, __step: name, __duration: duration, __timeout: isTimeout };
         }
+        return { __error: true, __step: name, __duration: 0 };
       };
 
       const needsCoolerRun = hasCoolingEnabled && (!hasActiveControllers ? !coolerIsIdle2 : true);
