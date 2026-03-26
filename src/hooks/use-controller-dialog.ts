@@ -25,39 +25,16 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [currentController, setCurrentController] = useState<RaptTempController | typeof controller>(controller);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [showTempAdjust, setShowTempAdjust] = useState(false);
-  const [pillCompEnabled, setPillCompEnabled] = useState(false);
+  const [dualSensorEnabled, setDualSensorEnabled] = useState(false);
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
 
-  // Check authentication + pill compensation setting (per-brew override > global)
+  // Check authentication
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
-
-    // Load global setting first, then override with per-brew setting if available
-    (async () => {
-      const { data: globalSettings } = await supabase
-        .from('auto_cooling_settings')
-        .select('pill_compensation_enabled')
-        .limit(1)
-        .single();
-      let enabled = globalSettings?.pill_compensation_enabled ?? false;
-
-      // Per-brew override: if a brew is linked to this controller, use its pill_compensation
-      const { data: brewData } = await supabase
-        .from('brew_readings')
-        .select('pill_compensation')
-        .eq('linked_controller_id', controller.controller_id)
-        .limit(1)
-        .maybeSingle();
-      if (brewData != null) {
-        enabled = brewData.pill_compensation;
-      }
-
-      setPillCompEnabled(enabled);
-    })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
