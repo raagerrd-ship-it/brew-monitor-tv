@@ -126,7 +126,6 @@ export default function Brew() {
               onShareBrew={() => {}}
               onEventsChange={() => {}}
               cardIndex={0}
-              pillCompEnabled={pillCompEnabled}
             />
           )}
         </div>

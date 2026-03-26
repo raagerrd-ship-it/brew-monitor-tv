@@ -346,7 +346,7 @@ function BrewCardComponent({
           fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
           attenuation={brew.attenuation}
           onExpandChange={setSessionExpanded}
-          pillCompEnabled={pillCompEnabled}
+          />
         />
       </div>
 
