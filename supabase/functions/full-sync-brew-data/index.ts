@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
     }
 
     let brewUpdatesCount = 0
-    let pendingFullSyncSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = []
+    let pendingFullSyncSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null; actual_temp?: number | null }[] = []
 
     if (brewfatherEnabled && visibleBatchIds.size > 0) {
       const brewfatherBatchIds = [...visibleBatchIds].filter(id => !id.startsWith('custom_'))
