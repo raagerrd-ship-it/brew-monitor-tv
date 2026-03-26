@@ -86,7 +86,6 @@ interface LastAdjustment {
 
 interface Props {
   autoCoolingEnabled: boolean;
-  pillCompEnabled: boolean;
   stallDetectionEnabled: boolean;
   overshootPreventionEnabled: boolean;
   aiAuditEnabled: boolean;
