@@ -29,6 +29,7 @@ export interface TempController {
   name: string
   current_temp: number | null
   pill_temp: number | null
+  actual_temp: number | null
   target_temp: number | null
   cooling_enabled: boolean | null
   heating_enabled: boolean | null
