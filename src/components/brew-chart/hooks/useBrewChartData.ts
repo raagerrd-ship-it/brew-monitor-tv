@@ -72,7 +72,7 @@ export function useBrewChartData({
         // Thinning policy caps snapshots at ~500 per brew, no pagination needed
         const { data: batch, error } = await supabase
           .from("brew_data_snapshots")
-          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp")
+          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp")
           .eq("brew_id", brewId)
           .order("recorded_at", { ascending: true });
 
