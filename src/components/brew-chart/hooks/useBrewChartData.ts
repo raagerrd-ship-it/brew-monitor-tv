@@ -38,6 +38,7 @@ interface SnapshotRow {
   pill_temp: number;
   controller_temp: number | null;
   profile_target_temp: number | null;
+  actual_temp: number | null;
 }
 
 export function useBrewChartData({

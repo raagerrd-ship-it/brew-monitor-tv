@@ -20,8 +20,8 @@ export async function createBrewSnapshot(
 ): Promise<boolean> {
   try {
     const { pill_temp, controller_temp } = data;
-    // Use pre-calculated actual_temp from controller if available, otherwise average
-    const avgTemp = data.actual_temp ?? (
+    // Use pre-calculated actual_temp from controller if available, otherwise fallback
+    const resolvedActualTemp = data.actual_temp ?? (
       (pill_temp != null && controller_temp != null)
         ? (pill_temp + controller_temp) / 2
         : pill_temp ?? controller_temp ?? null
@@ -36,7 +36,8 @@ export async function createBrewSnapshot(
         pill_temp: data.pill_temp,
         controller_temp: data.controller_temp,
         profile_target_temp: data.profile_target_temp,
-        auto_target_temp: avgTemp,
+        auto_target_temp: resolvedActualTemp,
+        actual_temp: resolvedActualTemp,
       }, { onConflict: 'brew_id,recorded_at', ignoreDuplicates: true });
 
     if (error) {
