@@ -30,7 +30,6 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
-  pillCompEnabled?: boolean;
   sonosSlot?: React.ReactNode;
 }
 
@@ -41,7 +40,6 @@ export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
-  pillCompEnabled = false,
   sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
@@ -87,7 +85,7 @@ export function DashboardHeader({
 
       {/* RAPT Section - Mobile */}
       {isMobile && controllers.length > 0 && (
-        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
+        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} />
       )}
 
       {/* Desktop: Three-column layout */}
@@ -99,7 +97,7 @@ export function DashboardHeader({
 
           <div className="flex-1 flex items-center justify-center">
             {controllers.length > 0 && (
-              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
+              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
             )}
           </div>
 
@@ -135,7 +133,6 @@ interface RaptControllerBarProps {
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
   isTvMode?: boolean;
-  pillCompEnabled?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
@@ -158,7 +155,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   onControllerClick,
   isMobile,
   isTvMode = false,
-  pillCompEnabled = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
@@ -285,7 +281,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    )}
 
                    {(() => {
-                     const displayTemp = getActualTemp(controller.pill_temp, controller.current_temp, pillCompEnabled);
+                      const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
                        fontSize: isMobile ? undefined : '16px',

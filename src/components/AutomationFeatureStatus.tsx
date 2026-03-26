@@ -86,7 +86,6 @@ interface LastAdjustment {
 
 interface Props {
   autoCoolingEnabled: boolean;
-  pillCompEnabled: boolean;
   stallDetectionEnabled: boolean;
   overshootPreventionEnabled: boolean;
   aiAuditEnabled: boolean;
@@ -164,7 +163,7 @@ function buildFeatureBlocks(
     }
   }
 
-  if (props.pillCompEnabled) {
+  if (true) { // PID compensation — always show for followed controllers
     const controllers: ControllerLine[] = [];
 
     for (const c of allNonCooler) {
@@ -324,7 +323,7 @@ export function AutomationFeatureStatus(props: Props) {
   const [logTime, setLogTime] = useState<string | null>(null);
   const [activeRamps, setActiveRamps] = useState<RampInfo[]>([]);
 
-  const { autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment } = props;
+  const { autoCoolingEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment } = props;
 
   useEffect(() => {
     async function fetchLatest() {
@@ -456,7 +455,7 @@ export function AutomationFeatureStatus(props: Props) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment]);
+  }, [autoCoolingEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment]);
 
   if (blocks.length === 0) return null;
 

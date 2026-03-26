@@ -17,7 +17,6 @@ interface StepExecutionDisplayProps {
   originalGravity?: number | null;
   activityScore?: number | null;
   attenuation?: number | null;
-  pillCompEnabled?: boolean;
 }
 
 interface ExecutionItem {
@@ -43,7 +42,6 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   originalGravity,
   activityScore,
   attenuation,
-  pillCompEnabled = false,
 }: StepExecutionDisplayProps) {
   const items: ExecutionItem[] = [];
   const iconClass = "w-3 h-3 shrink-0";

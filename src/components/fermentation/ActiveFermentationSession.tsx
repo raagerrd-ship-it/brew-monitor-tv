@@ -30,14 +30,12 @@ interface ActiveFermentationSessionProps {
   fermentationPhase?: string | null;
   attenuation?: number | null;
   onExpandChange?: (expanded: boolean) => void;
-  pillCompEnabled?: boolean;
 }
 
 export function ActiveFermentationSession({
   controllerId, brewId, compact = false, preloadedSession,
   isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
   sgData, activityScore, fermentationPhase, attenuation, onExpandChange,
-  pillCompEnabled = false,
 }: ActiveFermentationSessionProps) {
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
@@ -62,8 +60,8 @@ export function ActiveFermentationSession({
 
   if (loading || !session) return null;
 
-  // Compute actual temp using SSOT logic (average of pill+probe when pillComp enabled)
-  const actualTemp = getActualTemp(controllerData?.pill_temp, controllerData?.current_temp, pillCompEnabled);
+  // Compute actual temp: use pre-calculated actual_temp from controller, fallback to probe
+  const actualTemp = (controllerData as any)?.actual_temp ?? getActualTemp(controllerData?.pill_temp, controllerData?.current_temp);
 
   const currentStep = session.steps?.[session.current_step_index];
   const progress = calculateProgress();
@@ -207,7 +205,6 @@ export function ActiveFermentationSession({
                   originalGravity={originalGravity}
                   activityScore={activityScore}
                   attenuation={attenuation}
-                  pillCompEnabled={pillCompEnabled}
                 />
                 <StepConditionsDisplay
                   currentStep={currentStep}
@@ -391,7 +388,6 @@ export function ActiveFermentationSession({
               originalGravity={originalGravity}
               activityScore={activityScore}
               attenuation={attenuation}
-              pillCompEnabled={pillCompEnabled}
             />
             <StepConditionsDisplay
               currentStep={currentStep}

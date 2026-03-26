@@ -76,7 +76,7 @@ export function useSettingsData() {
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
-  const [pillCompEnabled, setPillCompEnabled] = useState(true);
+  // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   const [stallDetectionEnabled, setStallDetectionEnabled] = useState(false);
   const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
@@ -180,7 +180,7 @@ export function useSettingsData() {
         setLastAutoCoolingCheck(data.last_check_at);
         setStallDetectionEnabled(data.auto_boost_enabled ?? false);
         setStallBoostDegrees((data.auto_boost_degrees ?? 1.0).toString());
-        setPillCompEnabled(data.pill_compensation_enabled ?? false);
+        // pillCompEnabled removed — was: setPillCompEnabled(data.pill_compensation_enabled ?? false);
         setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
         setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
         setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
@@ -309,7 +309,7 @@ export function useSettingsData() {
           if (newData.cooler_controller_id !== undefined) setCoolerControllerId(newData.cooler_controller_id || "");
           if (newData.auto_boost_enabled !== undefined) setStallDetectionEnabled(newData.auto_boost_enabled);
           if (newData.auto_boost_degrees !== undefined) setStallBoostDegrees(newData.auto_boost_degrees.toString());
-          if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
+          // pillCompEnabled removed — was: if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
           if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
           if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
@@ -471,10 +471,7 @@ export function useSettingsData() {
     await updateAutoCoolingSetting('delta_alert_threshold', parseFloat(value));
   }, [updateAutoCoolingSetting]);
 
-  const handlePillCompEnabledChange = useCallback(async (checked: boolean) => {
-    setPillCompEnabled(checked);
-    await updateAutoCoolingSetting('pill_compensation_enabled', checked);
-  }, [updateAutoCoolingSetting]);
+  // handlePillCompEnabledChange removed — now per-controller (dual_sensor_enabled)
 
   const handlePillCompMaxCompensationChange = useCallback(async (value: string) => {
     setPillCompMaxCompensation(value);
@@ -557,7 +554,7 @@ export function useSettingsData() {
     // Auto-cooling
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
-    pillCompEnabled, pillCompMaxCompensation,
+    pillCompMaxCompensation,
     stallDetectionEnabled, stallBoostDegrees, overshootPreventionEnabled, aiAuditEnabled, sgTempCorrectionEnabled,
     lastAutoCoolingCheck, lastAdjustment,
     // Controllers & devices
@@ -570,7 +567,7 @@ export function useSettingsData() {
     handleQuickSync, handleFullSync,
     handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
-    handlePillCompEnabledChange, handlePillCompMaxCompensationChange,
+    handlePillCompMaxCompensationChange,
     handleStallDetectionEnabledChange, handleStallBoostDegreesChange,
     handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
     handleCoolerControllerChange,

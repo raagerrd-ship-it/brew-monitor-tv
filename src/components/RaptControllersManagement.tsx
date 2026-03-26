@@ -12,11 +12,7 @@ import { useControllersManagement } from "@/hooks";
 import { getActualTemp } from "@/lib/temp-display";
 
 
-interface RaptControllersManagementProps {
-  pillCompEnabled?: boolean;
-}
-
-export function RaptControllersManagement({ pillCompEnabled = false }: RaptControllersManagementProps) {
+export function RaptControllersManagement() {
   const {
     controllers, pills, selectedControllers, selectedControllersData,
     coolerControllerId, loading, editingLimitsId,
@@ -29,11 +25,9 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
 
   // SSOT: profile_target_temp is always available on the controller row — no extra fetch needed
   const originalTargets: Record<string, number> = {};
-  if (pillCompEnabled) {
-    for (const c of controllers) {
-      if (!c.is_glycol_cooler && c.profile_target_temp != null) {
-        originalTargets[c.controller_id] = c.profile_target_temp;
-      }
+  for (const c of controllers) {
+    if (!c.is_glycol_cooler && c.profile_target_temp != null) {
+      originalTargets[c.controller_id] = c.profile_target_temp;
     }
   }
 
@@ -63,7 +57,7 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
           const isLast = controllerIndex === selectedControllersData.length - 1;
           const isSelected = selectedControllers[controller.controller_id];
           const isCooler = coolerControllerId === controller.controller_id;
-          const displayTemp = getActualTemp(controller.pill_temp, controller.current_temp, pillCompEnabled);
+          const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
           const isActivelyCooling = controller.cooling_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + (controller.cooling_hysteresis ?? 0.2));
           const isActivelyHeating = controller.heating_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp < (controller.target_temp - (controller.heating_hysteresis ?? 0.2));
           
@@ -143,11 +137,11 @@ export function RaptControllersManagement({ pillCompEnabled = false }: RaptContr
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Mål</p>
                     <p className="text-xl font-bold tabular-nums text-primary">
-                      {pillCompEnabled && originalTargets[controller.controller_id] != null
+                      {originalTargets[controller.controller_id] != null
                         ? `${originalTargets[controller.controller_id].toFixed(1)}°`
                         : controller.target_temp !== null ? `${controller.target_temp.toFixed(1)}°` : '—'}
                     </p>
-                    {pillCompEnabled && originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
+                    {originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
                       <p className="text-[10px] text-muted-foreground/70 mt-0.5">
                         Ctrl-mål (PID): {controller.target_temp.toFixed(1)}°
                       </p>

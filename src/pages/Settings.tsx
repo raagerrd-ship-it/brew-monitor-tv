@@ -116,7 +116,6 @@ export default function Settings() {
       <DashboardHeader
         controllers={settings.headerControllers}
         pills={settings.headerPillsData}
-        pillCompEnabled={settings.pillCompEnabled}
       />
       <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${settings.headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
@@ -518,14 +517,6 @@ export default function Settings() {
                 <SettingsDivider />
                 <div className="flex items-center justify-between py-2.5 px-1">
                   <div className="flex items-center gap-2.5">
-                    <Pill className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-medium">Dubbla temperaturgivare</p>
-                  </div>
-                  <Switch checked={settings.pillCompEnabled} onCheckedChange={settings.handlePillCompEnabledChange} />
-                </div>
-                <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
                     <Shield className="h-4 w-4 text-accent" />
                     <p className="text-sm font-medium">Overshoot-prevention</p>
                   </div>
@@ -559,7 +550,6 @@ export default function Settings() {
                 <div className="space-y-3">
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
-                    pillCompEnabled={settings.pillCompEnabled}
                     stallDetectionEnabled={settings.stallDetectionEnabled}
                     overshootPreventionEnabled={settings.overshootPreventionEnabled}
                     aiAuditEnabled={settings.aiAuditEnabled}
@@ -619,7 +609,7 @@ export default function Settings() {
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
             <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
-              <RaptControllersManagement pillCompEnabled={settings.pillCompEnabled} />
+              <RaptControllersManagement />
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
               <RaptPillsManagement />

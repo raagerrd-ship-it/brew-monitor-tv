@@ -10,6 +10,7 @@ export interface SnapshotData {
   pill_temp: number | null;
   controller_temp: number | null;
   profile_target_temp: number | null;
+  actual_temp?: number | null;
 }
 
 export async function createBrewSnapshot(
@@ -19,9 +20,12 @@ export async function createBrewSnapshot(
 ): Promise<boolean> {
   try {
     const { pill_temp, controller_temp } = data;
-    const avgTemp = (pill_temp != null && controller_temp != null)
-      ? (pill_temp + controller_temp) / 2
-      : pill_temp ?? controller_temp ?? null;
+    // Use pre-calculated actual_temp from controller if available, otherwise average
+    const avgTemp = data.actual_temp ?? (
+      (pill_temp != null && controller_temp != null)
+        ? (pill_temp + controller_temp) / 2
+        : pill_temp ?? controller_temp ?? null
+    );
 
     const { error } = await supabase
       .from('brew_data_snapshots')
