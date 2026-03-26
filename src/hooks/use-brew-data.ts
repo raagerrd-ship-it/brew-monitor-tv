@@ -17,7 +17,6 @@ interface UseBrewDataReturn {
   updatedFields: Record<string, Record<string, boolean>>;
   brewEvents: Record<string, BrewEvent[]>;
   isAuthenticated: boolean;
-  pillCompEnabled: boolean;
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
