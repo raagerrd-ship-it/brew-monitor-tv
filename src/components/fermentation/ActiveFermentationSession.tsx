@@ -30,7 +30,6 @@ interface ActiveFermentationSessionProps {
   fermentationPhase?: string | null;
   attenuation?: number | null;
   onExpandChange?: (expanded: boolean) => void;
-  pillCompEnabled?: boolean;
 }
 
 export function ActiveFermentationSession({
