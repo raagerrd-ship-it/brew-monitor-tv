@@ -311,7 +311,7 @@ export async function calculateCompensatedTarget(
 
     let dutyCycle = 0
 
-    if (Math.abs(avgError) <= 0.1) {
+    if (Math.abs(avgError) <= 0.05) {
       // DEADBAND: hold integral steady (this IS the learned steady-state duty)
       // Do NOT decay — the integral represents the duty needed to maintain temperature.
       // Decaying it causes the system to lose its learned baseline and stop cooling.
