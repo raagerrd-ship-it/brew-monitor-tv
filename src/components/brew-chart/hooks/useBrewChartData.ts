@@ -101,21 +101,19 @@ export function useBrewChartData({
 
     if (snapshotRows.length > 0) {
       basePoints = snapshotRows.map((row) => {
-        const useController = pillCompensation && row.controller_temp != null;
-        const avgTemp =
-          useController && row.pill_temp != null
-            ? (row.controller_temp! + row.pill_temp) / 2
-            : null;
-        const tempSpan =
-          useController && row.pill_temp != null
-            ? Math.abs(row.pill_temp - row.controller_temp!)
-            : null;
+        const hasBoth = row.controller_temp != null && row.pill_temp != null;
+        const avgTemp = hasBoth
+          ? (row.controller_temp! + row.pill_temp) / 2
+          : null;
+        const tempSpan = hasBoth
+          ? Math.abs(row.pill_temp - row.controller_temp!)
+          : null;
         return {
           date: row.recorded_at,
           value: row.sg,
           temp: row.pill_temp,
           pillTemp: row.pill_temp,
-          controllerTemp: useController ? row.controller_temp : null,
+          controllerTemp: row.controller_temp,
           targetTemp: row.profile_target_temp,
           avgTemp,
           tempSpan,
