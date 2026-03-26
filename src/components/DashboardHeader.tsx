@@ -85,7 +85,7 @@ export function DashboardHeader({
 
       {/* RAPT Section - Mobile */}
       {isMobile && controllers.length > 0 && (
-        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} pillCompEnabled={pillCompEnabled} />
+        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} />
       )}
 
       {/* Desktop: Three-column layout */}
