@@ -10,7 +10,6 @@ export function useBrewPage(brewId: string | undefined) {
   const [brew, setBrew] = useState<BrewData | null>(null);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
-  const [pillCompEnabled, setPillCompEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
