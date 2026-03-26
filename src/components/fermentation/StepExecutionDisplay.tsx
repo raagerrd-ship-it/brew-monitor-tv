@@ -17,7 +17,6 @@ interface StepExecutionDisplayProps {
   originalGravity?: number | null;
   activityScore?: number | null;
   attenuation?: number | null;
-  pillCompEnabled?: boolean;
 }
 
 interface ExecutionItem {
