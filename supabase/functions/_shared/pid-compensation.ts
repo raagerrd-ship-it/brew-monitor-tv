@@ -405,7 +405,7 @@ export async function calculateCompensatedTarget(
     hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
     console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
-  } else if (heatingNeed < -0.1) {
+  } else if (heatingNeed < -0.05) {
     // OVERHEATED: stop heating, fast-decay integral
     hIntegral *= 0.85
     hDutyCycle = 0
