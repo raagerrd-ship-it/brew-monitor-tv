@@ -323,7 +323,7 @@ export function AutomationFeatureStatus(props: Props) {
   const [logTime, setLogTime] = useState<string | null>(null);
   const [activeRamps, setActiveRamps] = useState<RampInfo[]>([]);
 
-  const { autoCoolingEnabled, pillCompEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment } = props;
+  const { autoCoolingEnabled, stallDetectionEnabled, overshootPreventionEnabled, aiAuditEnabled, availableControllers, coolerControllerId, followedControllerIds, lastAdjustment } = props;
 
   useEffect(() => {
     async function fetchLatest() {
