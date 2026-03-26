@@ -848,15 +848,42 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
+    // Poll brew_readings — realtime can silently drop on Chromecast,
+    // so poll periodically to ensure brew card data stays fresh
+    const lastBrewHash = { current: '' };
+    const checkBrewData = async () => {
+      try {
+        const { data } = await supabase
+          .from('brew_readings')
+          .select('batch_id, current_sg, current_temp, abv, attenuation, battery, last_update, status')
+          .order('updated_at', { ascending: false })
+          .limit(10);
+
+        const hash = JSON.stringify(data || []);
+        if (hash !== lastBrewHash.current) {
+          if (lastBrewHash.current !== '') {
+            console.log('[TV] Brew data change detected via polling, reloading...');
+            loadBrews();
+          }
+          lastBrewHash.current = hash;
+        }
+      } catch (e) {
+        console.error('[TV] Brew poll error:', e);
+      }
+    };
+
     // Initial hash capture
     checkSessions();
     checkRaptData();
+    checkBrewData();
 
     const sessionInterval = setInterval(checkSessions, 300_000); // 5 minutes
     const raptInterval = setInterval(checkRaptData, 120_000); // 2 minutes
+    const brewInterval = setInterval(checkBrewData, 120_000); // 2 minutes
     return () => {
       clearInterval(sessionInterval);
       clearInterval(raptInterval);
+      clearInterval(brewInterval);
     };
   }, [isTvMode, loadBrews, loadRaptDataInternal]);
 
