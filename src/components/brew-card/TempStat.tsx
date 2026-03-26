@@ -28,7 +28,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const probeTemp = controller?.current_temp ?? null;
   // SSOT: use controller's dual_sensor_enabled flag for dual-sensor fusion
   const pillCompEnabled = (controller as any)?.dual_sensor_enabled ?? false;
-  const displayTemp = getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
+  // SSOT: prefer pre-calculated actual_temp from controller (fusion/priority done in sync engine)
+  const displayTemp = (controller as any)?.actual_temp ?? getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
   const showStaleWarning = pill && isPillStale && !isInactive;
