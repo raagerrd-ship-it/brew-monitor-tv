@@ -36,7 +36,6 @@ export function ActiveFermentationSession({
   controllerId, brewId, compact = false, preloadedSession,
   isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
   sgData, activityScore, fermentationPhase, attenuation, onExpandChange,
-  pillCompEnabled = false,
 }: ActiveFermentationSessionProps) {
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
