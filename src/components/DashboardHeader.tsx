@@ -217,7 +217,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-2 px-3 py-1 justify-center'} overflow-x-auto scrollbar-hide backdrop-blur-xl`} style={{
+        <div className={`flex items-center rounded-lg ${isMobile ? 'gap-1 px-2 py-2' : 'gap-0 px-2 py-1 justify-center'} overflow-x-auto scrollbar-hide backdrop-blur-xl`} style={{
           background: 'hsl(222 20% 11% / 0.65)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
           boxShadow: showWarning
@@ -255,13 +255,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <div key={controller.id} className="flex items-center">
-                {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-2'} w-px`} style={{ background: 'hsl(222 15% 20%)' }} />}
+                {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-7 mx-0.5'} w-px`} style={{ background: 'hsl(222 15% 20%)' }} />}
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                    const isControllerStale = controllerStaleMin > staleThresholdMin;
                    return (
-                 <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-3 py-1 gap-3'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
+                 <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-1.5 py-1 gap-2'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
