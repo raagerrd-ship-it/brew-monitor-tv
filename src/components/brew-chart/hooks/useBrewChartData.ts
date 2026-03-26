@@ -38,6 +38,7 @@ interface SnapshotRow {
   pill_temp: number;
   controller_temp: number | null;
   profile_target_temp: number | null;
+  actual_temp: number | null;
 }
 
 export function useBrewChartData({
@@ -71,7 +72,7 @@ export function useBrewChartData({
         // Thinning policy caps snapshots at ~500 per brew, no pagination needed
         const { data: batch, error } = await supabase
           .from("brew_data_snapshots")
-          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp")
+          .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp")
           .eq("brew_id", brewId)
           .order("recorded_at", { ascending: true });
 
@@ -101,10 +102,10 @@ export function useBrewChartData({
 
     if (snapshotRows.length > 0) {
       basePoints = snapshotRows.map((row) => {
+        // SSOT: use pre-calculated actual_temp from snapshot (set by sync engine)
+        // Fallback for old snapshots: pill_temp (single sensor default)
+        const actualTemp = row.actual_temp ?? row.pill_temp ?? row.controller_temp ?? null;
         const hasBoth = row.controller_temp != null && row.pill_temp != null;
-        const avgTemp = hasBoth
-          ? (row.controller_temp! + row.pill_temp) / 2
-          : row.pill_temp ?? row.controller_temp ?? null;
         const tempSpan = hasBoth
           ? Math.abs(row.pill_temp - row.controller_temp!)
           : null;
@@ -115,7 +116,7 @@ export function useBrewChartData({
           pillTemp: hasBoth ? row.pill_temp : null,
           controllerTemp: hasBoth ? row.controller_temp : null,
           targetTemp: row.profile_target_temp,
-          avgTemp,
+          avgTemp: actualTemp,
           tempSpan,
         };
       });
