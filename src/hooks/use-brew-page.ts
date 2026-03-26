@@ -167,5 +167,5 @@ export function useBrewPage(brewId: string | undefined) {
     fetchBrew();
   }, [brewId]);
 
-  return { brew, pills, controllers, pillCompEnabled, loading, error };
+  return { brew, pills, controllers, loading, error };
 }

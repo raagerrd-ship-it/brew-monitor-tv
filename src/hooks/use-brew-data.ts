@@ -109,29 +109,7 @@ export function useBrewData(): UseBrewDataReturn {
     };
   }, []);
 
-  // Fetch pill_compensation_enabled from auto_cooling_settings
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase
-        .from('auto_cooling_settings')
-        .select('pill_compensation_enabled')
-        .limit(1)
-        .maybeSingle();
-      if (data) setPillCompEnabled(data.pill_compensation_enabled);
-    };
-    load();
-
-    const channel = supabase
-      .channel('pill-comp-setting')
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'auto_cooling_settings' }, (p: any) => {
-        if (p.new?.pill_compensation_enabled !== undefined) {
-          setPillCompEnabled(p.new.pill_compensation_enabled);
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
 
   const loadBrewEvents = useCallback(async () => {
     try {
