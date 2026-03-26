@@ -194,7 +194,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
       const tempReached = rampCheckTemp !== null &&
         Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
 
-      console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, rampingUp: ${rampingUp}, sensor: ${rampingUp ? 'pill' : 'probe'}, sensorTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
+      console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, actualTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
 
       if (tempReached) {
         await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
