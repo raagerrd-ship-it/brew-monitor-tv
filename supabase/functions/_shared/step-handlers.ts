@@ -133,7 +133,7 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
     (holdCheckTemp !== null && Math.abs(holdCheckTemp - holdEffectiveTarget) <= 0.3)
 
   if (!holdTempOk) {
-    console.log(`Hold step: condition met but temp not at target (current ${controller?.current_temp}°C, target ${holdEffectiveTarget}°C) - waiting`)
+    console.log(`Hold step: condition met but temp not at target (actual ${holdCheckTemp}°C, target ${holdEffectiveTarget}°C) - waiting`)
   }
 
   if (currentStep.duration_hours && currentStep.target_sg !== null) {
