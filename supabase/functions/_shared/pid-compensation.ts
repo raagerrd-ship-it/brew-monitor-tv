@@ -296,7 +296,7 @@ export async function calculateCompensatedTarget(
   if (mode === 'cooling') {
     const coolingNeed = -avgError // positive when actualTemp > actualTarget (needs cooling)
     const DUTY_P = 0.5    // duty per °C error
-    const DUTY_I = 0.05   // duty accumulation per cycle per °C
+    const DUTY_I = 0.10   // duty accumulation per cycle per °C (was 0.05)
     const DUTY_DECAY = 0.98 // slow decay for stable steady-state
     const DUTY_IMAX = 0.95  // max 95% from integral
 
