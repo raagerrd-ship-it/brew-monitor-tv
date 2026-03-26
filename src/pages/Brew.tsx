@@ -34,7 +34,7 @@ const useDocumentTitleAndIcon = (title: string | null) => {
 
 export default function Brew() {
   const { id } = useParams<{ id: string }>();
-  const { brew, pills, controllers, pillCompEnabled, loading, error } = useBrewPage(id);
+  const { brew, pills, controllers, loading, error } = useBrewPage(id);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const [labelExpanded, setLabelExpanded] = useState(false);
 
