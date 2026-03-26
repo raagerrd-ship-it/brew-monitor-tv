@@ -147,7 +147,7 @@ export function LazyBrewChart(props: BrewChartProps) {
 
   // TV mode: use server-rendered chart images for hardware performance
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} brewStatus={props.brewStatus} pillCompensation={props.pillCompensation} />;
+    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} brewStatus={props.brewStatus} />;
   }
 
   // Desktop & Mobile: interactive Recharts
