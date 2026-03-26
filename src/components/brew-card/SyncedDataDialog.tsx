@@ -29,7 +29,6 @@ interface SyncedDataDialogProps {
   controllerId?: string | null;
 }
 
-
 export function SyncedDataDialog({
   open,
   onOpenChange,
@@ -42,6 +41,7 @@ export function SyncedDataDialog({
   const [controllerStatus, setControllerStatus] = useState<{
     heating_enabled: boolean | null;
     cooling_enabled: boolean | null;
+    dual_sensor_enabled: boolean | null;
   } | null>(null);
 
   const fetchSnapshots = useCallback(async (silent = false) => {
@@ -77,7 +77,7 @@ export function SyncedDataDialog({
     const fetchStatus = async () => {
       const { data } = await supabase
         .from("rapt_temp_controllers")
-        .select("heating_enabled, cooling_enabled")
+        .select("heating_enabled, cooling_enabled, dual_sensor_enabled")
         .eq("controller_id", controllerId)
         .maybeSingle();
       if (data) setControllerStatus(data);
@@ -97,6 +97,7 @@ export function SyncedDataDialog({
         setControllerStatus({
           heating_enabled: p.heating_enabled,
           cooling_enabled: p.cooling_enabled,
+          dual_sensor_enabled: p.dual_sensor_enabled,
         });
       })
       .subscribe();
@@ -121,9 +122,19 @@ export function SyncedDataDialog({
   }, [open, brewId, fetchSnapshots]);
 
   const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
-  const hasAvgTemp = hasControllerData && snapshots.some(
-    (s) => s.auto_target_temp != null,
-  );
+  const hasAvgTemp = hasControllerData && snapshots.some((s) => {
+    if (controllerStatus?.dual_sensor_enabled === false) {
+      return s.pill_temp != null || s.auto_target_temp != null;
+    }
+    return s.auto_target_temp != null;
+  });
+
+  const getDisplayActualTemp = useCallback((point: SnapshotRow) => {
+    if (controllerStatus?.dual_sensor_enabled === false) {
+      return point.pill_temp ?? point.auto_target_temp;
+    }
+    return point.auto_target_temp;
+  }, [controllerStatus?.dual_sensor_enabled]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,45 +200,48 @@ export function SyncedDataDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshots.map((point, index) => (
-                    <tr
-                      key={point.recorded_at}
-                      className={`border-b border-border/50 ${
-                        index === 0 ? "bg-primary/5" : ""
-                      }`}
-                    >
-                      <td className="py-1.5 text-muted-foreground">
-                        {format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
-                      </td>
-                      <td className={`py-1.5 text-right font-mono ${point.sg != null ? 'text-beer-amber' : 'text-muted-foreground/40'}`}>
-                        {point.sg != null ? point.sg.toFixed(4) : "-"}
-                      </td>
-                      <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-foreground' : 'text-muted-foreground/40'}`}>
-                        {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
-                      </td>
-                      {hasAvgTemp && (
-                        <td className={`py-1.5 text-right font-mono ${point.auto_target_temp != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
-                          {point.auto_target_temp != null
-                            ? `${point.auto_target_temp.toFixed(1)}°`
-                            : "-"}
+                  {snapshots.map((point, index) => {
+                    const displayActual = getDisplayActualTemp(point);
+                    return (
+                      <tr
+                        key={point.recorded_at}
+                        className={`border-b border-border/50 ${
+                          index === 0 ? "bg-primary/5" : ""
+                        }`}
+                      >
+                        <td className="py-1.5 text-muted-foreground">
+                          {format(new Date(point.recorded_at), "d MMM HH:mm", { locale: sv })}
                         </td>
-                      )}
-                      {hasControllerData && (
-                        <td className="py-1.5 text-right font-mono text-foreground">
-                          {point.controller_temp != null
-                            ? `${point.controller_temp.toFixed(1)}°`
-                            : "-"}
+                        <td className={`py-1.5 text-right font-mono ${point.sg != null ? 'text-beer-amber' : 'text-muted-foreground/40'}`}>
+                          {point.sg != null ? point.sg.toFixed(4) : "-"}
                         </td>
-                      )}
-                      {hasControllerData && (
-                        <td className="py-1.5 text-right font-mono text-muted-foreground">
-                          {point.profile_target_temp != null
-                            ? `${point.profile_target_temp.toFixed(1)}°`
-                            : "-"}
+                        <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                          {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        {hasAvgTemp && (
+                          <td className={`py-1.5 text-right font-mono ${displayActual != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
+                            {displayActual != null
+                              ? `${displayActual.toFixed(1)}°`
+                              : "-"}
+                          </td>
+                        )}
+                        {hasControllerData && (
+                          <td className="py-1.5 text-right font-mono text-foreground">
+                            {point.controller_temp != null
+                              ? `${point.controller_temp.toFixed(1)}°`
+                              : "-"}
+                          </td>
+                        )}
+                        {hasControllerData && (
+                          <td className="py-1.5 text-right font-mono text-muted-foreground">
+                            {point.profile_target_temp != null
+                              ? `${point.profile_target_temp.toFixed(1)}°`
+                              : "-"}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
