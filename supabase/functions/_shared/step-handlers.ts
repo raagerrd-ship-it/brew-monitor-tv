@@ -245,8 +245,7 @@ export async function processWaitForTempStep(ctx: StepContext): Promise<StepResu
   if (currentStep.target_temp !== null && controller) {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
-    const referenceTemp = controller.current_temp ?? currentStep.target_temp
-    const waitCheckTemp = getDirectionalTemp(controller, currentStep.target_temp, referenceTemp)
+    const waitCheckTemp = getResolvedTemp(controller)
     if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
       stepCompleted = true
       actionTaken = 'temp_reached'
