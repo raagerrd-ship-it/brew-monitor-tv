@@ -76,7 +76,7 @@ export function useSettingsData() {
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
-  const [pillCompEnabled, setPillCompEnabled] = useState(true);
+  // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   const [stallDetectionEnabled, setStallDetectionEnabled] = useState(false);
   const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
