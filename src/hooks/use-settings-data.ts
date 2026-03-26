@@ -309,7 +309,7 @@ export function useSettingsData() {
           if (newData.cooler_controller_id !== undefined) setCoolerControllerId(newData.cooler_controller_id || "");
           if (newData.auto_boost_enabled !== undefined) setStallDetectionEnabled(newData.auto_boost_enabled);
           if (newData.auto_boost_degrees !== undefined) setStallBoostDegrees(newData.auto_boost_degrees.toString());
-          if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
+          // pillCompEnabled removed — was: if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
           if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
           if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
