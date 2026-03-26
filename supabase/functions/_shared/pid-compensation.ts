@@ -387,7 +387,7 @@ export async function calculateCompensatedTarget(
   // mode === 'heating' guaranteed here (cooling returns early above)
   const heatingNeed = avgError // positive when actualTemp < actualTarget (needs heating)
   const HEAT_P = 0.5
-  const HEAT_I = 0.05
+  const HEAT_I = 0.10
   const HEAT_DECAY = 0.98
   const HEAT_IMAX = 0.95
 
