@@ -471,10 +471,7 @@ export function useSettingsData() {
     await updateAutoCoolingSetting('delta_alert_threshold', parseFloat(value));
   }, [updateAutoCoolingSetting]);
 
-  const handlePillCompEnabledChange = useCallback(async (checked: boolean) => {
-    setPillCompEnabled(checked);
-    await updateAutoCoolingSetting('pill_compensation_enabled', checked);
-  }, [updateAutoCoolingSetting]);
+  // handlePillCompEnabledChange removed — now per-controller (dual_sensor_enabled)
 
   const handlePillCompMaxCompensationChange = useCallback(async (value: string) => {
     setPillCompMaxCompensation(value);
