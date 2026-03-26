@@ -318,7 +318,7 @@ export async function calculateCompensatedTarget(
       dutyCycle = Math.max(0, integral)
       constraints.push('deadband')
       console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-    } else if (coolingNeed < -0.1) {
+    } else if (coolingNeed < -0.05) {
       // OVERCOOLED: stop cooling, fast-decay integral
       integral *= 0.85
       dutyCycle = 0
