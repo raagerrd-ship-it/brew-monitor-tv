@@ -51,7 +51,6 @@ function BrewCardComponent({
   cardIndex = 0,
   hasAlbumArtBackground = false,
   brewCount,
-  pillCompEnabled = false,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
@@ -347,7 +346,6 @@ function BrewCardComponent({
           fermentationPhase={brew.fermentationMetrics?.fermentation_phase ?? null}
           attenuation={brew.attenuation}
           onExpandChange={setSessionExpanded}
-          pillCompEnabled={pillCompEnabled}
         />
       </div>
 
@@ -366,7 +364,6 @@ function BrewCardComponent({
               devices={devices} 
               updatedFields={updatedFields}
               onControllerClick={onControllerClick}
-              pillCompEnabled={pillCompEnabled}
             />
             <AttenuationStat brew={brew} updatedFields={updatedFields} />
           </div>

@@ -25,39 +25,16 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [currentController, setCurrentController] = useState<RaptTempController | typeof controller>(controller);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [showTempAdjust, setShowTempAdjust] = useState(false);
-  const [pillCompEnabled, setPillCompEnabled] = useState(false);
+  const [dualSensorEnabled, setDualSensorEnabled] = useState(false);
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
 
-  // Check authentication + pill compensation setting (per-brew override > global)
+  // Check authentication
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
     });
-
-    // Load global setting first, then override with per-brew setting if available
-    (async () => {
-      const { data: globalSettings } = await supabase
-        .from('auto_cooling_settings')
-        .select('pill_compensation_enabled')
-        .limit(1)
-        .single();
-      let enabled = globalSettings?.pill_compensation_enabled ?? false;
-
-      // Per-brew override: if a brew is linked to this controller, use its pill_compensation
-      const { data: brewData } = await supabase
-        .from('brew_readings')
-        .select('pill_compensation')
-        .eq('linked_controller_id', controller.controller_id)
-        .limit(1)
-        .maybeSingle();
-      if (brewData != null) {
-        enabled = brewData.pill_compensation;
-      }
-
-      setPillCompEnabled(enabled);
-    })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
@@ -70,21 +47,22 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   useEffect(() => {
     const loadSessionAndTarget = async () => {
       // Check active session
-      const { data: sessionData } = await supabase
-        .from('fermentation_sessions')
-        .select('id')
-        .eq('controller_id', controller.controller_id)
-        .in('status', ['running', 'paused'])
-        .maybeSingle();
+      const [{ data: sessionData }, { data: ctrlData }] = await Promise.all([
+        supabase
+          .from('fermentation_sessions')
+          .select('id')
+          .eq('controller_id', controller.controller_id)
+          .in('status', ['running', 'paused'])
+          .maybeSingle(),
+        supabase
+          .from('rapt_temp_controllers')
+          .select('profile_target_temp, dual_sensor_enabled')
+          .eq('controller_id', controller.controller_id)
+          .single(),
+      ]);
 
       setHasActiveSession(!!sessionData);
-
-      // SSOT: profile_target_temp is always the user's desired target
-      const { data: ctrlData } = await supabase
-        .from('rapt_temp_controllers')
-        .select('profile_target_temp')
-        .eq('controller_id', controller.controller_id)
-        .single();
+      setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
 
       if (ctrlData?.profile_target_temp != null) {
         setOriginalTarget(ctrlData.profile_target_temp);
@@ -275,6 +253,15 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     ctrl.target_temp != null &&
     ctrl.current_temp < (ctrl.target_temp - heatingHyst);
 
+  const toggleDualSensor = useCallback(async () => {
+    const newValue = !dualSensorEnabled;
+    setDualSensorEnabled(newValue);
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ dual_sensor_enabled: newValue } as any)
+      .eq('controller_id', controller.controller_id);
+  }, [controller.controller_id, dualSensorEnabled]);
+
   return {
     loading,
     isAuthenticated,
@@ -288,7 +275,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     setTargetTemperature,
     isActivelyCooling,
     isActivelyHeating,
-    pillCompEnabled,
+    dualSensorEnabled,
+    toggleDualSensor,
     originalTarget,
     dutyCyclePct,
     dutyMode,

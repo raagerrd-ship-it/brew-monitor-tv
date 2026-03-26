@@ -12,10 +12,9 @@ interface TempStatProps {
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
   onControllerClick?: (controller: import("@/types/brew").TempController) => void;
-  pillCompEnabled?: boolean;
 }
 
-function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pillCompEnabled = false }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
 
@@ -27,7 +26,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, pi
   // Fall back to brew.currentTemp from Brewfather pill if available
   const pillTemp = controller?.pill_temp ?? ((pill && !isPillStale) ? brew.currentTemp : null);
   const probeTemp = controller?.current_temp ?? null;
-  // SSOT: use centralized dual-sensor fusion function
+  // SSOT: use controller's dual_sensor_enabled flag for dual-sensor fusion
+  const pillCompEnabled = (controller as any)?.dual_sensor_enabled ?? false;
   const displayTemp = getActualTemp(pillTemp, probeTemp, pillCompEnabled) ?? brew.currentTemp;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, pillCompEnabled);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');

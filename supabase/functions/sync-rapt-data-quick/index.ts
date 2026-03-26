@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
       supabase.from('sync_settings')
         .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single(),
       supabase.from('auto_cooling_settings')
-        .select('sg_temp_correction_enabled, cooler_controller_id, enabled, pill_compensation_enabled').limit(1).maybeSingle(),
+        .select('sg_temp_correction_enabled, cooler_controller_id, enabled').limit(1).maybeSingle(),
     ]);
     const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
     const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
@@ -330,12 +330,11 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count')
+          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count, dual_sensor_enabled')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
         const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
-        const isPillCompEnabled = autoCoolingRow?.enabled && autoCoolingRow?.pill_compensation_enabled;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
@@ -374,15 +373,24 @@ Deno.serve(async (req) => {
             min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
             max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
             pwm_stable_count: existingMap.get(controller.id)?.pwm_stable_count ?? 0,
+            dual_sensor_enabled: existingMap.get(controller.id)?.dual_sensor_enabled ?? false,
             updated_at: new Date().toISOString()
           };
+
+          // Compute actual_temp via dual-sensor fusion
+          const dualEnabled = updateData.dual_sensor_enabled;
+          if (dualEnabled && pillTemp != null && currentTemp != null) {
+            updateData.actual_temp = (pillTemp + currentTemp) / 2;
+          } else {
+            updateData.actual_temp = pillTemp ?? currentTemp ?? null;
+          }
 
           if (linkedPillId) updateData.linked_pill_id = linkedPillId;
           // Preserve DB target_temp for controllers managed by automation:
           // - Active fermentation session (profile controls target)
           // - Cooler controller (cooler management controls target)
-          // - PID pill-compensation enabled + controller has pill (PID controls target)
-          const isPidManaged = isPillCompEnabled && pillTemp != null;
+          // - Controller has active PID (has pill + dual sensor or session)
+          const isPidManaged = pillTemp != null && (hasActiveSession || dualEnabled);
           if (!hasActiveSession && !isCoolerController && !isPidManaged) {
             updateData.target_temp = targetTemp;
           } else {

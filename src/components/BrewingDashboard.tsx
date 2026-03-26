@@ -30,7 +30,7 @@ export function BrewingDashboard() {
 
   // Use the optimized brew data hook
   const {
-    brews, pills, controllers, loading, updatedFields, isAuthenticated, pillCompEnabled,
+    brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
     onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange, onCachedTimerChange,
   } = useBrewData();
@@ -225,7 +225,6 @@ export function BrewingDashboard() {
         onControllerClick={handleControllerClick}
         hasAlbumArtBackground={!!visibleBgUrl}
         onRefresh={isMobile ? handleManualRefresh : undefined}
-        pillCompEnabled={pillCompEnabled}
         sonosSlot={(!isMobile || isTvMode) ? (
           <SonosWidget isMobile={false} variant="header" onAlbumArtChange={handleAlbumArtChange} onRealtimeRef={onSonosNowPlayingChange} />
         ) : undefined}
@@ -285,7 +284,7 @@ export function BrewingDashboard() {
               <div className="flex h-full">
                 {brews.map((brew, index) => (
                   <div key={brew.id} className="flex-[0_0_100%] min-w-0 px-1">
-                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} pillCompEnabled={pillCompEnabled} />
+                    <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
                   </div>
                 ))}
               </div>
@@ -306,7 +305,7 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                 }}
               >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} pillCompEnabled={pillCompEnabled} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground={!!visibleBgUrl} brewCount={brews.length} />
               </div>
             ))}
           </div>

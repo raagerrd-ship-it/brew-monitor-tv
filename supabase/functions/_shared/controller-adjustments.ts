@@ -160,31 +160,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   } = ctx
   const adjustments: AdjustmentResult[] = []
 
-  // PID always runs — the "Dubbla temperaturgivare" toggle only controls
-  // whether actual_temp is an average of pill+probe or just probe.
-  log('PID_CONTROL', 'info', `PID control check (dual sensors: ${pillCompSettings.enabled ? 'ON' : 'OFF'})`)
-
-  // Pre-load per-brew pill_compensation overrides.
-  // If a brew has pill_compensation=false, dual sensors are disabled for that controller
-  // even when the global setting is ON.
-  // Look up ALL brews linked to followed controllers (not just session brews),
-  // because a brew can be linked via linked_controller_id without an active session.
-  const perBrewDualMap = new Map<string, boolean>() // controller_id → dual enabled
-  const allFollowedIds = followedControllersFullData.map(c => c.controller_id)
-  if (allFollowedIds.length > 0) {
-    const { data: brewSettings } = await supabase
-      .from('brew_readings')
-      .select('id, pill_compensation, linked_controller_id')
-      .in('linked_controller_id', allFollowedIds)
-      .eq('pill_compensation', false)
-    if (brewSettings) {
-      for (const b of brewSettings) {
-        if (b.linked_controller_id) {
-          perBrewDualMap.set(b.linked_controller_id, false)
-        }
-      }
-    }
-  }
+  // PID always runs — dual-sensor is now per controller (dual_sensor_enabled)
+  log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
   // Pre-load pending PWM reverts to detect controllers in active PWM cycles.
   // During PWM, PID is completely locked — no calculations or adjustments.
@@ -227,18 +204,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Dual sensor fusion: compute actualTemp
-    // Per-brew override: if brew has pill_compensation=false, disable dual sensors for this controller
-    const dualEnabled = perBrewDualMap.has(fc.controller_id)
-      ? perBrewDualMap.get(fc.controller_id)!
-      : pillCompSettings.enabled
-    const dualSensor = computeDualSensorTarget(
-      actualTarget,
-      fc.current_temp ?? null,
-      fc.pill_temp ?? null,
-      dualEnabled,
-    )
-    const { actualTemp, enabled: hasDualSensors } = dualSensor
+    // Dual sensor fusion: read pre-computed actual_temp from sync engine,
+    // or compute from controller's own dual_sensor_enabled flag
+    const dualEnabled = (fc as any).dual_sensor_enabled ?? false
+    const actualTemp = (fc as any).actual_temp != null
+      ? parseFloat(String((fc as any).actual_temp))
+      : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled).actualTemp
 
     // Store actualTarget for cooler management (stable target without PID fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, actualTarget)

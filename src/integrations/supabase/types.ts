@@ -1117,6 +1117,7 @@ export type Database = {
       }
       rapt_temp_controllers: {
         Row: {
+          actual_temp: number | null
           controller_id: string
           cooling_enabled: boolean | null
           cooling_hysteresis: number | null
@@ -1124,6 +1125,7 @@ export type Database = {
           cooling_starts: number | null
           created_at: string
           current_temp: number | null
+          dual_sensor_enabled: boolean | null
           heating_enabled: boolean | null
           heating_hysteresis: number | null
           heating_run_time: number | null
@@ -1151,6 +1153,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actual_temp?: number | null
           controller_id: string
           cooling_enabled?: boolean | null
           cooling_hysteresis?: number | null
@@ -1158,6 +1161,7 @@ export type Database = {
           cooling_starts?: number | null
           created_at?: string
           current_temp?: number | null
+          dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
           heating_run_time?: number | null
@@ -1185,6 +1189,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actual_temp?: number | null
           controller_id?: string
           cooling_enabled?: boolean | null
           cooling_hysteresis?: number | null
@@ -1192,6 +1197,7 @@ export type Database = {
           cooling_starts?: number | null
           created_at?: string
           current_temp?: number | null
+          dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
           heating_run_time?: number | null

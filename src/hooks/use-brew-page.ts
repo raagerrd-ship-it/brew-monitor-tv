@@ -10,7 +10,6 @@ export function useBrewPage(brewId: string | undefined) {
   const [brew, setBrew] = useState<BrewData | null>(null);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
-  const [pillCompEnabled, setPillCompEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,7 +155,7 @@ export function useBrewPage(brewId: string | undefined) {
         setBrew(brewData);
         setPills(responseData.pills || []);
         setControllers(responseData.controllers || []);
-        setPillCompEnabled(responseData.pillCompEnabled ?? false);
+        setControllers(responseData.controllers || []);
       } catch (err) {
         console.error('Error fetching brew:', err);
         setError("Kunde inte hämta öl-data");
@@ -168,5 +167,5 @@ export function useBrewPage(brewId: string | undefined) {
     fetchBrew();
   }, [brewId]);
 
-  return { brew, pills, controllers, pillCompEnabled, loading, error };
+  return { brew, pills, controllers, loading, error };
 }

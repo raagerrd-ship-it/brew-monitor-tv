@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       }
 
       // Fetch related data in parallel
-      const [eventsRes, pillsRes, controllersRes, sessionRes, coolingSettingsRes] = await Promise.all([
+      const [eventsRes, pillsRes, controllersRes, sessionRes] = await Promise.all([
         supabase
           .from('brew_events')
           .select('*')
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
           .select('id, pill_id, name, color, battery_level, last_update, paired_device_id'),
         supabase
           .from('rapt_temp_controllers')
-          .select('id, controller_id, name, current_temp, pill_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id'),
+          .select('id, controller_id, name, current_temp, pill_temp, actual_temp, dual_sensor_enabled, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, profile_target_temp'),
         supabase
           .from('fermentation_sessions')
           .select(`
@@ -115,11 +115,6 @@ Deno.serve(async (req) => {
           .eq('brew_id', brew.id)
           .eq('status', 'running')
           .maybeSingle(),
-        supabase
-          .from('auto_cooling_settings')
-          .select('pill_compensation_enabled')
-          .limit(1)
-          .single()
       ]);
 
       console.log(`Successfully fetched brew: ${brew.name}`);
@@ -131,7 +126,6 @@ Deno.serve(async (req) => {
           pills: pillsRes.data || [],
           controllers: controllersRes.data || [],
           fermentationSession: sessionRes.data || null,
-          pillCompEnabled: coolingSettingsRes.data?.pill_compensation_enabled ?? false,
           success: true
         }),
         {
