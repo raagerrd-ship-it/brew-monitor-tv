@@ -911,11 +911,15 @@ function resolveEffectiveLowestTarget(ctx: CoolerContext, controllersWithCooling
       if (currentEffective === null) continue
 
       if (nextTarget < currentEffective - 0.5) {
-        let hoursUntil = 0
-        if (currentStep.duration_hours) {
-          const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
-          hoursUntil = Math.max(0, currentStep.duration_hours - elapsed)
+        // If current step has no fixed duration (driven by SG/activity triggers),
+        // we cannot predict when it will complete — skip proactive cooling
+        if (!currentStep.duration_hours) {
+          log('PROACTIVE', 'info', `${controller.name}: skippar proaktiv — nuvarande steg drivs av SG/aktivitet (ingen fast tid)`)
+          continue
         }
+
+        const elapsed = (Date.now() - new Date(session.step_started_at).getTime()) / (1000 * 60 * 60)
+        const hoursUntil = Math.max(0, currentStep.duration_hours - elapsed)
 
         if (hoursUntil <= 2.0 && nextTarget < result.temp) {
           result = {
