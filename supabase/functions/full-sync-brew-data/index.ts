@@ -318,6 +318,7 @@ Deno.serve(async (req) => {
                   pill_temp: latest.temp,
                   controller_temp: ctrlTemp,
                   profile_target_temp: profileTarget,
+                  actual_temp: typeof ctrlActualTemp !== 'undefined' ? ctrlActualTemp : null,
                 })
               }
             }
