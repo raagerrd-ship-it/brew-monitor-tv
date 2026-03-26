@@ -40,7 +40,6 @@ export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
-  pillCompEnabled = false,
   sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
