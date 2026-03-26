@@ -14,7 +14,7 @@ const BrewChartLazy = lazy(() =>
  * Server-rendered chart image for TV mode.
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
-function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, brewStatus, pillCompensation = true }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number; brewStatus?: string; pillCompensation?: boolean }) {
+function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, brewStatus }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number; brewStatus?: string }) {
   const cacheKey = `tv-chart-${brewId}-${compact ? 'c' : 'f'}-${brewCount}`;
   const isInactive = brewStatus === 'Konditionering' || brewStatus === 'Klar';
   const [visibleSvg, setVisibleSvg] = useState<string | null>(() => {
