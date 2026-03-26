@@ -102,17 +102,21 @@ export function useBrewChartData({
 
     if (snapshotRows.length > 0) {
       basePoints = snapshotRows.map((row) => {
-        // SSOT: actual_temp is the only temperature line
+        // SSOT: actual_temp is the main line, pill & controller always secondary
         const actualTemp = row.actual_temp ?? row.pill_temp ?? row.controller_temp ?? null;
+        const hasBoth = row.controller_temp != null && row.pill_temp != null;
+        const tempSpan = hasBoth
+          ? Math.abs(row.pill_temp - row.controller_temp!)
+          : null;
         return {
           date: row.recorded_at,
           value: row.sg,
           temp: actualTemp,
-          pillTemp: null as number | null,
-          controllerTemp: null as number | null,
+          pillTemp: row.pill_temp,
+          controllerTemp: row.controller_temp,
           targetTemp: row.profile_target_temp,
           avgTemp: actualTemp,
-          tempSpan: null as number | null,
+          tempSpan,
         };
       });
     } else if (data && data.length > 0) {
