@@ -62,7 +62,7 @@ export function useBrewData(): UseBrewDataReturn {
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pillCompEnabled, setPillCompEnabled] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
   const { isTvMode } = useTvMode();
 
