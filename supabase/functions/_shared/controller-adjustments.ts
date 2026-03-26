@@ -265,8 +265,27 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
+    // ── Profile-directed fast switch ──────────────────────────
+    // When a fermentation profile step explicitly changes direction
+    // (e.g. gradual_ramp raising temp for diacetyl rest), bypass the
+    // 6-cycle stabilisation guard and switch immediately.
+    // This only applies when the profile has moved the target clearly
+    // past the current temp in the opposite direction of the current mode.
+    const profileStatus = ctx.profileStatusMap.get(fc.controller_id)
+    const isProfileRamp = profileStatus?.currentStepType === 'gradual_ramp' || profileStatus?.currentStepType === 'ramp'
+    const profileDirectedSwitch = canSwitchMode && prevMode != null && suggestedMode !== prevMode
+      && isProfileRamp && distanceToTarget > 0.3
+
     let pidMode: 'heating' | 'cooling'
-    if (isStuck || isDiverging) {
+    if (profileDirectedSwitch) {
+      // Profile explicitly wants the opposite direction — switch immediately
+      pidMode = suggestedMode
+      switchPressure = 0
+      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp kräver ${suggestedMode}, Δ${round1(distanceToTarget)}°)`, {
+        from: prevMode, to: suggestedMode, stepType: profileStatus?.currentStepType,
+        distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
+      })
+    } else if (isStuck || isDiverging) {
       // Probe is on wrong side and either stabilized or actively drifting away
       const reason = isDiverging ? 'divergerar' : 'stabiliserad'
 
