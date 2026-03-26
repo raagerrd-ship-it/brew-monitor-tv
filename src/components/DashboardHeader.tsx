@@ -133,7 +133,6 @@ interface RaptControllerBarProps {
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
   isTvMode?: boolean;
-  pillCompEnabled?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
