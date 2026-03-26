@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   // Check what needs to run
   const [{ data: runningSessions }, { data: coolingSettings }, { data: activeControllers }, { data: coolerStatus }] = await Promise.all([
     supabase.from("fermentation_sessions").select("id, controller_id").eq("status", "running").limit(100),
-    supabase.from("auto_cooling_settings").select("enabled, pill_compensation_enabled").limit(1),
+    supabase.from("auto_cooling_settings").select("enabled").limit(1),
     supabase.from("rapt_temp_controllers")
       .select("controller_id")
       .or("cooling_enabled.eq.true,heating_enabled.eq.true")
@@ -80,7 +80,6 @@ Deno.serve(async (req) => {
   ]);
 
   const settings = coolingSettings?.[0];
-  const hasPillComp = (settings as any)?.pill_compensation_enabled;
   const hasCooling = settings?.enabled;
   const hasActiveControllers = activeControllers && activeControllers.length > 0;
   const coolerTarget = coolerStatus?.[0]?.target_temp != null ? parseFloat(String(coolerStatus[0].target_temp)) : null;
