@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -48,11 +49,11 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     loading, isAuthenticated, targetTemp, setTargetTemp,
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
-    isActivelyCooling, isActivelyHeating, pillCompEnabled, originalTarget,
+    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor, originalTarget,
     dutyCyclePct, dutyMode,
   } = useControllerDialog({ controller, open, onOpenChange });
 
-  const isPillCompActive = pillCompEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
+  const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
   const actualTemp = getActualTemp(currentController.pill_temp, currentController.current_temp, isPillCompActive);
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
