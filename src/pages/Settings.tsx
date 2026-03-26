@@ -550,7 +550,6 @@ export default function Settings() {
                 <div className="space-y-3">
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
-                    pillCompEnabled={settings.pillCompEnabled}
                     stallDetectionEnabled={settings.stallDetectionEnabled}
                     overshootPreventionEnabled={settings.overshootPreventionEnabled}
                     aiAuditEnabled={settings.aiAuditEnabled}
