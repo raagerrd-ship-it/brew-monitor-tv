@@ -29,15 +29,12 @@ function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
 }
 
 /**
- * Pick the correct sensor for temperature comparison based on direction.
- * Warming up → pill (surface heats first, more responsive)
- * Cooling down → probe (core cools first via glycol contact)
+ * Get the resolved temperature for a controller.
+ * SSOT: always prefer actual_temp (pre-calculated by sync engine).
+ * Falls back to probe → pill if actual_temp is not available.
  */
-function getDirectionalTemp(controller: TempController, targetTemp: number, referenceTemp: number): number | null {
-  const rampingUp = targetTemp > referenceTemp
-  return rampingUp
-    ? (controller.pill_temp ?? controller.current_temp ?? null)
-    : (controller.current_temp ?? controller.pill_temp ?? null)
+function getResolvedTemp(controller: TempController): number | null {
+  return controller.actual_temp ?? controller.current_temp ?? controller.pill_temp ?? null
 }
 
 export function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
@@ -131,14 +128,12 @@ export async function processHoldStep(ctx: StepContext): Promise<StepResult> {
   }
 
   const holdEffectiveTarget = currentStep.target_temp ?? getEffectiveTargetTemp(steps, session.current_step_index)
-  const holdCheckTemp = controller && holdEffectiveTarget
-    ? getDirectionalTemp(controller, holdEffectiveTarget, controller.current_temp ?? holdEffectiveTarget)
-    : (controller?.pill_temp ?? controller?.current_temp ?? null)
+  const holdCheckTemp = controller ? getResolvedTemp(controller) : null
   const holdTempOk = !holdEffectiveTarget || !controller ||
     (holdCheckTemp !== null && Math.abs(holdCheckTemp - holdEffectiveTarget) <= 0.3)
 
   if (!holdTempOk) {
-    console.log(`Hold step: condition met but temp not at target (current ${controller?.current_temp}°C, target ${holdEffectiveTarget}°C) - waiting`)
+    console.log(`Hold step: condition met but temp not at target (actual ${holdCheckTemp}°C, target ${holdEffectiveTarget}°C) - waiting`)
   }
 
   if (currentStep.duration_hours && currentStep.target_sg !== null) {
@@ -168,10 +163,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
     const immStartTemp = session.step_start_temp ?? controller?.target_temp ?? currentStep.target_temp
-    const immRampingUp = currentStep.target_temp > immStartTemp
-    const immRampCheckTemp = immRampingUp
-      ? (controller?.pill_temp ?? controller?.current_temp ?? null)
-      : (controller?.current_temp ?? controller?.pill_temp ?? null)
+    const immRampCheckTemp = controller ? getResolvedTemp(controller) : null
 
     if (controller && immRampCheckTemp !== null &&
       Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
@@ -182,7 +174,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
     } else {
       actionTaken = 'profile_target_set'
       actionDetails = { profile_target: currentStep.target_temp, step_type: 'immediate_ramp' }
-      console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (current: ${controller?.current_temp}°C)`)
+      console.log(`Immediate ramp: waiting for temp to reach ${currentStep.target_temp}°C (actual: ${immRampCheckTemp}°C)`)
     }
   } else {
     // Linear ramp
@@ -198,14 +190,11 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
       }
 
       const timeComplete = elapsedHours >= currentStep.duration_hours
-      const rampingUp = currentStep.target_temp > startTemp
-      const rampCheckTemp = rampingUp
-        ? (controller.pill_temp ?? controller.current_temp)
-        : (controller.current_temp ?? controller.pill_temp)
+      const rampCheckTemp = getResolvedTemp(controller)
       const tempReached = rampCheckTemp !== null &&
         Math.abs(rampCheckTemp - currentStep.target_temp) <= 0.3
 
-      console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, rampingUp: ${rampingUp}, sensor: ${rampingUp ? 'pill' : 'probe'}, sensorTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
+      console.log(`Ramp: ${startTemp}°C → ${currentStep.target_temp}°C over ${currentStep.duration_hours}h, elapsed: ${elapsedHours.toFixed(2)}h, actualTemp: ${rampCheckTemp}°C, tempReached: ${tempReached}`)
 
       if (tempReached) {
         await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
@@ -256,8 +245,7 @@ export async function processWaitForTempStep(ctx: StepContext): Promise<StepResu
   if (currentStep.target_temp !== null && controller) {
     await setProfileTarget(supabase, session.controller_id, currentStep.target_temp)
 
-    const referenceTemp = controller.current_temp ?? currentStep.target_temp
-    const waitCheckTemp = getDirectionalTemp(controller, currentStep.target_temp, referenceTemp)
+    const waitCheckTemp = getResolvedTemp(controller)
     if (waitCheckTemp !== null && Math.abs(waitCheckTemp - currentStep.target_temp) <= 0.3) {
       stepCompleted = true
       actionTaken = 'temp_reached'
