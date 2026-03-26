@@ -296,7 +296,7 @@ export async function calculateCompensatedTarget(
   if (mode === 'cooling') {
     const coolingNeed = -avgError // positive when actualTemp > actualTarget (needs cooling)
     const DUTY_P = 0.5    // duty per °C error
-    const DUTY_I = 0.05   // duty accumulation per cycle per °C
+    const DUTY_I = 0.10   // duty accumulation per cycle per °C (was 0.05)
     const DUTY_DECAY = 0.98 // slow decay for stable steady-state
     const DUTY_IMAX = 0.95  // max 95% from integral
 
@@ -311,14 +311,14 @@ export async function calculateCompensatedTarget(
 
     let dutyCycle = 0
 
-    if (Math.abs(avgError) <= 0.1) {
+    if (Math.abs(avgError) <= 0.05) {
       // DEADBAND: hold integral steady (this IS the learned steady-state duty)
       // Do NOT decay — the integral represents the duty needed to maintain temperature.
       // Decaying it causes the system to lose its learned baseline and stop cooling.
       dutyCycle = Math.max(0, integral)
       constraints.push('deadband')
       console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-    } else if (coolingNeed < -0.1) {
+    } else if (coolingNeed < -0.05) {
       // OVERCOOLED: stop cooling, fast-decay integral
       integral *= 0.85
       dutyCycle = 0
@@ -387,7 +387,7 @@ export async function calculateCompensatedTarget(
   // mode === 'heating' guaranteed here (cooling returns early above)
   const heatingNeed = avgError // positive when actualTemp < actualTarget (needs heating)
   const HEAT_P = 0.5
-  const HEAT_I = 0.05
+  const HEAT_I = 0.10
   const HEAT_DECAY = 0.98
   const HEAT_IMAX = 0.95
 
@@ -400,12 +400,12 @@ export async function calculateCompensatedTarget(
 
   let hDutyCycle = 0
 
-  if (Math.abs(avgError) <= 0.1) {
+  if (Math.abs(avgError) <= 0.05) {
     // DEADBAND: hold at integral (learned steady-state duty) — no decay
     hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
     console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
-  } else if (heatingNeed < -0.1) {
+  } else if (heatingNeed < -0.05) {
     // OVERHEATED: stop heating, fast-decay integral
     hIntegral *= 0.85
     hDutyCycle = 0

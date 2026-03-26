@@ -275,10 +275,10 @@ export function AiTunableParameters() {
         <SectionHeader>PWM-styrning (kylning &amp; värme)</SectionHeader>
         <div className="mt-0.5">
           <ParamRow label="P-gain" value="0.5" unit=" duty/°C" />
-          <ParamRow label="I-gain" value="0.05" unit=" /cykel" />
+          <ParamRow label="I-gain" value="0.10" unit=" /cykel" />
           <ParamRow label="I-decay" value="0.98" />
           <ParamRow label="I-max" value="95" unit="%" />
-          <ParamRow label="Deadband" value="±0.1" unit="°C" />
+          <ParamRow label="Deadband" value="±0.05" unit="°C" />
           <ParamRow label="Cykel" value="5" unit=" min" />
         </div>
       </div>
