@@ -259,6 +259,7 @@ export type Database = {
       }
       brew_data_snapshots: {
         Row: {
+          actual_temp: number | null
           auto_target_temp: number | null
           brew_id: string
           controller_temp: number | null
@@ -270,6 +271,7 @@ export type Database = {
           sg: number | null
         }
         Insert: {
+          actual_temp?: number | null
           auto_target_temp?: number | null
           brew_id: string
           controller_temp?: number | null
@@ -281,6 +283,7 @@ export type Database = {
           sg?: number | null
         }
         Update: {
+          actual_temp?: number | null
           auto_target_temp?: number | null
           brew_id?: string
           controller_temp?: number | null
