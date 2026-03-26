@@ -155,7 +155,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   onControllerClick,
   isMobile,
   isTvMode = false,
-  pillCompEnabled = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
