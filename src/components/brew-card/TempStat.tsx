@@ -225,9 +225,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
-  // PWM Duty Cycle bar
-  const dutyBar = !isInactive && brew.dutyPct !== null && brew.dutyPct !== undefined ? (() => {
-    const duty = brew.dutyPct;
+  // PWM Duty Cycle bar — show for all active controllers (default 0% when no data)
+  const effectiveDutyPct = brew.dutyPct ?? (controller && !isInactive ? 0 : null);
+  const dutyBar = effectiveDutyPct !== null ? (() => {
+    const duty = effectiveDutyPct;
     const mode = brew.dutyMode;
     const isCooling = mode === 'cooling';
     const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(0 70% 50%)';
