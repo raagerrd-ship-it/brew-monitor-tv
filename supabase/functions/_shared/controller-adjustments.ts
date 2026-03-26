@@ -282,7 +282,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pidMode = suggestedMode
       switchPressure = 0
       log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp kräver ${suggestedMode}, Δ${round1(distanceToTarget)}°)`, {
-        from: prevMode, to: suggestedMode, stepType: profileStatus?.currentStepType,
+        from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (isStuck || isDiverging) {
