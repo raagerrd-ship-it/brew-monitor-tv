@@ -1,5 +1,6 @@
 import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
+import { RaptControllerDialog } from "@/components/RaptControllerDialog";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
@@ -34,7 +35,8 @@ import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Al
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
-import { useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import type { TempController } from "@/types/brew";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
@@ -44,6 +46,26 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const settings = useSettingsData();
+
+  // Controller dialog state (same as BrewingDashboard)
+  const [selectedController, setSelectedController] = useState<TempController | null>(null);
+  const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
+  const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
+  const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCoolerController = async () => {
+      const { data } = await supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle();
+      if (data?.cooler_controller_id) setCoolerControllerId(data.cooler_controller_id);
+    };
+    loadCoolerController();
+  }, []);
+
+  const handleControllerClick = useCallback((controller: TempController) => {
+    setSelectedController(controller);
+    setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
+    setControllerDialogOpen(true);
+  }, [coolerControllerId]);
 
   // Get initial tab from URL or default to "sync"
   const validTabs = ["sync", "automation", "devices", "brews"];
@@ -116,6 +138,7 @@ export default function Settings() {
       <DashboardHeader
         controllers={settings.headerControllers}
         pills={settings.headerPillsData}
+        onControllerClick={handleControllerClick}
       />
       <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${settings.headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
@@ -632,6 +655,16 @@ export default function Settings() {
         open={settings.externalLoginDialogOpen} 
         onOpenChange={settings.setExternalLoginDialogOpen} 
       />
+
+      {selectedController && (
+        <RaptControllerDialog
+          controller={selectedController}
+          open={controllerDialogOpen}
+          onOpenChange={setControllerDialogOpen}
+          isCooler={selectedControllerIsCooler}
+          controllerColor={settings.headerPillsData.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined}
+        />
+      )}
     </div>
   );
 }
