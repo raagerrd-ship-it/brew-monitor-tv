@@ -12,6 +12,7 @@ export { useExternalUserSettings } from "./use-external-user-settings";
 export { useFermentationProfiles } from "./use-fermentation-profiles";
 export { useIsMobile } from "./use-mobile";
 export { usePrinterConnection } from "./use-printer-connection";
+export { useRaptBarData } from "./use-rapt-bar-data";
 export { useSettingsData } from "./use-settings-data";
 export { useSplashScreen } from "./use-splash-screen";
 export { useToast, toast } from "./use-toast";
