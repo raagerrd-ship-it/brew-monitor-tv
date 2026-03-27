@@ -163,8 +163,8 @@ Deno.serve(async (req) => {
 
     // Fetch profile names and step types for running sessions
     const sessionProfileMap = new Map<string, { profile_name: string; active_step_type: string; step_target_temp: number | null }>();
-    if (runningSessions && runningSessions.length > 0) {
-      const profileIds = [...new Set(runningSessions.map((s: any) => s.profile_id))];
+    if (sessions && sessions.length > 0) {
+      const profileIds = [...new Set(sessions.map((s: any) => s.profile_id))];
       const [{ data: profiles }, { data: steps }] = await Promise.all([
         supabase.from('fermentation_profiles').select('id, name').in('id', profileIds),
         supabase.from('fermentation_profile_steps').select('profile_id, step_order, step_type, target_temp').in('profile_id', profileIds),
