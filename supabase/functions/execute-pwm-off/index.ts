@@ -153,6 +153,7 @@ Deno.serve(async (req) => {
                 duty_seconds: dutySecs,
                 duty_pct: dutyPct,
                 off_target: retry.target_temp,
+                mode: burstMode,
               },
             },
             {
