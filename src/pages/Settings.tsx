@@ -35,7 +35,8 @@ import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Al
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
-import { useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import type { TempController } from "@/types/brew";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
