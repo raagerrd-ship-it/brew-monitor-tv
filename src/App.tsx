@@ -65,23 +65,24 @@ function AppContent() {
   
   return (
     <ExternalAuthProvider>
-      
-      <Routes>
-        {/* Brew page without aspect ratio lock */}
-        <Route path="/brew/:id" element={<Brew />} />
-        
-        {/* All other routes with aspect ratio lock using layout */}
-        <Route element={<AspectRatioLayout />}>
-          <Route path="/" element={<Index />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/install" element={<Install />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/sonos-callback" element={<SonosCallback />} />
-          <Route path="/printer-debug" element={<PrinterDebug />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
+      <TimerProvider>
+        <Routes>
+          {/* Brew page without aspect ratio lock */}
+          <Route path="/brew/:id" element={<Brew />} />
+          
+          {/* All other routes with aspect ratio lock using layout */}
+          <Route element={<AspectRatioLayout />}>
+            <Route path="/" element={<Index />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/install" element={<Install />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/sonos-callback" element={<SonosCallback />} />
+            <Route path="/printer-debug" element={<PrinterDebug />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </TimerProvider>
     </ExternalAuthProvider>
   );
 }
