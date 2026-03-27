@@ -249,6 +249,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const lastDutyPct = pressureMap.get('pid_last_duty') ?? 0
     const lastStepIndex = pressureMap.get('mode_last_step_index') ?? null
 
+    // Mode detection: overshoot-aware with stabilisation guard.
+    const MODE_SWITCH_CYCLES = 6
+    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
+
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
