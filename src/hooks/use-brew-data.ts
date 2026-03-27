@@ -10,12 +10,10 @@ import { useTvMode } from '@/contexts/TvModeContext';
 
 interface UseBrewDataReturn {
   brews: BrewData[];
-  setBrews: React.Dispatch<React.SetStateAction<BrewData[]>>;
   pills: PillData[];
   controllers: TempController[];
   loading: boolean;
   updatedFields: Record<string, Record<string, boolean>>;
-  brewEvents: Record<string, BrewEvent[]>;
   isAuthenticated: boolean;
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
