@@ -315,20 +315,28 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                      );
                    })()}
 
-                   {/* Battery bar */}
+                   {/* Battery bar — styled like PWM duty bar */}
                    {linkedPill && (
-                      <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.04)' }}>
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${batteryLevel}%`,
-                            background: batteryLevel < 20 
-                              ? 'linear-gradient(90deg, hsl(0 70% 40%), hsl(0 70% 55%))' 
-                              : `linear-gradient(90deg, ${controllerColor}99, ${controllerColor})`,
-                            boxShadow: `0 0 4px ${batteryColor}44`,
-                          }}
-                        />
-                      </div>
+                     <div className="absolute bottom-0 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
+                       height: '4px',
+                       background: 'hsl(0 0% 0% / 0.5)',
+                       boxShadow: 'inset 0 1px 2px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
+                     }}>
+                       <div
+                         className="absolute top-0 bottom-0 left-0 rounded-full transition-all duration-500"
+                         style={{
+                           width: `${Math.max(batteryLevel, 1)}%`,
+                           background: batteryColor,
+                           opacity: 0.7,
+                           boxShadow: `0 0 6px ${batteryColor}`,
+                         }}
+                       />
+                       {/* Glass highlight */}
+                       <div
+                         className="absolute inset-0 rounded-full pointer-events-none"
+                         style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
+                       />
+                     </div>
                    )}
                  </div>
                    );
