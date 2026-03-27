@@ -5,6 +5,7 @@ import {
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
 import { Logo } from "../Logo";
+import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
 interface SonosWidgetProps {
