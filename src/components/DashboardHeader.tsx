@@ -286,7 +286,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    })()}
 
                    {/* Sensor icons (right) — show which sensors are active */}
-                   {!isControllerStale && !isMobile && (() => {
+                   {!isControllerStale && (() => {
                      const isDual = !!(controller as any).dual_sensor_enabled;
                      const preferred = (controller as any).preferred_sensor as string | undefined;
                      const hasPill = !!linkedPill && !isPillStale;
