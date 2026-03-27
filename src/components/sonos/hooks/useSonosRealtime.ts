@@ -24,15 +24,18 @@ interface UseSonosRealtimeParams {
  */
 export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
-    onRealtimeRef, isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
   } = params;
 
-  useEffect(() => {
-    if (!onRealtimeRef || !isConnected || !showWidget) return;
+  // Store the handler in a ref so the realtime subscription can call the latest version
+  const handlerRef = useRef<((payload: any) => void) | null>(null);
 
-    onRealtimeRef.current = (payload: any) => {
+  useEffect(() => {
+    if (!isConnected || !showWidget) return;
+
+    handlerRef.current = (payload: any) => {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
       if (!incoming.track_name) return;
