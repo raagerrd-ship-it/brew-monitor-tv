@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
