@@ -217,7 +217,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-4 py-1.5 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
+        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-3 py-0.5 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
           background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
           boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
@@ -261,7 +261,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 pb-2.5 gap-1.5 flex-shrink-0' : 'px-3 pt-1 pb-3 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
+                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 pb-2.5 gap-1.5 flex-shrink-0' : 'px-3 py-0.5 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
