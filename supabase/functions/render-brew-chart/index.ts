@@ -299,6 +299,16 @@ function generateChartSvg(
     ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${pillCompensation ? COLORS.pillTempLine : COLORS.avgTempLine}" stroke-width="${pillCompensation ? 1 : 1.5}"/>`
     : '';
 
+  // When no pill compensation, use actual_temp as main line if available
+  if (!pillCompensation) {
+    const actualPoints = parsed
+      .filter((p) => (p.actual ?? p.pill) !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY((p.actual ?? p.pill) as number) }));
+    avgTempSvg = actualPoints.length > 1
+      ? `<path d="${buildSmoothPath(actualPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`
+      : '';
+  }
+
   const targetPoints = parsed
     .filter((p) => p.target !== null)
     .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.target as number) }));
