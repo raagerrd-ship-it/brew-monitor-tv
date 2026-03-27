@@ -33,14 +33,13 @@ export function BrewingDashboard() {
   const {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
-    onSyncSettingsChange,
   } = useBrewData();
 
   // Extracted hooks
   const { visibleBgUrl } = useAlbumArt();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   const { showSplash } = useSplashScreen(loading);
-  useTvRefresh(isTvMode, onSyncSettingsChange);
+  useTvRefresh(isTvMode);
 
   // Timer visibility from self-contained TimerFooter via context
   const { isTimerVisible: showTimerFooter } = useTimerVisibility();

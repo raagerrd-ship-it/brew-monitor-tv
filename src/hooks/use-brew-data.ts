@@ -878,6 +878,5 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrews,
     loadRaptData,
     loadBrewEvents,
-    onSyncSettingsChange,
   };
 }
