@@ -36,7 +36,7 @@ import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
 import { useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
 
