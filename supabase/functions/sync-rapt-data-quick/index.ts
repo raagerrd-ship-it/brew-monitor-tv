@@ -1217,15 +1217,26 @@ Deno.serve(async (req) => {
       if (controllerUpdatesForHistory.length === 0) return;
 
       // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
-      const { data: postAutoValues } = await supabase
-        .from('rapt_temp_controllers')
-        .select('controller_id, target_temp, profile_target_temp')
-        .in('controller_id', controllerUpdatesForHistory.map(c => c.controller_id));
+      // AND the latest duty_pct from fermentation_learnings
+      const controllerIds = controllerUpdatesForHistory.map(c => c.controller_id);
+      const [{ data: postAutoValues }, { data: dutyRows }] = await Promise.all([
+        supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, target_temp, profile_target_temp')
+          .in('controller_id', controllerIds),
+        supabase
+          .from('fermentation_learnings')
+          .select('controller_id, learned_value')
+          .eq('parameter_name', 'pid_last_duty')
+          .in('controller_id', controllerIds),
+      ]);
       const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
+      const dutyMap = new Map((dutyRows || []).map((d: any) => [d.controller_id, parseFloat(String(d.learned_value))]));
 
       // Insert temp history + delta history in parallel
       const historyRecords = controllerUpdatesForHistory.map(c => {
         const post = postAutoMap.get(c.controller_id);
+        const dutyPct = dutyMap.get(c.controller_id);
         return {
           controller_id: c.controller_id,
           current_temp: c.current_temp ?? c.pill_temp,
@@ -1233,6 +1244,7 @@ Deno.serve(async (req) => {
           cooling_enabled: c.cooling_enabled || false,
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
           cooling_run_time: c.cooling_run_time ?? null,
+          duty_pct: dutyPct != null && Number.isFinite(dutyPct) ? dutyPct : null,
         };
       });
 

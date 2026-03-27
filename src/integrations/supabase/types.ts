@@ -1607,6 +1607,7 @@ export type Database = {
           cooling_run_time: number | null
           created_at: string
           current_temp: number
+          duty_pct: number | null
           id: string
           profile_target_temp: number | null
           recorded_at: string
@@ -1618,6 +1619,7 @@ export type Database = {
           cooling_run_time?: number | null
           created_at?: string
           current_temp: number
+          duty_pct?: number | null
           id?: string
           profile_target_temp?: number | null
           recorded_at?: string
@@ -1629,6 +1631,7 @@ export type Database = {
           cooling_run_time?: number | null
           created_at?: string
           current_temp?: number
+          duty_pct?: number | null
           id?: string
           profile_target_temp?: number | null
           recorded_at?: string
