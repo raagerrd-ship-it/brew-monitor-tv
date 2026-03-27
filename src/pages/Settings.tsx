@@ -633,15 +633,6 @@ export default function Settings() {
         onOpenChange={settings.setExternalLoginDialogOpen} 
       />
 
-      {selectedController && (
-        <RaptControllerDialog
-          controller={selectedController}
-          open={controllerDialogOpen}
-          onOpenChange={setControllerDialogOpen}
-          isCooler={selectedControllerIsCooler}
-          controllerColor={settings.headerPillsData.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined}
-        />
-      )}
     </div>
   );
 }
