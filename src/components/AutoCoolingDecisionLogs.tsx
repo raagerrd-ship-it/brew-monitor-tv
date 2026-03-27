@@ -1089,7 +1089,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   // Track controllers where PWM mode is active but this phase has 0-burst
   const pwmSkipNames = new Set<string>();
   // Support both old (DUTY_PWM_SKIP) and new (DUTY_PHASE_B, DUTY_ZERO) step names
-  decisions.filter(d => d.step === 'DUTY_PWM_SKIP' || d.step === 'DUTY_PHASE_B' || d.step === 'DUTY_ZERO').forEach(d => {
+  decisions.filter(d => d.step === 'DUTY_ZERO').forEach(d => {
     const nameMatch = d.message.match(/^([^:]+):/);
     if (nameMatch) pwmSkipNames.add(nameMatch[1].trim());
   });
