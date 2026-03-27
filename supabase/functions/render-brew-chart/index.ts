@@ -33,6 +33,7 @@ interface SnapshotPoint {
   pill_temp: number | null;
   controller_temp: number | null;
   profile_target_temp: number | null;
+  actual_temp: number | null;
 }
 
 // Build straight-line SVG path from raw points
@@ -167,6 +168,7 @@ function generateChartSvg(
       pill: p.pill_temp,
       controller: p.controller_temp,
       target: p.profile_target_temp,
+      actual: p.actual_temp,
     }))
     .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.sg))
     .sort((a, b) => a.t - b.t);
@@ -198,7 +200,7 @@ function generateChartSvg(
   const sgMax = Math.max(...sgValues, og) + 0.001;
 
   const tempValues = parsed
-    .flatMap((p) => pillCompensation ? [p.pill, p.controller, p.target] : [p.pill, p.target])
+    .flatMap((p) => pillCompensation ? [p.actual, p.pill, p.controller, p.target] : [p.actual ?? p.pill, p.target])
     .filter((v): v is number => v !== null && Number.isFinite(v));
 
   const hasTempData = tempValues.length > 0;
@@ -272,7 +274,6 @@ function generateChartSvg(
         x: scaleX(p.t, tMin, tMax),
         pillY: tempScaleY(p.pill as number),
         ctrlY: tempScaleY(p.controller as number),
-        avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
       }));
 
     if (spanPoints.length > 1) {
@@ -280,10 +281,15 @@ function generateChartSvg(
       const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
       const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
       tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
-
-      const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
-      avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
     }
+
+    // Use actual_temp (pre-computed fusion) for avg line — same as desktop
+    const avgPoints = parsed
+      .filter((p) => (p.actual ?? p.pill) !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY((p.actual ?? p.pill) as number) }));
+    avgTempSvg = avgPoints.length > 1
+      ? `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`
+      : '';
   }
 
   const pillPoints = parsed
@@ -292,6 +298,16 @@ function generateChartSvg(
   const pillSvg = pillPoints.length > 0
     ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${pillCompensation ? COLORS.pillTempLine : COLORS.avgTempLine}" stroke-width="${pillCompensation ? 1 : 1.5}"/>`
     : '';
+
+  // When no pill compensation, use actual_temp as main line if available
+  if (!pillCompensation) {
+    const actualPoints = parsed
+      .filter((p) => (p.actual ?? p.pill) !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY((p.actual ?? p.pill) as number) }));
+    avgTempSvg = actualPoints.length > 1
+      ? `<path d="${buildSmoothPath(actualPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`
+      : '';
+  }
 
   const targetPoints = parsed
     .filter((p) => p.target !== null)
@@ -453,7 +469,7 @@ Deno.serve(async (req) => {
         .eq('id', brewId)
         .single(),
       supabase.from('brew_data_snapshots')
-        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp')
+        .select('recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp')
         .eq('brew_id', brewId)
         .order('recorded_at', { ascending: true }),
     ]);
@@ -476,6 +492,7 @@ Deno.serve(async (req) => {
       pill_temp: p.temp ?? null,
       controller_temp: null,
       profile_target_temp: null,
+      actual_temp: null,
     }));
 
     // ── Step 2: Generate SVG and return inline ──
