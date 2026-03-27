@@ -192,8 +192,46 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
 
-    // Store actualTarget for cooler management (stable target without PID fluctuation)
-    ctx.baseTargetMap.set(fc.controller_id, actualTarget)
+    // ── Ramp-rate-limiting: soft D-term alternative ──────────
+    // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
+    // by gradually moving the effective target at a max rate.
+    // This turns any step change into a smooth ramp, reducing overshoot.
+    const RAMP_RATE_COOLING = 4.0 // °C/hour max target decrease
+    const RAMP_RATE_HEATING = 3.0 // °C/hour max target increase
+    const CYCLE_HOURS = 5 / 60    // 5-min cycle
+
+    const lastEffective = pressureMap.get('pid_effective_target')
+    let pidEffectiveTarget = actualTarget
+    let rampRateLimited = false
+
+    if (lastEffective != null) {
+      const delta = actualTarget - lastEffective
+      if (delta < -0.1) {
+        // Target dropping (cooling direction) — limit descent rate
+        const maxDrop = RAMP_RATE_COOLING * CYCLE_HOURS
+        pidEffectiveTarget = Math.max(actualTarget, lastEffective - maxDrop)
+        rampRateLimited = pidEffectiveTarget > actualTarget + 0.05
+      } else if (delta > 0.1) {
+        // Target rising (heating direction) — limit ascent rate
+        const maxRise = RAMP_RATE_HEATING * CYCLE_HOURS
+        pidEffectiveTarget = Math.min(actualTarget, lastEffective + maxRise)
+        rampRateLimited = pidEffectiveTarget < actualTarget - 0.05
+      }
+    }
+    pidEffectiveTarget = round1(pidEffectiveTarget)
+
+    if (rampRateLimited) {
+      log('RAMP_LIMIT', 'info', `${fc.name}: mål ${round1(actualTarget)}° rate-limited → ${pidEffectiveTarget}° (senaste: ${round1(lastEffective!)})`, {
+        final_target: round1(actualTarget),
+        effective_target: pidEffectiveTarget,
+        last_effective: round1(lastEffective!),
+        max_rate_cooling: RAMP_RATE_COOLING,
+        max_rate_heating: RAMP_RATE_HEATING,
+      })
+    }
+
+    // Store pidEffectiveTarget for cooler management (stable, rate-limited target)
+    ctx.baseTargetMap.set(fc.controller_id, pidEffectiveTarget)
 
     // Mode detection: overshoot-aware with stabilisation guard.
     // After active duty stops, thermal inertia can push the probe past the target.
@@ -212,7 +250,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
@@ -383,6 +421,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           sample_count: 1,
           last_updated_at: new Date().toISOString(),
         }] : []),
+        {
+          controller_id: fc.controller_id,
+          parameter_name: 'pid_effective_target',
+          learned_value: pidEffectiveTarget,
+          sample_count: 1,
+          last_updated_at: new Date().toISOString(),
+        },
       ], { onConflict: 'controller_id,parameter_name' })
     }
     const profileStatus = profileStatusMap.get(fc.controller_id)
@@ -416,7 +461,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation ===
     const pidResult = await calculateCompensatedTarget(
-      supabase, fc.controller_id, actualTarget, actualTarget, ctrlTarget,
+      supabase, fc.controller_id, pidEffectiveTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
       actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
     )
@@ -443,6 +488,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       recent_util: recentUtil != null ? Math.round(recentUtil * 100) : null,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
       switch_pressure: switchPressure,
+      ...(rampRateLimited ? { effective_target: pidEffectiveTarget, ramp_limited: true } : {}),
     })
 
     // Persist last duty cycle for mode-switch guard
@@ -498,7 +544,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(actualTarget)
+      const revertTarget = round1(pidEffectiveTarget)
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
@@ -590,7 +636,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(actualTarget)
+      const revertTarget = round1(pidEffectiveTarget)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
