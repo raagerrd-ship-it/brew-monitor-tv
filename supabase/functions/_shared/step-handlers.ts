@@ -496,21 +496,27 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     // Normal operation — no notification needed
   }
 
-  // Phase 2: Ramping (always exponential curve for gentler start)
+  // Phase 2: Ramping — dual-driver: activity curve AND time floor
   let rampProgress = Math.min(1, Math.max(0, (safeActivityTrigger - activityScore) / safeActivityTrigger))
   rampProgress = rampProgress ** 2
-  let calculatedTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
+  let activityTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
-  // Apply min ramp hours constraint using ramp_triggered_at (not step_started_at)
-  // Skip time constraint when activity is 0% — fermentation is done, no reason to wait
+  // Time-based linear floor: ensures ramp progresses at minimum linear rate
+  // Also acts as ceiling to prevent activity from overshooting the time schedule
+  let calculatedTarget = activityTarget
   if (minRampHours && minRampHours > 0 && activityScore > 0) {
     const now = new Date()
     const elapsedSinceTrigger = (now.getTime() - rampTriggeredAt.getTime()) / (1000 * 60 * 60)
-    const maxAllowedIncrease = (tempIncrease / minRampHours) * elapsedSinceTrigger
-    const timeConstrainedTarget = Math.round((baseTemp + Math.min(tempIncrease, maxAllowedIncrease)) * 10) / 10
-    if (calculatedTarget > timeConstrainedTarget) {
-      console.log(`⏱️ Min ramp constraint: activity wants ${calculatedTarget}°C but time allows max ${timeConstrainedTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h since trigger)`)
-      calculatedTarget = timeConstrainedTarget
+    const linearIncrease = Math.min(tempIncrease, (tempIncrease / minRampHours) * elapsedSinceTrigger)
+    const timeTarget = Math.round((baseTemp + linearIncrease) * 10) / 10
+
+    // Use time as FLOOR (minimum progress) and CEILING (maximum progress)
+    if (activityTarget < timeTarget) {
+      console.log(`⏱️ Time floor: activity wants ${activityTarget}°C but time floor is ${timeTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h) — using time`)
+      calculatedTarget = timeTarget
+    } else if (activityTarget > timeTarget) {
+      console.log(`⏱️ Time ceiling: activity wants ${activityTarget}°C but time allows max ${timeTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h)`)
+      calculatedTarget = timeTarget
     }
   } else if (minRampHours && activityScore === 0) {
     console.log(`⏱️ Min ramp constraint skipped: activity=0% (fermentation done), allowing full target ${calculatedTarget}°C`)
