@@ -192,6 +192,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
 
+    // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
+    // NOTE: Previously read from controller_learned_compensation, but that table has
+    // SEPARATE rows per mode (upsert key includes 'mode'), so the "latest" row could
+    // flip between heating/cooling depending on which was persisted last — causing
+    // false mode switches. fermentation_learnings has one row per parameter_name.
+    const { data: pressureRows } = await supabase.from('fermentation_learnings')
+      .select('parameter_name, learned_value')
+      .eq('controller_id', fc.controller_id)
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
+    const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
+
     // ── Ramp-rate-limiting: soft D-term alternative ──────────
     // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
     // by gradually moving the effective target at a max rate.
@@ -207,12 +218,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (lastEffective != null) {
       const delta = actualTarget - lastEffective
       if (delta < -0.1) {
-        // Target dropping (cooling direction) — limit descent rate
         const maxDrop = RAMP_RATE_COOLING * CYCLE_HOURS
         pidEffectiveTarget = Math.max(actualTarget, lastEffective - maxDrop)
         rampRateLimited = pidEffectiveTarget > actualTarget + 0.05
       } else if (delta > 0.1) {
-        // Target rising (heating direction) — limit ascent rate
         const maxRise = RAMP_RATE_HEATING * CYCLE_HOURS
         pidEffectiveTarget = Math.min(actualTarget, lastEffective + maxRise)
         rampRateLimited = pidEffectiveTarget < actualTarget - 0.05
@@ -232,26 +241,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Store pidEffectiveTarget for cooler management (stable, rate-limited target)
     ctx.baseTargetMap.set(fc.controller_id, pidEffectiveTarget)
-
-    // Mode detection: overshoot-aware with stabilisation guard.
-    // After active duty stops, thermal inertia can push the probe past the target.
-    // We do NOT switch mode while the probe is still drifting — it may recover
-    // passively. Only when the probe has STABILIZED on the wrong side (velocity ≈ 0,
-    // i.e. not moving in either direction) for MODE_SWITCH_CYCLES consecutive cycles
-    // do we conclude the current mode cannot hold temperature and switch.
-    const MODE_SWITCH_CYCLES = 6
-    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
-
-    // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
-    // NOTE: Previously read from controller_learned_compensation, but that table has
-    // SEPARATE rows per mode (upsert key includes 'mode'), so the "latest" row could
-    // flip between heating/cooling depending on which was persisted last — causing
-    // false mode switches. fermentation_learnings has one row per parameter_name.
-    const { data: pressureRows } = await supabase.from('fermentation_learnings')
-      .select('parameter_name, learned_value')
-      .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
-    const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
     const prevModeValue = pressureMap.get('pid_current_mode')
