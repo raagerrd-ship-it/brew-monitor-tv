@@ -1420,7 +1420,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
             const dualSensors = det.dual_sensors as boolean;
             const actualTargetVal = det.actual_target as number ?? det.base_target as number;
             const ctrlTarget = det.ctrl_target as number;
-            const dutyCyclePct = det.duty_pct as number;
+            const dutyCyclePct = (det.duty_cycle as number) ?? (det.duty_pct as number);
             const pCorr = det.p_correction as number;
             const iCorr = det.i_correction as number;
             const statusLimits = (det.limits as string[]) ?? [];
