@@ -550,7 +550,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   const stableDays = currentStep.gravity_stable_days ?? 2
   const threshold = currentStep.gravity_threshold ?? 0.001
   const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)
-  const activityLow = !metrics || metrics.activity_score < 15
+  const activityLow = !metrics || metrics.activity_score < 5
 
   if (sgStable && activityLow) {
     stepCompleted = true
