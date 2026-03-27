@@ -168,6 +168,7 @@ function generateChartSvg(
       pill: p.pill_temp,
       controller: p.controller_temp,
       target: p.profile_target_temp,
+      actual: p.actual_temp,
     }))
     .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.sg))
     .sort((a, b) => a.t - b.t);
