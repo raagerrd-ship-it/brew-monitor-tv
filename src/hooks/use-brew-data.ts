@@ -19,9 +19,7 @@ interface UseBrewDataReturn {
   isAuthenticated: boolean;
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
-  loadBrewEvents: () => Promise<void>;
   // Callbacks for consolidated realtime channels
-  onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
