@@ -217,7 +217,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-4 py-1 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
+        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-4 py-1.5 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
           background: 'hsl(222 20% 11% / 0.65)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
           boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.1)',
