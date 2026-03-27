@@ -5,10 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
  * In TV mode, listens for remote force-refresh signals via
  * realtime subscription + polling fallback every 30s.
  */
-export function useTvRefresh(
-  isTvMode: boolean,
-  onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>,
-) {
+export function useTvRefresh(isTvMode: boolean) {
   const lastKnownRefreshAt = useRef<string | null>(null);
 
   useEffect(() => {
