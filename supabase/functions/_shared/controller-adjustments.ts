@@ -262,6 +262,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
     // Mode switching only makes sense when BOTH heating and cooling are available
     const canSwitchMode = fc.heating_enabled && fc.cooling_enabled
+    // Single-mode controllers: no mode switching needed, clear pressure
+    if (!canSwitchMode && switchPressure > 0) {
+      switchPressure = 0
+    }
     const onWrongSide = canSwitchMode && prevMode != null && suggestedMode !== prevMode
 
     // ── Profile context ──────────────────────────────────────
