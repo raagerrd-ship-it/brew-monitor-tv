@@ -382,7 +382,10 @@ Deno.serve(async (req) => {
           if (dualEnabled && pillTemp != null && currentTemp != null) {
             updateData.actual_temp = (pillTemp + currentTemp) / 2;
           } else {
-            updateData.actual_temp = pillTemp ?? currentTemp ?? null;
+            const pref = existingMap.get(controller.id)?.preferred_sensor ?? 'pill';
+            updateData.actual_temp = pref === 'probe'
+              ? (currentTemp ?? pillTemp ?? null)
+              : (pillTemp ?? currentTemp ?? null);
           }
 
           if (linkedPillId) updateData.linked_pill_id = linkedPillId;

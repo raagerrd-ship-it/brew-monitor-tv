@@ -187,9 +187,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Dual sensor fusion: read pre-computed actual_temp from sync engine,
     // or compute from controller's own dual_sensor_enabled flag
     const dualEnabled = (fc as any).dual_sensor_enabled ?? false
+    const preferredSensor: 'pill' | 'probe' = (fc as any).preferred_sensor ?? 'pill'
     const actualTemp = (fc as any).actual_temp != null
       ? parseFloat(String((fc as any).actual_temp))
-      : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled).actualTemp
+      : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
 
     // Store actualTarget for cooler management (stable target without PID fluctuation)
     ctx.baseTargetMap.set(fc.controller_id, actualTarget)
