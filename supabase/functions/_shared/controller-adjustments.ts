@@ -172,15 +172,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // ── PWM lock: skip PID entirely during active PWM cycles ──
-    // Hardware is at 0°C during the burst, so probe temp is artificially dropping.
-    // Running PID on this transient state produces a falsely aggressive target.
-    // The revert target was set when PWM was initiated and should remain unchanged.
-    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
-    if (hasPendingPwmRevert) {
-      log('PID_SKIP', 'info', `${fc.name}: PWM burst active — skipping PID (revert=${pwmRevertMap.get(fc.controller_id)}°C)`)
-      continue
-    }
+
+
 
     const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
