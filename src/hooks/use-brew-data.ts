@@ -23,7 +23,6 @@ interface UseBrewDataReturn {
   // Callbacks for consolidated realtime channels
   onSonosNowPlayingChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
-  onCachedTimerChange: React.MutableRefObject<(() => void) | null>;
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
@@ -72,7 +71,6 @@ export function useBrewData(): UseBrewDataReturn {
   // Callback refs for consolidated realtime channels
   const onSonosNowPlayingChange = useRef<((payload: any) => void) | null>(null);
   const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
-  const onCachedTimerChange = useRef<(() => void) | null>(null);
   const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
@@ -779,9 +777,6 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'cached_external_timer' }, () => {
-        onCachedTimerChange.current?.();
-      })
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (p: any) => {
         onSyncSettingsChange.current?.(p);
       })
@@ -902,7 +897,6 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrewEvents,
     onSonosNowPlayingChange,
     onSonosSettingsChange,
-    onCachedTimerChange,
     onSyncSettingsChange,
   };
 }

@@ -59,7 +59,7 @@ const FAST_SYNC_MS = 3_000;
 const FAST_POLL_MS = 5_000;
 const SLOW_POLL_MS = 60_000;
 
-export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject<(() => void) | null>) {
+export function useExternalTimer() {
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -307,19 +307,23 @@ export function useExternalTimer(onCachedTimerChangeRef?: React.MutableRefObject
     fetchFromCache();
     triggerSync();
 
-    if (onCachedTimerChangeRef) {
-      onCachedTimerChangeRef.current = () => fetchFromCache();
-    }
-
     // Start with slow intervals; fetchFromCache will update isActiveRef
     setupIntervals(false);
+
+    // Realtime subscription for instant updates when cache changes
+    const channel = supabase
+      .channel('external-timer-realtime')
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'cached_external_timer' }, () => {
+        fetchFromCache();
+      })
+      .subscribe();
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (onCachedTimerChangeRef) onCachedTimerChangeRef.current = null;
+      supabase.removeChannel(channel);
     };
-  }, [fetchFromCache, triggerSync, onCachedTimerChangeRef, setupIntervals]);
+  }, [fetchFromCache, triggerSync, setupIntervals]);
 
   // Switch intervals when active state changes
   useEffect(() => {

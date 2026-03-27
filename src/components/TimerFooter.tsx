@@ -1,7 +1,10 @@
 import { memo, useRef, useState, useEffect } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
-import { TimerMilestone, ExternalTimerState } from '@/hooks/use-external-timer';
+import { TimerMilestone } from '@/hooks/use-external-timer';
+import { useExternalTimer } from '@/hooks/use-external-timer';
+import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
+import { useTimerVisibility } from '@/contexts/TimerContext';
 import { cn } from '@/lib/utils';
 
 // Export constant for use in layout calculations
@@ -158,13 +161,11 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-interface TimerFooterProps {
-  timer: ExternalTimerState;
-  timerTvModeOnly: boolean;
-}
-
-export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }: TimerFooterProps) {
+export const TimerFooter = memo(function TimerFooter() {
+  const timer = useExternalTimer();
+  const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
+  const { setTimerVisible } = useTimerVisibility();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
@@ -183,6 +184,13 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
 
   // Check if we should show based on TV mode setting
   const shouldShow = timerTvModeOnly ? isTvMode : true;
+  const isVisible = shouldShow && timer.isActive;
+
+  // Sync visibility to context so parent can adjust layout
+  useEffect(() => {
+    setTimerVisible(isVisible);
+    return () => setTimerVisible(false);
+  }, [isVisible, setTimerVisible]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
@@ -236,7 +244,7 @@ export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }:
     }
   }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds]);
 
-  if (!shouldShow || !timer.isActive) {
+  if (!isVisible) {
     return null;
   }
 

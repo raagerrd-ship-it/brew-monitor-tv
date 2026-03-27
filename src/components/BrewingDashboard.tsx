@@ -11,10 +11,11 @@ import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
-import { useBrewData, useExternalTimer, useExternalUserSettings, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
+import { useBrewData, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
+import { useTimerVisibility } from "@/contexts/TimerContext";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +33,7 @@ export function BrewingDashboard() {
   const {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
-    onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange, onCachedTimerChange,
+    onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange,
   } = useBrewData();
 
   // Extracted hooks
@@ -41,14 +42,13 @@ export function BrewingDashboard() {
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode, onSyncSettingsChange);
 
+  // Timer visibility from self-contained TimerFooter via context
+  const { isTimerVisible: showTimerFooter } = useTimerVisibility();
+
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
     return Math.round(window.visualViewport?.height ?? window.innerHeight);
   });
-
-  // External timer & settings
-  const externalTimer = useExternalTimer(onCachedTimerChange);
-  const { timerTvModeOnly } = useExternalUserSettings();
 
   // Track cooler controller ID
   const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
@@ -160,7 +160,6 @@ export function BrewingDashboard() {
   }, [brews.length]);
 
   // Layout calculations
-  const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
   const activeHeaderHeight = isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT;
   const CONTENT_PADDING = 16;
@@ -313,7 +312,7 @@ export function BrewingDashboard() {
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
       {/* Timer Footer */}
-      <TimerFooter timer={externalTimer} timerTvModeOnly={timerTvModeOnly} />
+      <TimerFooter />
 
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
