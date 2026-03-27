@@ -483,7 +483,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
-        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100 })
+        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
         if (ctx.updateBatch) {
           ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
         } else {
