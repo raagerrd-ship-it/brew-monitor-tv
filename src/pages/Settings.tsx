@@ -45,25 +45,8 @@ export default function Settings() {
   const isMobile = useIsMobile();
   const settings = useSettingsData();
 
-  // Controller dialog state (same as BrewingDashboard)
-  const [selectedController, setSelectedController] = useState<TempController | null>(null);
-  const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
-  const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
-  const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadCoolerController = async () => {
-      const { data } = await supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle();
-      if (data?.cooler_controller_id) setCoolerControllerId(data.cooler_controller_id);
-    };
-    loadCoolerController();
-  }, []);
 
-  const handleControllerClick = useCallback((controller: TempController) => {
-    setSelectedController(controller);
-    setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
-    setControllerDialogOpen(true);
-  }, [coolerControllerId]);
 
   // Get initial tab from URL or default to "sync"
   const validTabs = ["sync", "automation", "devices", "brews"];
