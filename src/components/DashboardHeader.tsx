@@ -218,9 +218,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
     <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
       <div className="relative w-full">
         <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-4 py-1.5 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
-          background: 'hsl(222 20% 11% / 0.65)',
-          border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 35% / 0.6)',
-          boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.1)',
+          background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
+          border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
+          boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
@@ -275,12 +275,12 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    {(() => {
                       const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
-                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                       fontSize: isMobile ? undefined : '16px',
-                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                     }}>
-                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                    </span>
+                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                        fontSize: isMobile ? undefined : '16px',
+                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                      }}>
+                       {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                     </span>
                      );
                    })()}
 
@@ -294,37 +294,41 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                      // Probe active: dual mode, or preferred=probe, or no pill linked
                      const probeActive = isDual || preferred === 'probe' || !hasPill;
                      return (
-                       <div className="flex items-center gap-1.5">
-                         <Pill style={{
-                           width: '0.65rem',
-                           height: '0.65rem',
-                           flexShrink: 0,
-                           opacity: pillActive ? 1 : 0.2,
-                           color: pillActive ? controllerColor : 'currentColor',
-                         }} strokeWidth={2} />
-                         <AirVent style={{
-                           width: '0.65rem',
-                           height: '0.65rem',
-                           flexShrink: 0,
-                           opacity: probeActive ? 0.9 : 0.2,
-                           color: probeActive ? controllerColor : 'currentColor',
-                         }} />
-                       </div>
+                        <div className="flex items-center gap-1.5">
+                          <Pill style={{
+                            width: '0.65rem',
+                            height: '0.65rem',
+                            flexShrink: 0,
+                            opacity: pillActive ? 1 : 0.2,
+                            color: pillActive ? controllerColor : 'currentColor',
+                            filter: pillActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                          }} strokeWidth={2} />
+                          <AirVent style={{
+                            width: '0.65rem',
+                            height: '0.65rem',
+                            flexShrink: 0,
+                            opacity: probeActive ? 0.9 : 0.2,
+                            color: probeActive ? controllerColor : 'currentColor',
+                            filter: probeActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                          }} />
+                        </div>
                      );
                    })()}
 
                    {/* Battery bar */}
                    {linkedPill && (
-                     <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.06)' }}>
-                       <div
-                         className="h-full rounded-full transition-all duration-500"
-                         style={{
-                           width: `${batteryLevel}%`,
-                           backgroundColor: batteryColor,
-                           opacity: 0.7,
-                         }}
-                       />
-                     </div>
+                      <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.04)' }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${batteryLevel}%`,
+                            background: batteryLevel < 20 
+                              ? 'linear-gradient(90deg, hsl(0 70% 40%), hsl(0 70% 55%))' 
+                              : `linear-gradient(90deg, ${controllerColor}99, ${controllerColor})`,
+                            boxShadow: `0 0 4px ${batteryColor}44`,
+                          }}
+                        />
+                      </div>
                    )}
                  </div>
                    );
