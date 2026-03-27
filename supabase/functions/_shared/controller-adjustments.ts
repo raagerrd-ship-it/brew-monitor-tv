@@ -499,7 +499,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       } else if (burstSeconds > 0) {
         // 10-90%: burst at 0°C, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
-          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget,
+          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget, mode: 'cooling',
         })
         if (ctx.updateBatch) {
           ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
