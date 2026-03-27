@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -49,7 +50,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     loading, isAuthenticated, targetTemp, setTargetTemp,
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
-    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor, originalTarget,
+    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor,
+    preferredSensor, setPreferredSensor, originalTarget,
     dutyCyclePct, dutyMode,
   } = useControllerDialog({ controller, open, onOpenChange });
 
@@ -166,15 +168,37 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
 
           {/* Dual Sensor Toggle — only for non-cooler controllers with a pill */}
           {!isCooler && currentController.pill_temp != null && isAuthenticated && (
-            <div className="flex items-center justify-between py-2 px-1">
-              <div className="space-y-0.5">
-                <p className="text-xs font-medium">Dubbla givare</p>
-                <p className="text-[10px] text-muted-foreground/70">Medelvärde av pill + probe</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between py-2 px-1">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Dubbla givare</p>
+                  <p className="text-[10px] text-muted-foreground/70">Medelvärde av pill + probe</p>
+                </div>
+                <Switch
+                  checked={dualSensorEnabled}
+                  onCheckedChange={() => toggleDualSensor()}
+                />
               </div>
-              <Switch
-                checked={dualSensorEnabled}
-                onCheckedChange={() => toggleDualSensor()}
-              />
+              {/* Sensor preference — visible when dual sensor is OFF */}
+              {!dualSensorEnabled && (
+                <div className="px-1 pb-1">
+                  <p className="text-[10px] text-muted-foreground/70 mb-1.5">Primär sensor</p>
+                  <RadioGroup
+                    value={preferredSensor}
+                    onValueChange={(v) => setPreferredSensor(v as 'pill' | 'probe')}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <RadioGroupItem value="pill" id="sensor-pill" />
+                      <Label htmlFor="sensor-pill" className="text-xs cursor-pointer">Pill</Label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <RadioGroupItem value="probe" id="sensor-probe" />
+                      <Label htmlFor="sensor-probe" className="text-xs cursor-pointer">Ctrl</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
             </div>
           )}
           {/* Heating/Cooling Status */}

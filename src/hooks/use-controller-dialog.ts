@@ -29,6 +29,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
+  const [preferredSensor, setPreferredSensorState] = useState<'pill' | 'probe'>('pill');
 
   // Check authentication
   useEffect(() => {
@@ -56,13 +57,14 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           .maybeSingle(),
         supabase
           .from('rapt_temp_controllers')
-          .select('profile_target_temp, dual_sensor_enabled')
+          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor')
           .eq('controller_id', controller.controller_id)
           .single(),
       ]);
 
       setHasActiveSession(!!sessionData);
       setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
+      setPreferredSensorState((ctrlData as any)?.preferred_sensor ?? 'pill');
 
       if (ctrlData?.profile_target_temp != null) {
         setOriginalTarget(ctrlData.profile_target_temp);
@@ -262,6 +264,14 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
       .eq('controller_id', controller.controller_id);
   }, [controller.controller_id, dualSensorEnabled]);
 
+  const setPreferredSensor = useCallback(async (value: 'pill' | 'probe') => {
+    setPreferredSensorState(value);
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ preferred_sensor: value } as any)
+      .eq('controller_id', controller.controller_id);
+  }, [controller.controller_id]);
+
   return {
     loading,
     isAuthenticated,
@@ -277,6 +287,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     isActivelyHeating,
     dualSensorEnabled,
     toggleDualSensor,
+    preferredSensor,
+    setPreferredSensor,
     originalTarget,
     dutyCyclePct,
     dutyMode,

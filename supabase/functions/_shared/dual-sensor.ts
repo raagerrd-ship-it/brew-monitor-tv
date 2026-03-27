@@ -36,6 +36,7 @@ export function computeDualSensorTarget(
   probeTemp: number | null,
   pillTemp: number | null,
   enabled: boolean,
+  preferredSensor: 'pill' | 'probe' = 'pill',
 ): DualSensorResult {
   const hasProbe = probeTemp != null
   const hasPill = pillTemp != null
@@ -48,8 +49,13 @@ export function computeDualSensorTarget(
     }
   }
 
-  // When fusion is disabled, prioritize pill (surface/fermentation) over probe (core/ambient)
-  const actualTemp = hasPill ? pillTemp! : hasProbe ? probeTemp! : profileTarget
+  // When fusion is disabled, respect the user's preferred sensor with fallback
+  let actualTemp: number
+  if (preferredSensor === 'probe') {
+    actualTemp = hasProbe ? probeTemp! : hasPill ? pillTemp! : profileTarget
+  } else {
+    actualTemp = hasPill ? pillTemp! : hasProbe ? probeTemp! : profileTarget
+  }
   return {
     enabled: false,
     actualTemp,

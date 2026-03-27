@@ -1148,6 +1148,7 @@ export type Database = {
           pre_smart_cooling_hysteresis: number | null
           pre_smart_heating_enabled: boolean | null
           pre_smart_heating_hysteresis: number | null
+          preferred_sensor: string
           profile_target_temp: number | null
           pwm_stable_count: number
           smart_relay_active: boolean
@@ -1184,6 +1185,7 @@ export type Database = {
           pre_smart_cooling_hysteresis?: number | null
           pre_smart_heating_enabled?: boolean | null
           pre_smart_heating_hysteresis?: number | null
+          preferred_sensor?: string
           profile_target_temp?: number | null
           pwm_stable_count?: number
           smart_relay_active?: boolean
@@ -1220,6 +1222,7 @@ export type Database = {
           pre_smart_cooling_hysteresis?: number | null
           pre_smart_heating_enabled?: boolean | null
           pre_smart_heating_hysteresis?: number | null
+          preferred_sensor?: string
           profile_target_temp?: number | null
           pwm_stable_count?: number
           smart_relay_active?: boolean
