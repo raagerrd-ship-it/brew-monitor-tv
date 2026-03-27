@@ -232,7 +232,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   {formatTime(latestUpdate)}–{formatTime(new Date(now))} ({formatDuration(now - latestUpdate.getTime())})
                 </span>
               </div>
-              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+              <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
           {/* RAPT API degraded mode — syncs run but API fails */}
