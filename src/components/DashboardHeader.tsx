@@ -262,7 +262,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 gap-1.5 flex-shrink-0' : 'px-3 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: isMobile ? undefined : '4px', paddingBottom: isMobile ? '10px' : linkedPill ? '10px' : '4px' }}
+                 <div className={`relative flex items-center justify-center rounded px-3 gap-2 flex-1 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
