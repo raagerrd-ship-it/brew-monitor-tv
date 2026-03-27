@@ -493,8 +493,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const shortName = controllerName.replace('Temp Controller ', '') || log.final_result.match(/PWM OFF: (.+?) /)?.[1] || '?';
     const color = controllerColors[controllerName];
     const dutyPctVal = details?.duty_pct;
-    // Detect mode from message (heating keyword)
-    const offModeIcon = pwmOffDecision?.message?.toLowerCase().includes('heating') ? '🔥' : '❄️';
+    // Detect mode from details or message
+    const offMode = (details as any)?.mode || (pwmOffDecision?.message?.toLowerCase().includes('heating') ? 'heating' : 'cooling');
+    const offModeIcon = offMode === 'heating' ? '🔥' : '❄️';
     raptBadges.push(
       <Badge key="pwm-off" variant="default" className="text-[10px] px-1.5" style={{
         background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
