@@ -29,6 +29,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
+  const [preferredSensor, setPreferredSensorState] = useState<'pill' | 'probe'>('pill');
 
   // Check authentication
   useEffect(() => {
