@@ -50,7 +50,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     loading, isAuthenticated, targetTemp, setTargetTemp,
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
-    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor, originalTarget,
+    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor,
+    preferredSensor, setPreferredSensor, originalTarget,
     dutyCyclePct, dutyMode,
   } = useControllerDialog({ controller, open, onOpenChange });
 
