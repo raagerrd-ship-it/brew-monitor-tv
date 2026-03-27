@@ -65,7 +65,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosRealtime({
-    onRealtimeRef, isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
