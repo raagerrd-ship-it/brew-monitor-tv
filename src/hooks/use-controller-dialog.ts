@@ -64,6 +64,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
 
       setHasActiveSession(!!sessionData);
       setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
+      setPreferredSensorState((ctrlData as any)?.preferred_sensor ?? 'pill');
 
       if (ctrlData?.profile_target_temp != null) {
         setOriginalTarget(ctrlData.profile_target_temp);
