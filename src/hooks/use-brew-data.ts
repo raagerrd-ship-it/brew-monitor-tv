@@ -68,7 +68,7 @@ export function useBrewData(): UseBrewDataReturn {
   const controllersRef = useRef<TempController[]>([]);
   
   // Callback refs for consolidated realtime channels
-  const onSonosNowPlayingChange = useRef<((payload: any) => void) | null>(null);
+  const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
   const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
   const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
