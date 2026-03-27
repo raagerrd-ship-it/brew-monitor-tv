@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
+import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
