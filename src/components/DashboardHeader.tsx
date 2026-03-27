@@ -261,52 +261,61 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex flex-col items-center flex-shrink-0 rounded ${isMobile ? 'px-2 pt-1 pb-2 gap-0.5' : 'px-2.5 pt-1 pb-2.5 gap-0.5'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
+                 <div className={`relative flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 pt-1 pb-2.5 gap-1.5' : 'px-3 pt-1 pb-3 gap-2'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', minWidth: isMobile ? undefined : '70px' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
                 >
-                   {/* Top row: icons + temp */}
-                   <div className="flex items-center gap-1.5">
-                     {isControllerStale && (
-                       <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
-                     )}
-                     {!isControllerStale && !isMobile && (
+                   {isControllerStale && (
+                     <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
+                   )}
+
+                   {/* Temp first (left) */}
+                   {(() => {
+                      const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
+                     return (
+                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                       fontSize: isMobile ? undefined : '16px',
+                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
+                     }}>
+                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                    </span>
+                     );
+                   })()}
+
+                   {/* Sensor icons (right) — show which sensors are active */}
+                   {!isControllerStale && !isMobile && (() => {
+                     const isDual = !!(controller as any).dual_sensor_enabled;
+                     const preferred = (controller as any).preferred_sensor as string | undefined;
+                     const hasPill = !!linkedPill && !isPillStale;
+                     // Pill active: dual mode, or preferred=pill with a linked pill
+                     const pillActive = hasPill && (isDual || preferred === 'pill');
+                     // Probe active: dual mode, or preferred=probe, or no pill linked
+                     const probeActive = isDual || preferred === 'probe' || !hasPill;
+                     return (
                        <div className="flex items-center gap-0.5">
                          <Pill style={{
-                           width: '0.7rem',
-                           height: '0.7rem',
+                           width: '0.65rem',
+                           height: '0.65rem',
                            flexShrink: 0,
-                           opacity: linkedPill && !isPillStale ? 1 : 0.2,
-                           color: linkedPill && !isPillStale ? controllerColor : 'currentColor',
+                           opacity: pillActive ? 1 : 0.2,
+                           color: pillActive ? controllerColor : 'currentColor',
                          }} strokeWidth={2} />
                          <AirVent style={{
-                           width: '0.7rem',
-                           height: '0.7rem',
+                           width: '0.65rem',
+                           height: '0.65rem',
                            flexShrink: 0,
-                           opacity: 0.8,
-                           color: controllerColor,
+                           opacity: probeActive ? 0.9 : 0.2,
+                           color: probeActive ? controllerColor : 'currentColor',
                          }} />
                        </div>
-                     )}
-
-                     {(() => {
-                        const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
-                       return (
-                       <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                         fontSize: isMobile ? undefined : '16px',
-                         ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                       }}>
-                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                      </span>
-                       );
-                     })()}
-                   </div>
+                     );
+                   })()}
 
                    {/* Battery bar */}
                    {linkedPill && (
-                     <div className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.06)' }}>
+                     <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.06)' }}>
                        <div
                          className="h-full rounded-full transition-all duration-500"
                          style={{
