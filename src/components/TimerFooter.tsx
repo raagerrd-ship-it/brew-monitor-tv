@@ -184,6 +184,13 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Check if we should show based on TV mode setting
   const shouldShow = timerTvModeOnly ? isTvMode : true;
+  const isVisible = shouldShow && timer.isActive;
+
+  // Sync visibility to context so parent can adjust layout
+  useEffect(() => {
+    setTimerVisible(isVisible);
+    return () => setTimerVisible(false);
+  }, [isVisible, setTimerVisible]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
@@ -237,7 +244,7 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds]);
 
-  if (!shouldShow || !timer.isActive) {
+  if (!isVisible) {
     return null;
   }
 

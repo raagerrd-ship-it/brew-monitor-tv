@@ -11,10 +11,11 @@ import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
-import { useBrewData, useExternalTimer, useExternalUserSettings, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
+import { useBrewData, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
+import { useTimerVisibility } from "@/contexts/TimerContext";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +33,7 @@ export function BrewingDashboard() {
   const {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
-    onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange, onCachedTimerChange,
+    onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange,
   } = useBrewData();
 
   // Extracted hooks
@@ -41,14 +42,8 @@ export function BrewingDashboard() {
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode, onSyncSettingsChange);
 
-  const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    return Math.round(window.visualViewport?.height ?? window.innerHeight);
-  });
-
-  // External timer & settings
-  const externalTimer = useExternalTimer(onCachedTimerChange);
-  const { timerTvModeOnly } = useExternalUserSettings();
+  // Timer visibility from self-contained TimerFooter via context
+  const { isTimerVisible: showTimerFooter } = useTimerVisibility();
 
   // Track cooler controller ID
   const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
