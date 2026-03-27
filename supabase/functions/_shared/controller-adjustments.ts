@@ -246,29 +246,52 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ── Profile-directed fast switch ──────────────────────────
-    // When a fermentation profile step explicitly changes direction
-    // (e.g. ramp down for cold crash), bypass the 6-cycle stabilisation
-    // guard and switch immediately — but only if:
-    //   1. The ramp's direction matches the suggested mode
-    //   2. Temp is either stable (velocity < 0.05°) OR error is large (> 1°C)
+    // When a fermentation profile ramp moves in the opposite direction of the
+    // current mode, allow a faster switch — but still require either:
+    //   a) 6 cycles of stability (velocity < 0.05°/cykel), OR
+    //   b) large error (> 1°C) for immediate switch
     const profileSwitchStatus = ctx.profileStatusMap.get(fc.controller_id)
     const isProfileRamp = profileSwitchStatus?.currentStepType === 'gradual_ramp' || profileSwitchStatus?.currentStepType === 'ramp'
     const rampMatchesSuggested = profileSwitchStatus?.rampDirection === suggestedMode
     const velocity = lastProbe != null ? Math.abs(actualTemp - lastProbe) : 0
-    const tempStableOrLargeError = velocity < STALL_MIN_PROGRESS || distanceToTarget > 1.0
-    const profileDirectedSwitch = canSwitchMode && prevMode != null && suggestedMode !== prevMode
-      && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3 && tempStableOrLargeError
+    const isProfileRampCandidate = canSwitchMode && prevMode != null && suggestedMode !== prevMode
+      && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
-    if (profileDirectedSwitch) {
-      // Profile explicitly wants the opposite direction — switch immediately
+    if (isProfileRampCandidate && distanceToTarget > 1.0) {
+      // Large error — switch immediately regardless of stability
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection}, Δ${round1(distanceToTarget)}°, velocity=${round1(velocity)}°)`, {
+      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection}, Δ${round1(distanceToTarget)}° > 1°, omedelbar)`, {
         from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
         rampDirection: profileSwitchStatus?.rampDirection,
         distance: round1(distanceToTarget), velocity: round1(velocity),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
+      })
+    } else if (isProfileRampCandidate && velocity < STALL_MIN_PROGRESS) {
+      // Ramp direction matches but temp must be stable — use pressure counter
+      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+      if (switchPressure >= MODE_SWITCH_CYCLES) {
+        pidMode = suggestedMode
+        switchPressure = 0
+        log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection}, stabil ${MODE_SWITCH_CYCLES} cykler, Δ${round1(distanceToTarget)}°)`, {
+          from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
+          rampDirection: profileSwitchStatus?.rampDirection, cycles: MODE_SWITCH_CYCLES,
+          distance: round1(distanceToTarget), velocity: round1(velocity),
+          actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
+        })
+      } else {
+        pidMode = prevMode!
+        log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} väntar på stabilitet (tryck ${switchPressure}/${MODE_SWITCH_CYCLES}, velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`, {
+          from: prevMode, to: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
+          velocity: round1(velocity), distance: round1(distanceToTarget),
+        })
+      }
+    } else if (isProfileRampCandidate) {
+      // Ramp direction matches but temp is still moving — don't count, just hold
+      pidMode = prevMode!
+      log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} men temp ej stabil (velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`, {
+        from: prevMode, to: suggestedMode, velocity: round1(velocity), distance: round1(distanceToTarget),
       })
     } else if (isStuck || isDiverging) {
       // Probe is on wrong side and either stabilized or actively drifting away
