@@ -407,7 +407,7 @@ export async function processDiacetylRestStep(ctx: StepContext): Promise<StepRes
   const stableDays = currentStep.gravity_stable_days ?? 2
   const threshold = currentStep.gravity_threshold ?? 0.001
   const sgStable = isGravityStable(brewData.sg_data, stableDays, threshold)
-  const activityLow = !metrics || metrics.activity_score < 20
+  const activityLow = !metrics || metrics.activity_score < 5
 
   if (sgStable && activityLow) {
     stepCompleted = true
