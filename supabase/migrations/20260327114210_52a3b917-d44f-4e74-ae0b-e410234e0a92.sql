@@ -1,0 +1,1 @@
+ALTER TABLE temp_controller_history ADD COLUMN duty_pct numeric DEFAULT NULL;
