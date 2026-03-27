@@ -135,11 +135,7 @@ export default function Settings() {
 
   return (
     <div className={`bg-gradient-to-br from-background via-background to-primary/5 ${isMobile ? 'min-h-screen' : 'h-full flex flex-col'}`}>
-      <DashboardHeader
-        controllers={settings.headerControllers}
-        pills={settings.headerPillsData}
-        onControllerClick={handleControllerClick}
-      />
+      <DashboardHeader />
       <div className={isMobile ? '' : 'flex-1 overflow-y-auto'} style={isMobile ? { paddingTop: `${settings.headerControllers.length > 0 ? 136 : 72}px` } : undefined}>
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
