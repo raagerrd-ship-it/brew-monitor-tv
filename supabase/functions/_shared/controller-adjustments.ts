@@ -163,19 +163,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // PID always runs — dual-sensor is now per controller (dual_sensor_enabled)
   log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
-  // Pre-load pending PWM reverts to detect controllers in active PWM cycles.
-  // During PWM, PID is completely locked — no calculations or adjustments.
-  const controllerIds = followedControllersFullData.map(c => c.controller_id)
-  const { data: pendingPwmReverts } = await supabase
-    .from('pending_rapt_retries')
-    .select('controller_id, target_temp, attempts')
-    .in('controller_id', controllerIds)
-    .like('reason', '%PWM OFF%')
-    .lt('attempts', 5)  // SAFETY: exclude dead rows — execute-pwm-off stops at 5
-  const pwmRevertMap = new Map(
-    (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
-  )
-
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
 
@@ -185,15 +172,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-    // ── PWM lock: skip PID entirely during active PWM cycles ──
-    // Hardware is at 0°C during the burst, so probe temp is artificially dropping.
-    // Running PID on this transient state produces a falsely aggressive target.
-    // The revert target was set when PWM was initiated and should remain unchanged.
-    const hasPendingPwmRevert = pwmRevertMap.has(fc.controller_id)
-    if (hasPendingPwmRevert) {
-      log('PID_SKIP', 'info', `${fc.name}: PWM burst active — skipping PID (revert=${pwmRevertMap.get(fc.controller_id)}°C)`)
-      continue
-    }
+
+
 
     const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
