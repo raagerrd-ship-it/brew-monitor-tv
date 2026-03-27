@@ -42,7 +42,7 @@ export interface ControllerAdjustmentContext {
   profileTargetMap: Map<string, number>
   sessionBrewIdMap: Map<string, string>
   cooloffControllerIds: Set<string>
-  profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string }>
+  profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
   stallSettings: StallSettings
