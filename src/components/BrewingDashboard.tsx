@@ -160,7 +160,7 @@ export function BrewingDashboard() {
   }, [brews.length]);
 
   // Layout calculations
-  const showTimerFooter = externalTimer.isActive && (timerTvModeOnly ? isTvMode : true);
+  const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
   const activeHeaderHeight = isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT;
   const CONTENT_PADDING = 16;
