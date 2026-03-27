@@ -1,0 +1,1 @@
+UPDATE rapt_temp_controllers SET target_temp = 19.6 WHERE controller_id = 'ffa62be4-d6f7-4533-83b4-57ad93c3ac01' AND target_temp = 30;
