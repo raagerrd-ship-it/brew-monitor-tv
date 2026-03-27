@@ -1192,7 +1192,7 @@ Deno.serve(async (req) => {
         const isPwmSend = hwOnlyIds.includes(controllerId);
         const controllerName = ctrlNameMap.get(controllerId) || controllerId;
         // Extract duty info from automation decisions for the RAPT_SEND log
-        const burstDecision = isPwmSend ? (automationResult?.automationDecisions ?? []).find((d: any) => d.step === 'DUTY_BURST' && d.message?.includes(controllerName)) : null;
+        const burstDecision = isPwmSend ? (automationResult?.automationDecisions ?? []).find((d: any) => (d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL') && d.message?.includes(controllerName)) : null;
         const burstDutyPct = burstDecision?.details?.duty_pct;
         const burstMode = burstDecision?.details?.mode;
         automationDecisionLog.push({

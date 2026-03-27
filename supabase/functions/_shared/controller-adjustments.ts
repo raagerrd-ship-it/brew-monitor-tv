@@ -483,7 +483,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
-        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100 })
+        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
         if (ctx.updateBatch) {
           ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
         } else {
@@ -499,7 +499,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       } else if (burstSeconds > 0) {
         // 10-90%: burst at 0°C, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
-          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget,
+          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget, mode: 'cooling',
         })
         if (ctx.updateBatch) {
           ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
