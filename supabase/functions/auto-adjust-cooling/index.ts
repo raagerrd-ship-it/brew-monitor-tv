@@ -273,6 +273,7 @@ Deno.serve(async (req) => {
 
           // Interpolated ramp target (for linear ramp steps only)
           let activeTarget: number | null = null;
+          let rampDirection: 'heating' | 'cooling' | null = null;
           if (currentStep && currentStep.step_type === 'ramp' && currentStep.ramp_type !== 'immediate' && currentStep.duration_hours > 0) {
             const stepStartTemp = session.step_start_temp != null ? parseFloat(String(session.step_start_temp)) : null;
             const stepTarget = currentStep.target_temp != null ? parseFloat(String(currentStep.target_temp)) : null;
@@ -280,7 +281,12 @@ Deno.serve(async (req) => {
               const elapsedMs = Date.now() - new Date(session.step_started_at).getTime();
               const progress = Math.min(elapsedMs / (currentStep.duration_hours * 3600000), 1);
               activeTarget = round1(stepStartTemp + (stepTarget - stepStartTemp) * progress);
+              rampDirection = stepTarget > stepStartTemp ? 'heating' : 'cooling';
             }
+          }
+          // gradual_ramp always ramps upward (temp_increase > 0)
+          if (currentStep && currentStep.step_type === 'gradual_ramp') {
+            rampDirection = 'heating';
           }
 
           profileStatusMap.set(session.controller_id, {
@@ -289,6 +295,7 @@ Deno.serve(async (req) => {
             hasCooloff: cooloffControllerIds.has(session.controller_id),
             activeTarget,
             currentStepType: currentStep?.step_type ?? undefined,
+            rampDirection,
           });
         }
       }
