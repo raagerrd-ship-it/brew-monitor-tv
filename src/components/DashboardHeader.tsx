@@ -221,7 +221,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
           background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
           boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
-          minHeight: isMobile ? undefined : '50px',
+          height: isMobile ? undefined : '50px',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
