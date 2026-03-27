@@ -1,0 +1,1 @@
+ALTER TABLE rapt_temp_controllers ADD COLUMN preferred_sensor text NOT NULL DEFAULT 'pill';
