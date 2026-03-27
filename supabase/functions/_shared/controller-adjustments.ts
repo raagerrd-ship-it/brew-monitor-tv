@@ -258,6 +258,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // During active profile ramp, force mode to match ramp direction
     // Ramp up → only heating allowed, ramp down → only cooling allowed
+    let rampOverrideApplied = false
     const profileCtx = ctx.profileStatusMap.get(fc.controller_id)
     if (profileCtx?.rampDirection && 
         (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
@@ -266,6 +267,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         log('MODE_RAMP_OVERRIDE', 'info', 
           `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode})`)
         suggestedMode = rampMode
+        rampOverrideApplied = true
       }
     }
 
