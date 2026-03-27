@@ -261,7 +261,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 gap-1.5 flex-shrink-0' : 'px-3 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: isMobile ? undefined : '2px', paddingBottom: isMobile ? '10px' : linkedPill ? '8px' : '2px' }}
+                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 gap-1.5 flex-shrink-0' : 'px-3 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: isMobile ? undefined : '4px', paddingBottom: isMobile ? '10px' : linkedPill ? '10px' : '4px' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
@@ -317,7 +317,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Battery bar — styled like PWM duty bar */}
                    {linkedPill && (
-                     <div className="absolute bottom-0 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
+                     <div className="absolute bottom-1 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
                        height: '4px',
                        background: 'hsl(0 0% 0% / 0.5)',
                        boxShadow: 'inset 0 1px 2px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
