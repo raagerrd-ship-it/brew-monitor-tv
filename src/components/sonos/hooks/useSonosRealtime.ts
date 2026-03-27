@@ -4,7 +4,6 @@ import { NowPlaying, pushToBgBuffer, extractFileName, updateProgressDOM } from '
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
-  onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
   isConnected: boolean;
   showWidget: boolean;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
