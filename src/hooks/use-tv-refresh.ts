@@ -30,13 +30,16 @@ export function useTvRefresh(isTvMode: boolean) {
       }, 500);
     };
 
-    // Realtime callback
-    onSyncSettingsChange.current = (payload: any) => {
-      const newVal = payload.new?.force_tv_refresh_at;
-      if (newVal && newVal !== lastKnownRefreshAt.current) {
-        triggerRefresh(newVal);
-      }
-    };
+    // Realtime subscription for sync_settings changes
+    const channel = supabase
+      .channel('tv-sync-settings')
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload: any) => {
+        const newVal = payload.new?.force_tv_refresh_at;
+        if (newVal && newVal !== lastKnownRefreshAt.current) {
+          triggerRefresh(newVal);
+        }
+      })
+      .subscribe();
 
     // Polling fallback every 30s
     const pollInterval = setInterval(async () => {
