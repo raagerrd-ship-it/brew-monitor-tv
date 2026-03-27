@@ -325,7 +325,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             step_target_temp: sessionCtx?.step_target_temp ?? null,
           };
         }),
-      running_sessions: (runningSessions || []).length,
+      running_sessions: (sessions || []).length,
       learned_parameters: (learnings || []).map((l: any) => ({
         controller_id: l.controller_id,
         parameter_name: sanitize(l.parameter_name, 50),
