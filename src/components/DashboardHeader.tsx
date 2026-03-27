@@ -258,55 +258,63 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                    const isControllerStale = controllerStaleMin > staleThresholdMin;
+                   const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
+                   const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`flex items-center flex-shrink-0 rounded ${isMobile ? 'px-2 py-1 gap-2' : 'px-1.5 py-1 gap-2'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
+                 <div className={`relative flex flex-col items-center flex-shrink-0 rounded ${isMobile ? 'px-2 pt-1 pb-2 gap-0.5' : 'px-2.5 pt-1 pb-2.5 gap-0.5'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
                 >
-                   {isControllerStale && (
-                     <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
-                   )}
-                   {!isMobile && !isControllerStale && (
-                     <AirVent style={{
-                       width: '1rem',
-                       height: '1rem',
-                       color: controllerColor,
-                       flexShrink: 0,
-                       opacity: 0.7
-                     }} />
-                   )}
-
-                   {(() => {
-                      const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
-                     return (
-                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                       fontSize: isMobile ? undefined : '16px',
-                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                     }}>
-                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                    </span>
-                     );
-                   })()}
-
-                   {linkedPill && (
-                     <div className={`flex items-center gap-1 transition-opacity ${isPillStale ? 'opacity-40' : isMobile ? 'opacity-60' : ''}`} title={!isMobile ? `${linkedPill.name}\nBatteri: ${linkedPill.battery_level}%${isPillStale ? '\n⚠️ Ingen uppdatering på >24h' : ''}` : undefined}>
-                       <div className="relative flex items-center">
-                       {!isMobile && (
+                   {/* Top row: icons + temp */}
+                   <div className="flex items-center gap-1.5">
+                     {isControllerStale && (
+                       <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
+                     )}
+                     {!isControllerStale && !isMobile && (
+                       <div className="flex items-center gap-0.5">
                          <Pill style={{
                            width: '0.7rem',
                            height: '0.7rem',
-                           flexShrink: 0
-                         }} color={linkedPill.color} strokeWidth={2} />
-                       )}
+                           flexShrink: 0,
+                           opacity: linkedPill && !isPillStale ? 1 : 0.2,
+                           color: linkedPill && !isPillStale ? controllerColor : 'currentColor',
+                         }} strokeWidth={2} />
+                         <AirVent style={{
+                           width: '0.7rem',
+                           height: '0.7rem',
+                           flexShrink: 0,
+                           opacity: 0.8,
+                           color: controllerColor,
+                         }} />
                        </div>
-                       <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-[10px]' : ''}`} style={{
-                         fontSize: isMobile ? undefined : '14px',
-                         color: linkedPill.color
+                     )}
+
+                     {(() => {
+                        const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
+                       return (
+                       <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                         fontSize: isMobile ? undefined : '16px',
+                         ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
                        }}>
-                         {Math.floor(linkedPill.battery_level)}<span style={{ opacity: 0.4 }}>.{(linkedPill.battery_level % 1).toFixed(1).slice(2)}%</span>
-                       </span>
+                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                      </span>
+                       );
+                     })()}
+                   </div>
+
+                   {/* Battery bar */}
+                   {linkedPill && (
+                     <div className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.06)' }}>
+                       <div
+                         className="h-full rounded-full transition-all duration-500"
+                         style={{
+                           width: `${batteryLevel}%`,
+                           backgroundColor: batteryColor,
+                           opacity: 0.7,
+                         }}
+                       />
                      </div>
                    )}
                  </div>
