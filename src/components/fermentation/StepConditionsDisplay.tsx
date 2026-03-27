@@ -199,13 +199,13 @@ export const StepConditionsDisplay = memo(function StepConditionsDisplay({
 
   // Low activity for completion (gradual_ramp, diacetyl_rest)
   if ((stepType === 'gradual_ramp' || stepType === 'diacetyl_rest') && activityScore != null) {
-    const met = activityScore <= 15;
+    const met = activityScore <= 5;
     conditions.push({
       label: 'Aktivitet (klar)',
       icon: <Activity className={iconClass} />,
       current: `${Math.round(activityScore)}%`,
-      target: '< 15%',
-      progress: Math.max(0, Math.min(1, 1 - (activityScore - 15) / 85)),
+      target: '< 5%',
+      progress: Math.max(0, Math.min(1, 1 - (activityScore - 5) / 95)),
       met,
       color: met ? 'hsl(142 70% 50%)' : 'hsl(var(--muted-foreground))',
     });
