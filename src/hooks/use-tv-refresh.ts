@@ -5,10 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
  * In TV mode, listens for remote force-refresh signals via
  * realtime subscription + polling fallback every 30s.
  */
-export function useTvRefresh(
-  isTvMode: boolean,
-  onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>,
-) {
+export function useTvRefresh(isTvMode: boolean) {
   const lastKnownRefreshAt = useRef<string | null>(null);
 
   useEffect(() => {
@@ -33,13 +30,16 @@ export function useTvRefresh(
       }, 500);
     };
 
-    // Realtime callback
-    onSyncSettingsChange.current = (payload: any) => {
-      const newVal = payload.new?.force_tv_refresh_at;
-      if (newVal && newVal !== lastKnownRefreshAt.current) {
-        triggerRefresh(newVal);
-      }
-    };
+    // Realtime subscription for sync_settings changes
+    const channel = supabase
+      .channel('tv-sync-settings')
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload: any) => {
+        const newVal = payload.new?.force_tv_refresh_at;
+        if (newVal && newVal !== lastKnownRefreshAt.current) {
+          triggerRefresh(newVal);
+        }
+      })
+      .subscribe();
 
     // Polling fallback every 30s
     const pollInterval = setInterval(async () => {
@@ -59,8 +59,8 @@ export function useTvRefresh(
     }, 30000);
 
     return () => {
-      onSyncSettingsChange.current = null;
+      supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [isTvMode, onSyncSettingsChange]);
+  }, [isTvMode]);
 }

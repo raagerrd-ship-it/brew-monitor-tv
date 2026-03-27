@@ -20,8 +20,6 @@ interface UseBrewDataReturn {
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
-  // Callbacks for consolidated realtime channels
-  onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
 // Preferred color order for sorting brews (matches physical vessel order)
@@ -66,8 +64,6 @@ export function useBrewData(): UseBrewDataReturn {
   const brewsRef = useRef<BrewData[]>([]);
   const controllersRef = useRef<TempController[]>([]);
   
-  // Callback refs for consolidated realtime channels
-  const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
     brewsRef.current = brews;
@@ -767,9 +763,6 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (p: any) => {
-        onSyncSettingsChange.current?.(p);
-      })
       .subscribe();
 
     return () => {
@@ -885,6 +878,5 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrews,
     loadRaptData,
     loadBrewEvents,
-    onSyncSettingsChange,
   };
 }
