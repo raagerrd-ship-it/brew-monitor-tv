@@ -865,12 +865,10 @@ export function useBrewData(): UseBrewDataReturn {
 
   return {
     brews,
-    setBrews,
     pills,
     controllers,
     loading,
     updatedFields,
-    brewEvents,
     isAuthenticated,
     
     loadBrews,
