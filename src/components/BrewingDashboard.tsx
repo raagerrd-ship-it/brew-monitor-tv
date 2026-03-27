@@ -3,7 +3,6 @@ import { RaptControllerDialog } from "./RaptControllerDialog";
 import { BrewCard } from "./brew-card";
 import { BrewCardSkeleton } from "./brew-card/BrewCardSkeleton";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
-import { SonosWidget } from "./sonos/SonosWidget";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,11 +10,12 @@ import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
-import { useBrewData, useSplashScreen, useBrewCarousel, useAlbumArtBackground, useTvRefresh } from "@/hooks";
+import { useBrewData, useSplashScreen, useBrewCarousel, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { useTimerVisibility } from "@/contexts/TimerContext";
+import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -33,11 +33,11 @@ export function BrewingDashboard() {
   const {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
-    onSonosNowPlayingChange, onSonosSettingsChange, onSyncSettingsChange,
+    onSonosSettingsChange, onSyncSettingsChange,
   } = useBrewData();
 
   // Extracted hooks
-  const { visibleBgUrl, handleAlbumArtChange } = useAlbumArtBackground();
+  const { visibleBgUrl } = useAlbumArt();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode, onSyncSettingsChange);
