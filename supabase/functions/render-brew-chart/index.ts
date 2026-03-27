@@ -261,9 +261,11 @@ function generateChartSvg(
   let avgTempSvg = '';
 
   if (pillCompensation) {
-    const controllerPoints = parsed
-      .filter((p) => p.controller !== null)
-      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }));
+    // Only draw controller line separately when it differs from actual_temp
+    const ctrlDiffersFromActual = parsed.some(p => p.controller !== null && p.actual !== null && Math.abs(p.controller - p.actual) > 0.05);
+    const controllerPoints = ctrlDiffersFromActual
+      ? parsed.filter((p) => p.controller !== null).map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }))
+      : [];
     controllerSvg = controllerPoints.length > 0
       ? `<path d="${buildSmoothPath(controllerPoints)}" fill="none" stroke="${COLORS.controllerLine}" stroke-width="1"/>`
       : '';
@@ -292,9 +294,11 @@ function generateChartSvg(
       : '';
   }
 
-  const pillPoints = parsed
-    .filter((p) => p.pill !== null)
-    .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }));
+  // Only draw pill line separately when it differs from actual_temp (i.e. dual-sensor or probe-preferred)
+  const pillDiffersFromActual = parsed.some(p => p.pill !== null && p.actual !== null && Math.abs(p.pill - p.actual) > 0.05);
+  const pillPoints = pillDiffersFromActual
+    ? parsed.filter((p) => p.pill !== null).map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }))
+    : [];
   const pillSvg = pillPoints.length > 0
     ? `<path d="${buildSmoothPath(pillPoints)}" fill="none" stroke="${pillCompensation ? COLORS.pillTempLine : COLORS.avgTempLine}" stroke-width="${pillCompensation ? 1 : 1.5}"/>`
     : '';
