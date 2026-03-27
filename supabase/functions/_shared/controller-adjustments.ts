@@ -689,16 +689,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           const probeTemp = fc.current_temp ?? actualTemp
           if (actualTemp > actualTarget + 0.3 && probeTemp < ctrlTarget) {
             const suppressTarget = round1(Math.max(probeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
-            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(probeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
-            if (ctx.updateBatch) {
-              ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
+            // Skip if hardware target is already at the suppress level
+            if (Math.abs(ctrlTarget - suppressTarget) < 0.05) {
+              log('DUTY_ZERO_SUPPRESS', 'skip', `${fc.name}: hw redan vid ${ctrlTarget}° ≈ suppress ${suppressTarget}°`)
             } else {
-              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, suppressTarget)
+              log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(probeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
+              if (ctx.updateBatch) {
+                ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
+              } else {
+                await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, suppressTarget)
+              }
+              await supabase.from('rapt_temp_controllers')
+                .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
+                .eq('controller_id', fc.controller_id)
+              adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
             }
-            await supabase.from('rapt_temp_controllers')
-              .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
-              .eq('controller_id', fc.controller_id)
-            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
           } else if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
             // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst,
             // or 0°C from a previous cooling burst after mode switch)
