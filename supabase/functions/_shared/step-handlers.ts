@@ -497,7 +497,9 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   }
 
   // Phase 2: Ramping — dual-driver: activity curve AND time floor
-  let rampProgress = Math.min(1, Math.max(0, (safeActivityTrigger - activityScore) / safeActivityTrigger))
+  // Ramp maps activity from trigger (e.g. 35%) → completion threshold (5%)
+  const ACTIVITY_COMPLETE = 5
+  let rampProgress = Math.min(1, Math.max(0, (safeActivityTrigger - activityScore) / (safeActivityTrigger - ACTIVITY_COMPLETE)))
   rampProgress = rampProgress ** 2
   let activityTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
