@@ -524,7 +524,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal}% – SKIP
+        {modeIcon} {shortName} {dutyPctVal}% – SKIP
       </Badge>
     );
   }
