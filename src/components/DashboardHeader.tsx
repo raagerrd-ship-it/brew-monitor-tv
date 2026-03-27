@@ -294,22 +294,24 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                      // Probe active: dual mode, or preferred=probe, or no pill linked
                      const probeActive = isDual || preferred === 'probe' || !hasPill;
                      return (
-                       <div className="flex items-center gap-1.5">
-                         <Pill style={{
-                           width: '0.65rem',
-                           height: '0.65rem',
-                           flexShrink: 0,
-                           opacity: pillActive ? 1 : 0.2,
-                           color: pillActive ? controllerColor : 'currentColor',
-                         }} strokeWidth={2} />
-                         <AirVent style={{
-                           width: '0.65rem',
-                           height: '0.65rem',
-                           flexShrink: 0,
-                           opacity: probeActive ? 0.9 : 0.2,
-                           color: probeActive ? controllerColor : 'currentColor',
-                         }} />
-                       </div>
+                        <div className="flex items-center gap-1.5">
+                          <Pill style={{
+                            width: '0.65rem',
+                            height: '0.65rem',
+                            flexShrink: 0,
+                            opacity: pillActive ? 1 : 0.2,
+                            color: pillActive ? controllerColor : 'currentColor',
+                            filter: pillActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                          }} strokeWidth={2} />
+                          <AirVent style={{
+                            width: '0.65rem',
+                            height: '0.65rem',
+                            flexShrink: 0,
+                            opacity: probeActive ? 0.9 : 0.2,
+                            color: probeActive ? controllerColor : 'currentColor',
+                            filter: probeActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                          }} />
+                        </div>
                      );
                    })()}
 
