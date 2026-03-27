@@ -488,6 +488,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       recent_util: recentUtil != null ? Math.round(recentUtil * 100) : null,
       ...(constraintLabels.length > 0 ? { limits: constraintLabels } : {}),
       switch_pressure: switchPressure,
+      ...(rampRateLimited ? { effective_target: pidEffectiveTarget, ramp_limited: true } : {}),
     })
 
     // Persist last duty cycle for mode-switch guard
