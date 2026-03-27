@@ -21,7 +21,6 @@ interface UseBrewDataReturn {
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
   // Callbacks for consolidated realtime channels
-  onSonosNowPlayingChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
