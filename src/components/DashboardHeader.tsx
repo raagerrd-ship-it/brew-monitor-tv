@@ -244,7 +244,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   API nere sedan {formatTime(lastSuccessfulSync)}
                 </span>
               </div>
-              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+              <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
 
