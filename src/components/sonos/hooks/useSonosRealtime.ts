@@ -144,6 +144,17 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       }
     };
 
-    return () => { if (onRealtimeRef) onRealtimeRef.current = null; };
-  }, [onRealtimeRef, isConnected, showWidget]);
+    // Subscribe to realtime changes on sonos_now_playing
+    const channel = supabase
+      .channel('sonos-widget-realtime')
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (payload: any) => {
+        handlerRef.current?.(payload);
+      })
+      .subscribe();
+
+    return () => {
+      handlerRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [isConnected, showWidget]);
 }
