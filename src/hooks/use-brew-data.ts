@@ -21,7 +21,6 @@ interface UseBrewDataReturn {
   loadRaptData: () => Promise<void>;
   loadBrewEvents: () => Promise<void>;
   // Callbacks for consolidated realtime channels
-  onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
@@ -68,7 +67,6 @@ export function useBrewData(): UseBrewDataReturn {
   const controllersRef = useRef<TempController[]>([]);
   
   // Callback refs for consolidated realtime channels
-  const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
   const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
@@ -736,9 +734,6 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_pills' }, (p: any) => dispatch('rapt_pills', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sonos_settings' }, (p: any) => {
-        onSonosSettingsChange.current?.(p);
-      })
       .subscribe();
 
     return () => {
@@ -890,7 +885,6 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrews,
     loadRaptData,
     loadBrewEvents,
-    onSonosSettingsChange,
     onSyncSettingsChange,
   };
 }
