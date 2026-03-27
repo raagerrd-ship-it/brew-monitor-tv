@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         supabase.from('fermentation_profiles').select('id, name').in('id', profileIds),
         supabase.from('fermentation_profile_steps').select('profile_id, step_order, step_type, target_temp').in('profile_id', profileIds),
       ]);
-      for (const session of runningSessions) {
+      for (const session of sessions) {
         const profile = (profiles || []).find((p: any) => p.id === session.profile_id);
         const currentStep = (steps || []).find((s: any) => s.profile_id === session.profile_id && s.step_order === session.current_step_index);
         sessionProfileMap.set(session.controller_id, {
