@@ -215,13 +215,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, []);
 
   return (
-    <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
+    <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-3 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
+        <div className={`flex items-center rounded-lg isolate overflow-hidden px-3 justify-evenly scrollbar-hide backdrop-blur-xl`} style={{
           background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
           boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
-          height: isMobile ? undefined : '50px',
+          height: '50px',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
@@ -232,7 +232,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   {formatTime(latestUpdate)}–{formatTime(new Date(now))} ({formatDuration(now - latestUpdate.getTime())})
                 </span>
               </div>
-              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+              <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
           {/* RAPT API degraded mode — syncs run but API fails */}
@@ -244,7 +244,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   API nere sedan {formatTime(lastSuccessfulSync)}
                 </span>
               </div>
-              <div className={`${isMobile ? 'h-6 mx-1' : 'h-8 mx-1'} w-px`} style={{ background: 'hsl(0 40% 30%)' }} />
+              <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
 
@@ -254,7 +254,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <Fragment key={controller.id}>
-                {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-7 mx-0.5'} w-px flex-shrink-0`} style={{ background: 'hsl(222 15% 20%)' }} />}
+                {index > 0 && <div className="h-7 mx-0.5 w-px flex-shrink-0" style={{ background: 'hsl(222 15% 20%)' }} />}
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
@@ -262,7 +262,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-2 pt-1 gap-1.5 flex-shrink-0' : 'px-3 gap-2 flex-1'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: isMobile ? undefined : '4px', paddingBottom: isMobile ? '10px' : linkedPill ? '10px' : '4px' }}
+                 <div className={`relative flex items-center justify-center rounded px-3 gap-2 flex-1 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
@@ -276,8 +276,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    {(() => {
                       const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
-                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                        fontSize: isMobile ? undefined : '16px',
+                      <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                        fontSize: '16px',
                         ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
                       }}>
                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
@@ -286,7 +286,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    })()}
 
                    {/* Sensor icons (right) — show which sensors are active */}
-                   {!isControllerStale && !isMobile && (() => {
+                   {!isControllerStale && (() => {
                      const isDual = !!(controller as any).dual_sensor_enabled;
                      const preferred = (controller as any).preferred_sensor as string | undefined;
                      const hasPill = !!linkedPill && !isPillStale;
