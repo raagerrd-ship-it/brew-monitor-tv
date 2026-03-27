@@ -286,35 +286,33 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    })()}
 
                    {/* Sensor icons (right) — show which sensors are active */}
-                   {!isControllerStale && (() => {
-                     const isDual = !!(controller as any).dual_sensor_enabled;
-                     const preferred = (controller as any).preferred_sensor as string | undefined;
-                     const hasPill = !!linkedPill && !isPillStale;
-                     // Pill active: dual mode, or preferred=pill with a linked pill
-                     const pillActive = hasPill && (isDual || preferred === 'pill');
-                     // Probe active: dual mode, or preferred=probe, or no pill linked
-                     const probeActive = isDual || preferred === 'probe' || !hasPill;
-                     return (
-                        <div className="flex items-center gap-1.5">
-                          <Pill style={{
-                            width: '0.65rem',
-                            height: '0.65rem',
-                            flexShrink: 0,
-                            opacity: pillActive ? 1 : 0.2,
-                            color: pillActive ? controllerColor : 'currentColor',
-                            filter: pillActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
-                          }} strokeWidth={2} />
-                          <AirVent style={{
-                            width: '0.65rem',
-                            height: '0.65rem',
-                            flexShrink: 0,
-                            opacity: probeActive ? 0.9 : 0.2,
-                            color: probeActive ? controllerColor : 'currentColor',
-                            filter: probeActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
-                          }} />
-                        </div>
-                     );
-                   })()}
+                   {!isControllerStale && !controller.is_glycol_cooler && (() => {
+                      const isDual = !!(controller as any).dual_sensor_enabled;
+                      const preferred = (controller as any).preferred_sensor as string | undefined;
+                      const hasPill = !!linkedPill && !isPillStale;
+                      const pillActive = hasPill && (isDual || preferred === 'pill');
+                      const probeActive = isDual || preferred === 'probe' || !hasPill;
+                      return (
+                         <div className="flex items-center gap-1.5">
+                           <Pill style={{
+                             width: '0.65rem',
+                             height: '0.65rem',
+                             flexShrink: 0,
+                             opacity: pillActive ? 1 : 0.2,
+                             color: pillActive ? controllerColor : 'currentColor',
+                             filter: pillActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                           }} strokeWidth={2} />
+                           <AirVent style={{
+                             width: '0.65rem',
+                             height: '0.65rem',
+                             flexShrink: 0,
+                             opacity: probeActive ? 0.9 : 0.2,
+                             color: probeActive ? controllerColor : 'currentColor',
+                             filter: probeActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                           }} />
+                         </div>
+                      );
+                    })()}
 
                    {/* Battery bar — styled like PWM duty bar */}
                    {linkedPill && (
