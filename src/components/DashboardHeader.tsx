@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
-import { memo, useState, useEffect, useMemo } from "react";
+import { Fragment, memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
 import { getActualTemp } from "@/lib/temp-display";
