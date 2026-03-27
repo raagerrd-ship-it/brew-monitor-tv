@@ -24,14 +24,12 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
-  sonosSlot?: React.ReactNode;
 }
 
 export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
-  sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
