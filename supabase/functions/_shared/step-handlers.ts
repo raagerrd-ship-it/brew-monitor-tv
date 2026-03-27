@@ -565,7 +565,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
 
     // Normal completion — no notification needed
   } else if (sgStable && !activityLow) {
-    console.log(`Gradual ramp: SG stable but activity still ${metrics?.activity_score}% (need <15) - continuing`)
+    console.log(`Gradual ramp: SG stable but activity still ${metrics?.activity_score}% (need <5) - continuing`)
     actionDetails = { ...actionDetails, phase: 'gradual_ramping_waiting', sg_stable: true, activity_score: metrics?.activity_score }
   }
 
