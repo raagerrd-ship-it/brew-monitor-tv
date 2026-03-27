@@ -1,5 +1,4 @@
 export { useActiveFermentationSession } from "./use-active-fermentation-session";
-export { useAlbumArtBackground } from "./use-album-art-background";
 export { useBrewCarousel } from "./use-brew-carousel";
 export { useBrewData } from "./use-brew-data";
 export { useBrewManagement } from "./use-brew-management";
