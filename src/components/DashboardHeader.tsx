@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
-import { memo, useState, useEffect, useMemo } from "react";
+import { Fragment, memo, useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
 import { getActualTemp } from "@/lib/temp-display";
@@ -254,8 +254,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
-              <div key={controller.id} className="flex items-center">
-                {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-7 mx-0.5'} w-px`} style={{ background: 'hsl(222 15% 20%)' }} />}
+              <Fragment key={controller.id}>
+                {index > 0 && <div className={`${isMobile ? 'h-6 mx-1' : 'h-7 mx-0.5'} w-px flex-shrink-0`} style={{ background: 'hsl(222 15% 20%)' }} />}
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
@@ -314,7 +314,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                  </div>
                    );
                  })()}
-               </div>
+                </Fragment>
             );
           })}
         </div>
