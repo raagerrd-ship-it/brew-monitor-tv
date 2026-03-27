@@ -317,16 +317,18 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Battery bar */}
                    {linkedPill && (
-                     <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.06)' }}>
-                       <div
-                         className="h-full rounded-full transition-all duration-500"
-                         style={{
-                           width: `${batteryLevel}%`,
-                           backgroundColor: batteryColor,
-                           opacity: 0.7,
-                         }}
-                       />
-                     </div>
+                      <div className="absolute bottom-0.5 left-2 right-2 h-[2px] rounded-full overflow-hidden" style={{ background: 'hsl(0 0% 100% / 0.04)' }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${batteryLevel}%`,
+                            background: batteryLevel < 20 
+                              ? 'linear-gradient(90deg, hsl(0 70% 40%), hsl(0 70% 55%))' 
+                              : `linear-gradient(90deg, ${controllerColor}99, ${controllerColor})`,
+                            boxShadow: `0 0 4px ${batteryColor}44`,
+                          }}
+                        />
+                      </div>
                    )}
                  </div>
                    );
