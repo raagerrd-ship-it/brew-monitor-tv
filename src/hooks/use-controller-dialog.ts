@@ -57,7 +57,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           .maybeSingle(),
         supabase
           .from('rapt_temp_controllers')
-          .select('profile_target_temp, dual_sensor_enabled')
+          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor')
           .eq('controller_id', controller.controller_id)
           .single(),
       ]);
