@@ -45,6 +45,11 @@ export function BrewingDashboard() {
   // Timer visibility from self-contained TimerFooter via context
   const { isTimerVisible: showTimerFooter } = useTimerVisibility();
 
+  const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Math.round(window.visualViewport?.height ?? window.innerHeight);
+  });
+
   // Track cooler controller ID
   const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
   useEffect(() => {
