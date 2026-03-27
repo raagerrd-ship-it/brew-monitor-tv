@@ -19,6 +19,7 @@ interface UseBrewDataReturn {
   isAuthenticated: boolean;
   loadBrews: () => Promise<void>;
   loadRaptData: () => Promise<void>;
+  loadBrewEvents: () => Promise<void>;
   // Callbacks for consolidated realtime channels
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
