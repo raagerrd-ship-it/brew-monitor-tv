@@ -1,49 +1,35 @@
 
 
-## Plan: Sensorval — förenklad via `actual_temp` SSOT
+# Tvinga mode att matcha ramp-riktning
 
-### Insikt
-`actual_temp` är redan beräknat av synkmotorn och konsumerat av alla nedströms (PID, automation, UI). Vi behöver INTE sprida `preferred_sensor` överallt — bara ändra synkmotorns beräkning.
+## Problem
+Under en aktiv profil-ramp (t.ex. uppåt) bestäms `suggestedMode` enbart av temperatur vs mål (rad 257). Om temperaturen tillfälligt överstiger det rörliga rampmålet föreslås `cooling` — trots att rampen pekar uppåt. Systemet försöker byta till cooling, vilket motverkar rampen.
 
-### Ändringar
+## Lösning
+Direkt efter rad 257 (där `suggestedMode` sätts), lägg till en override som tvingar mode att matcha ramp-riktningen:
+- Ramp uppåt → `suggestedMode = 'heating'`  
+- Ramp nedåt → `suggestedMode = 'cooling'`
 
-**1. Databas — ny kolumn**
-```sql
-ALTER TABLE rapt_temp_controllers 
-  ADD COLUMN preferred_sensor text NOT NULL DEFAULT 'pill';
-```
+## Ändringar
 
-**2. Synkmotorn (`sync-rapt-data-quick/index.ts`, rad ~380-386)**
-Ändra fallback-logiken vid `dualEnabled = false`:
+### `supabase/functions/_shared/controller-adjustments.ts`
+1. Ändra `const suggestedMode` till `let suggestedMode` (rad 257)
+2. Lägg till efter rad 257:
 ```typescript
-// Nuvarande:
-updateData.actual_temp = pillTemp ?? currentTemp ?? null;
-
-// Nytt:
-const pref = existingCtrl?.preferred_sensor ?? 'pill';
-updateData.actual_temp = pref === 'probe' 
-  ? (currentTemp ?? pillTemp ?? null)
-  : (pillTemp ?? currentTemp ?? null);
+// During active profile ramp, force mode to match ramp direction
+// Ramp up → only heating allowed, ramp down → only cooling allowed
+const profileCtx = ctx.profileStatusMap.get(fc.controller_id)
+if (profileCtx?.rampDirection && 
+    (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
+  const rampMode = profileCtx.rampDirection as 'heating' | 'cooling'
+  if (suggestedMode !== rampMode) {
+    log('MODE_RAMP_OVERRIDE', 'info', 
+      `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs mål ${round1(actualTarget)}°, would have been ${suggestedMode})`)
+    suggestedMode = rampMode
+  }
+}
 ```
 
-**3. `dual-sensor.ts` — samma justering för fallback**
-Lägg till `preferredSensor` parameter i `computeDualSensorTarget` (används som fallback i `controller-adjustments.ts`).
-
-**4. UI — RadioGroup i controller-dialogen**
-I `RaptControllerDialog.tsx`: visa "Pill / Ctrl"-val **när dual sensor är AV** och pill finns tillgänglig.
-
-**5. Hook — `use-controller-dialog.ts`**
-Lägg till `preferredSensor` state, ladda från DB, spara direkt vid ändring.
-
-### Filer som ändras
-| Fil | Ändring |
-|-----|---------|
-| Migration (ny) | `ADD COLUMN preferred_sensor` |
-| `sync-rapt-data-quick/index.ts` | Respektera `preferred_sensor` i fallback |
-| `_shared/dual-sensor.ts` | Ny param för fallback-logik |
-| `_shared/controller-adjustments.ts` | Skicka `preferred_sensor` till fusion |
-| `src/hooks/use-controller-dialog.ts` | State + DB-update |
-| `src/components/RaptControllerDialog.tsx` | RadioGroup |
-
-Inga ändringar i `temp-display.ts`, `TempStat.tsx`, `DashboardHeader.tsx`, etc. — de läser redan `actual_temp`.
+### Deploy
+- `auto-adjust-cooling` och `run-automation`
 
