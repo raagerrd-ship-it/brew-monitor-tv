@@ -898,7 +898,6 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrewEvents,
     onSonosNowPlayingChange,
     onSonosSettingsChange,
-    onCachedTimerChange,
     onSyncSettingsChange,
   };
 }
