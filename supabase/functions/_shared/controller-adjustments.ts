@@ -254,7 +254,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
 
     // Determine what mode the current temperature suggests
-    const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
+    let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
+
+    // During active profile ramp, force mode to match ramp direction
+    // Ramp up → only heating allowed, ramp down → only cooling allowed
+    const profileCtx = ctx.profileStatusMap.get(fc.controller_id)
+    if (profileCtx?.rampDirection && 
+        (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
+      const rampMode = profileCtx.rampDirection as 'heating' | 'cooling'
+      if (suggestedMode !== rampMode) {
+        log('MODE_RAMP_OVERRIDE', 'info', 
+          `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode})`)
+        suggestedMode = rampMode
+      }
+    }
 
     // Check if probe is on the WRONG side of the target and either:
     // 1. Stabilized (barely moving) — thermal inertia dissipated
