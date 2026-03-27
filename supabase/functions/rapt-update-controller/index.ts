@@ -81,6 +81,24 @@ Deno.serve(async (req) => {
       console.log('Using pre-authenticated RAPT token');
     }
 
+    // ── Early-exit: skip RAPT call if hardware already has the desired value ──
+    if (action === 'setTargetTemperature') {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data: current } = await supabase
+        .from('rapt_temp_controllers')
+        .select('target_temp')
+        .eq('controller_id', controllerId)
+        .single();
+      if (current && Math.abs((current.target_temp ?? -999) - value) < 0.05) {
+        console.log(`Skip RAPT API: hw target already ${current.target_temp}° ≈ requested ${value}°`);
+        return new Response(JSON.stringify({ success: true, result: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // Determine API endpoint based on action
     let endpoint = '';
     let queryParams = new URLSearchParams();
@@ -111,8 +129,6 @@ Deno.serve(async (req) => {
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('hysteresis', value.toString());
         break;
-
-      // setHeatingHysteresis, setHeatingEnabled, setCoolingEnabled removed — not supported by RAPT API
       
       default:
         throw new Error(`Unknown action: ${action}`);
