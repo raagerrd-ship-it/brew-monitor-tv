@@ -161,13 +161,11 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-interface TimerFooterProps {
-  timer: ExternalTimerState;
-  timerTvModeOnly: boolean;
-}
-
-export const TimerFooter = memo(function TimerFooter({ timer, timerTvModeOnly }: TimerFooterProps) {
+export const TimerFooter = memo(function TimerFooter() {
+  const timer = useExternalTimer();
+  const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
+  const { setTimerVisible } = useTimerVisibility();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
