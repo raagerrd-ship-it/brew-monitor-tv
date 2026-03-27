@@ -264,6 +264,14 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
       .eq('controller_id', controller.controller_id);
   }, [controller.controller_id, dualSensorEnabled]);
 
+  const setPreferredSensor = useCallback(async (value: 'pill' | 'probe') => {
+    setPreferredSensorState(value);
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ preferred_sensor: value } as any)
+      .eq('controller_id', controller.controller_id);
+  }, [controller.controller_id]);
+
   return {
     loading,
     isAuthenticated,
