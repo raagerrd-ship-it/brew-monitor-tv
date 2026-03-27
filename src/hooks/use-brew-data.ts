@@ -23,7 +23,6 @@ interface UseBrewDataReturn {
   // Callbacks for consolidated realtime channels
   onSonosNowPlayingChange: React.MutableRefObject<((payload: any) => void) | null>;
   onSonosSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
-  onCachedTimerChange: React.MutableRefObject<(() => void) | null>;
   onSyncSettingsChange: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
