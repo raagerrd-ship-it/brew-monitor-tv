@@ -1,0 +1,1 @@
+ALTER TABLE temp_controller_history DROP COLUMN cooling_run_time;

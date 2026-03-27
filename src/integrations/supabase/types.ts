@@ -1604,7 +1604,6 @@ export type Database = {
         Row: {
           controller_id: string
           cooling_enabled: boolean
-          cooling_run_time: number | null
           created_at: string
           current_temp: number
           duty_pct: number | null
@@ -1616,7 +1615,6 @@ export type Database = {
         Insert: {
           controller_id: string
           cooling_enabled: boolean
-          cooling_run_time?: number | null
           created_at?: string
           current_temp: number
           duty_pct?: number | null
@@ -1628,7 +1626,6 @@ export type Database = {
         Update: {
           controller_id?: string
           cooling_enabled?: boolean
-          cooling_run_time?: number | null
           created_at?: string
           current_temp?: number
           duty_pct?: number | null
