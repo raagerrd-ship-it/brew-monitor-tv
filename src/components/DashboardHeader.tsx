@@ -275,12 +275,12 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    {(() => {
                       const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
-                     <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
-                       fontSize: isMobile ? undefined : '16px',
-                       ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color } : {})
-                     }}>
-                      {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                    </span>
+                      <span className={`font-semibold tabular-nums whitespace-nowrap ${isMobile ? 'text-sm' : ''}`} style={{
+                        fontSize: isMobile ? undefined : '16px',
+                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                      }}>
+                       {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                     </span>
                      );
                    })()}
 
