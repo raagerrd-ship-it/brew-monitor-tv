@@ -33,7 +33,7 @@ export function BrewingDashboard() {
   const {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
-    onSonosSettingsChange, onSyncSettingsChange,
+    onSyncSettingsChange,
   } = useBrewData();
 
   // Extracted hooks

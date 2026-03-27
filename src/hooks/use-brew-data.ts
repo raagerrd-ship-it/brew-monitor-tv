@@ -885,7 +885,6 @@ export function useBrewData(): UseBrewDataReturn {
     loadBrews,
     loadRaptData,
     loadBrewEvents,
-    onSonosSettingsChange,
     onSyncSettingsChange,
   };
 }
