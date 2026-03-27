@@ -1243,7 +1243,6 @@ Deno.serve(async (req) => {
           target_temp: post?.target_temp ?? c.target_temp,
           cooling_enabled: c.cooling_enabled || false,
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
-          cooling_run_time: c.cooling_run_time ?? null,
           duty_pct: dutyPct != null && Number.isFinite(dutyPct) ? dutyPct : null,
         };
       });
