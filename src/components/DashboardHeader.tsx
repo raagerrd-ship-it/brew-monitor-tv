@@ -317,7 +317,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Battery bar — styled like PWM duty bar */}
                    {linkedPill && (
-                     <div className="absolute bottom-0 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
+                     <div className="absolute bottom-1 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
                        height: '4px',
                        background: 'hsl(0 0% 0% / 0.5)',
                        boxShadow: 'inset 0 1px 2px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
