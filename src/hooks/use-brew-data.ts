@@ -66,8 +66,6 @@ export function useBrewData(): UseBrewDataReturn {
   const brewsRef = useRef<BrewData[]>([]);
   const controllersRef = useRef<TempController[]>([]);
   
-  // Callback refs for consolidated realtime channels
-  const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
     brewsRef.current = brews;
