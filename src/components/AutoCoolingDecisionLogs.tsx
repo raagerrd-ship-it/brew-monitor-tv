@@ -508,7 +508,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   }
 
   // PWM SKIP badges — phase B or duty 0% skips (no hardware burst this cycle)
-  const dutySkipDecisions = log.decisions.filter(d => d.step === 'DUTY_PHASE_B' || d.step === 'DUTY_ZERO');
+  const dutySkipDecisions = log.decisions.filter(d => d.step === 'DUTY_ZERO');
   for (const skipD of dutySkipDecisions) {
     const nameMatch = skipD.message.match(/^([^:]+):/);
     const fullName = nameMatch ? nameMatch[1].trim() : '';
