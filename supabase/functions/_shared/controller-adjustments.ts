@@ -212,7 +212,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
