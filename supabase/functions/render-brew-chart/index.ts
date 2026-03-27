@@ -492,6 +492,7 @@ Deno.serve(async (req) => {
       pill_temp: p.temp ?? null,
       controller_temp: null,
       profile_target_temp: null,
+      actual_temp: null,
     }));
 
     // ── Step 2: Generate SVG and return inline ──
