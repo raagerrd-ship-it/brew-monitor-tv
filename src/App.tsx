@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider, useTvMode } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
+import { TimerProvider } from "@/contexts/TimerContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
