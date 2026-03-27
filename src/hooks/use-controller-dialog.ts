@@ -287,6 +287,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     isActivelyHeating,
     dualSensorEnabled,
     toggleDualSensor,
+    preferredSensor,
+    setPreferredSensor,
     originalTarget,
     dutyCyclePct,
     dutyMode,
