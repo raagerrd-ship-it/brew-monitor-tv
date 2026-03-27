@@ -42,7 +42,7 @@ export interface ControllerAdjustmentContext {
   profileTargetMap: Map<string, number>
   sessionBrewIdMap: Map<string, string>
   cooloffControllerIds: Set<string>
-  profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string }>
+  profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
   stallSettings: StallSettings
@@ -247,22 +247,25 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // ── Profile-directed fast switch ──────────────────────────
     // When a fermentation profile step explicitly changes direction
-    // (e.g. gradual_ramp raising temp for diacetyl rest), bypass the
-    // 6-cycle stabilisation guard and switch immediately.
-    // This only applies when the profile has moved the target clearly
-    // past the current temp in the opposite direction of the current mode.
+    // (e.g. ramp down for cold crash), bypass the 6-cycle stabilisation
+    // guard and switch immediately.
+    // CRITICAL: Only switch if the ramp's DIRECTION matches the suggested
+    // mode. A gradual_ramp going UP should NOT trigger a switch to cooling
+    // just because temp temporarily overshoots the current ramp target.
     const profileSwitchStatus = ctx.profileStatusMap.get(fc.controller_id)
     const isProfileRamp = profileSwitchStatus?.currentStepType === 'gradual_ramp' || profileSwitchStatus?.currentStepType === 'ramp'
+    const rampMatchesSuggested = profileSwitchStatus?.rampDirection === suggestedMode
     const profileDirectedSwitch = canSwitchMode && prevMode != null && suggestedMode !== prevMode
-      && isProfileRamp && distanceToTarget > 0.3
+      && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
     if (profileDirectedSwitch) {
       // Profile explicitly wants the opposite direction — switch immediately
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp kräver ${suggestedMode}, Δ${round1(distanceToTarget)}°)`, {
+      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection} kräver ${suggestedMode}, Δ${round1(distanceToTarget)}°)`, {
         from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
+        rampDirection: profileSwitchStatus?.rampDirection,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (isStuck || isDiverging) {
