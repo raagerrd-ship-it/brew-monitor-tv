@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
-import { Fragment, memo, useState, useEffect, useMemo } from "react";
+import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
 import { getActualTemp } from "@/lib/temp-display";
@@ -11,6 +11,8 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
+import { RaptControllerDialog } from "./RaptControllerDialog";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -18,15 +20,6 @@ const HEADER_HEIGHT = HEADER_HEIGHT_DESKTOP;
 export { HEADER_HEIGHT, HEADER_HEIGHT_TV, HEADER_HEIGHT_DESKTOP };
 
 interface DashboardHeaderProps {
-  controllers: TempController[];
-  pills: {
-    pill_id: string;
-    color: string;
-    name: string;
-    battery_level: number;
-    last_update: string | null;
-  }[];
-  onControllerClick?: (controller: TempController) => void;
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
@@ -34,9 +27,6 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
-  controllers,
-  pills,
-  onControllerClick,
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
@@ -48,75 +38,109 @@ export function DashboardHeader({
   const { isTvMode } = useTvMode();
   const isOnSettings = location.pathname === '/settings';
 
-  return (
-    <div
-      className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-6 relative'}`}
-      style={{
-        height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-        background: 'transparent',
-        borderBottom: 'none'
-      }}
-    >
-      {/* Top highlight removed for seamless transparent header */}
+  // RAPT bar data — self-contained
+  const { controllers, pills } = useRaptBarData();
 
-      {/* Mobile: Logo row with settings */}
-      {isMobile ? (
-        <div className="flex items-center justify-between w-full">
-          <div className="cursor-pointer" onClick={() => navigate('/')}>
-            <Logo />
-          </div>
-          <div className="flex items-center gap-1">
-            {onRefresh && !isOnSettings && (
+  // Controller dialog state
+  const [selectedController, setSelectedController] = useState<TempController | null>(null);
+  const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
+  const [controllerDialogOpen, setControllerDialogOpen] = useState(false);
+  const [coolerControllerId, setCoolerControllerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCoolerController = async () => {
+      const { data } = await supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle();
+      if (data?.cooler_controller_id) setCoolerControllerId(data.cooler_controller_id);
+    };
+    loadCoolerController();
+  }, []);
+
+  const handleControllerClick = useCallback((controller: TempController) => {
+    setSelectedController(controller);
+    setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
+    setControllerDialogOpen(true);
+  }, [coolerControllerId]);
+
+  return (
+    <>
+      <div
+        className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-6 relative'}`}
+        style={{
+          height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
+          background: 'transparent',
+          borderBottom: 'none'
+        }}
+      >
+        {/* Mobile: Logo row with settings */}
+        {isMobile ? (
+          <div className="flex items-center justify-between w-full">
+            <div className="cursor-pointer" onClick={() => navigate('/')}>
+              <Logo />
+            </div>
+            <div className="flex items-center gap-1">
+              {onRefresh && !isOnSettings && (
+                <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
+                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
+                    <RefreshCw className="w-5 h-5" />
+                  </Button>
+                </div>
+              )}
+              <NotificationBell />
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
-                  <RefreshCw className="w-5 h-5" />
+                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                  <Settings className="w-5 h-5" />
                 </Button>
               </div>
-            )}
-            <NotificationBell />
-            <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-              <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
-                <Settings className="w-5 h-5" />
-              </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* RAPT Section - Mobile */}
-      {isMobile && controllers.length > 0 && (
-        <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={true} isTvMode={isTvMode} />
+        {/* RAPT Section - Mobile */}
+        {isMobile && controllers.length > 0 && (
+          <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
+        )}
+
+        {/* Desktop: Three-column layout */}
+        {!isMobile && (
+          <>
+            <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
+              {sonosSlot ?? <Logo />}
+            </div>
+
+            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
+              {controllers.length > 0 && (
+                <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
+              <Clock />
+
+              {!isTvMode && <NotificationBell />}
+
+              {!isTvMode && (
+                <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                    <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Controller dialog — owned by header */}
+      {selectedController && (
+        <RaptControllerDialog
+          controller={selectedController}
+          open={controllerDialogOpen}
+          onOpenChange={setControllerDialogOpen}
+          isCooler={selectedControllerIsCooler}
+          controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined}
+        />
       )}
-
-      {/* Desktop: Three-column layout */}
-      {!isMobile && (
-        <>
-          <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-            {sonosSlot ?? <Logo />}
-          </div>
-
-          <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
-            {controllers.length > 0 && (
-              <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={onControllerClick || (() => {})} isMobile={false} isTvMode={isTvMode} />
-            )}
-          </div>
-
-          <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
-            <Clock />
-
-            {!isTvMode && <NotificationBell />}
-
-            {!isTvMode && (
-              <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
-                  <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
-                </Button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -188,12 +212,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
       const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
       const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
       const syncIntervalSec = (data as any).rapt_sync_interval ?? 300;
-      // Threshold: 2x sync interval + 20 min margin (device reporting lag)
-      // 5 min interval → 30 min → clamped to 31, 15 min interval → 50 min
       const thresholdMin = Math.max(31, Math.round((syncIntervalSec * 2) / 60) + 20);
       setStaleThresholdMin(thresholdMin);
       setLastSuccessfulSync(lastSuccess);
-      // Degraded if syncs are running but last success is too old
       if (lastSuccess && lastQuick) {
         const sinceSuccess = Date.now() - lastSuccess.getTime();
         setRaptDegraded(sinceSuccess > thresholdMin * 60 * 1000);

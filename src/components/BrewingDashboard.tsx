@@ -220,9 +220,6 @@ export function BrewingDashboard() {
 
       {/* Header Bar */}
       <DashboardHeader
-        controllers={controllers}
-        pills={pills}
-        onControllerClick={handleControllerClick}
         hasAlbumArtBackground={!!visibleBgUrl}
         onRefresh={isMobile ? handleManualRefresh : undefined}
         sonosSlot={(!isMobile || isTvMode) ? (
