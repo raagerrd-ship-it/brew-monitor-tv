@@ -162,7 +162,7 @@ function getCategoryBadge(category: AdjustmentCategory, adjText?: React.ReactNod
     'glykol': { bg: 'hsl(210 80% 60% / 0.2)', color: 'hsl(210 80% 60%)', border: 'hsl(210 80% 60% / 0.3)', icon: <Snowflake className="h-2.5 w-2.5 mr-0.5" />, label: 'Glykol' },
     'manuell': { bg: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', border: 'hsl(38 92% 55% / 0.3)', icon: <Pencil className="h-2.5 w-2.5 mr-0.5" />, label: 'Manuell' },
     'passthrough': { bg: 'hsl(170 60% 45% / 0.2)', color: 'hsl(170 60% 45%)', border: 'hsl(170 60% 45% / 0.3)', icon: <RefreshCw className="h-2.5 w-2.5 mr-0.5" />, label: 'Synk' },
-    'pwm': { bg: 'hsl(45 90% 55% / 0.2)', color: 'hsl(45 90% 55%)', border: 'hsl(45 90% 55% / 0.3)', icon: <Zap className="h-2.5 w-2.5 mr-0.5" />, label: 'PWM' },
+    'pwm': { bg: 'hsl(45 90% 55% / 0.2)', color: 'hsl(45 90% 55%)', border: 'hsl(45 90% 55% / 0.3)', icon: null, label: 'PWM' },
   };
   const s = styles[category];
   const color = colorOverride || s.color;
@@ -427,7 +427,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
           color: color || 'hsl(45 90% 55%)',
           borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
         }}>
-          <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – ON
+          {modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – ON
         </Badge>
       );
     } else {
@@ -502,7 +502,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color || 'hsl(45 90% 55%)',
         borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />{offModeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – OFF
+        {offModeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – OFF
       </Badge>
     );
   }
@@ -524,7 +524,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />{modeIcon} {shortName} {dutyPctVal}% – SKIP
+        {modeIcon} {shortName} {dutyPctVal}% – SKIP
       </Badge>
     );
   }
@@ -541,7 +541,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color || 'hsl(45 90% 55%)',
         borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
       }}>
-        <Zap className="h-2.5 w-2.5 mr-0.5" />PWM · {shortName} ON{dutyPct ? ` ${dutyPct}%` : ''}
+        PWM · {shortName} ON{dutyPct ? ` ${dutyPct}%` : ''}
       </Badge>
     );
   }
