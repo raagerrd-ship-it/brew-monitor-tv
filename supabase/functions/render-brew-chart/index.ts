@@ -274,7 +274,6 @@ function generateChartSvg(
         x: scaleX(p.t, tMin, tMax),
         pillY: tempScaleY(p.pill as number),
         ctrlY: tempScaleY(p.controller as number),
-        avgY: tempScaleY(((p.pill as number) + (p.controller as number)) / 2),
       }));
 
     if (spanPoints.length > 1) {
@@ -282,10 +281,15 @@ function generateChartSvg(
       const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
       const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
       tempSpanSvg = `<path d="${spanPath}" fill="url(#tempSpanGrad)" stroke="none"/>`;
-
-      const avgPoints = spanPoints.map((p) => ({ x: p.x, y: p.avgY }));
-      avgTempSvg = `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`;
     }
+
+    // Use actual_temp (pre-computed fusion) for avg line — same as desktop
+    const avgPoints = parsed
+      .filter((p) => (p.actual ?? p.pill) !== null)
+      .map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY((p.actual ?? p.pill) as number) }));
+    avgTempSvg = avgPoints.length > 1
+      ? `<path d="${buildSmoothPath(avgPoints)}" fill="none" stroke="${COLORS.avgTempLine}" stroke-width="1.5"/>`
+      : '';
   }
 
   const pillPoints = parsed
