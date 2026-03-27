@@ -536,7 +536,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(actualTarget)
+      const revertTarget = round1(pidEffectiveTarget)
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
