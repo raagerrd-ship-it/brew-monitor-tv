@@ -215,13 +215,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, []);
 
   return (
-    <div className={isMobile ? "flex items-center justify-center w-full" : "w-full"}>
+    <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg isolate overflow-hidden ${isMobile ? 'gap-1 px-2 py-2' : 'px-3 justify-evenly'} scrollbar-hide backdrop-blur-xl`} style={{
+        <div className={`flex items-center rounded-lg isolate overflow-hidden px-3 justify-evenly scrollbar-hide backdrop-blur-xl`} style={{
           background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
           border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
           boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
-          height: isMobile ? undefined : '50px',
+          height: '50px',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
