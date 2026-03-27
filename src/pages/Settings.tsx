@@ -1,6 +1,5 @@
 import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
-import { RaptControllerDialog } from "@/components/RaptControllerDialog";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { SyncChecklist } from "@/components/SyncChecklist";
