@@ -118,6 +118,11 @@ export function useSettingsData() {
       cooling_starts: null,
       heating_run_time: null,
       heating_starts: null,
+      is_glycol_cooler: c.is_glycol_cooler,
+      actual_temp: (c as any).actual_temp ?? null,
+      dual_sensor_enabled: (c as any).dual_sensor_enabled ?? false,
+      preferred_sensor: (c as any).preferred_sensor ?? 'pill',
+      profile_target_temp: (c as any).profile_target_temp ?? null,
     })),
     [availableControllers]
   );
