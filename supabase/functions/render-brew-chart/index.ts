@@ -200,7 +200,7 @@ function generateChartSvg(
   const sgMax = Math.max(...sgValues, og) + 0.001;
 
   const tempValues = parsed
-    .flatMap((p) => pillCompensation ? [p.pill, p.controller, p.target] : [p.pill, p.target])
+    .flatMap((p) => pillCompensation ? [p.actual, p.pill, p.controller, p.target] : [p.actual ?? p.pill, p.target])
     .filter((v): v is number => v !== null && Number.isFinite(v));
 
   const hasTempData = tempValues.length > 0;
