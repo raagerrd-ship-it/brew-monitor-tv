@@ -527,7 +527,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await supabase.from('rapt_temp_controllers')
           .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        const executeAt = new Date(Date.now() + burstSeconds * 1000).toISOString()
+        // Align to minute boundary so the 1-min cron picks it up precisely
+        const minuteFloor = Math.floor(Date.now() / 60000) * 60000
+        const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
         await supabase.from('pending_rapt_retries')
           .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
         await supabase.from('pending_rapt_retries').insert({
@@ -619,7 +621,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         await supabase.from('rapt_temp_controllers')
           .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        const executeAt = new Date(Date.now() + burstSeconds * 1000).toISOString()
+        // Align to minute boundary so the 1-min cron picks it up precisely
+        const minuteFloor2 = Math.floor(Date.now() / 60000) * 60000
+        const executeAt = new Date(minuteFloor2 + burstSeconds * 1000).toISOString()
         await supabase.from('pending_rapt_retries')
           .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
         await supabase.from('pending_rapt_retries').insert({
