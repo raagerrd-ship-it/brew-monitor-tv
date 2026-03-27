@@ -375,6 +375,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           sample_count: 1,
           last_updated_at: new Date().toISOString(),
         },
+        ...(currentStepIndex != null ? [{
+          controller_id: fc.controller_id,
+          parameter_name: 'mode_last_step_index',
+          learned_value: currentStepIndex,
+          sample_count: 1,
+          last_updated_at: new Date().toISOString(),
+        }] : []),
       ], { onConflict: 'controller_id,parameter_name' })
     }
     const profileStatus = profileStatusMap.get(fc.controller_id)
