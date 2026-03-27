@@ -163,19 +163,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // PID always runs — dual-sensor is now per controller (dual_sensor_enabled)
   log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
-  // Pre-load pending PWM reverts to detect controllers in active PWM cycles.
-  // During PWM, PID is completely locked — no calculations or adjustments.
-  const controllerIds = followedControllersFullData.map(c => c.controller_id)
-  const { data: pendingPwmReverts } = await supabase
-    .from('pending_rapt_retries')
-    .select('controller_id, target_temp, attempts')
-    .in('controller_id', controllerIds)
-    .like('reason', '%PWM OFF%')
-    .lt('attempts', 5)  // SAFETY: exclude dead rows — execute-pwm-off stops at 5
-  const pwmRevertMap = new Map(
-    (pendingPwmReverts ?? []).map(r => [r.controller_id, r.target_temp as number])
-  )
-
   for (const fc of followedControllersFullData) {
     const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
 
