@@ -90,6 +90,7 @@ Deno.serve(async (req) => {
     const pctMatch = retry.reason.match(/(\d+)% duty/);
     const dutySecs = dutyMatch ? parseInt(dutyMatch[1]) : 0;
     const dutyPct = pctMatch ? parseInt(pctMatch[1]) : 0;
+    const burstMode = retry.reason.toLowerCase().includes('heating') ? 'heating' : 'cooling';
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
