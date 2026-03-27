@@ -703,8 +703,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Heating suppression: if actual_temp is above target but probe is below target,
           // the hardware's built-in thermostat would heat (probe < hwTarget).
           // Prevent this by lowering the hardware target below the probe temp.
+          // Use tighter threshold (0.05°) during ramp override to prevent unwanted heating
           const probeTemp = fc.current_temp ?? actualTemp
-          if (actualTemp > actualTarget + 0.3 && probeTemp < ctrlTarget) {
+          const suppressThreshold = rampOverrideApplied ? 0.05 : 0.3
+          if (actualTemp > actualTarget + suppressThreshold && probeTemp < ctrlTarget) {
             const suppressTarget = round1(Math.max(probeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
             log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(probeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
             if (ctx.updateBatch) {
