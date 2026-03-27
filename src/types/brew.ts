@@ -88,4 +88,5 @@ export interface TempController {
   cooling_starts: number | null;
   heating_run_time: number | null;
   heating_starts: number | null;
+  is_glycol_cooler?: boolean;
 }
