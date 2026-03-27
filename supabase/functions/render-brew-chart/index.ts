@@ -186,6 +186,30 @@ function generateChartSvg(
     controller: smoothedCtrl[i],
   }));
 
+  const seriesHasMeaningfulDiff = (
+    getA: (p: (typeof parsed)[number]) => number | null | undefined,
+    getB: (p: (typeof parsed)[number]) => number | null | undefined,
+    epsilon = 0.12,
+    minRatio = 0.15,
+  ): boolean => {
+    let comparable = 0;
+    let different = 0;
+    let maxDiff = 0;
+
+    for (const point of parsed) {
+      const a = getA(point);
+      const b = getB(point);
+      if (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b)) continue;
+      comparable++;
+      const diff = Math.abs(a - b);
+      if (diff > epsilon) different++;
+      if (diff > maxDiff) maxDiff = diff;
+    }
+
+    if (comparable < 3) return false;
+    return maxDiff > epsilon && different / comparable >= minRatio;
+  };
+
   if (parsed.length === 0) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%" height="100%">
       <text x="${WIDTH / 2}" y="${HEIGHT / 2}" fill="${COLORS.axisText}" text-anchor="middle" font-size="14" font-family="sans-serif">Ingen data</text>
@@ -262,7 +286,10 @@ function generateChartSvg(
 
   if (pillCompensation) {
     // Only draw controller line separately when it differs from actual_temp
-    const ctrlDiffersFromActual = parsed.some(p => p.controller !== null && p.actual !== null && Math.abs(p.controller - p.actual) > 0.05);
+    const ctrlDiffersFromActual = seriesHasMeaningfulDiff(
+      (p) => p.controller,
+      (p) => p.actual ?? p.pill ?? p.controller,
+    );
     const controllerPoints = ctrlDiffersFromActual
       ? parsed.filter((p) => p.controller !== null).map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.controller as number) }))
       : [];
@@ -278,7 +305,12 @@ function generateChartSvg(
         ctrlY: tempScaleY(p.controller as number),
       }));
 
-    if (spanPoints.length > 1) {
+    const hasMeaningfulSpan = seriesHasMeaningfulDiff(
+      (p) => p.pill,
+      (p) => p.controller,
+    );
+
+    if (hasMeaningfulSpan && spanPoints.length > 1) {
       const upper = spanPoints.map((p) => ({ x: p.x, y: p.pillY }));
       const lower = [...spanPoints].reverse().map((p) => ({ x: p.x, y: p.ctrlY }));
       const spanPath = `${buildSmoothPath(upper)} ${buildSmoothPath(lower).replace(/^M/, 'L')} Z`;
@@ -295,7 +327,10 @@ function generateChartSvg(
   }
 
   // Only draw pill line separately when it differs from actual_temp (i.e. dual-sensor or probe-preferred)
-  const pillDiffersFromActual = parsed.some(p => p.pill !== null && p.actual !== null && Math.abs(p.pill - p.actual) > 0.05);
+  const pillDiffersFromActual = seriesHasMeaningfulDiff(
+    (p) => p.pill,
+    (p) => p.actual ?? p.pill ?? p.controller,
+  );
   const pillPoints = pillDiffersFromActual
     ? parsed.filter((p) => p.pill !== null).map((p) => ({ x: scaleX(p.t, tMin, tMax), y: tempScaleY(p.pill as number) }))
     : [];
