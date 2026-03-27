@@ -5,21 +5,19 @@ import {
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
 import { Logo } from "../Logo";
+import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
 interface SonosWidgetProps {
   isMobile?: boolean;
   variant?: "floating" | "header";
-  onAlbumArtChange?: (url: string | null, trackName?: string) => void;
-  onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
 }
 
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
   variant = "floating",
-  onAlbumArtChange,
-  onRealtimeRef,
 }: SonosWidgetProps) {
+  const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -67,7 +65,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosRealtime({
-    onRealtimeRef, isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,

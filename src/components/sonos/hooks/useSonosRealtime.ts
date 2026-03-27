@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { NowPlaying, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
-  onRealtimeRef?: React.MutableRefObject<((payload: any) => void) | null>;
   isConnected: boolean;
   showWidget: boolean;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
@@ -24,15 +24,18 @@ interface UseSonosRealtimeParams {
  */
 export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
-    onRealtimeRef, isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
   } = params;
 
-  useEffect(() => {
-    if (!onRealtimeRef || !isConnected || !showWidget) return;
+  // Store the handler in a ref so the realtime subscription can call the latest version
+  const handlerRef = useRef<((payload: any) => void) | null>(null);
 
-    onRealtimeRef.current = (payload: any) => {
+  useEffect(() => {
+    if (!isConnected || !showWidget) return;
+
+    handlerRef.current = (payload: any) => {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
       if (!incoming.track_name) return;
@@ -141,6 +144,17 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       }
     };
 
-    return () => { if (onRealtimeRef) onRealtimeRef.current = null; };
-  }, [onRealtimeRef, isConnected, showWidget]);
+    // Subscribe to realtime changes on sonos_now_playing
+    const channel = supabase
+      .channel('sonos-widget-realtime')
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (payload: any) => {
+        handlerRef.current?.(payload);
+      })
+      .subscribe();
+
+    return () => {
+      handlerRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [isConnected, showWidget]);
 }

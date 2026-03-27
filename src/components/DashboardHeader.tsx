@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
+import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
@@ -23,14 +24,12 @@ interface DashboardHeaderProps {
   hasAlbumArtBackground?: boolean;
   onLogout?: () => void;
   onRefresh?: () => void;
-  sonosSlot?: React.ReactNode;
 }
 
 export function DashboardHeader({
   hasAlbumArtBackground = false,
   onLogout,
   onRefresh,
-  sonosSlot,
 }: DashboardHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -104,7 +103,7 @@ export function DashboardHeader({
         {!isMobile && (
           <>
             <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-              {sonosSlot ?? <Logo />}
+              {(!isMobile || isTvMode) ? <SonosWidget isMobile={false} variant="header" /> : <Logo />}
             </div>
 
             <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
