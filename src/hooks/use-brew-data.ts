@@ -72,7 +72,6 @@ export function useBrewData(): UseBrewDataReturn {
   const onSonosNowPlayingChange = useRef<((payload: any) => void) | null>(null);
   const onSonosSettingsChange = useRef<((payload: any) => void) | null>(null);
   const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
-  const onSyncSettingsChange = useRef<((payload: any) => void) | null>(null);
   
   useEffect(() => {
     brewsRef.current = brews;
