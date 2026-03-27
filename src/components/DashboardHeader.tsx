@@ -314,7 +314,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                  </div>
                    );
                  })()}
-               </div>
+                </React.Fragment>
             );
           })}
         </div>
