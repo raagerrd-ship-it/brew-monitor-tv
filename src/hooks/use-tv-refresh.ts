@@ -59,8 +59,8 @@ export function useTvRefresh(isTvMode: boolean) {
     }, 30000);
 
     return () => {
-      onSyncSettingsChange.current = null;
+      supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [isTvMode, onSyncSettingsChange]);
+  }, [isTvMode]);
 }
