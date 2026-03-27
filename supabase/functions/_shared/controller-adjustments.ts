@@ -192,8 +192,46 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
 
-    // Store actualTarget for cooler management (stable target without PID fluctuation)
-    ctx.baseTargetMap.set(fc.controller_id, actualTarget)
+    // ── Ramp-rate-limiting: soft D-term alternative ──────────
+    // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
+    // by gradually moving the effective target at a max rate.
+    // This turns any step change into a smooth ramp, reducing overshoot.
+    const RAMP_RATE_COOLING = 4.0 // °C/hour max target decrease
+    const RAMP_RATE_HEATING = 3.0 // °C/hour max target increase
+    const CYCLE_HOURS = 5 / 60    // 5-min cycle
+
+    const lastEffective = pressureMap.get('pid_effective_target')
+    let pidEffectiveTarget = actualTarget
+    let rampRateLimited = false
+
+    if (lastEffective != null) {
+      const delta = actualTarget - lastEffective
+      if (delta < -0.1) {
+        // Target dropping (cooling direction) — limit descent rate
+        const maxDrop = RAMP_RATE_COOLING * CYCLE_HOURS
+        pidEffectiveTarget = Math.max(actualTarget, lastEffective - maxDrop)
+        rampRateLimited = pidEffectiveTarget > actualTarget + 0.05
+      } else if (delta > 0.1) {
+        // Target rising (heating direction) — limit ascent rate
+        const maxRise = RAMP_RATE_HEATING * CYCLE_HOURS
+        pidEffectiveTarget = Math.min(actualTarget, lastEffective + maxRise)
+        rampRateLimited = pidEffectiveTarget < actualTarget - 0.05
+      }
+    }
+    pidEffectiveTarget = round1(pidEffectiveTarget)
+
+    if (rampRateLimited) {
+      log('RAMP_LIMIT', 'info', `${fc.name}: mål ${round1(actualTarget)}° rate-limited → ${pidEffectiveTarget}° (senaste: ${round1(lastEffective!)})`, {
+        final_target: round1(actualTarget),
+        effective_target: pidEffectiveTarget,
+        last_effective: round1(lastEffective!),
+        max_rate_cooling: RAMP_RATE_COOLING,
+        max_rate_heating: RAMP_RATE_HEATING,
+      })
+    }
+
+    // Store pidEffectiveTarget for cooler management (stable, rate-limited target)
+    ctx.baseTargetMap.set(fc.controller_id, pidEffectiveTarget)
 
     // Mode detection: overshoot-aware with stabilisation guard.
     // After active duty stops, thermal inertia can push the probe past the target.
