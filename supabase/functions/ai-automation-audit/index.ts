@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       { data: controllers },
       { data: boostOutcomes },
       { data: recentAdjustments },
-      { data: runningSessions },
+      { data: sessions },
       { data: deltaHistory },
       { data: fermentationMetrics },
     ] = await Promise.all([
@@ -163,13 +163,13 @@ Deno.serve(async (req) => {
 
     // Fetch profile names and step types for running sessions
     const sessionProfileMap = new Map<string, { profile_name: string; active_step_type: string; step_target_temp: number | null }>();
-    if (runningSessions && runningSessions.length > 0) {
-      const profileIds = [...new Set(runningSessions.map((s: any) => s.profile_id))];
+    if (sessions && sessions.length > 0) {
+      const profileIds = [...new Set(sessions.map((s: any) => s.profile_id))];
       const [{ data: profiles }, { data: steps }] = await Promise.all([
         supabase.from('fermentation_profiles').select('id, name').in('id', profileIds),
         supabase.from('fermentation_profile_steps').select('profile_id, step_order, step_type, target_temp').in('profile_id', profileIds),
       ]);
-      for (const session of runningSessions) {
+      for (const session of sessions) {
         const profile = (profiles || []).find((p: any) => p.id === session.profile_id);
         const currentStep = (steps || []).find((s: any) => s.profile_id === session.profile_id && s.step_order === session.current_step_index);
         sessionProfileMap.set(session.controller_id, {
@@ -297,7 +297,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
         .map((c: any) => {
           // Find fermentation metrics for this controller via running sessions (session has brew_id)
-          const session = (runningSessions || []).find((s: any) => s.controller_id === c.controller_id);
+          const session = (sessions || []).find((s: any) => s.controller_id === c.controller_id);
           const metrics = session?.brew_id ? (fermentationMetrics || []).find((m: any) => m.brew_id === session.brew_id) : null;
           // Also try matching via brew_readings.linked_controller_id
           const directMetrics = !metrics ? (fermentationMetrics || []).find((m: any) => {
@@ -325,7 +325,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             step_target_temp: sessionCtx?.step_target_temp ?? null,
           };
         }),
-      running_sessions: (runningSessions || []).length,
+      running_sessions: (sessions || []).length,
       learned_parameters: (learnings || []).map((l: any) => ({
         controller_id: l.controller_id,
         parameter_name: sanitize(l.parameter_name, 50),
