@@ -211,7 +211,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
@@ -219,6 +219,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // pid_current_mode: 1 = heating, 2 = cooling
     const prevMode: 'heating' | 'cooling' | null = prevModeValue === 1 ? 'heating' : prevModeValue === 2 ? 'cooling' : null
     const lastDutyPct = pressureMap.get('pid_last_duty') ?? 0
+    const lastStepIndex = pressureMap.get('mode_last_step_index') ?? null
 
     // Determine what mode the current temperature suggests
     const suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
@@ -230,103 +231,105 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Mode switching only makes sense when BOTH heating and cooling are available
     const canSwitchMode = fc.heating_enabled && fc.cooling_enabled
     const onWrongSide = canSwitchMode && prevMode != null && suggestedMode !== prevMode
-    let isStuck = false
-    let isDiverging = false
-    if (onWrongSide && lastProbe != null && distanceToTarget > 0.05) {
-      const velocity = actualTemp - lastProbe
-      const velocityAbs = Math.abs(velocity)
-      // Check if moving AWAY from target (diverging)
-      const movingAway = (suggestedMode === 'cooling' && velocity > 0.02) ||
-                         (suggestedMode === 'heating' && velocity < -0.02)
-      if (velocityAbs < STALL_MIN_PROGRESS) {
-        isStuck = true
-      } else if (movingAway) {
-        isDiverging = true
-      }
-    }
 
-    // ── Profile-directed fast switch ──────────────────────────
-    // When a fermentation profile ramp moves in the opposite direction of the
-    // current mode, allow a faster switch — but still require either:
-    //   a) 6 cycles of stability (velocity < 0.05°/cykel), OR
-    //   b) large error (> 1°C) for immediate switch
+    // ── Profile context ──────────────────────────────────────
     const profileSwitchStatus = ctx.profileStatusMap.get(fc.controller_id)
     const isProfileRamp = profileSwitchStatus?.currentStepType === 'gradual_ramp' || profileSwitchStatus?.currentStepType === 'ramp'
     const rampMatchesSuggested = profileSwitchStatus?.rampDirection === suggestedMode
     const velocity = lastProbe != null ? Math.abs(actualTemp - lastProbe) : 0
-    const isProfileRampCandidate = canSwitchMode && prevMode != null && suggestedMode !== prevMode
-      && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
+
+    // Detect profile step change → immediate mode switch
+    const currentStepIndex = profileSwitchStatus?.stepIndex ?? null
+    const stepChanged = currentStepIndex != null && lastStepIndex != null && currentStepIndex !== lastStepIndex
+
+    // ── Unified mode-switch logic ────────────────────────────
+    // All paths share one switchPressure counter and require 6 cycles of
+    // stability (velocity < 0.05°/cycle). The only differences:
+    //   - Normal: also requires duty === 0% before counter starts
+    //   - Profile ramp matching suggested: skips the duty-zero gate
+    //   - Profile step change: immediate switch (no waiting)
+    //   - Large error (>1°C): immediate switch (emergency)
+    const isProfileRampBypass = onWrongSide && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
-    if (isProfileRampCandidate && distanceToTarget > 1.0) {
-      // Large error — switch immediately regardless of stability
+    if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && stepChanged) {
+      // Profile step just changed — switch immediately
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection}, Δ${round1(distanceToTarget)}° > 1°, omedelbar)`, {
-        from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
-        rampDirection: profileSwitchStatus?.rampDirection,
-        distance: round1(distanceToTarget), velocity: round1(velocity),
+      log('MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}, omedelbar)`, {
+        from: prevMode, to: suggestedMode, oldStep: lastStepIndex, newStep: currentStepIndex,
+        distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
+      })
+    } else if (onWrongSide && distanceToTarget > 1.0) {
+      // Large error — emergency switch regardless of stability
+      pidMode = suggestedMode
+      switchPressure = 0
+      log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > 1°, omedelbar)`, {
+        from: prevMode, to: suggestedMode, distance: round1(distanceToTarget),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
-    } else if (isProfileRampCandidate && velocity < STALL_MIN_PROGRESS) {
-      // Ramp direction matches but temp must be stable — use pressure counter
-      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
-      if (switchPressure >= MODE_SWITCH_CYCLES) {
-        pidMode = suggestedMode
-        switchPressure = 0
-        log('MODE_PROFILE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profil-ramp ${profileSwitchStatus?.rampDirection}, stabil ${MODE_SWITCH_CYCLES} cykler, Δ${round1(distanceToTarget)}°)`, {
-          from: prevMode, to: suggestedMode, stepType: profileSwitchStatus?.currentStepType,
-          rampDirection: profileSwitchStatus?.rampDirection, cycles: MODE_SWITCH_CYCLES,
-          distance: round1(distanceToTarget), velocity: round1(velocity),
-          actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
-        })
-      } else {
-        pidMode = prevMode!
-        log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} väntar på stabilitet (tryck ${switchPressure}/${MODE_SWITCH_CYCLES}, velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`, {
-          from: prevMode, to: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
-          velocity: round1(velocity), distance: round1(distanceToTarget),
-        })
-      }
-    } else if (isProfileRampCandidate) {
-      // Ramp direction matches but temp is still moving — don't count, just hold
-      pidMode = prevMode!
-      log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} men temp ej stabil (velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`, {
-        from: prevMode, to: suggestedMode, velocity: round1(velocity), distance: round1(distanceToTarget),
-      })
-    } else if (isStuck || isDiverging) {
-      // Probe is on wrong side and either stabilized or actively drifting away
-      const reason = isDiverging ? 'divergerar' : 'stabiliserad'
+    } else if (onWrongSide && distanceToTarget > 0.05) {
+      // Wrong side — need to evaluate stability and possibly switch
+      const isStable = velocity < STALL_MIN_PROGRESS
+      const velocitySigned = lastProbe != null ? actualTemp - lastProbe : 0
+      const isDivergingCheck = (suggestedMode === 'cooling' && velocitySigned > 0.02) ||
+                               (suggestedMode === 'heating' && velocitySigned < -0.02)
+      const isStuckOrDiverging = isStable || isDivergingCheck
 
-      // Duty-zero gate: pressure only starts counting once duty has reached 0%
-      if (lastDutyPct > 0) {
-        // Don't accumulate pressure yet — wait for current mode to wind down
+      // Duty-zero gate: only for normal (non-profile-ramp) switches
+      const needsDutyZero = !isProfileRampBypass
+      const dutyBlocked = needsDutyZero && lastDutyPct > 0
+
+      if (!isStuckOrDiverging) {
+        // Temp is moving but not diverging — hold, don't count
         pidMode = prevMode!
-        log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%, ${reason})`, {
+        if (isProfileRampBypass) {
+          log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} men temp ej stabil (velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`)
+        }
+      } else if (dutyBlocked) {
+        // Duty not yet zero — wait before counting
+        pidMode = prevMode!
+        log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%)`, {
           from: prevMode, to: suggestedMode, last_duty: lastDutyPct, pressure: switchPressure,
         })
-      } else {
-        // Duty is 0% — now we can accumulate pressure
+      } else if (isStable) {
+        // Stable (velocity < 0.05°) — accumulate counter
         switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
-          // Sustained wrong-side condition with duty at 0% — switch mode
           pidMode = suggestedMode
           switchPressure = 0
-          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason} på fel sida ${MODE_SWITCH_CYCLES} cykler efter duty=0%)`, {
+          const reason = isProfileRampBypass ? `profil-ramp ${profileSwitchStatus?.rampDirection}` : 'normal'
+          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${reason}, stabil ${MODE_SWITCH_CYCLES} cykler, Δ${round1(distanceToTarget)}°)`, {
             from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
             distance: round1(distanceToTarget), actualTemp: round1(actualTemp),
           })
         } else {
           pidMode = prevMode!
-          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (${reason} fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}, duty=0%)`, {
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabil fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${needsDutyZero ? ', duty=0%' : ', ramp-bypass'})`, {
             suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
-            actualTemp: round1(actualTemp), lastProbe: lastProbe != null ? round1(lastProbe) : null,
+            velocity: round1(velocity), distance: round1(distanceToTarget),
+          })
+        }
+      } else {
+        // Diverging — also accumulate counter (conditions already met)
+        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        if (switchPressure >= MODE_SWITCH_CYCLES) {
+          pidMode = suggestedMode
+          switchPressure = 0
+          log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (divergerar, ${MODE_SWITCH_CYCLES} cykler, Δ${round1(distanceToTarget)}°)`, {
+            from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES,
+            distance: round1(distanceToTarget),
+          })
+        } else {
+          pidMode = prevMode!
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (divergerar fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+            suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
             distance: round1(distanceToTarget),
           })
         }
       }
     } else if (onWrongSide) {
-      // Still on wrong side, but trend is not yet clearly stuck/diverging.
-      // Only start pressure if duty is already 0%
+      // On wrong side but very close (< 0.05°) — hold, start gentle pressure
       pidMode = prevMode ?? suggestedMode
       if (lastDutyPct === 0 && switchPressure === 0) switchPressure = 1
     } else {
