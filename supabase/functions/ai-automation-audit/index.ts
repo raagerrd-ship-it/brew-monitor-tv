@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       { data: controllers },
       { data: boostOutcomes },
       { data: recentAdjustments },
-      { data: runningSessions },
+      { data: sessions },
       { data: deltaHistory },
       { data: fermentationMetrics },
     ] = await Promise.all([
