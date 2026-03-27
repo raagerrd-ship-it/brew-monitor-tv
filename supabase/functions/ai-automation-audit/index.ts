@@ -297,7 +297,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
         .map((c: any) => {
           // Find fermentation metrics for this controller via running sessions (session has brew_id)
-          const session = (runningSessions || []).find((s: any) => s.controller_id === c.controller_id);
+          const session = (sessions || []).find((s: any) => s.controller_id === c.controller_id);
           const metrics = session?.brew_id ? (fermentationMetrics || []).find((m: any) => m.brew_id === session.brew_id) : null;
           // Also try matching via brew_readings.linked_controller_id
           const directMetrics = !metrics ? (fermentationMetrics || []).find((m: any) => {
