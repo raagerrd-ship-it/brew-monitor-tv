@@ -16,6 +16,7 @@ import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { useTimerVisibility } from "@/contexts/TimerContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
+import { DashboardBackground } from "./DashboardBackground";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -205,16 +206,7 @@ export function BrewingDashboard() {
       background: 'transparent',
     }}>
       {/* Album art background */}
-      {visibleBgUrl && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage: `url(${visibleBgUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-          }}
-        />
-      )}
+      <DashboardBackground />
 
       {/* Header Bar */}
       <DashboardHeader
