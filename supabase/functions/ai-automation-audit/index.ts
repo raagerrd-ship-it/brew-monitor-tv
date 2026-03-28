@@ -199,6 +199,12 @@ Deno.serve(async (req) => {
 - Stall-detektion upptäcker avstannad jäsning och applicerar temperatur-boost
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
+## KRITISK: Bryggdata (OG/FG/SG)
+- Varje controller kan ha en länkad bryggning med original_gravity (OG), final_gravity (FG), current_sg och attenuation_pct.
+- Om current_sg ≈ FG (inom 0.002) har bryggningen NÅTT SITT MÅL. Låg SG-rate är då FÖRVÄNTAT — det är INTE en stall.
+- Stall-detektion är bara relevant om current_sg ligger ÖVER FG med en signifikant marginal (>0.005).
+- VIKTIGT: Justera INTE stall-parametrar om bryggningen redan nått FG. Det är normalt att SG-rate → 0 när jäsningen är klar.
+
 ## KRITISK: Sensorläge och actual_temp
 - **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant.
 - **dual_sensor_enabled = false, preferred_sensor = 'pill'**: actual_temp = pill_temp. Probe-temp är INTE del av regleringen. Delta är IRRELEVANT — nämn det inte i analysen.
