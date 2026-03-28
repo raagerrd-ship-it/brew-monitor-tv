@@ -166,7 +166,8 @@ Deno.serve(async (req) => {
     const { data: activeBrews } = await supabase
       .from('brew_readings')
       .select('id, linked_controller_id, attenuation, status, original_gravity, final_gravity, current_sg')
-      .not('linked_controller_id', 'is', null);
+      .not('linked_controller_id', 'is', null)
+      .eq('status', 'Jäsning');
 
     // Fetch profile names and step types for running sessions
     const sessionProfileMap = new Map<string, { profile_name: string; active_step_type: string; step_target_temp: number | null }>();
