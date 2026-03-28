@@ -453,6 +453,9 @@ export function SonosSettings() {
               </CollapsibleContent>
             </div>
           </Collapsible>
+
+          {/* Art Resolution Diagnostics */}
+          <ArtResolutionDiagnostics />
         </>
       )}
 
