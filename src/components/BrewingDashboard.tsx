@@ -42,8 +42,8 @@ export function BrewingDashboard() {
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode);
 
-  // Timer visibility from self-contained TimerFooter via context
-  const { isTimerVisible: showTimerFooter } = useTimerVisibility();
+  // Footer height from self-contained footer components via context
+  const { footerHeight } = useDashboardFooter();
 
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
