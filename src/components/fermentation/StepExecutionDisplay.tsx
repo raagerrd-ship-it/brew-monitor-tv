@@ -242,6 +242,9 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
                 {item.detail && (
                   <span className="text-muted-foreground text-[11px]">{item.detail}</span>
                 )}
+                {item.progress != null && item.progress >= 1 && (
+                  <CheckCircle2 className="w-3 h-3" style={{ color: 'hsl(142 70% 55%)' }} />
+                )}
               </div>
             </div>
             {item.progress != null && (
