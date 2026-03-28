@@ -507,11 +507,17 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
-  // PWM SKIP badges — phase B or duty 0% skips (no hardware burst this cycle)
+  // PWM duty 0% badges — controllers with no burst this cycle
+  // Skip controllers that already have a RAPT_SEND (adjustment) badge
+  const sentControllerNames = new Set(raptSends.map(s => {
+    const m = s.message?.match(/^(.+?):\s/);
+    return m ? m[1].trim() : '';
+  }).filter(Boolean));
   const dutySkipDecisions = log.decisions.filter(d => d.step === 'DUTY_ZERO');
   for (const skipD of dutySkipDecisions) {
     const nameMatch = skipD.message.match(/^([^:]+):/);
     const fullName = nameMatch ? nameMatch[1].trim() : '';
+    if (sentControllerNames.has(fullName)) continue; // already has adjustment badge
     const shortName = fullName.replace('Temp Controller ', '');
     const color = controllerColors[fullName];
     const dutyMatch = skipD.message.match(/PWM (\d+)%/);
@@ -524,7 +530,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
       }}>
-        {modeIcon} {shortName} {dutyPctVal}% – SKIP
+        {modeIcon} {shortName} {dutyPctVal}%
       </Badge>
     );
   }
