@@ -2,7 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getValidAccessToken } from "../_shared/sonos-token.ts";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
+import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds, storageObjectExistsByPublicUrl } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
 import { recoverGroupByName } from "../_shared/sonos-group-recovery.ts";
 
@@ -297,8 +297,29 @@ Deno.serve(async (req) => {
     let bgImageUrl: string | null = sameTrack ? (existingRow?.bg_image_url || null) : null;
     let widgetArtUrl: string | null = sameTrack ? (existingRow?.widget_art_url || null) : null;
 
-    // Only process images if we don't already have them
-    const needCurrentImages = !bgImageUrl || !widgetArtUrl;
+    // Only treat existing URLs as cached if files actually still exist in storage.
+    // This prevents startup with dead URLs (DB says cached, storage object deleted).
+    let hasCachedBg = !!bgImageUrl;
+    let hasCachedWidget = !!widgetArtUrl;
+    if (sameTrack && (hasCachedBg || hasCachedWidget)) {
+      const [bgExists, widgetExists] = await Promise.all([
+        hasCachedBg ? storageObjectExistsByPublicUrl(supabase, bgImageUrl!) : Promise.resolve(false),
+        hasCachedWidget ? storageObjectExistsByPublicUrl(supabase, widgetArtUrl!) : Promise.resolve(false),
+      ]);
+
+      if (hasCachedBg && !bgExists) {
+        console.log('[SonosSync] Cached bg URL missing in storage, regenerating current track image');
+        bgImageUrl = null;
+        hasCachedBg = false;
+      }
+      if (hasCachedWidget && !widgetExists) {
+        console.log('[SonosSync] Cached widget URL missing in storage, regenerating current track image');
+        widgetArtUrl = null;
+        hasCachedWidget = false;
+      }
+    }
+
+    const needCurrentImages = !hasCachedBg || !hasCachedWidget;
 
     if (currentArt.medium && needCurrentImages) {
       const currentTrackId = track?.id?.objectId || track?.name || '';
