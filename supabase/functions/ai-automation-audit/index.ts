@@ -332,11 +332,6 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             [0] || null;
           // Match fermentation metrics to the SAME brew we selected
           const fm = linkedBrew ? (fermentationMetrics || []).find((m: any) => m.brew_id === linkedBrew.id) : null;
-          // Find the single active brew for this controller (most recently updated)
-          const linkedBrew = (activeBrews || [])
-            .filter((b: any) => b.linked_controller_id === c.controller_id)
-            .sort((a: any, b: any) => new Date(b.last_update || b.updated_at || 0).getTime() - new Date(a.last_update || a.updated_at || 0).getTime())
-            [0] || null;
           const brewInfo = linkedBrew ? {
             name: sanitize(linkedBrew.name || '', 30),
             original_gravity: linkedBrew.original_gravity,
