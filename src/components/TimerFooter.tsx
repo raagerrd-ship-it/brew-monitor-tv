@@ -252,32 +252,25 @@ export const TimerFooter = memo(function TimerFooter() {
   }, [timer.milestones, timer.isActive, showAlert]);
 
   // Dismiss alert when acknowledged externally via synced data
-  // Mash: pausedByMilestone becomes false when acknowledged
-  // Kok: auto-dismiss after 120+ seconds past the milestone, or when acknowledged
   useEffect(() => {
-    if (!triggeredAlert) return;
-    
     if (isMash && !timer.pausedByMilestone && !timer.isPaused) {
-      const timeSinceTriggered = Date.now() - triggeredAlert.time;
-      if (timeSinceTriggered > 500) {
-        setTriggeredAlert(null);
-      }
+      dismissAlert('timer-milestone');
     } else if (!isMash) {
-      // Find the milestone that triggered this alert
-      const alertMilestone = timer.milestones.find(m => m.label === triggeredAlert.label);
-      if (alertMilestone) {
-        // Dismiss when acknowledged in brew app (primary)
-        if (alertMilestone.acknowledged) {
-          setTriggeredAlert(null);
-        }
-        // Fallback: dismiss after 120+ seconds past milestone time
-        const secondsPastMilestone = alertMilestone.time - timer.remainingSeconds;
-        if (secondsPastMilestone >= 120) {
-          setTriggeredAlert(null);
-        }
+      const acknowledged = timer.milestones.find(m => 
+        lastTriggeredRef.current.has(m.label) && m.acknowledged
+      );
+      if (acknowledged) {
+        dismissAlert('timer-milestone');
+      }
+      // Fallback: dismiss milestones 120+ seconds past
+      const expired = timer.milestones.find(m =>
+        lastTriggeredRef.current.has(m.label) && (m.time - timer.remainingSeconds) >= 120
+      );
+      if (expired) {
+        dismissAlert('timer-milestone');
       }
     }
-  }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds]);
+  }, [isMash, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds, dismissAlert]);
 
   if (!isVisible) {
     return null;
