@@ -308,6 +308,9 @@ export function BrewingDashboard() {
         </div>
       )}
 
+      {/* Global alert overlay */}
+      <DashboardAlertOverlay />
+
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
     </div>
