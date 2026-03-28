@@ -200,10 +200,17 @@ Deno.serve(async (req) => {
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
 ## KRITISK: Bryggdata (OG/FG/SG)
-- Varje controller kan ha en länkad bryggning med original_gravity (OG), final_gravity (FG), current_sg och attenuation_pct.
-- Om current_sg ≈ FG (inom 0.002) har bryggningen NÅTT SITT MÅL. Låg SG-rate är då FÖRVÄNTAT — det är INTE en stall.
-- Stall-detektion är bara relevant om current_sg ligger ÖVER FG med en signifikant marginal (>0.005).
-- VIKTIGT: Justera INTE stall-parametrar om bryggningen redan nått FG. Det är normalt att SG-rate → 0 när jäsningen är klar.
+- Varje controller kan ha FLERA länkade bryggningar i 'brews'-arrayen (bara aktiva med status 'Jäsning').
+- Varje bryggning har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
+- Om at_fg = true har den bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
+- Stall-detektion är bara relevant om INGEN bryggning på controllern har nått FG och current_sg ligger signifikant över FG.
+- VIKTIGT: Analysera ALLA bryggningar. En controller med en brygg nära FG och en annan långt ifrån har fortfarande aktiv jäsning.
+
+## KRITISK: Kylare (is_cooler = true)
+- Kylaren har 'cooler_target' istället för 'actual_target'. Detta är det automationsberäknade målet (lägsta följda target - marginal).
+- Kylaren har INTE en jäsningsprofil — jämför INTE cooler_target med actual_target-logik.
+- hardware_target på kylaren visar vad som faktiskt är satt på hårdvaran.
+- Om hardware_target > cooler_target innebär det att hårdvaran inte hunnit/klarat sänka till beräknat mål ännu.
 
 ## KRITISK: Sensorläge och actual_temp
 - **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant.
@@ -325,13 +332,25 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           }) : metrics;
           const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
-          // Find linked brew for OG/FG/attenuation
-          const linkedBrew = (activeBrews || []).find((b: any) => b.linked_controller_id === c.controller_id);
+          // Find ALL linked brews with active status (Jäsning)
+          const linkedBrews = (activeBrews || [])
+            .filter((b: any) => b.linked_controller_id === c.controller_id && b.status === 'Jäsning')
+            .map((b: any) => ({
+              name: sanitize(b.name || '', 30),
+              original_gravity: b.original_gravity,
+              final_gravity: b.final_gravity,
+              current_sg: b.current_sg,
+              attenuation_pct: b.attenuation,
+              at_fg: b.current_sg != null && b.final_gravity != null && Math.abs(b.current_sg - b.final_gravity) <= 0.002,
+            }));
+          // For cooler: actual_target is the automation-calculated target, not a fermentation profile
+          const isCooler = c.is_glycol_cooler === true;
           return {
             id: c.controller_id,
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
-            actual_target: c.profile_target_temp ?? c.target_temp,
+            actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
+            cooler_target: isCooler ? c.profile_target_temp : undefined,
             probe_temp: c.current_temp,
             pill_temp: c.pill_temp,
             hardware_target: c.target_temp,
@@ -340,14 +359,10 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
             cooling: c.cooling_enabled,
             heating: c.heating_enabled,
-            is_cooler: c.is_glycol_cooler,
+            is_cooler: isCooler,
             last_update: c.last_update,
-            // Brew data
-            original_gravity: linkedBrew?.original_gravity ?? null,
-            final_gravity: linkedBrew?.final_gravity ?? null,
-            current_sg: linkedBrew?.current_sg ?? null,
-            attenuation_pct: linkedBrew?.attenuation ?? null,
-            brew_status: linkedBrew?.status ?? null,
+            // All active brews on this controller
+            brews: linkedBrews.length > 0 ? linkedBrews : undefined,
             // Fermentation metrics
             fermentation_phase: fm ? sanitize(fm.fermentation_phase, 30) : null,
             activity_score: fm?.activity_score ?? null,
