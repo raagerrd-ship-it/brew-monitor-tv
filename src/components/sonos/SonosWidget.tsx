@@ -20,7 +20,6 @@ export const SonosWidget = memo(function SonosWidget({
   const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
-  const initialArtAppliedRef = useRef(false);
   const [imageError, setImageError] = useState(false);
 
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -98,20 +97,20 @@ export const SonosWidget = memo(function SonosWidget({
   // --- Image preloading ---
   const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
 
-  // On first nowPlaying (init/app update), apply art immediately without waiting for preload
-  useEffect(() => {
-    if (incomingArtUrl && !initialArtAppliedRef.current && !displayedArtUrl) {
-      initialArtAppliedRef.current = true;
-      setDisplayedArtUrl(incomingArtUrl);
-      setImageError(false);
-    }
-  }, [incomingArtUrl, displayedArtUrl]);
-
   useEffect(() => {
     if (incomingArtUrl) setImageError(false);
   }, [incomingArtUrl]);
 
-  const isNewArtPending = incomingArtUrl && (!displayedArtUrl || stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl)) && !imageError;
+  // Apply art directly when available and nothing is displayed yet (init/reload)
+  // For subsequent changes, use preload to avoid flicker
+  const needsDirectApply = incomingArtUrl && !displayedArtUrl && !imageError;
+  const isNewArtPending = incomingArtUrl && displayedArtUrl && stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl) && !imageError;
+
+  useEffect(() => {
+    if (needsDirectApply && incomingArtUrl) {
+      setDisplayedArtUrl(incomingArtUrl);
+    }
+  }, [needsDirectApply, incomingArtUrl]);
 
   const handleNewImageLoaded = useCallback(() => {
     setDisplayedArtUrl(incomingArtUrl);
