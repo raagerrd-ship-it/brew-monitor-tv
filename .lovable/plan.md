@@ -1,38 +1,47 @@
 
 
-# Redesign RAPT Controller Bar
+## Generalisera Dashboard-sidfoten
 
-## Ändringar
+### Idé
+Byt ut det hårdkodade `TimerContext` + `TIMER_FOOTER_HEIGHT`-systemet mot ett generiskt "footer slot"-system. Vilken komponent som helst kan registrera sig som sidfot genom att skicka in sin höjd — dashboarden anpassar layouten automatiskt.
 
-### 1. Ta bort batteriprocent-texten, ersätt med batteribar
-- Ta bort `{Math.floor(linkedPill.battery_level)}...%` texten
-- Lägg till en tunn horisontell progress-bar under hela controller-itemet (hela bredden)
-- Baren visar batterinivån, färgad med controllerns färg
-- Låg batterinivå (<20%) → röd/orange färg
+### Ny arkitektur
 
-### 2. Lägg till Pill/Controller-ikoner med aktiv-markering
-- Visa två små ikoner: `Pill` och `AirVent` (controller)
-- Markera vilka som är aktiva/kopplade:
-  - Pill-ikonen lyser i sin färg om `linkedPill` finns och inte är stale
-  - Controller-ikonen lyser alltid (den finns ju)
-  - Inaktiv/saknad → dimmad/opacity
-- Ersätter den nuvarande enskilda `AirVent`/`Pill`-ikonen
-
-### 3. Gör baren lite högre
-- Öka vertikal padding från `py-1` till `py-1.5` på desktop för att ge mer utrymme åt batteribaren undertill
-
-## Layout per controller-item (desktop)
 ```text
-┌─────────────────────────────┐
-│  🌡️ 🎛️  19.3°              │
-│  ▓▓▓▓▓▓▓▓▓▓▓▓░░░░  (72%)   │
-└─────────────────────────────┘
-  Pill  Controller   Temp
-  icon  icon         
+┌─────────────────────────────────────┐
+│  DashboardFooterContext             │
+│  ─ footerHeight: number (0 = gömd) │
+│  ─ setFooterContent(height | null)  │
+│  ─ ref till footer-container        │
+└─────────────────────────────────────┘
+        ▲                    ▲
+        │                    │
+   TimerFooter          (framtida
+   registrerar           komponenter)
+   height=90
 ```
 
-Pill-ikon i färg om kopplad, dimmad annars. Controller-ikon alltid synlig. Batteribar under i controllerfärg.
+### Ändringar
 
-## Fil som ändras
-- `src/components/DashboardHeader.tsx` — `RaptControllerBar`-komponenten
+**1. Ny context: `src/contexts/DashboardFooterContext.tsx`**
+- Ersätter `TimerContext`
+- Exponerar `footerHeight` (number, 0 = ingen sidfot) och `setFooterContent(height: number | null)`
+- Dashboarden läser `footerHeight` för layout-beräkningar
+
+**2. Uppdatera `TimerFooter.tsx`**
+- Anropar `setFooterContent(90)` när synlig, `setFooterContent(null)` vid cleanup
+- Tar bort `TIMER_FOOTER_HEIGHT`-exporten (höjden ägs nu av komponenten själv)
+
+**3. Uppdatera `BrewingDashboard.tsx`**
+- Byt `useTimerVisibility()` → `useDashboardFooter()`
+- Ersätt alla `TIMER_FOOTER_HEIGHT`-referenser med `footerHeight` från context
+- Ersätt `showTimerFooter`-boolean med `footerHeight > 0`
+
+**4. Uppdatera providers i `App.tsx`**
+- Byt `TimerProvider` → `DashboardFooterProvider`
+
+**5. Ta bort `src/contexts/TimerContext.tsx`**
+
+### Teknisk detalj
+Footern renderas fortfarande som child i BrewingDashboard (absolute positioned). Skillnaden är att höjden kommuniceras via context istället för en hårdkodad konstant, vilket gör att framtida sidfots-funktioner (t.ex. fermentation-status, notiser) bara behöver anropa `setFooterContent(height)`.
 
