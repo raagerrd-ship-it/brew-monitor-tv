@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider, useTvMode } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { DashboardFooterProvider } from "@/contexts/DashboardFooterContext";
+import { DashboardAlertProvider } from "@/contexts/DashboardAlertContext";
 import { AlbumArtProvider } from "@/contexts/AlbumArtContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
