@@ -146,13 +146,14 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
         const rampStart = new Date(rampTriggeredAt);
         const rampElapsed = (Date.now() - rampStart.getTime()) / (1000 * 60 * 60);
         const rampProg = Math.min(rampElapsed / minHours, 1);
+        const rampDone = rampProg >= 1;
         items.push({
           label: 'Tid.ramp',
           icon: <Clock className={iconClass} />,
-          value: `≥${minHours}h`,
+          value: rampDone ? 'Klar' : `≥${minHours}h`,
           detail: `Tid nu ${Math.round(rampElapsed)}h`,
           progress: rampProg,
-          color: 'hsl(38 92% 55%)',
+          color: rampDone ? 'hsl(142 70% 50%)' : 'hsl(38 92% 55%)',
         });
       }
     }
