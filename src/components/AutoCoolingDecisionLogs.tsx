@@ -540,7 +540,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   }
 
   // PWM duty 0% badges — controllers with no burst this cycle
-  // Skip controllers that already have a RAPT_SEND (adjustment) badge
+  // Skip controllers that already have a RAPT_SEND badge (duty-zero send or adjustment)
   const sentControllerNames = new Set(raptSends.map(s => {
     const m = s.message?.match(/^(.+?):\s/);
     return m ? m[1].trim() : '';
@@ -549,7 +549,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   for (const skipD of dutySkipDecisions) {
     const nameMatch = skipD.message.match(/^([^:]+):/);
     const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (sentControllerNames.has(fullName)) continue; // already has adjustment badge
+    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge (0% or adjustment)
     const shortName = fullName.replace('Temp Controller ', '');
     const color = controllerColors[fullName];
     const dutyMatch = skipD.message.match(/PWM (\d+)%/);
@@ -562,7 +562,28 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
       }}>
-        {modeIcon} {shortName} {dutyPctVal}%
+        {modeIcon} {shortName} {dutyPctVal}% – SKIP
+      </Badge>
+    );
+  }
+
+  // DUTY_FULL (100%) badges — show SKIP when no RAPT_SEND was needed (hw already at target)
+  const dutyFullDecisions = log.decisions.filter(d => d.step === 'DUTY_FULL');
+  for (const fullD of dutyFullDecisions) {
+    const nameMatch = fullD.message.match(/^([^:]+):/);
+    const fullName = nameMatch ? nameMatch[1].trim() : '';
+    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge
+    const shortName = fullName.replace('Temp Controller ', '');
+    const color = controllerColors[fullName];
+    const isHeating = fullD.message.toLowerCase().includes('heating');
+    const modeIcon = isHeating ? '🔥' : '❄️';
+    raptBadges.push(
+      <Badge key={`full-skip-${fullD.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
+        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
+        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+      }}>
+        {modeIcon} {shortName} 100% – SKIP
       </Badge>
     );
   }
