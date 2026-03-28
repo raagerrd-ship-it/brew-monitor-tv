@@ -201,11 +201,11 @@ Deno.serve(async (req) => {
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
 ## KRITISK: Bryggdata (OG/FG/SG)
-- Varje controller kan ha FLERA länkade bryggningar i 'brews'-arrayen (bara aktiva med status 'Jäsning').
-- Varje bryggning har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
-- Om at_fg = true har den bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
-- Stall-detektion är bara relevant om INGEN bryggning på controllern har nått FG och current_sg ligger signifikant över FG.
-- VIKTIGT: Analysera ALLA bryggningar. En controller med en brygg nära FG och en annan långt ifrån har fortfarande aktiv jäsning.
+- Varje controller har MAX EN länkad bryggning i 'brew'-objektet (den senast uppdaterade med status 'Jäsning').
+- Bryggningen har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
+- Om at_fg = true har bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
+- Stall-detektion är bara relevant om brew finns, at_fg = false, och current_sg ligger signifikant över FG.
+- Om brew = null har controllern ingen aktiv bryggning kopplad.
 
 ## KRITISK: Kylare (is_cooler = true)
 - Kylaren har 'cooler_target' istället för 'actual_target'. Detta är det automationsberäknade målet (lägsta följda target - marginal).
