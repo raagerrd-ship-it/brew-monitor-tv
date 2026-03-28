@@ -5,7 +5,9 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer } from "lucide-react";
+import { AlarmTimerDialog } from "./AlarmTimerDialog";
+import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
 import { getActualTemp } from "@/lib/temp-display";
 import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
@@ -39,6 +41,10 @@ export function DashboardHeader({
 
   // RAPT bar data — self-contained
   const { controllers, pills } = useRaptBarData();
+
+  // Alarm/Timer dialog state
+  const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
+  const { entry: alarmEntry } = useAlarmTimer();
 
   // Controller dialog state
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
@@ -84,6 +90,11 @@ export function DashboardHeader({
                   </Button>
                 </div>
               )}
+              <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
+                <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-40 hover:opacity-100'}`}>
+                  <Timer className="w-5 h-5" />
+                </Button>
+              </div>
               <NotificationBell />
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
                 <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
@@ -128,6 +139,9 @@ export function DashboardHeader({
           </>
         )}
       </div>
+
+      {/* Alarm/Timer dialog */}
+      <AlarmTimerDialog open={alarmDialogOpen} onOpenChange={setAlarmDialogOpen} />
 
       {/* Controller dialog — owned by header */}
       {selectedController && (

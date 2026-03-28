@@ -9,6 +9,7 @@ import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { DashboardFooterProvider } from "@/contexts/DashboardFooterContext";
 import { DashboardAlertProvider } from "@/contexts/DashboardAlertContext";
 import { AlbumArtProvider } from "@/contexts/AlbumArtContext";
+import { AlarmTimerProvider } from "@/contexts/AlarmTimerContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -70,6 +71,7 @@ function AppContent() {
       <DashboardFooterProvider>
         <DashboardAlertProvider>
           <AlbumArtProvider>
+            <AlarmTimerProvider>
             <Routes>
               {/* Brew page without aspect ratio lock */}
               <Route path="/brew/:id" element={<Brew />} />
@@ -86,6 +88,7 @@ function AppContent() {
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
+            </AlarmTimerProvider>
           </AlbumArtProvider>
         </DashboardAlertProvider>
       </DashboardFooterProvider>
