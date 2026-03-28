@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
       nextAlbumArtMedium = rawNextArt;
     } else if (rawNextArt && nextTrackName) {
       try {
-        const nextArt = await resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId);
+        const nextArt = await resolveAlbumArt(rawNextArt, nextTrack?.id?.objectId || nextItem?.id?.objectId, nextTrack?.name, nextTrack?.artist?.name);
         if (nextArt.medium) {
           nextAlbumArtMedium = nextArt.medium;
           const nextTrackId = nextTrack?.id?.objectId || nextTrackName || '';
