@@ -205,16 +205,7 @@ export function BrewingDashboard() {
       background: 'transparent',
     }}>
       {/* Album art background */}
-      {visibleBgUrl && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage: `url(${visibleBgUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-          }}
-        />
-      )}
+      <DashboardBackground />
 
       {/* Header Bar */}
       <DashboardHeader
