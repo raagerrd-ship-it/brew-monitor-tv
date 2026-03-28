@@ -3,6 +3,7 @@ import { NowPlaying, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
+  useSonosLocalProxy,
 } from "./hooks";
 import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
