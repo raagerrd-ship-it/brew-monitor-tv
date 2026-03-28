@@ -5,6 +5,7 @@ import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
+import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { cn } from '@/lib/utils';
 
 const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
