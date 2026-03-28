@@ -4,7 +4,7 @@ import { TimerMilestone } from '@/hooks/use-external-timer';
 import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
-import { useTimerVisibility } from '@/contexts/TimerContext';
+import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { cn } from '@/lib/utils';
 
 // Export constant for use in layout calculations
