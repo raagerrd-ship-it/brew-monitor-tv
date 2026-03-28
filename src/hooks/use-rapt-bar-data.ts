@@ -91,7 +91,13 @@ export function useRaptBarData(): RaptBarData {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Polling fallback every 2 min — Realtime is unreliable on Chromecast/TV
+    const pollInterval = setInterval(() => { loadData(); }, 120_000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, [loadData]);
 
   return { controllers, pills, loading };
