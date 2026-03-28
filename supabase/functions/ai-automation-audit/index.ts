@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
     // Fetch active brews to map controller_id → brew_id for fermentation metrics
     const { data: activeBrews } = await supabase
       .from('brew_readings')
-      .select('id, linked_controller_id, attenuation, status, original_gravity, final_gravity, current_sg')
+      .select('id, name, linked_controller_id, attenuation, status, original_gravity, final_gravity, current_sg, last_update, updated_at')
       .not('linked_controller_id', 'is', null)
       .eq('status', 'Jäsning');
 
@@ -324,42 +324,41 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
         .map((c: any) => {
-          // Find fermentation metrics for this controller via running sessions (session has brew_id)
-          const session = (sessions || []).find((s: any) => s.controller_id === c.controller_id);
-          const metrics = session?.brew_id ? (fermentationMetrics || []).find((m: any) => m.brew_id === session.brew_id) : null;
-          // Also try matching via brew_readings.linked_controller_id
-          const directMetrics = !metrics ? (fermentationMetrics || []).find((m: any) => {
-            return (activeBrews || []).some((b: any) => b.id === m.brew_id && b.linked_controller_id === c.controller_id);
-          }) : metrics;
-          const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
           // Find the single active brew for this controller (most recently updated)
           const linkedBrew = (activeBrews || [])
             .filter((b: any) => b.linked_controller_id === c.controller_id)
             .sort((a: any, b: any) => new Date(b.last_update || b.updated_at || 0).getTime() - new Date(a.last_update || a.updated_at || 0).getTime())
             [0] || null;
+          // Match fermentation metrics to the SAME brew we selected
+          const fm = linkedBrew ? (fermentationMetrics || []).find((m: any) => m.brew_id === linkedBrew.id) : null;
+          const brewSg = linkedBrew ? Number(linkedBrew.current_sg) : null;
+          const brewFg = linkedBrew ? Number(linkedBrew.final_gravity) : null;
+          const atFg = brewSg != null && brewFg != null && !isNaN(brewSg) && !isNaN(brewFg) && Math.abs(brewSg - brewFg) <= 0.002;
+          
           const brewInfo = linkedBrew ? {
             name: sanitize(linkedBrew.name || '', 30),
-            original_gravity: linkedBrew.original_gravity,
-            final_gravity: linkedBrew.final_gravity,
-            current_sg: linkedBrew.current_sg,
+            original_gravity: Number(linkedBrew.original_gravity),
+            final_gravity: brewFg,
+            current_sg: brewSg,
             attenuation_pct: linkedBrew.attenuation,
-            at_fg: linkedBrew.current_sg != null && linkedBrew.final_gravity != null && Math.abs(linkedBrew.current_sg - linkedBrew.final_gravity) <= 0.002,
+            at_fg: atFg,
           } : null;
           // For cooler: actual_target is the automation-calculated target, not a fermentation profile
           const isCooler = c.is_glycol_cooler === true;
+          const isDual = c.dual_sensor_enabled === true;
           return {
             id: c.controller_id,
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
             actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
             desired_cooler_target: isCooler ? c.profile_target_temp : undefined,
-            probe_temp: c.current_temp,
-            pill_temp: c.pill_temp,
+            // Only expose individual sensor temps when dual_sensor is active
+            probe_temp: isDual ? c.current_temp : undefined,
+            pill_temp: isDual ? c.pill_temp : undefined,
             hardware_target: c.target_temp,
-            dual_sensor_enabled: c.dual_sensor_enabled ?? false,
-            preferred_sensor: c.preferred_sensor ?? 'pill',
-            delta: (c.dual_sensor_enabled === true && c.pill_temp != null && c.current_temp != null) ? +(c.pill_temp - c.current_temp).toFixed(2) : undefined,
+            dual_sensor_enabled: isDual,
+            delta: isDual && c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : undefined,
             cooling: c.cooling_enabled,
             heating: c.heating_enabled,
             is_cooler: isCooler,
