@@ -319,6 +319,8 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           }) : metrics;
           const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
+          // Find linked brew for OG/FG/attenuation
+          const linkedBrew = (activeBrews || []).find((b: any) => b.linked_controller_id === c.controller_id);
           return {
             id: c.controller_id,
             name: sanitize(c.name),
@@ -334,6 +336,13 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             heating: c.heating_enabled,
             is_cooler: c.is_glycol_cooler,
             last_update: c.last_update,
+            // Brew data
+            original_gravity: linkedBrew?.original_gravity ?? null,
+            final_gravity: linkedBrew?.final_gravity ?? null,
+            current_sg: linkedBrew?.current_sg ?? null,
+            attenuation_pct: linkedBrew?.attenuation ?? null,
+            brew_status: linkedBrew?.status ?? null,
+            // Fermentation metrics
             fermentation_phase: fm ? sanitize(fm.fermentation_phase, 30) : null,
             activity_score: fm?.activity_score ?? null,
             sg_rate_per_hour: fm?.sg_rate_per_hour ?? null,
