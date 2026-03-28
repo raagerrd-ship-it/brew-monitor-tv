@@ -65,6 +65,13 @@ export const SonosWidget = memo(function SonosWidget({
     progressBarRef, debugTimeRef,
   });
 
+  const { localActiveRef } = useSonosLocalProxy({
+    isConnected, showWidget, nowPlaying, nowPlayingRef,
+    setNowPlaying, handleTrackChange,
+    localProgressRef, trackChangedAtRef,
+    progressBarRef, debugTimeRef,
+  });
+
   useSonosRealtime({
     isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef,
