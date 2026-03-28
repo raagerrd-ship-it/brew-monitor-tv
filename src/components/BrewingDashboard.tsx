@@ -278,7 +278,7 @@ export function BrewingDashboard() {
           <div
             className={`${gridLayout} w-full px-4 py-2`}
             style={{
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
             }}
           >
             {brews.map((brew, index) => (

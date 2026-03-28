@@ -185,11 +185,11 @@ export const TimerFooter = memo(function TimerFooter() {
   const shouldShow = timerTvModeOnly ? isTvMode : true;
   const isVisible = shouldShow && timer.isActive;
 
-  // Sync visibility to context so parent can adjust layout
+  // Register footer height so dashboard can adjust layout
   useEffect(() => {
-    setTimerVisible(isVisible);
-    return () => setTimerVisible(false);
-  }, [isVisible, setTimerVisible]);
+    setFooterContent(isVisible ? TIMER_FOOTER_HEIGHT : null);
+    return () => setFooterContent(null);
+  }, [isVisible, setFooterContent]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {

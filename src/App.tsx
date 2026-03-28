@@ -85,7 +85,7 @@ function AppContent() {
             </Route>
           </Routes>
         </AlbumArtProvider>
-      </TimerProvider>
+      </DashboardFooterProvider>
     </ExternalAuthProvider>
   );
 }
