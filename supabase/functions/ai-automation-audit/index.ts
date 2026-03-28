@@ -201,11 +201,11 @@ Deno.serve(async (req) => {
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
 ## KRITISK: Bryggdata (OG/FG/SG)
-- Varje controller kan ha FLERA länkade bryggningar i 'brews'-arrayen (bara aktiva med status 'Jäsning').
-- Varje bryggning har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
-- Om at_fg = true har den bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
-- Stall-detektion är bara relevant om INGEN bryggning på controllern har nått FG och current_sg ligger signifikant över FG.
-- VIKTIGT: Analysera ALLA bryggningar. En controller med en brygg nära FG och en annan långt ifrån har fortfarande aktiv jäsning.
+- Varje controller har MAX EN länkad bryggning i 'brew'-objektet (den senast uppdaterade med status 'Jäsning').
+- Bryggningen har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
+- Om at_fg = true har bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
+- Stall-detektion är bara relevant om brew finns, at_fg = false, och current_sg ligger signifikant över FG.
+- Om brew = null har controllern ingen aktiv bryggning kopplad.
 
 ## KRITISK: Kylare (is_cooler = true)
 - Kylaren har 'cooler_target' istället för 'actual_target'. Detta är det automationsberäknade målet (lägsta följda target - marginal).
@@ -333,17 +333,19 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           }) : metrics;
           const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
-          // Find ALL linked brews with active status (Jäsning)
-          const linkedBrews = (activeBrews || [])
-            .filter((b: any) => b.linked_controller_id === c.controller_id && b.status === 'Jäsning')
-            .map((b: any) => ({
-              name: sanitize(b.name || '', 30),
-              original_gravity: b.original_gravity,
-              final_gravity: b.final_gravity,
-              current_sg: b.current_sg,
-              attenuation_pct: b.attenuation,
-              at_fg: b.current_sg != null && b.final_gravity != null && Math.abs(b.current_sg - b.final_gravity) <= 0.002,
-            }));
+          // Find the single active brew for this controller (most recently updated)
+          const linkedBrew = (activeBrews || [])
+            .filter((b: any) => b.linked_controller_id === c.controller_id)
+            .sort((a: any, b: any) => new Date(b.last_update || b.updated_at || 0).getTime() - new Date(a.last_update || a.updated_at || 0).getTime())
+            [0] || null;
+          const brewInfo = linkedBrew ? {
+            name: sanitize(linkedBrew.name || '', 30),
+            original_gravity: linkedBrew.original_gravity,
+            final_gravity: linkedBrew.final_gravity,
+            current_sg: linkedBrew.current_sg,
+            attenuation_pct: linkedBrew.attenuation,
+            at_fg: linkedBrew.current_sg != null && linkedBrew.final_gravity != null && Math.abs(linkedBrew.current_sg - linkedBrew.final_gravity) <= 0.002,
+          } : null;
           // For cooler: actual_target is the automation-calculated target, not a fermentation profile
           const isCooler = c.is_glycol_cooler === true;
           return {
@@ -362,8 +364,8 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             heating: c.heating_enabled,
             is_cooler: isCooler,
             last_update: c.last_update,
-            // All active brews on this controller
-            brews: linkedBrews.length > 0 ? linkedBrews : undefined,
+            // Single active brew on this controller
+            brew: brewInfo,
             // Fermentation metrics
             fermentation_phase: fm ? sanitize(fm.fermentation_phase, 30) : null,
             activity_score: fm?.activity_score ?? null,
