@@ -132,11 +132,10 @@ export function FermentationSessionCompact({
   const gradualRampProgress = isGradualRampStep 
     ? gradualRampTriggered 
       ? isActivityBased
-        // Use actual profile target (ratcheted by backend) for monotonic progress
         ? (controllerProfileTarget != null && profileStepTarget != null && tempIncrease > 0
-            ? Math.min(0.95, Math.max(0, (controllerProfileTarget - profileStepTarget) / tempIncrease))
-            : (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null))
-        : (activityScore != null ? Math.min(0.95, (activityTrigger - activityScore) / activityTrigger) : null)
+            ? Math.min(1, Math.max(0, (controllerProfileTarget - profileStepTarget) / tempIncrease))
+            : (activityScore != null ? Math.min(1, (activityTrigger - activityScore) / activityTrigger) : null))
+        : (activityScore != null ? Math.min(1, (activityTrigger - activityScore) / activityTrigger) : null)
       : isActivityBased
         ? (activityScore != null ? Math.max(0, 1 - activityScore / 100) * 0.5 : null)
         : (attenuation != null ? Math.min(0.9, (attenuation ?? 0) / attenuationTriggerVal * 0.9) : null)
