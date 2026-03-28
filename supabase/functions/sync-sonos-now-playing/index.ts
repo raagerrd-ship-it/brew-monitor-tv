@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     }
 
     // PARALLEL fetch: metadata and playback status
-    const [metadataResponse, playbackResponse] = await Promise.all([
+    let [metadataResponse, playbackResponse] = await Promise.all([
       fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
@@ -113,6 +113,23 @@ Deno.serve(async (req) => {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
     ]);
+
+    // Group ID may have changed (Sonos regroups) — recover by name
+    if (!metadataResponse.ok || !playbackResponse.ok) {
+      const recovered = await recoverGroupByName(supabase, accessToken, settings?.selected_group_name, settings?.id, null);
+      if (recovered) {
+        groupId = recovered.groupId;
+        console.log(`[SonosSync] Recovered group "${recovered.groupName}" → ${groupId}`);
+        [metadataResponse, playbackResponse] = await Promise.all([
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+        ]);
+      }
+    }
 
     if (!metadataResponse.ok) {
       await supabase.from('sonos_now_playing').delete().neq('id', '00000000-0000-0000-0000-000000000000');
