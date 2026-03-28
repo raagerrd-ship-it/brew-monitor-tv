@@ -42,6 +42,10 @@ export function DashboardHeader({
   // RAPT bar data — self-contained
   const { controllers, pills } = useRaptBarData();
 
+  // Alarm/Timer dialog state
+  const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
+  const { entry: alarmEntry } = useAlarmTimer();
+
   // Controller dialog state
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
   const [selectedControllerIsCooler, setSelectedControllerIsCooler] = useState(false);
