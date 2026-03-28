@@ -433,7 +433,24 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
     // Detect PWM ON sends (marked as PWM, or target=0 for cooling, or very high target for heating)
     const isPwmOn = details?.is_pwm || (newT === 0 && oldT != null && oldT > 0);
-    if (isPwmOn) {
+
+    // Detect if this RAPT_SEND was triggered by a DUTY_ZERO (0% duty revert/suppress)
+    const isDutyZeroSend = dutyZeroControllerNames.has(controllerFullName);
+
+    if (isDutyZeroSend) {
+      // Show as duty 0% badge instead of adjustment arrows
+      const isHeating = log.decisions.find(d => d.step === 'DUTY_ZERO' && d.message.startsWith(controllerFullName))?.message?.toLowerCase().includes('heating') || false;
+      const modeIcon = isHeating ? '🔥' : '❄️';
+      raptBadges.push(
+        <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
+          background: color ? `${color}33` : 'hsl(150 60% 45% / 0.2)',
+          color: color || 'hsl(150 60% 45%)',
+          borderColor: color ? `${color}4d` : 'hsl(150 60% 45% / 0.3)',
+        }}>
+          {modeIcon} {shortName} 0%
+        </Badge>
+      );
+    } else if (isPwmOn) {
       const dutyPctVal = details?.duty_pct;
       const modeIcon = details?.mode === 'heating' ? '🔥' : '❄️';
       raptBadges.push(
