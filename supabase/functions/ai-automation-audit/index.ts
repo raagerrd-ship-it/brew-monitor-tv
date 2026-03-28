@@ -208,10 +208,12 @@ Deno.serve(async (req) => {
 - Om brew = null har controllern ingen aktiv bryggning kopplad.
 
 ## KRITISK: Kylare (is_cooler = true)
-- Kylaren har 'cooler_target' istället för 'actual_target'. Detta är det automationsberäknade målet (lägsta följda target - marginal).
-- Kylaren har INTE en jäsningsprofil — jämför INTE cooler_target med actual_target-logik.
-- hardware_target på kylaren visar vad som faktiskt är satt på hårdvaran.
-- Om hardware_target > cooler_target innebär det att hårdvaran inte hunnit/klarat sänka till beräknat mål ännu.
+- Kylaren har 'desired_cooler_target' = det automationsberäknade ideala målet (lägsta följda target - marginal). Detta är vad systemet VILL att kylaren ska ligga på.
+- 'hardware_target' = vad som FAKTISKT är satt på RAPT-hårdvaran just nu. Detta är det verkliga målet kylaren jobbar mot.
+- Om hardware_target > desired_cooler_target: automationen har inte hunnit/kunnat sänka ännu (t.ex. pga max_diff_from_lowest-begränsning).
+- Om hardware_target ≈ desired_cooler_target: automationen har lyckats sätta rätt mål.
+- Kylaren har INTE en jäsningsprofil — jämför INTE med actual_target-logik.
+- 'actual_temp' (probe) visar kylarens faktiska temperatur. Om actual_temp > hardware_target kyler den fortfarande mot sitt mål.
 
 ## KRITISK: Sensorläge och actual_temp
 - **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant och SKA analyseras.
@@ -351,7 +353,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
             actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
-            cooler_target: isCooler ? c.profile_target_temp : undefined,
+            desired_cooler_target: isCooler ? c.profile_target_temp : undefined,
             probe_temp: c.current_temp,
             pill_temp: c.pill_temp,
             hardware_target: c.target_temp,
