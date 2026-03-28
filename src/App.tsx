@@ -68,6 +68,7 @@ function AppContent() {
   return (
     <ExternalAuthProvider>
       <DashboardFooterProvider>
+        <DashboardAlertProvider>
         <AlbumArtProvider>
           <Routes>
             {/* Brew page without aspect ratio lock */}
