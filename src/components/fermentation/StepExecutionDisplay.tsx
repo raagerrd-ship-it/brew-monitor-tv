@@ -59,16 +59,19 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
 
   if (isGradualOrDiacetyl && finalTarget != null && stepStartTemp != null) {
     // Temp ramp: "19° → 22°" with "Mål nu 21.6°"
-    const tempProgress = effectiveTarget != null
+    const rawTempProgress = effectiveTarget != null
       ? Math.max(0, Math.min(1, (effectiveTarget - stepStartTemp) / (finalTarget - stepStartTemp)))
       : 0;
+    // Snap to 1 when target is effectively reached (within 0.3°)
+    const tempProgress = (effectiveTarget != null && Math.abs(effectiveTarget - finalTarget) <= 0.3) ? 1 : rawTempProgress;
+    const tempDone = tempProgress >= 1;
     items.push({
       label: 'Temp.ramp',
       icon: <Thermometer className={iconClass} />,
       value: `${Math.round(stepStartTemp)}° → ${Math.round(finalTarget)}°`,
       detail: effectiveTarget != null ? `Mål nu ${effectiveTarget.toFixed(1)}°` : undefined,
       progress: tempProgress,
-      color: 'hsl(38 92% 55%)',
+      color: tempDone ? 'hsl(142 70% 50%)' : 'hsl(38 92% 55%)',
     });
   } else {
     // Standard temp display for non-gradual steps
@@ -143,13 +146,14 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
         const rampStart = new Date(rampTriggeredAt);
         const rampElapsed = (Date.now() - rampStart.getTime()) / (1000 * 60 * 60);
         const rampProg = Math.min(rampElapsed / minHours, 1);
+        const rampDone = rampProg >= 1;
         items.push({
           label: 'Tid.ramp',
           icon: <Clock className={iconClass} />,
-          value: `≥${minHours}h`,
+          value: rampDone ? 'Klar' : `≥${minHours}h`,
           detail: `Tid nu ${Math.round(rampElapsed)}h`,
           progress: rampProg,
-          color: 'hsl(38 92% 55%)',
+          color: rampDone ? 'hsl(142 70% 50%)' : 'hsl(38 92% 55%)',
         });
       }
     }
