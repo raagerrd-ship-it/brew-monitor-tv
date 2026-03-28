@@ -299,8 +299,13 @@ export function BrewingDashboard() {
       {/* Dialogs */}
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
-      {/* Timer Footer */}
+      {/* Footer Slot: context-driven content or self-rendering components */}
       <TimerFooter />
+      {footerContent && (
+        <div className="absolute bottom-0 left-0 right-0 z-20" style={{ height: `${footerHeight}px` }}>
+          {footerContent}
+        </div>
+      )}
 
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
