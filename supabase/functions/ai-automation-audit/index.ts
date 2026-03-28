@@ -325,13 +325,25 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           }) : metrics;
           const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
-          // Find linked brew for OG/FG/attenuation
-          const linkedBrew = (activeBrews || []).find((b: any) => b.linked_controller_id === c.controller_id);
+          // Find ALL linked brews with active status (Jäsning)
+          const linkedBrews = (activeBrews || [])
+            .filter((b: any) => b.linked_controller_id === c.controller_id && b.status === 'Jäsning')
+            .map((b: any) => ({
+              name: sanitize(b.name || '', 30),
+              original_gravity: b.original_gravity,
+              final_gravity: b.final_gravity,
+              current_sg: b.current_sg,
+              attenuation_pct: b.attenuation,
+              at_fg: b.current_sg != null && b.final_gravity != null && Math.abs(b.current_sg - b.final_gravity) <= 0.002,
+            }));
+          // For cooler: actual_target is the automation-calculated target, not a fermentation profile
+          const isCooler = c.is_glycol_cooler === true;
           return {
             id: c.controller_id,
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
-            actual_target: c.profile_target_temp ?? c.target_temp,
+            actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
+            cooler_target: isCooler ? c.profile_target_temp : undefined,
             probe_temp: c.current_temp,
             pill_temp: c.pill_temp,
             hardware_target: c.target_temp,
@@ -340,14 +352,10 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
             cooling: c.cooling_enabled,
             heating: c.heating_enabled,
-            is_cooler: c.is_glycol_cooler,
+            is_cooler: isCooler,
             last_update: c.last_update,
-            // Brew data
-            original_gravity: linkedBrew?.original_gravity ?? null,
-            final_gravity: linkedBrew?.final_gravity ?? null,
-            current_sg: linkedBrew?.current_sg ?? null,
-            attenuation_pct: linkedBrew?.attenuation ?? null,
-            brew_status: linkedBrew?.status ?? null,
+            // All active brews on this controller
+            brews: linkedBrews.length > 0 ? linkedBrews : undefined,
             // Fermentation metrics
             fermentation_phase: fm ? sanitize(fm.fermentation_phase, 30) : null,
             activity_score: fm?.activity_score ?? null,
