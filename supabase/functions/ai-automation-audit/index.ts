@@ -200,10 +200,17 @@ Deno.serve(async (req) => {
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
 ## KRITISK: Bryggdata (OG/FG/SG)
-- Varje controller kan ha en länkad bryggning med original_gravity (OG), final_gravity (FG), current_sg och attenuation_pct.
-- Om current_sg ≈ FG (inom 0.002) har bryggningen NÅTT SITT MÅL. Låg SG-rate är då FÖRVÄNTAT — det är INTE en stall.
-- Stall-detektion är bara relevant om current_sg ligger ÖVER FG med en signifikant marginal (>0.005).
-- VIKTIGT: Justera INTE stall-parametrar om bryggningen redan nått FG. Det är normalt att SG-rate → 0 när jäsningen är klar.
+- Varje controller kan ha FLERA länkade bryggningar i 'brews'-arrayen (bara aktiva med status 'Jäsning').
+- Varje bryggning har original_gravity (OG), final_gravity (FG), current_sg, attenuation_pct och at_fg (bool).
+- Om at_fg = true har den bryggningen NÅTT SITT MÅL. Låg SG-rate är FÖRVÄNTAT — INTE en stall.
+- Stall-detektion är bara relevant om INGEN bryggning på controllern har nått FG och current_sg ligger signifikant över FG.
+- VIKTIGT: Analysera ALLA bryggningar. En controller med en brygg nära FG och en annan långt ifrån har fortfarande aktiv jäsning.
+
+## KRITISK: Kylare (is_cooler = true)
+- Kylaren har 'cooler_target' istället för 'actual_target'. Detta är det automationsberäknade målet (lägsta följda target - marginal).
+- Kylaren har INTE en jäsningsprofil — jämför INTE cooler_target med actual_target-logik.
+- hardware_target på kylaren visar vad som faktiskt är satt på hårdvaran.
+- Om hardware_target > cooler_target innebär det att hårdvaran inte hunnit/klarat sänka till beräknat mål ännu.
 
 ## KRITISK: Sensorläge och actual_temp
 - **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant.
