@@ -88,6 +88,14 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
       return;
     }
 
+    // Skip local proxy on HTTPS pages (mixed content blocked — e.g. Chromecast/TV)
+    const isSecurePage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    if (isSecurePage) {
+      localActiveRef.current = false;
+      tvDebug('sonos', '📡 Local proxy skipped (HTTPS page — mixed content blocked)');
+      return;
+    }
+
     const proxyUrl = getLocalProxyUrl();
     if (!proxyUrl) {
       localActiveRef.current = false;
