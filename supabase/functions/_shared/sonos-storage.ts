@@ -72,6 +72,22 @@ function fileNameFromUrl(url: string): string | null {
   }
 }
 
+// Verify that a public storage URL still points to an existing object.
+export async function storageObjectExistsByPublicUrl(supabase: any, publicUrl: string): Promise<boolean> {
+  try {
+    const fileName = fileNameFromUrl(publicUrl);
+    if (!fileName) return false;
+
+    const { data } = await supabase.storage
+      .from('sonos-backgrounds')
+      .list('', { search: fileName, limit: 1 });
+
+    return !!data?.some((f: any) => f.name === fileName);
+  } catch {
+    return false;
+  }
+}
+
 // Delete ALL files in bucket except those actively referenced by the given URLs.
 // Pass an empty array to delete everything (e.g. on IDLE transition).
 export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUrls: (string | null | undefined)[]) {
