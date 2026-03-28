@@ -219,6 +219,7 @@ export const TimerFooter = memo(function TimerFooter() {
       showAlert({
         id: 'timer-milestone',
         autoDismissMs: null,
+        overlayBackground: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
         content: (
           <div 
             className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
