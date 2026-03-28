@@ -71,6 +71,7 @@ function AppContent() {
       <DashboardFooterProvider>
         <DashboardAlertProvider>
           <AlbumArtProvider>
+            <AlarmTimerProvider>
             <Routes>
               {/* Brew page without aspect ratio lock */}
               <Route path="/brew/:id" element={<Brew />} />
