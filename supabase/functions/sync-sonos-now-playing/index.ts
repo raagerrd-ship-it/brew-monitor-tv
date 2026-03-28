@@ -301,6 +301,9 @@ Deno.serve(async (req) => {
     // This prevents startup with dead URLs (DB says cached, storage object deleted).
     let hasCachedBg = !!bgImageUrl;
     let hasCachedWidget = !!widgetArtUrl;
+    const missingCachedBg = { value: false };
+    const missingCachedWidget = { value: false };
+
     if (sameTrack && (hasCachedBg || hasCachedWidget)) {
       const [bgExists, widgetExists] = await Promise.all([
         hasCachedBg ? storageObjectExistsByPublicUrl(supabase, bgImageUrl!) : Promise.resolve(false),
@@ -311,11 +314,13 @@ Deno.serve(async (req) => {
         console.log('[SonosSync] Cached bg URL missing in storage, regenerating current track image');
         bgImageUrl = null;
         hasCachedBg = false;
+        missingCachedBg.value = true;
       }
       if (hasCachedWidget && !widgetExists) {
         console.log('[SonosSync] Cached widget URL missing in storage, regenerating current track image');
         widgetArtUrl = null;
         hasCachedWidget = false;
+        missingCachedWidget.value = true;
       }
     }
 
@@ -363,6 +368,8 @@ Deno.serve(async (req) => {
       if (sameTrack) {
         // SAME TRACK: single combined write (metadata + all images = 1 Realtime event)
         const fullPayload = { ...metadataPayload };
+        if (missingCachedBg.value && !bgImageUrl) fullPayload.bg_image_url = null;
+        if (missingCachedWidget.value && !widgetArtUrl) fullPayload.widget_art_url = null;
         if (bgImageUrl) fullPayload.bg_image_url = bgImageUrl;
         if (widgetArtUrl) fullPayload.widget_art_url = widgetArtUrl;
         if (nextAlbumArtMedium) fullPayload.next_album_art_url = nextAlbumArtMedium;
