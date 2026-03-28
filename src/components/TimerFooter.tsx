@@ -169,7 +169,6 @@ export const TimerFooter = memo(function TimerFooter() {
   const { showAlert, dismissAlert } = useDashboardAlert();
   
   // Track triggered milestones for attention notification
-  const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
   const lastTriggeredRef = useRef<Set<string>>(new Set());
   const prevLabelRef = useRef<string>(timer.label);
 
