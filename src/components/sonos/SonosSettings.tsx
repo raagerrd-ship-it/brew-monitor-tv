@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Music, ExternalLink, Unlink, RefreshCw, ChevronDown, Wifi } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Loader2, Music, ExternalLink, Unlink, RefreshCw, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -31,10 +30,6 @@ export function SonosSettings() {
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(2.0);
-  const [localProxyUrl, setLocalProxyUrl] = useState(() => {
-    try { return localStorage.getItem('sonosLocalProxy') || ''; } catch { return ''; }
-  });
-  
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
@@ -364,33 +359,6 @@ export function SonosSettings() {
               </p>
             </div>
 
-          </div>
-
-          {/* Local proxy setting */}
-          <div className="space-y-3 p-4 rounded-lg border border-border/60 bg-muted/20">
-            <div className="flex items-center gap-2">
-              <Wifi className="h-4 w-4 text-muted-foreground" />
-              <Label>Lokal Sonos-proxy (Cast Away)</Label>
-            </div>
-            <Input
-              placeholder="http://192.168.1.11:3000/api/sonos"
-              value={localProxyUrl}
-              onChange={(e) => setLocalProxyUrl(e.target.value)}
-              onBlur={() => {
-                const trimmed = localProxyUrl.trim().replace(/\/status\/?$/, '').replace(/\/$/, '');
-                setLocalProxyUrl(trimmed);
-                if (trimmed) {
-                  localStorage.setItem('sonosLocalProxy', trimmed);
-                  toast.success('Proxy-URL sparad — ladda om för att aktivera');
-                } else {
-                  localStorage.removeItem('sonosLocalProxy');
-                  toast.info('Lokal proxy avaktiverad');
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Snabbare paus/play/skip-detection via lokal proxy. Album art hämtas fortfarande från molnet.
-            </p>
           </div>
 
           <Collapsible>
