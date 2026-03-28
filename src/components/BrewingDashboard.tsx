@@ -13,8 +13,8 @@ import { toast as sonnerToast } from "sonner";
 import { useBrewData, useSplashScreen, useBrewCarousel, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
-import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
-import { useTimerVisibility } from "@/contexts/TimerContext";
+import { TimerFooter } from "@/components/TimerFooter";
+import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
 import { TempController } from "@/types/brew";
@@ -42,8 +42,8 @@ export function BrewingDashboard() {
   const { showSplash } = useSplashScreen(loading);
   useTvRefresh(isTvMode);
 
-  // Timer visibility from self-contained TimerFooter via context
-  const { isTimerVisible: showTimerFooter } = useTimerVisibility();
+  // Footer height from self-contained footer components via context
+  const { footerHeight } = useDashboardFooter();
 
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -171,7 +171,7 @@ export function BrewingDashboard() {
 
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
-      const footerSpace = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
+      const footerSpace = footerHeight;
       return containerHeight - activeHeaderHeight - footerSpace;
     }
     return null;
@@ -220,7 +220,7 @@ export function BrewingDashboard() {
           <div
             className="flex justify-center gap-6 w-full px-4 py-2"
             style={{
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
             }}
           >
             {[0, 1, 2].map(i => (
@@ -278,7 +278,7 @@ export function BrewingDashboard() {
           <div
             className={`${gridLayout} w-full px-4 py-2`}
             style={{
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${showTimerFooter ? ` - ${TIMER_FOOTER_HEIGHT}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
             }}
           >
             {brews.map((brew, index) => (

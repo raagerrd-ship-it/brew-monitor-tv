@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider, useTvMode } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
-import { TimerProvider } from "@/contexts/TimerContext";
+import { DashboardFooterProvider } from "@/contexts/DashboardFooterContext";
 import { AlbumArtProvider } from "@/contexts/AlbumArtContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
@@ -66,7 +66,7 @@ function AppContent() {
   
   return (
     <ExternalAuthProvider>
-      <TimerProvider>
+      <DashboardFooterProvider>
         <AlbumArtProvider>
           <Routes>
             {/* Brew page without aspect ratio lock */}
@@ -85,7 +85,7 @@ function AppContent() {
             </Route>
           </Routes>
         </AlbumArtProvider>
-      </TimerProvider>
+      </DashboardFooterProvider>
     </ExternalAuthProvider>
   );
 }

@@ -4,11 +4,10 @@ import { TimerMilestone } from '@/hooks/use-external-timer';
 import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
-import { useTimerVisibility } from '@/contexts/TimerContext';
+import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { cn } from '@/lib/utils';
 
-// Export constant for use in layout calculations
-export const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
+const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -165,7 +164,7 @@ export const TimerFooter = memo(function TimerFooter() {
   const timer = useExternalTimer();
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
-  const { setTimerVisible } = useTimerVisibility();
+  const { setFooterContent } = useDashboardFooter();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
@@ -186,11 +185,11 @@ export const TimerFooter = memo(function TimerFooter() {
   const shouldShow = timerTvModeOnly ? isTvMode : true;
   const isVisible = shouldShow && timer.isActive;
 
-  // Sync visibility to context so parent can adjust layout
+  // Register footer height so dashboard can adjust layout
   useEffect(() => {
-    setTimerVisible(isVisible);
-    return () => setTimerVisible(false);
-  }, [isVisible, setTimerVisible]);
+    setFooterContent(isVisible ? TIMER_FOOTER_HEIGHT : null);
+    return () => setFooterContent(null);
+  }, [isVisible, setFooterContent]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
