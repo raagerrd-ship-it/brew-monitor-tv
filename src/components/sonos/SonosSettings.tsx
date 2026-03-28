@@ -366,7 +366,32 @@ export function SonosSettings() {
 
           </div>
 
-          <Collapsible>
+          {/* Local proxy setting */}
+          <div className="space-y-3 p-4 rounded-lg border border-border/60 bg-muted/20">
+            <div className="flex items-center gap-2">
+              <Wifi className="h-4 w-4 text-muted-foreground" />
+              <Label>Lokal Sonos-proxy (Cast Away)</Label>
+            </div>
+            <Input
+              placeholder="http://192.168.1.11:3000/api/sonos"
+              value={localProxyUrl}
+              onChange={(e) => setLocalProxyUrl(e.target.value)}
+              onBlur={() => {
+                const trimmed = localProxyUrl.trim().replace(/\/status\/?$/, '').replace(/\/$/, '');
+                setLocalProxyUrl(trimmed);
+                if (trimmed) {
+                  localStorage.setItem('sonosLocalProxy', trimmed);
+                  toast.success('Proxy-URL sparad — ladda om för att aktivera');
+                } else {
+                  localStorage.removeItem('sonosLocalProxy');
+                  toast.info('Lokal proxy avaktiverad');
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Snabbare paus/play/skip-detection via lokal proxy. Album art hämtas fortfarande från molnet.
+            </p>
+          </div>
             <div className="p-4 rounded-lg border border-border/60 bg-muted/20">
               <CollapsibleTrigger className="flex items-center justify-between w-full group">
                 <div className="space-y-0.5 text-left">
