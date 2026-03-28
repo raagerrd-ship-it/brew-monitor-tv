@@ -216,7 +216,7 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-      <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px` } : undefined}>
+      <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: footerHeight > 0 ? `${footerHeight}px` : undefined } : undefined}>
         {loading && brews.length === 0 ? (
           <div
             className="flex justify-center gap-6 w-full px-4 py-2"
