@@ -37,11 +37,37 @@ interface UseSonosLocalProxyParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  bgSentRef?: React.MutableRefObject<string | null>;
+  validBgBufferRef?: React.MutableRefObject<string[]>;
+  onAlbumArtChangeRef?: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
+}
+
+// Resolve album art URI from Cast Away payload (like Lotus Lantern Control)
+function resolveAlbumArtUri(s: any): string | null {
+  const nested = s?.currentTrack ?? s?.track ?? s?.mediaInfo ?? s?.metadata ?? null;
+  return (
+    s?.albumArtUri ?? s?.albumArtURI ?? s?.albumArtUrl ?? s?.album_art_uri ??
+    nested?.albumArtUri ?? nested?.albumArtURI ?? nested?.albumArtUrl ?? nested?.album_art_uri ??
+    null
+  );
+}
+
+function buildArtUrl(uriRaw: string | null | undefined, proxyUrl: string): string | null {
+  if (!uriRaw) return null;
+  const uri = String(uriRaw).trim();
+  if (!uri) return null;
+  if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+  const proxyOrigin = new URL(proxyUrl).origin;
+  if (uri.startsWith('/api/sonos/')) return `${proxyOrigin}${uri}`;
+  if (uri.startsWith('/getaa')) return `${proxyUrl}${uri}`;
+  if (uri.startsWith('getaa')) return `${proxyUrl}/${uri}`;
+  if (uri.startsWith('/')) return `${proxyOrigin}${uri}`;
+  return `${proxyUrl}/${uri}`;
 }
 
 /**
  * Hybrid local proxy hook: uses SSE (primary) + fallback poll from Cast Away
- * for fast pause/play/skip detection. Art/background still comes from cloud RT.
+ * for fast pause/play/skip detection. Also resolves album art from local proxy.
  */
 export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
   const {
@@ -49,6 +75,7 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
+    bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
   } = params;
 
   const localActiveRef = useRef(false);
