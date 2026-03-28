@@ -17,6 +17,7 @@ import { TimerFooter } from "@/components/TimerFooter";
 import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
+import { DashboardAlertOverlay } from "./DashboardAlertOverlay";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -306,6 +307,9 @@ export function BrewingDashboard() {
           {footerContent}
         </div>
       )}
+
+      {/* Global alert overlay */}
+      <DashboardAlertOverlay />
 
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}

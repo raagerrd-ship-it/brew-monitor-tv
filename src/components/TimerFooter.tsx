@@ -1,10 +1,11 @@
-import { memo, useRef, useState, useEffect } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone } from '@/hooks/use-external-timer';
 import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
+import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { cn } from '@/lib/utils';
 
 const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
@@ -165,9 +166,9 @@ export const TimerFooter = memo(function TimerFooter() {
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
+  const { showAlert, dismissAlert } = useDashboardAlert();
   
   // Track triggered milestones for attention notification
-  const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
   const lastTriggeredRef = useRef<Set<string>>(new Set());
   const prevLabelRef = useRef<string>(timer.label);
 
@@ -199,73 +200,26 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
-      setTriggeredAlert(null);
+      dismissAlert('timer-milestone');
       prevLabelRef.current = timer.label;
     }
-  }, [timer.label]);
+  }, [timer.label, dismissAlert]);
 
   // Detect when a milestone becomes triggered+unacknowledged (needs attention)
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
     
-    // Find milestones that are triggered but not acknowledged and not already shown
     const justTriggered = timer.milestones.find(m => {
       return m.triggered && !m.acknowledged && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
       lastTriggeredRef.current.add(justTriggered.label);
-      setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
-    }
-  }, [timer.milestones, timer.isActive]);
-
-  // Dismiss alert when acknowledged externally via synced data
-  // Mash: pausedByMilestone becomes false when acknowledged
-  // Kok: auto-dismiss after 120+ seconds past the milestone, or when acknowledged
-  useEffect(() => {
-    if (!triggeredAlert) return;
-    
-    if (isMash && !timer.pausedByMilestone && !timer.isPaused) {
-      const timeSinceTriggered = Date.now() - triggeredAlert.time;
-      if (timeSinceTriggered > 500) {
-        setTriggeredAlert(null);
-      }
-    } else if (!isMash) {
-      // Find the milestone that triggered this alert
-      const alertMilestone = timer.milestones.find(m => m.label === triggeredAlert.label);
-      if (alertMilestone) {
-        // Dismiss when acknowledged in brew app (primary)
-        if (alertMilestone.acknowledged) {
-          setTriggeredAlert(null);
-        }
-        // Fallback: dismiss after 120+ seconds past milestone time
-        const secondsPastMilestone = alertMilestone.time - timer.remainingSeconds;
-        if (secondsPastMilestone >= 120) {
-          setTriggeredAlert(null);
-        }
-      }
-    }
-  }, [isMash, triggeredAlert, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds]);
-
-  if (!isVisible) {
-    return null;
-  }
-
-  // Check if next milestone is imminent (less than 30 seconds)
-  const isNextMilestoneImminent = timer.timeToNextMilestone !== null && timer.timeToNextMilestone <= 30 && timer.timeToNextMilestone > 0;
-
-  return (
-    <>
-      {/* Attention-grabbing alert overlay when milestone triggers */}
-      {triggeredAlert && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
-            animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
-          }}
-        >
-          {/* Card with improved layout */}
+      const label = justTriggered.label.replace(/🔥\s*/g, '');
+      showAlert({
+        id: 'timer-milestone',
+        autoDismissMs: null,
+        content: (
           <div 
             className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
             style={{
@@ -275,7 +229,6 @@ export const TimerFooter = memo(function TimerFooter() {
               animation: 'scale-pulse 0.4s ease-out',
             }}
           >
-            {/* Top badge */}
             <div 
               className="flex items-center gap-3 px-6 py-2 rounded-full mb-6"
               style={{
@@ -286,20 +239,48 @@ export const TimerFooter = memo(function TimerFooter() {
               <AlertTriangle className="w-6 h-6 text-white" />
               <span className="text-white text-lg font-bold uppercase tracking-widest">Dags nu!</span>
             </div>
-            
-            {/* Main action text */}
             <div className="text-orange-100 text-5xl md:text-7xl font-bold text-center leading-tight">
-              {triggeredAlert.label.replace(/🔥\s*/g, '')}
+              {label}
             </div>
-            
-            {/* Subtle instruction */}
             <div className="text-orange-300/80 text-lg mt-4 font-medium">
               Kvittera i bryggappen
             </div>
           </div>
-        </div>
-      )}
+        ),
+      });
+    }
+  }, [timer.milestones, timer.isActive, showAlert]);
 
+  // Dismiss alert when acknowledged externally via synced data
+  useEffect(() => {
+    if (isMash && !timer.pausedByMilestone && !timer.isPaused) {
+      dismissAlert('timer-milestone');
+    } else if (!isMash) {
+      const acknowledged = timer.milestones.find(m => 
+        lastTriggeredRef.current.has(m.label) && m.acknowledged
+      );
+      if (acknowledged) {
+        dismissAlert('timer-milestone');
+      }
+      // Fallback: dismiss milestones 120+ seconds past
+      const expired = timer.milestones.find(m =>
+        lastTriggeredRef.current.has(m.label) && (m.time - timer.remainingSeconds) >= 120
+      );
+      if (expired) {
+        dismissAlert('timer-milestone');
+      }
+    }
+  }, [isMash, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds, dismissAlert]);
+
+  if (!isVisible) {
+    return null;
+  }
+
+  // Check if next milestone is imminent (less than 30 seconds)
+  const isNextMilestoneImminent = timer.timeToNextMilestone !== null && timer.timeToNextMilestone <= 30 && timer.timeToNextMilestone > 0;
+
+  return (
+    <>
       {/* Main footer - 3 column grid layout for TV */}
       <div 
         className="absolute bottom-0 left-0 right-0 z-20 backdrop-blur-xl"

@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { TvModeProvider, useTvMode } from "@/contexts/TvModeContext";
 import { ExternalAuthProvider } from "@/contexts/ExternalAuthContext";
 import { DashboardFooterProvider } from "@/contexts/DashboardFooterContext";
+import { DashboardAlertProvider } from "@/contexts/DashboardAlertContext";
 import { AlbumArtProvider } from "@/contexts/AlbumArtContext";
 import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
@@ -67,24 +68,26 @@ function AppContent() {
   return (
     <ExternalAuthProvider>
       <DashboardFooterProvider>
-        <AlbumArtProvider>
-          <Routes>
-            {/* Brew page without aspect ratio lock */}
-            <Route path="/brew/:id" element={<Brew />} />
-            
-            {/* All other routes with aspect ratio lock using layout */}
-            <Route element={<AspectRatioLayout />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/install" element={<Install />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/sonos-callback" element={<SonosCallback />} />
-              <Route path="/printer-debug" element={<PrinterDebug />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </AlbumArtProvider>
+        <DashboardAlertProvider>
+          <AlbumArtProvider>
+            <Routes>
+              {/* Brew page without aspect ratio lock */}
+              <Route path="/brew/:id" element={<Brew />} />
+              
+              {/* All other routes with aspect ratio lock using layout */}
+              <Route element={<AspectRatioLayout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/install" element={<Install />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/sonos-callback" element={<SonosCallback />} />
+                <Route path="/printer-debug" element={<PrinterDebug />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Route>
+            </Routes>
+          </AlbumArtProvider>
+        </DashboardAlertProvider>
       </DashboardFooterProvider>
     </ExternalAuthProvider>
   );
