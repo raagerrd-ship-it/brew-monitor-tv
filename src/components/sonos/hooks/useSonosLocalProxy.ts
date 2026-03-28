@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { NowPlaying, updateProgressDOM } from './types';
+import { NowPlaying, updateProgressDOM, pushToBgBuffer } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 const DEFAULT_LOCAL_PROXY_URL = 'http://192.168.1.11:3000/api/sonos';
