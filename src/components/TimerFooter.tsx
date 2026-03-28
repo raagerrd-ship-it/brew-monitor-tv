@@ -219,6 +219,7 @@ export const TimerFooter = memo(function TimerFooter() {
       showAlert({
         id: 'timer-milestone',
         autoDismissMs: null,
+        overlayBackground: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
         content: (
           <div 
             className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
@@ -253,20 +254,17 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Dismiss alert when acknowledged externally via synced data
   useEffect(() => {
+    // Only check if we've actually triggered alerts
+    if (lastTriggeredRef.current.size === 0) return;
+
     if (isMash && !timer.pausedByMilestone && !timer.isPaused) {
       dismissAlert('timer-milestone');
     } else if (!isMash) {
-      const acknowledged = timer.milestones.find(m => 
-        lastTriggeredRef.current.has(m.label) && m.acknowledged
+      const shouldDismiss = timer.milestones.some(m => 
+        lastTriggeredRef.current.has(m.label) && 
+        (m.acknowledged || (m.time - timer.remainingSeconds) >= 120)
       );
-      if (acknowledged) {
-        dismissAlert('timer-milestone');
-      }
-      // Fallback: dismiss milestones 120+ seconds past
-      const expired = timer.milestones.find(m =>
-        lastTriggeredRef.current.has(m.label) && (m.time - timer.remainingSeconds) >= 120
-      );
-      if (expired) {
+      if (shouldDismiss) {
         dismissAlert('timer-milestone');
       }
     }
