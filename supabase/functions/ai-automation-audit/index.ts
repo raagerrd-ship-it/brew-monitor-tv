@@ -335,7 +335,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           const brewSg = linkedBrew ? Number(linkedBrew.current_sg) : null;
           const brewFg = linkedBrew ? Number(linkedBrew.final_gravity) : null;
           const atFg = brewSg != null && brewFg != null && !isNaN(brewSg) && !isNaN(brewFg) && Math.abs(brewSg - brewFg) <= 0.002;
-          console.log(`[AUDIT] Controller ${c.name}: brew=${linkedBrew?.name}, SG=${brewSg}, FG=${brewFg}, at_fg=${atFg}, diff=${brewSg != null && brewFg != null ? Math.abs(brewSg - brewFg).toFixed(4) : 'N/A'}`);
+          
           const brewInfo = linkedBrew ? {
             name: sanitize(linkedBrew.name || '', 30),
             original_gravity: Number(linkedBrew.original_gravity),
