@@ -16,6 +16,7 @@ import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
 import { useTimerVisibility } from "@/contexts/TimerContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
+import { DashboardBackground } from "./DashboardBackground";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
