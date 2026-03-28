@@ -346,18 +346,19 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
           } : null;
           // For cooler: actual_target is the automation-calculated target, not a fermentation profile
           const isCooler = c.is_glycol_cooler === true;
+          const isDual = c.dual_sensor_enabled === true;
           return {
             id: c.controller_id,
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
             actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
             desired_cooler_target: isCooler ? c.profile_target_temp : undefined,
-            probe_temp: c.current_temp,
-            pill_temp: c.pill_temp,
+            // Only expose individual sensor temps when dual_sensor is active
+            probe_temp: isDual ? c.current_temp : undefined,
+            pill_temp: isDual ? c.pill_temp : undefined,
             hardware_target: c.target_temp,
-            dual_sensor_enabled: c.dual_sensor_enabled ?? false,
-            preferred_sensor: c.preferred_sensor ?? 'pill',
-            delta: (c.dual_sensor_enabled === true && c.pill_temp != null && c.current_temp != null) ? +(c.pill_temp - c.current_temp).toFixed(2) : undefined,
+            dual_sensor_enabled: isDual,
+            delta: isDual && c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : undefined,
             cooling: c.cooling_enabled,
             heating: c.heating_enabled,
             is_cooler: isCooler,
