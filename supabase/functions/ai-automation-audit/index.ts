@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       .not('analysis', 'like', 'Error:%') // Don't count failed audits
       .limit(1);
 
-    if (recentAudits && recentAudits.length > 0) {
+    if (!force && recentAudits && recentAudits.length > 0) {
       console.log(`🤖 AI audit cooldown active — last audit at ${recentAudits[0].created_at}, skipping (min ${AUDIT_COOLDOWN_HOURS}h between audits).`);
       return new Response(JSON.stringify({ skipped: true, reason: `cooldown: last audit less than ${AUDIT_COOLDOWN_HOURS}h ago` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
