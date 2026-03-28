@@ -58,18 +58,18 @@ export const SonosWidget = memo(function SonosWidget({
     trackChangeOffsetMs,
   });
 
-  useSonosClientPolling({
-    isConnected, showWidget, nowPlaying, nowPlayingRef,
-    setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
-    progressBarRef, debugTimeRef,
-  });
-
   const { localActiveRef } = useSonosLocalProxy({
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
     localProgressRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
+  });
+
+  useSonosClientPolling({
+    isConnected, showWidget, nowPlaying, nowPlayingRef,
+    setNowPlaying, handleTrackChange,
+    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
+    progressBarRef, debugTimeRef, localActiveRef,
   });
 
   useSonosRealtime({

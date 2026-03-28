@@ -26,23 +26,32 @@ interface UseSonosClientPollingParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  /** When local proxy is active, cloud polling skips state checks (local handles them faster) */
+  localActiveRef?: React.MutableRefObject<boolean>;
 }
 
 /**
  * 5s poll for position sync + next track metadata.
- * No art URLs — those come from RT.
+ * When local proxy is down (localActiveRef.current === false), also handles
+ * state polling during PAUSED to detect resume — acts as fallback.
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
-    progressBarRef, debugTimeRef,
+    progressBarRef, debugTimeRef, localActiveRef,
   } = params;
 
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
+
+    // When local proxy is active, skip cloud polling during PAUSED (local handles it)
+    // When local proxy is down, keep polling to detect resume
+    const isPaused = nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED';
+    const localIsActive = localActiveRef?.current ?? false;
+    if (isPaused && localIsActive) return;
 
     const poll = async () => {
       if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
