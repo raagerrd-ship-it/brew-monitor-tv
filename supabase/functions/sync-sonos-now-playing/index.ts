@@ -234,10 +234,8 @@ Deno.serve(async (req) => {
     }
 
     const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
-    const currentObjectId = track?.id?.objectId || currentItem?.id?.objectId;
-    console.log(`[SonosSync] Raw art URL: ${rawCurrentArt}, objectId: ${currentObjectId}, trackId: ${JSON.stringify(track?.id)}`);
 
-    const currentArt = await resolveAlbumArt(rawCurrentArt, currentObjectId);
+    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId);
 
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
