@@ -393,6 +393,21 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
   const pidDbOnly = log.decisions.filter(d => d.step === 'PID_PWM_UPDATE');
 
+  // Build lookup: controller names that have DUTY_ZERO (0% duty)
+  const dutyZeroControllerNames = new Set(
+    log.decisions.filter(d => d.step === 'DUTY_ZERO').map(d => {
+      const m = d.message.match(/^([^:]+):/);
+      return m ? m[1].trim() : '';
+    }).filter(Boolean)
+  );
+  // Build lookup: controller names that have DUTY_FULL (100% duty)
+  const dutyFullControllerNames = new Set(
+    log.decisions.filter(d => d.step === 'DUTY_FULL').map(d => {
+      const m = d.message.match(/^([^:]+):/);
+      return m ? m[1].trim() : '';
+    }).filter(Boolean)
+  );
+
   // Build header badge from RAPT communication outcomes
   let headerBadge: React.ReactNode;
 
