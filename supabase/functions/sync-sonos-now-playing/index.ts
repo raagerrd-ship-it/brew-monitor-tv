@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     // Parallel fetch: settings + token (biggest latency win)
     const [settingsResult, tokenResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+        .select('id, selected_group_id, selected_group_name, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
         .limit(1)
         .single(),
       getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
