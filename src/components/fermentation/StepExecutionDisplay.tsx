@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap } from "lucide-react";
+import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap, CheckCircle2 } from "lucide-react";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { Progress } from "@/components/ui/progress";
 
