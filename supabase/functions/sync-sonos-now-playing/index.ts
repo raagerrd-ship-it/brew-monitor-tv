@@ -4,6 +4,7 @@ import { getValidAccessToken } from "../_shared/sonos-token.ts";
 import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
+import { recoverGroupByName } from "../_shared/sonos-group-recovery.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
     // Parallel fetch: settings + token (biggest latency win)
     const [settingsResult, tokenResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('id, selected_group_id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+        .select('id, selected_group_id, selected_group_name, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
         .limit(1)
         .single(),
       getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
     }
 
     // PARALLEL fetch: metadata and playback status
-    const [metadataResponse, playbackResponse] = await Promise.all([
+    let [metadataResponse, playbackResponse] = await Promise.all([
       fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
@@ -112,6 +113,23 @@ Deno.serve(async (req) => {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
     ]);
+
+    // Group ID may have changed (Sonos regroups) — recover by name
+    if (!metadataResponse.ok || !playbackResponse.ok) {
+      const recovered = await recoverGroupByName(supabase, accessToken, settings?.selected_group_name, settings?.id, null);
+      if (recovered) {
+        groupId = recovered.groupId;
+        console.log(`[SonosSync] Recovered group "${recovered.groupName}" → ${groupId}`);
+        [metadataResponse, playbackResponse] = await Promise.all([
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+        ]);
+      }
+    }
 
     if (!metadataResponse.ok) {
       await supabase.from('sonos_now_playing').delete().neq('id', '00000000-0000-0000-0000-000000000000');
