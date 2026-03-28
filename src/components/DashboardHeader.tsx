@@ -140,6 +140,9 @@ export function DashboardHeader({
         )}
       </div>
 
+      {/* Alarm/Timer dialog */}
+      <AlarmTimerDialog open={alarmDialogOpen} onOpenChange={setAlarmDialogOpen} />
+
       {/* Controller dialog — owned by header */}
       {selectedController && (
         <RaptControllerDialog

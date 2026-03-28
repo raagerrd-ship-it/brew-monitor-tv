@@ -88,6 +88,7 @@ function AppContent() {
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
+            </AlarmTimerProvider>
           </AlbumArtProvider>
         </DashboardAlertProvider>
       </DashboardFooterProvider>
