@@ -2,12 +2,16 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 
 interface DashboardFooterContextType {
   footerHeight: number;
-  setFooterContent: (height: number | null) => void;
+  footerContent: ReactNode | null;
+  setFooterSlot: (content: ReactNode, height: number) => void;
+  clearFooterSlot: () => void;
 }
 
 const DashboardFooterContext = createContext<DashboardFooterContextType>({
   footerHeight: 0,
-  setFooterContent: () => {},
+  footerContent: null,
+  setFooterSlot: () => {},
+  clearFooterSlot: () => {},
 });
 
 export function useDashboardFooter() {
@@ -16,13 +20,20 @@ export function useDashboardFooter() {
 
 export function DashboardFooterProvider({ children }: { children: ReactNode }) {
   const [footerHeight, setFooterHeight] = useState(0);
+  const [footerContent, setFooterContent] = useState<ReactNode | null>(null);
 
-  const setFooterContent = useCallback((height: number | null) => {
-    setFooterHeight(height ?? 0);
+  const setFooterSlot = useCallback((content: ReactNode, height: number) => {
+    setFooterContent(content);
+    setFooterHeight(height);
+  }, []);
+
+  const clearFooterSlot = useCallback(() => {
+    setFooterContent(null);
+    setFooterHeight(0);
   }, []);
 
   return (
-    <DashboardFooterContext.Provider value={{ footerHeight, setFooterContent }}>
+    <DashboardFooterContext.Provider value={{ footerHeight, footerContent, setFooterSlot, clearFooterSlot }}>
       {children}
     </DashboardFooterContext.Provider>
   );
