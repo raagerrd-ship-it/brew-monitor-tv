@@ -419,11 +419,12 @@ export async function calculateCompensatedTarget(
     console.log(`🔥 Heating overheated ${controllerName}: err=${avgError.toFixed(2)}°, I→${hIntegral.toFixed(3)}, duty=0%`)
   } else {
     // NEEDS HEATING — proportional + integral
-    pCorrection = heatingNeed * HEAT_P
-
+    // Same stale-data logic as cooling: P only fires on new measurements
     if (isStaleData) {
-      console.log(`⏸️ Heating stale ${controllerName}: holding I=${hIntegral.toFixed(3)}`)
+      pCorrection = 0
+      console.log(`⏸️ Heating stale ${controllerName}: P=0 (no new data), holding I=${hIntegral.toFixed(3)}`)
     } else {
+      pCorrection = heatingNeed * HEAT_P
       hIntegral = hIntegral * HEAT_DECAY + heatingNeed * HEAT_I
       hIntegral = Math.max(0, Math.min(HEAT_IMAX, hIntegral))
     }
