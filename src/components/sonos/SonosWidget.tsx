@@ -20,6 +20,7 @@ export const SonosWidget = memo(function SonosWidget({
   const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
+  const initialArtAppliedRef = useRef(false);
   const [imageError, setImageError] = useState(false);
 
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -87,6 +88,15 @@ export const SonosWidget = memo(function SonosWidget({
 
   // --- Image preloading ---
   const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
+
+  // On first nowPlaying (init/app update), apply art immediately without waiting for preload
+  useEffect(() => {
+    if (incomingArtUrl && !initialArtAppliedRef.current && !displayedArtUrl) {
+      initialArtAppliedRef.current = true;
+      setDisplayedArtUrl(incomingArtUrl);
+      setImageError(false);
+    }
+  }, [incomingArtUrl, displayedArtUrl]);
 
   useEffect(() => {
     if (incomingArtUrl) setImageError(false);
