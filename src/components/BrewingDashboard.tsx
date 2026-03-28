@@ -13,8 +13,8 @@ import { toast as sonnerToast } from "sonner";
 import { useBrewData, useSplashScreen, useBrewCarousel, useTvRefresh } from "@/hooks";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
-import { TimerFooter, TIMER_FOOTER_HEIGHT } from "@/components/TimerFooter";
-import { useTimerVisibility } from "@/contexts/TimerContext";
+import { TimerFooter } from "@/components/TimerFooter";
+import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
 import { TempController } from "@/types/brew";
