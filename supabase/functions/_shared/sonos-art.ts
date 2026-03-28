@@ -10,6 +10,23 @@ export function extractSpotifyTrackId(trackUri: string | undefined): string | nu
   return match ? match[1] : null;
 }
 
+// Extract Spotify track ID from getaa u-parameter
+// e.g. u=x-sonos-spotify%3aspotify%253atrack%253a4fDIHjqsaD7nZQ95dk0Xo...
+function extractSpotifyTrackIdFromGetaa(imgUrl: string): string | null {
+  try {
+    const url = new URL(imgUrl);
+    const uParam = url.searchParams.get('u');
+    if (!uParam) return null;
+    // Decode potentially double-encoded URI
+    let decoded = decodeURIComponent(uParam);
+    // Try another round if still encoded
+    if (decoded.includes('%3a') || decoded.includes('%3A')) {
+      decoded = decodeURIComponent(decoded);
+    }
+    return extractSpotifyTrackId(decoded);
+  } catch { return null; }
+}
+
 // Upgrade Spotify CDN image URL from 300x300 to 640x640
 function upgradeSpotifyImageSize(url: string): string {
   return url.replace('ab67616d00001e02', 'ab67616d0000b273');
@@ -81,6 +98,15 @@ async function getYouTubeThumbnail(videoId: string): Promise<string | null> {
   return null;
 }
 
+// Search YouTube via oEmbed for a track name (no API key needed)
+async function searchYouTubeOEmbed(trackName: string, artistName: string | null): Promise<string | null> {
+  // YouTube oEmbed doesn't support search, but we can try the YouTube image via
+  // a Invidious/Piped search or simply skip to Spotify Search.
+  // Instead, we use YouTube's noembed.com as a proxy-free approach won't work for search.
+  // Best approach: use the Spotify Search fallback which covers most YouTube Music content too.
+  return null;
+}
+
 // Get Spotify access token via Client Credentials flow (cached ~1h)
 async function getSpotifyClientToken(): Promise<string | null> {
   if (spotifyTokenCache && Date.now() < spotifyTokenCache.expiresAt) {
@@ -145,7 +171,17 @@ async function searchSpotifyForArt(
   return { medium: null, small: null };
 }
 
-// Resolve album art URL, falling back to oEmbed/YouTube/Spotify Search for local network URLs
+// Clean up YouTube Music track names for better Spotify Search matching
+// YouTube Music titles often have suffixes like "(Official Video)", "| Lyrics", etc.
+function cleanTrackNameForSearch(trackName: string): string {
+  return trackName
+    .replace(/\s*[\(\[](official\s*(music\s*)?video|lyric(s)?\s*video|audio|visualizer|live|remix|ft\.?[^)\]]*|feat\.?[^)\]]*)[\)\]]/gi, '')
+    .replace(/\s*\|\s*(lyrics|official|audio|video|live).*/gi, '')
+    .replace(/\s*-\s*(official|lyric(s)?|audio|music)\s*(video|audio)?.*/gi, '')
+    .trim();
+}
+
+// Resolve album art URL with multi-step fallback chain
 export async function resolveAlbumArt(
   imgUrl: string | null,
   objectId: string | undefined,
@@ -159,26 +195,38 @@ export async function resolveAlbumArt(
   if (isLocal) {
     if (imgUrl) console.log(`[SonosArt] Local/missing URL detected: ${imgUrl.substring(0, 120)}`);
 
-    // Step 1: Try extracting public URL from getaa u-parameter
+    // Step 1a: Try extracting public https URL from getaa u-parameter
     const publicUrl = imgUrl ? extractPublicUrlFromGetaa(imgUrl) : null;
     if (publicUrl) {
-      console.log(`[SonosArt] ✓ Step 1 (getaa extract) succeeded`);
+      console.log(`[SonosArt] ✓ Step 1a (getaa public URL) succeeded`);
       return { medium: publicUrl, small: null };
     }
-    if (imgUrl) console.log(`[SonosArt] ✗ Step 1 (getaa extract) — no u-parameter found`);
 
-    // Step 2: Try Spotify oEmbed for native Spotify content
-    const spotifyTrackId = extractSpotifyTrackId(objectId);
-    if (spotifyTrackId) {
+    // Step 1b: Try extracting Spotify track ID from getaa u-parameter (x-sonos-spotify:...)
+    const getaaSpotifyId = imgUrl ? extractSpotifyTrackIdFromGetaa(imgUrl) : null;
+    if (getaaSpotifyId) {
+      console.log(`[SonosArt] → Step 1b (getaa→Spotify) found track: ${getaaSpotifyId}`);
+      const art = await getAlbumArtViaOEmbed(getaaSpotifyId);
+      if (art.medium) { console.log(`[SonosArt] ✓ Step 1b (getaa→oEmbed) succeeded`); return art; }
+      console.log(`[SonosArt] ✗ Step 1b (getaa→oEmbed) — no result, trying Search`);
+    }
+
+    if (imgUrl && !publicUrl && !getaaSpotifyId) {
+      console.log(`[SonosArt] ✗ Step 1 (getaa extract) — no usable data in u-parameter`);
+    }
+
+    // Step 2: Try Spotify oEmbed for native Spotify content (via objectId)
+    const spotifyTrackId = getaaSpotifyId || extractSpotifyTrackId(objectId);
+    if (spotifyTrackId && !getaaSpotifyId) {
       console.log(`[SonosArt] → Step 2 (oEmbed) trying track: ${spotifyTrackId}`);
       const art = await getAlbumArtViaOEmbed(spotifyTrackId);
       if (art.medium) { console.log(`[SonosArt] ✓ Step 2 (oEmbed) succeeded`); return art; }
       console.log(`[SonosArt] ✗ Step 2 (oEmbed) — no result`);
-    } else {
+    } else if (!spotifyTrackId) {
       console.log(`[SonosArt] ✗ Step 2 (oEmbed) — not Spotify content (objectId: ${objectId?.substring(0, 30)})`);
     }
 
-    // Step 3: Try YouTube thumbnail
+    // Step 3: Try YouTube thumbnail (direct video ID match)
     const ytId = extractYouTubeVideoId(objectId, imgUrl);
     if (ytId) {
       console.log(`[SonosArt] → Step 3 (YouTube) trying video: ${ytId}`);
@@ -191,15 +239,25 @@ export async function resolveAlbumArt(
 
     // Step 4: Spotify Search API fallback (works for any service if track exists on Spotify)
     if (trackName) {
+      // First try with original name
       console.log(`[SonosArt] → Step 4 (Spotify Search) trying "${trackName}" by "${artistName || 'unknown'}"`);
       const searchResult = await searchSpotifyForArt(trackName, artistName || null);
       if (searchResult.medium) { console.log(`[SonosArt] ✓ Step 4 (Spotify Search) succeeded`); return searchResult; }
+      
+      // If YouTube Music content, try with cleaned track name (remove "Official Video" etc.)
+      const cleanedName = cleanTrackNameForSearch(trackName);
+      if (cleanedName !== trackName && cleanedName.length > 2) {
+        console.log(`[SonosArt] → Step 4b (Spotify Search cleaned) trying "${cleanedName}"`);
+        const cleanResult = await searchSpotifyForArt(cleanedName, artistName || null);
+        if (cleanResult.medium) { console.log(`[SonosArt] ✓ Step 4b (Spotify Search cleaned) succeeded`); return cleanResult; }
+      }
+      
       console.log(`[SonosArt] ✗ Step 4 (Spotify Search) — no match found`);
     } else {
       console.log(`[SonosArt] ✗ Step 4 (Spotify Search) — no track name available`);
     }
 
-    console.log(`[SonosArt] ✗ All 4 steps failed for "${trackName || objectId}"`);
+    console.log(`[SonosArt] ✗ All steps failed for "${trackName || objectId}"`);
     return { medium: null, small: null };
   }
   return { medium: imgUrl, small: null };
