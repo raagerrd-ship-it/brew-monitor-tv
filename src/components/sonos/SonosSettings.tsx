@@ -48,8 +48,8 @@ function ArtResolutionDiagnostics() {
   const StatusIcon = ({ ok }: { ok: boolean | null }) => {
     if (ok === null) return <Circle className="h-3.5 w-3.5 text-muted-foreground" />;
     return ok
-      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-      : <XCircle className="h-3.5 w-3.5 text-red-400" />;
+      ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+      : <XCircle className="h-3.5 w-3.5 text-destructive" />;
   };
 
   return (
