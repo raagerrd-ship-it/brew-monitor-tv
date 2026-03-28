@@ -393,6 +393,21 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
   const pidDbOnly = log.decisions.filter(d => d.step === 'PID_PWM_UPDATE');
 
+  // Build lookup: controller names that have DUTY_ZERO (0% duty)
+  const dutyZeroControllerNames = new Set(
+    log.decisions.filter(d => d.step === 'DUTY_ZERO').map(d => {
+      const m = d.message.match(/^([^:]+):/);
+      return m ? m[1].trim() : '';
+    }).filter(Boolean)
+  );
+  // Build lookup: controller names that have DUTY_FULL (100% duty)
+  const dutyFullControllerNames = new Set(
+    log.decisions.filter(d => d.step === 'DUTY_FULL').map(d => {
+      const m = d.message.match(/^([^:]+):/);
+      return m ? m[1].trim() : '';
+    }).filter(Boolean)
+  );
+
   // Build header badge from RAPT communication outcomes
   let headerBadge: React.ReactNode;
 
@@ -418,7 +433,24 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
     // Detect PWM ON sends (marked as PWM, or target=0 for cooling, or very high target for heating)
     const isPwmOn = details?.is_pwm || (newT === 0 && oldT != null && oldT > 0);
-    if (isPwmOn) {
+
+    // Detect if this RAPT_SEND was triggered by a DUTY_ZERO (0% duty revert/suppress)
+    const isDutyZeroSend = dutyZeroControllerNames.has(controllerFullName);
+
+    if (isDutyZeroSend) {
+      // Show as duty 0% badge instead of adjustment arrows
+      const isHeating = log.decisions.find(d => d.step === 'DUTY_ZERO' && d.message.startsWith(controllerFullName))?.message?.toLowerCase().includes('heating') || false;
+      const modeIcon = isHeating ? '🔥' : '❄️';
+      raptBadges.push(
+        <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
+          background: color ? `${color}33` : 'hsl(150 60% 45% / 0.2)',
+          color: color || 'hsl(150 60% 45%)',
+          borderColor: color ? `${color}4d` : 'hsl(150 60% 45% / 0.3)',
+        }}>
+          {modeIcon} {shortName} 0%
+        </Badge>
+      );
+    } else if (isPwmOn) {
       const dutyPctVal = details?.duty_pct;
       const modeIcon = details?.mode === 'heating' ? '🔥' : '❄️';
       raptBadges.push(
@@ -508,7 +540,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   }
 
   // PWM duty 0% badges — controllers with no burst this cycle
-  // Skip controllers that already have a RAPT_SEND (adjustment) badge
+  // Skip controllers that already have a RAPT_SEND badge (duty-zero send or adjustment)
   const sentControllerNames = new Set(raptSends.map(s => {
     const m = s.message?.match(/^(.+?):\s/);
     return m ? m[1].trim() : '';
@@ -517,7 +549,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   for (const skipD of dutySkipDecisions) {
     const nameMatch = skipD.message.match(/^([^:]+):/);
     const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (sentControllerNames.has(fullName)) continue; // already has adjustment badge
+    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge (0% or adjustment)
     const shortName = fullName.replace('Temp Controller ', '');
     const color = controllerColors[fullName];
     const dutyMatch = skipD.message.match(/PWM (\d+)%/);
@@ -530,7 +562,28 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
       }}>
-        {modeIcon} {shortName} {dutyPctVal}%
+        {modeIcon} {shortName} {dutyPctVal}% – SKIP
+      </Badge>
+    );
+  }
+
+  // DUTY_FULL (100%) badges — show SKIP when no RAPT_SEND was needed (hw already at target)
+  const dutyFullDecisions = log.decisions.filter(d => d.step === 'DUTY_FULL');
+  for (const fullD of dutyFullDecisions) {
+    const nameMatch = fullD.message.match(/^([^:]+):/);
+    const fullName = nameMatch ? nameMatch[1].trim() : '';
+    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge
+    const shortName = fullName.replace('Temp Controller ', '');
+    const color = controllerColors[fullName];
+    const isHeating = fullD.message.toLowerCase().includes('heating');
+    const modeIcon = isHeating ? '🔥' : '❄️';
+    raptBadges.push(
+      <Badge key={`full-skip-${fullD.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
+        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
+        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+      }}>
+        {modeIcon} {shortName} 100% – SKIP
       </Badge>
     );
   }
