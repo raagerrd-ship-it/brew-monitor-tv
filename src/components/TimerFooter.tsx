@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone } from '@/hooks/use-external-timer';
 import { useExternalTimer } from '@/hooks/use-external-timer';
