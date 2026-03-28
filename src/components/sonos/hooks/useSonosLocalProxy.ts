@@ -3,7 +3,7 @@ import { NowPlaying, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 const DEFAULT_LOCAL_PROXY_URL = 'http://192.168.1.11:3000/api/sonos';
-const LOCAL_POLL_INTERVAL = 3000;
+const LOCAL_POLL_INTERVAL = 30000;
 const LOCAL_POLL_TIMEOUT = 4000;
 const SSE_STALE_MS = 5000;
 
