@@ -152,9 +152,25 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       })
       .subscribe();
 
+    // DB polling fallback (30s) — Realtime is unreliable on Chromecast/TV
+    const pollDb = async () => {
+      try {
+        const { data } = await supabase
+          .from('sonos_now_playing')
+          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url')
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          handlerRef.current?.({ new: data });
+        }
+      } catch { /* ignore */ }
+    };
+    const pollInterval = setInterval(pollDb, 30_000);
+
     return () => {
       handlerRef.current = null;
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [isConnected, showWidget]);
 }
