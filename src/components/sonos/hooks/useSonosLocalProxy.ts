@@ -105,6 +105,9 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
       const incomingState = s.playbackState;
       const incomingTrack = s.trackName;
 
+      // Resolve album art from local proxy
+      const localArt = buildArtUrl(resolveAlbumArtUri(s), proxyUrl);
+
       // State-only update (no track name) — e.g. pause/stop
       if (!incomingTrack) {
         if (incomingState && current && current.playback_state !== incomingState) {
@@ -117,7 +120,7 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
       // Track change
       const msSinceTC = Date.now() - trackChangedAtRef.current;
       if (current && incomingTrack !== current.track_name && msSinceTC >= 10000) {
-        tvDebug('sonos', `📡 Local: track change → "${incomingTrack}"`);
+        tvDebug('sonos', `📡 Local: track change → "${incomingTrack}" (art: ${localArt ? 'yes' : 'no'})`);
         handleTrackChangeRef.current({
           trackName: incomingTrack,
           artistName: s.artistName,
@@ -125,10 +128,45 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
           playbackState: incomingState ?? 'PLAYBACK_STATE_PLAYING',
           positionMillis: s.positionMillis ?? 0,
         });
+        // Apply local art as widget_art_url immediately if available
+        if (localArt) {
+          setNowPlaying(prev => {
+            if (!prev) return prev;
+            return { ...prev, widget_art_url: localArt, album_art_url: localArt };
+          });
+        }
         return;
       }
 
-      // Position sync + state
+      // First track (no current state) — init from local proxy
+      if (!current && incomingTrack) {
+        tvDebug('sonos', `📡 Local: init → "${incomingTrack}" (art: ${localArt ? 'yes' : 'no'})`);
+        const np: NowPlaying = {
+          track_name: incomingTrack,
+          artist_name: s.artistName ?? null,
+          album_name: s.albumName ?? null,
+          album_art_url: localArt,
+          widget_art_url: localArt,
+          bg_image_url: null,
+          duration_ms: s.durationMillis ?? null,
+          position_ms: s.positionMillis ?? 0,
+          playback_state: incomingState ?? 'PLAYBACK_STATE_PLAYING',
+          updated_at: new Date().toISOString(),
+          next_track_name: s.nextTrackName ?? null,
+          next_artist_name: s.nextArtistName ?? null,
+          next_album_art_url: null,
+          next_bg_image_url: null,
+          next_widget_art_url: null,
+          group_id: '',
+          id: '',
+          album_art_url_small: null,
+        };
+        setNowPlaying(np);
+        localProgressRef.current = np.position_ms;
+        return;
+      }
+
+      // Position sync + state + art fill
       if (current && incomingTrack === current.track_name) {
         if (s.positionMillis != null) {
           const drift = Math.abs(s.positionMillis - (localProgressRef.current ?? 0));
@@ -137,8 +175,17 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
             updateProgressDOM(progressBarRef, debugTimeRef, s.positionMillis, current.duration_ms);
           }
         }
-        if (incomingState && current.playback_state !== incomingState) {
-          setNowPlaying(prev => prev ? { ...prev, playback_state: incomingState } : prev);
+        const stateChanged = incomingState && current.playback_state !== incomingState;
+        const artFill = localArt && !current.widget_art_url;
+        if (stateChanged || artFill) {
+          setNowPlaying(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              ...(stateChanged ? { playback_state: incomingState } : {}),
+              ...(artFill ? { widget_art_url: localArt, album_art_url: localArt } : {}),
+            };
+          });
         }
       }
     };
