@@ -166,6 +166,7 @@ export const TimerFooter = memo(function TimerFooter() {
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
+  const { showAlert, dismissAlert } = useDashboardAlert();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);

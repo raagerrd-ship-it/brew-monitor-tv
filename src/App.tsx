@@ -86,7 +86,7 @@ function AppContent() {
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
-        </AlbumArtProvider>
+        </DashboardAlertProvider>
       </DashboardFooterProvider>
     </ExternalAuthProvider>
   );
