@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
       artist_name: track?.artist?.name || null,
       album_name: track?.album?.name || null,
       album_art_url: currentArt.medium,
-      album_art_url_small: currentArt.small,
+      album_art_url_small: rawCurrentArt,
       next_track_name: nextTrackName,
       next_artist_name: nextArtistName,
       next_album_art_url: rawNextArt,

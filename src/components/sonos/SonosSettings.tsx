@@ -79,35 +79,51 @@ function ArtResolutionDiagnostics() {
                 <p className="text-xs text-muted-foreground">{data.artist_name || ''} · {data.playback_state}</p>
               </div>
 
+              {/* Raw Sonos URLs */}
+              <div className="space-y-2 rounded-md bg-background/50 p-3 border border-border/40">
+                <p className="text-xs font-medium text-muted-foreground">Rå Sonos-URL (nuvarande låt)</p>
+                <p className="text-[10px] font-mono text-foreground break-all select-all leading-relaxed bg-muted/50 p-2 rounded">
+                  {data.album_art_url_small || '(ingen URL från Sonos)'}
+                </p>
+                {data.next_album_art_url && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground mt-2">Rå Sonos-URL (nästa låt)</p>
+                    <p className="text-[10px] font-mono text-foreground break-all select-all leading-relaxed bg-muted/50 p-2 rounded">
+                      {data.next_album_art_url}
+                    </p>
+                  </>
+                )}
+              </div>
+
               {/* Resolution chain for current track */}
               <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Upplösningskedja — nuvarande låt</p>
                 <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url ? !data.album_art_url.includes('192.168.') : null} />
-                  <span className="text-xs">1. Extrahera getaa-URL</span>
+                  <StatusIcon ok={data.album_art_url?.includes('googleusercontent') ? true : (data.album_art_url_small ? false : null)} />
+                  <span className="text-xs">1. Extrahera getaa u-param</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('googleusercontent') ? '✓ Google CDN' : '—'}
+                    {data.album_art_url?.includes('googleusercontent') ? '✓ Google CDN' : data.album_art_url_small?.includes('getaa') ? '✗ Ingen u-param' : '—'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url?.includes('i.scdn.co') ? true : null} />
+                  <StatusIcon ok={data.album_art_url?.includes('i.scdn.co') ? true : (data.album_art_url_small ? false : null)} />
                   <span className="text-xs">2. Spotify oEmbed</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('i.scdn.co') ? '✓ Spotify CDN' : '—'}
+                    {data.album_art_url?.includes('i.scdn.co') ? '✓ Spotify CDN' : '✗ Ej Spotify'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url?.includes('img.youtube.com') ? true : null} />
+                  <StatusIcon ok={data.album_art_url?.includes('img.youtube.com') ? true : (data.album_art_url_small ? false : null)} />
                   <span className="text-xs">3. YouTube Thumbnail</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('img.youtube.com') ? '✓ YouTube' : '—'}
+                    {data.album_art_url?.includes('img.youtube.com') ? '✓ YouTube' : '✗ Ej hittad'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusIcon ok={data.album_art_url ? true : false} />
                   <span className="text-xs">4. Spotify Search</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {!data.album_art_url ? 'Ingen träff' : ''}
+                    {data.album_art_url && !data.album_art_url.includes('googleusercontent') && !data.album_art_url.includes('img.youtube.com') && data.album_art_url.includes('i.scdn.co') ? '✓ Sökträff' : !data.album_art_url ? '✗ Ingen träff' : ''}
                   </span>
                 </div>
               </div>
@@ -137,7 +153,7 @@ function ArtResolutionDiagnostics() {
                 <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Nästa: {data.next_track_name}</p>
                   <div className="flex items-center gap-2">
-                    <StatusIcon ok={!!data.next_album_art_url} />
+                    <StatusIcon ok={!!data.next_album_art_url && !data.next_album_art_url.includes('192.168.')} />
                     <span className="text-xs">Album art</span>
                     <span className="ml-auto text-xs text-muted-foreground truncate max-w-[180px]">{getArtSourceType(data.next_album_art_url)}</span>
                   </div>
