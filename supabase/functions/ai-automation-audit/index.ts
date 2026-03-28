@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
     // Fetch active brews to map controller_id → brew_id for fermentation metrics
     const { data: activeBrews } = await supabase
       .from('brew_readings')
-      .select('id, linked_controller_id, attenuation, status, original_gravity, final_gravity, current_sg')
+      .select('id, name, linked_controller_id, attenuation, status, original_gravity, final_gravity, current_sg, last_update, updated_at')
       .not('linked_controller_id', 'is', null)
       .eq('status', 'Jäsning');
 
