@@ -15,6 +15,159 @@ interface SonosGroup {
   householdId: string;
 }
 
+function ArtResolutionDiagnostics() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadDiagnostics = async () => {
+    setLoading(true);
+    try {
+      const { data: row } = await supabase
+        .from('sonos_now_playing')
+        .select('track_name, artist_name, album_art_url, album_art_url_small, bg_image_url, widget_art_url, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url, playback_state, updated_at')
+        .limit(1)
+        .single();
+      setData(row);
+    } catch (e) {
+      console.error('Failed to load art diagnostics:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getArtSourceType = (url: string | null): string => {
+    if (!url) return 'Saknas';
+    if (url.includes('i.scdn.co') || url.includes('spotify')) return 'Spotify';
+    if (url.includes('lh3.googleusercontent.com')) return 'Google/YT Music';
+    if (url.includes('img.youtube.com')) return 'YouTube Thumbnail';
+    if (url.includes('supabase')) return 'Storage (bearbetad)';
+    if (url.includes('192.168.') || url.includes('getaa')) return '⚠️ Lokal (ej åtkomlig)';
+    return 'Publik CDN';
+  };
+
+  const StatusIcon = ({ ok }: { ok: boolean | null }) => {
+    if (ok === null) return <Circle className="h-3.5 w-3.5 text-muted-foreground" />;
+    return ok
+      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+      : <XCircle className="h-3.5 w-3.5 text-red-400" />;
+  };
+
+  return (
+    <Collapsible>
+      <div className="p-4 rounded-lg border border-border/60 bg-muted/20">
+        <CollapsibleTrigger className="flex items-center justify-between w-full group">
+          <div className="space-y-0.5 text-left">
+            <p className="settings-label">Albumart-diagnostik</p>
+            <p className="text-xs text-muted-foreground">
+              Visa status för bildupplösning (4-stegs fallback)
+            </p>
+          </div>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4 space-y-3">
+          {!data && (
+            <Button variant="outline" size="sm" onClick={loadDiagnostics} disabled={loading} className="w-full">
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImageIcon className="h-4 w-4 mr-2" />}
+              Hämta aktuell status
+            </Button>
+          )}
+          {data && (
+            <div className="space-y-4 text-sm">
+              {/* Current track */}
+              <div className="space-y-2">
+                <p className="font-medium text-foreground">{data.track_name || '(ingen låt)'}</p>
+                <p className="text-xs text-muted-foreground">{data.artist_name || ''} · {data.playback_state}</p>
+              </div>
+
+              {/* Resolution chain for current track */}
+              <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Upplösningskedja — nuvarande låt</p>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={data.album_art_url ? !data.album_art_url.includes('192.168.') : null} />
+                  <span className="text-xs">1. Extrahera getaa-URL</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {data.album_art_url?.includes('googleusercontent') ? '✓ Google CDN' : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={data.album_art_url?.includes('i.scdn.co') ? true : null} />
+                  <span className="text-xs">2. Spotify oEmbed</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {data.album_art_url?.includes('i.scdn.co') ? '✓ Spotify CDN' : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={data.album_art_url?.includes('img.youtube.com') ? true : null} />
+                  <span className="text-xs">3. YouTube Thumbnail</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {data.album_art_url?.includes('img.youtube.com') ? '✓ YouTube' : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={data.album_art_url ? true : false} />
+                  <span className="text-xs">4. Spotify Search</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {!data.album_art_url ? 'Ingen träff' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Art URLs */}
+              <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Bildstatus</p>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={!!data.album_art_url} />
+                  <span className="text-xs">Album art</span>
+                  <span className="ml-auto text-xs text-muted-foreground truncate max-w-[180px]">{getArtSourceType(data.album_art_url)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={!!data.bg_image_url} />
+                  <span className="text-xs">Bakgrundsbild</span>
+                  <span className="ml-auto text-xs text-muted-foreground truncate max-w-[180px]">{getArtSourceType(data.bg_image_url)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusIcon ok={!!data.widget_art_url} />
+                  <span className="text-xs">Widget-bild</span>
+                  <span className="ml-auto text-xs text-muted-foreground truncate max-w-[180px]">{getArtSourceType(data.widget_art_url)}</span>
+                </div>
+              </div>
+
+              {/* Next track */}
+              {data.next_track_name && (
+                <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Nästa: {data.next_track_name}</p>
+                  <div className="flex items-center gap-2">
+                    <StatusIcon ok={!!data.next_album_art_url} />
+                    <span className="text-xs">Album art</span>
+                    <span className="ml-auto text-xs text-muted-foreground truncate max-w-[180px]">{getArtSourceType(data.next_album_art_url)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusIcon ok={!!data.next_bg_image_url} />
+                    <span className="text-xs">Bakgrund</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusIcon ok={!!data.next_widget_art_url} />
+                    <span className="text-xs">Widget</span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Uppdaterad: {data.updated_at ? new Date(data.updated_at).toLocaleTimeString('sv-SE') : '—'}
+              </p>
+
+              <Button variant="outline" size="sm" onClick={loadDiagnostics} disabled={loading} className="w-full">
+                {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Uppdatera
+              </Button>
+            </div>
+          )}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
 export function SonosSettings() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
