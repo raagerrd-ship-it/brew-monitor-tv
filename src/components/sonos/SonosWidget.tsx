@@ -3,6 +3,7 @@ import { NowPlaying, stripQuery } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
+  useSonosLocalProxy,
 } from "./hooks";
 import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
@@ -61,6 +62,13 @@ export const SonosWidget = memo(function SonosWidget({
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
+    progressBarRef, debugTimeRef,
+  });
+
+  const { localActiveRef } = useSonosLocalProxy({
+    isConnected, showWidget, nowPlaying, nowPlayingRef,
+    setNowPlaying, handleTrackChange,
+    localProgressRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
   });
 
