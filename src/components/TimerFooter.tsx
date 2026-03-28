@@ -164,7 +164,7 @@ export const TimerFooter = memo(function TimerFooter() {
   const timer = useExternalTimer();
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
-  const { setFooterContent } = useDashboardFooter();
+  const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
   
   // Track triggered milestones for attention notification
   const [triggeredAlert, setTriggeredAlert] = useState<{ label: string; time: number } | null>(null);
@@ -187,9 +187,13 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Register footer height so dashboard can adjust layout
   useEffect(() => {
-    setFooterContent(isVisible ? TIMER_FOOTER_HEIGHT : null);
-    return () => setFooterContent(null);
-  }, [isVisible, setFooterContent]);
+    if (isVisible) {
+      setFooterSlot(null, TIMER_FOOTER_HEIGHT); // null content = self-rendering
+    } else {
+      clearFooterSlot();
+    }
+    return () => clearFooterSlot();
+  }, [isVisible, setFooterSlot, clearFooterSlot]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
