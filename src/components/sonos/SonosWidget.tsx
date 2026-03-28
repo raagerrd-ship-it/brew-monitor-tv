@@ -72,6 +72,15 @@ export const SonosWidget = memo(function SonosWidget({
     progressBarRef, debugTimeRef,
   });
 
+  // Send bg image on init when nowPlaying arrives with bg_image_url
+  useEffect(() => {
+    if (nowPlaying?.bg_image_url && !bgSentRef.current) {
+      onAlbumArtChangeRef.current?.(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
+      bgSentRef.current = nowPlaying.bg_image_url;
+      pushToBgBuffer(validBgBufferRef.current, nowPlaying.bg_image_url);
+    }
+  }, [nowPlaying?.bg_image_url]);
+
   const { shouldHide } = useSonosVisibility({
     isConnected, showWidget, nowPlaying, setNowPlaying,
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
