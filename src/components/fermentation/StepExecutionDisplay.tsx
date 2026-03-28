@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap } from "lucide-react";
+import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap, CheckCircle2 } from "lucide-react";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { Progress } from "@/components/ui/progress";
 
@@ -241,6 +241,9 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
                 </span>
                 {item.detail && (
                   <span className="text-muted-foreground text-[11px]">{item.detail}</span>
+                )}
+                {item.progress != null && item.progress >= 1 && (
+                  <CheckCircle2 className="w-3 h-3" style={{ color: 'hsl(142 70% 55%)' }} />
                 )}
               </div>
             </div>
