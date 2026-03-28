@@ -393,7 +393,8 @@ Deno.serve(async (req) => {
           // - Active fermentation session (profile controls target)
           // - Cooler controller (cooler management controls target)
           // - Controller has active PID (has pill + dual sensor or session)
-          const isPidManaged = pillTemp != null && (hasActiveSession || dualEnabled);
+          const hasProfileTarget = existingMap.get(controller.id)?.profile_target_temp != null;
+          const isPidManaged = pillTemp != null && (hasActiveSession || dualEnabled || hasProfileTarget);
           if (!hasActiveSession && !isCoolerController && !isPidManaged) {
             updateData.target_temp = targetTemp;
           } else {
