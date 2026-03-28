@@ -392,6 +392,8 @@ export function SonosSettings() {
               Snabbare paus/play/skip-detection via lokal proxy. Album art hämtas fortfarande från molnet.
             </p>
           </div>
+
+          <Collapsible>
             <div className="p-4 rounded-lg border border-border/60 bg-muted/20">
               <CollapsibleTrigger className="flex items-center justify-between w-full group">
                 <div className="space-y-0.5 text-left">
