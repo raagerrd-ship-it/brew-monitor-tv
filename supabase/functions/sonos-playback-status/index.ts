@@ -26,10 +26,12 @@ Deno.serve(async (req) => {
     // Parallel fetch: token + settings (art URLs come from init + realtime, not needed here)
     const [tokenResult, settingsResult] = await Promise.all([
       getValidAccessToken(supabase, SONOS_CLIENT_ID!, SONOS_CLIENT_SECRET!),
-      supabase.from('sonos_settings').select('selected_group_id').limit(1).single(),
+      supabase.from('sonos_settings').select('id, selected_group_id, selected_group_name').limit(1).single(),
     ]);
 
-    const groupId = settingsResult.data?.selected_group_id;
+    let groupId = settingsResult.data?.selected_group_id;
+    const groupName = settingsResult.data?.selected_group_name;
+    const settingsId = settingsResult.data?.id;
 
     if (!tokenResult || !groupId) {
       return new Response(JSON.stringify({ ok: false, reason: 'not_configured' }), {
@@ -40,7 +42,7 @@ Deno.serve(async (req) => {
     const accessToken = tokenResult.accessToken;
 
     // Parallel fetch: playback status + metadata
-    const [playbackResponse, metadataResponse] = await Promise.all([
+    let [playbackResponse, metadataResponse] = await Promise.all([
       fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
@@ -48,6 +50,22 @@ Deno.serve(async (req) => {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }),
     ]);
+
+    // Group ID may have changed — recover by name
+    if (!playbackResponse.ok && settingsId && groupName) {
+      const recovered = await recoverGroupByName(supabase, accessToken, groupName, settingsId, null);
+      if (recovered) {
+        groupId = recovered.groupId;
+        [playbackResponse, metadataResponse] = await Promise.all([
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playback`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+          fetch(`${SONOS_API_URL}/groups/${groupId}/playbackMetadata`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }),
+        ]);
+      }
+    }
 
     if (!playbackResponse.ok) {
       return new Response(JSON.stringify({ ok: false, reason: 'playback_fetch_failed' }), {
