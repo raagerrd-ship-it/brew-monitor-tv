@@ -326,11 +326,17 @@ export async function calculateCompensatedTarget(
       console.log(`❄️ Duty overcooled ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0%`)
     } else {
       // NEEDS COOLING — proportional + integral
-      pCorrection = coolingNeed * DUTY_P
-
+      //
+      // CRITICAL: RAPT telemetry arrives ~every 15 minutes, but PID runs every 5 min.
+      // Without stale-data awareness, P-term fires 3× on the same reading, stacking
+      // PWM bursts and causing overcooling oscillation.
+      // Fix: When data is stale, zero the P-term and let only the integral (learned
+      // steady-state duty) drive the output. P reacts only to NEW measurements.
       if (isStaleData) {
-        console.log(`⏸️ Duty stale ${controllerName}: holding I=${integral.toFixed(3)}`)
+        pCorrection = 0
+        console.log(`⏸️ Duty stale ${controllerName}: P=0 (no new data), holding I=${integral.toFixed(3)}`)
       } else {
+        pCorrection = coolingNeed * DUTY_P
         integral = integral * DUTY_DECAY + coolingNeed * DUTY_I
         integral = Math.max(0, Math.min(DUTY_IMAX, integral))
       }
@@ -413,11 +419,12 @@ export async function calculateCompensatedTarget(
     console.log(`🔥 Heating overheated ${controllerName}: err=${avgError.toFixed(2)}°, I→${hIntegral.toFixed(3)}, duty=0%`)
   } else {
     // NEEDS HEATING — proportional + integral
-    pCorrection = heatingNeed * HEAT_P
-
+    // Same stale-data logic as cooling: P only fires on new measurements
     if (isStaleData) {
-      console.log(`⏸️ Heating stale ${controllerName}: holding I=${hIntegral.toFixed(3)}`)
+      pCorrection = 0
+      console.log(`⏸️ Heating stale ${controllerName}: P=0 (no new data), holding I=${hIntegral.toFixed(3)}`)
     } else {
+      pCorrection = heatingNeed * HEAT_P
       hIntegral = hIntegral * HEAT_DECAY + heatingNeed * HEAT_I
       hIntegral = Math.max(0, Math.min(HEAT_IMAX, hIntegral))
     }
