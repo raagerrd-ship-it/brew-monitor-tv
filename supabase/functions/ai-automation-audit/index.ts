@@ -359,7 +359,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             hardware_target: c.target_temp,
             dual_sensor_enabled: c.dual_sensor_enabled ?? false,
             preferred_sensor: c.preferred_sensor ?? 'pill',
-            delta: c.pill_temp != null && c.current_temp != null ? +(c.pill_temp - c.current_temp).toFixed(2) : null,
+            delta: (c.dual_sensor_enabled === true && c.pill_temp != null && c.current_temp != null) ? +(c.pill_temp - c.current_temp).toFixed(2) : undefined,
             cooling: c.cooling_enabled,
             heating: c.heating_enabled,
             is_cooler: isCooler,
