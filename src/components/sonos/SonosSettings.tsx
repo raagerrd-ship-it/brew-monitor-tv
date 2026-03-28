@@ -96,37 +96,40 @@ function ArtResolutionDiagnostics() {
               </div>
 
               {/* Resolution chain for current track */}
-              <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Upplösningskedja — nuvarande låt</p>
-                <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url?.includes('googleusercontent') ? true : (data.album_art_url_small ? false : null)} />
-                  <span className="text-xs">1. Extrahera getaa u-param</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('googleusercontent') ? '✓ Google CDN' : data.album_art_url_small?.includes('getaa') ? '✗ Ingen u-param' : '—'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url?.includes('i.scdn.co') ? true : (data.album_art_url_small ? false : null)} />
-                  <span className="text-xs">2. Spotify oEmbed</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('i.scdn.co') ? '✓ Spotify CDN' : '✗ Ej Spotify'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url?.includes('img.youtube.com') ? true : (data.album_art_url_small ? false : null)} />
-                  <span className="text-xs">3. YouTube Thumbnail</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url?.includes('img.youtube.com') ? '✓ YouTube' : '✗ Ej hittad'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusIcon ok={data.album_art_url ? true : false} />
-                  <span className="text-xs">4. Spotify Search</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {data.album_art_url && !data.album_art_url.includes('googleusercontent') && !data.album_art_url.includes('img.youtube.com') && data.album_art_url.includes('i.scdn.co') ? '✓ Sökträff' : !data.album_art_url ? '✗ Ingen träff' : ''}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const art = data.album_art_url;
+                const raw = data.album_art_url_small;
+                const isSpotifyCdn = art?.includes('i.scdn.co');
+                const isGoogleCdn = art?.includes('googleusercontent');
+                const isYouTube = art?.includes('img.youtube.com');
+                const hasGetaa = raw?.includes('getaa');
+                const hasSpotifyInRaw = raw?.includes('sonos-spotify') || raw?.includes('spotify');
+                // Determine which step succeeded
+                const step1aOk = isGoogleCdn && hasGetaa;
+                const step1bOk = isSpotifyCdn && hasGetaa && hasSpotifyInRaw;
+                const step2Ok = isSpotifyCdn && !hasGetaa;
+                const step3Ok = isYouTube;
+                const step4Ok = !!art && !step1aOk && !step1bOk && !step2Ok && !step3Ok;
+                const resolvedStep = step1aOk ? '1a' : step1bOk ? '1b' : step2Ok ? '2' : step3Ok ? '3' : step4Ok ? '4' : null;
+                return (
+                  <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Upplösningskedja — nuvarande låt</p>
+                    {[
+                      { id: '1a', label: 'getaa → publik URL', detail: step1aOk ? '✓ Google CDN' : hasGetaa ? '✗ Ej publik URL' : '✗ Ingen getaa' },
+                      { id: '1b', label: 'getaa → Spotify oEmbed', detail: step1bOk ? '✓ Spotify oEmbed' : hasSpotifyInRaw ? '✗ oEmbed misslyckades' : '✗ Ej Spotify i u-param' },
+                      { id: '2', label: 'objectId → Spotify oEmbed', detail: step2Ok ? '✓ Spotify CDN' : '✗ Ej Spotify' },
+                      { id: '3', label: 'YouTube Thumbnail', detail: step3Ok ? '✓ YouTube' : '✗ Ej hittad' },
+                      { id: '4', label: 'Spotify Search', detail: step4Ok ? '✓ Sökträff' : !art ? '✗ Ingen träff' : '—' },
+                    ].map(s => (
+                      <div key={s.id} className="flex items-center gap-2">
+                        <StatusIcon ok={resolvedStep === s.id ? true : (resolvedStep && resolvedStep < s.id ? null : false)} />
+                        <span className="text-xs">{s.id}. {s.label}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{resolvedStep === s.id ? s.detail : resolvedStep && resolvedStep < s.id ? '—' : s.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Art URLs */}
               <div className="space-y-1.5 rounded-md bg-background/50 p-3 border border-border/40">
