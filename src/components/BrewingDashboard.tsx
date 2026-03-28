@@ -171,7 +171,7 @@ export function BrewingDashboard() {
 
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
-      const footerSpace = showTimerFooter ? TIMER_FOOTER_HEIGHT : 0;
+      const footerSpace = footerHeight;
       return containerHeight - activeHeaderHeight - footerSpace;
     }
     return null;
