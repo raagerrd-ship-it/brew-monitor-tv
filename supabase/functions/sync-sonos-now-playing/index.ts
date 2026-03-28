@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
 
     const rawCurrentArt = track?.imageUrl || container?.imageUrl || null;
 
-    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId);
+    const currentArt = await resolveAlbumArt(rawCurrentArt, track?.id?.objectId || currentItem?.id?.objectId, track?.name, track?.artist?.name);
 
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
