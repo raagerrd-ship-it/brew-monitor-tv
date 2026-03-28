@@ -152,12 +152,20 @@ export async function resolveAlbumArt(
   trackName?: string | null,
   artistName?: string | null,
 ): Promise<{ medium: string | null; small: string | null }> {
-  if (!imgUrl) return { medium: null, small: null };
+  if (!imgUrl && !trackName) return { medium: null, small: null };
 
-  if (imgUrl.includes('192.168.') || imgUrl.includes('getaa')) {
+  const isLocal = imgUrl ? (imgUrl.includes('192.168.') || imgUrl.includes('10.') || imgUrl.includes('getaa')) : true;
+
+  if (isLocal) {
+    if (imgUrl) console.log(`[SonosArt] Local/missing URL detected: ${imgUrl.substring(0, 120)}`);
+
     // Step 1: Try extracting public URL from getaa u-parameter
-    const publicUrl = extractPublicUrlFromGetaa(imgUrl);
-    if (publicUrl) return { medium: publicUrl, small: null };
+    const publicUrl = imgUrl ? extractPublicUrlFromGetaa(imgUrl) : null;
+    if (publicUrl) {
+      console.log(`[SonosArt] ✓ Step 1 (getaa extract) succeeded`);
+      return { medium: publicUrl, small: null };
+    }
+    if (imgUrl) console.log(`[SonosArt] ✗ Step 1 (getaa extract) — no u-parameter found`);
 
     // Step 2: Try Spotify oEmbed for native Spotify content
     const spotifyTrackId = extractSpotifyTrackId(objectId);
