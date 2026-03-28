@@ -353,7 +353,7 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
             name: sanitize(c.name),
             actual_temp: c.actual_temp,
             actual_target: isCooler ? null : (c.profile_target_temp ?? c.target_temp),
-            cooler_target: isCooler ? c.profile_target_temp : undefined,
+            desired_cooler_target: isCooler ? c.profile_target_temp : undefined,
             probe_temp: c.current_temp,
             pill_temp: c.pill_temp,
             hardware_target: c.target_temp,
