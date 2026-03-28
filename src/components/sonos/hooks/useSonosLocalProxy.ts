@@ -151,15 +151,11 @@ export function useSonosLocalProxy(params: UseSonosLocalProxyParams) {
           duration_ms: s.durationMillis ?? null,
           position_ms: s.positionMillis ?? 0,
           playback_state: incomingState ?? 'PLAYBACK_STATE_PLAYING',
-          updated_at: new Date().toISOString(),
           next_track_name: s.nextTrackName ?? null,
           next_artist_name: s.nextArtistName ?? null,
           next_album_art_url: null,
           next_bg_image_url: null,
           next_widget_art_url: null,
-          group_id: '',
-          id: '',
-          album_art_url_small: null,
         };
         setNowPlaying(np);
         localProgressRef.current = np.position_ms;
