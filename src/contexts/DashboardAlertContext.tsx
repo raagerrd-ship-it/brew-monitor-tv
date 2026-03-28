@@ -7,6 +7,8 @@ export interface DashboardAlert {
   content: ReactNode;
   /** Auto-dismiss after this many milliseconds. null = manual dismiss only */
   autoDismissMs: number | null;
+  /** Optional custom background for the overlay. Defaults to dark radial gradient */
+  overlayBackground?: string;
 }
 
 interface DashboardAlertContextType {
