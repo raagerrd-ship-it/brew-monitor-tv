@@ -1,15 +1,11 @@
 
 
-## Arkivera ALLA Brewfather-batchar
+## Force AI Audit – Verifiera aktiva bryggningar
 
-**Vad:** Sätt status till `'Arkiverad'` på samtliga poster i `brew_readings` där `batch_id` INTE börjar med `custom_`.
+**Vad:** Anropa `ai-automation-audit` med `force: true` och sedan läsa senaste posten i `ai_audit_log` för att bekräfta att enbart **Skogens Sus** och **Mjöd** analyseras (inga arkiverade Brewfather-batchar).
 
-**SQL (via insert-verktyget):**
-```sql
-UPDATE brew_readings SET status = 'Arkiverad' WHERE batch_id NOT LIKE 'custom_%';
-```
-
-Detta påverkar alla Brewfather-batchar oavsett nuvarande status (Jäsning, Konditionering, Klar, etc.).
-
-Custom-bryggningar (batch_id som börjar med `custom_`) lämnas orörda.
+**Steg:**
+1. Kör `supabase--curl_edge_functions` mot `ai-automation-audit` med `{ "force": true }`
+2. Vänta kort, sedan läs senaste raden i `ai_audit_log` via `supabase--read_query`
+3. Verifiera att `analysis`-texten bara nämner Skogens Sus och Mjöd
 
