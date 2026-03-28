@@ -170,27 +170,36 @@ export async function resolveAlbumArt(
     // Step 2: Try Spotify oEmbed for native Spotify content
     const spotifyTrackId = extractSpotifyTrackId(objectId);
     if (spotifyTrackId) {
-      console.log(`[SonosArt] Resolving art via oEmbed for track: ${spotifyTrackId}`);
+      console.log(`[SonosArt] → Step 2 (oEmbed) trying track: ${spotifyTrackId}`);
       const art = await getAlbumArtViaOEmbed(spotifyTrackId);
-      if (art.medium) return art;
+      if (art.medium) { console.log(`[SonosArt] ✓ Step 2 (oEmbed) succeeded`); return art; }
+      console.log(`[SonosArt] ✗ Step 2 (oEmbed) — no result`);
+    } else {
+      console.log(`[SonosArt] ✗ Step 2 (oEmbed) — not Spotify content (objectId: ${objectId?.substring(0, 30)})`);
     }
 
     // Step 3: Try YouTube thumbnail
     const ytId = extractYouTubeVideoId(objectId, imgUrl);
     if (ytId) {
-      console.log(`[SonosArt] Trying YouTube thumbnail for video: ${ytId}`);
+      console.log(`[SonosArt] → Step 3 (YouTube) trying video: ${ytId}`);
       const ytThumb = await getYouTubeThumbnail(ytId);
-      if (ytThumb) return { medium: ytThumb, small: null };
+      if (ytThumb) { console.log(`[SonosArt] ✓ Step 3 (YouTube) succeeded`); return { medium: ytThumb, small: null }; }
+      console.log(`[SonosArt] ✗ Step 3 (YouTube) — thumbnail not found or too small`);
+    } else {
+      console.log(`[SonosArt] ✗ Step 3 (YouTube) — no video ID found`);
     }
 
     // Step 4: Spotify Search API fallback (works for any service if track exists on Spotify)
     if (trackName) {
-      console.log(`[SonosArt] Trying Spotify Search for "${trackName}" by "${artistName || 'unknown'}"`);
+      console.log(`[SonosArt] → Step 4 (Spotify Search) trying "${trackName}" by "${artistName || 'unknown'}"`);
       const searchResult = await searchSpotifyForArt(trackName, artistName || null);
-      if (searchResult.medium) return searchResult;
+      if (searchResult.medium) { console.log(`[SonosArt] ✓ Step 4 (Spotify Search) succeeded`); return searchResult; }
+      console.log(`[SonosArt] ✗ Step 4 (Spotify Search) — no match found`);
+    } else {
+      console.log(`[SonosArt] ✗ Step 4 (Spotify Search) — no track name available`);
     }
 
-    console.log(`[SonosArt] No public art found for local URL (objectId: ${objectId})`);
+    console.log(`[SonosArt] ✗ All 4 steps failed for "${trackName || objectId}"`);
     return { medium: null, small: null };
   }
   return { medium: imgUrl, small: null };
