@@ -30,6 +30,9 @@ export function SonosSettings() {
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(2.0);
+  const [localProxyUrl, setLocalProxyUrl] = useState(() => {
+    try { return localStorage.getItem('sonosLocalProxy') || ''; } catch { return ''; }
+  });
   
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
