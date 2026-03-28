@@ -214,11 +214,9 @@ Deno.serve(async (req) => {
 - Om hardware_target > cooler_target innebär det att hårdvaran inte hunnit/klarat sänka till beräknat mål ännu.
 
 ## KRITISK: Sensorläge och actual_temp
-- **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant.
-- **dual_sensor_enabled = false, preferred_sensor = 'pill'**: actual_temp = pill_temp. Probe-temp är INTE del av regleringen. Delta är IRRELEVANT — nämn det inte i analysen.
-- **dual_sensor_enabled = false, preferred_sensor = 'probe'**: actual_temp = probe_temp (current_temp). Pill-temp är INTE del av regleringen. Delta är IRRELEVANT.
+- **dual_sensor_enabled = true**: actual_temp = medelvärde av pill + probe. Delta (pill - probe) är relevant och SKA analyseras.
+- **dual_sensor_enabled = false**: Delta är IRRELEVANT oavsett preferred_sensor. Du får ABSOLUT INTE nämna, analysera, eller kommentera delta, temperaturskillnad mellan pill/probe, eller skillnaden mellan botten och topp för dessa controllers. Ignorera delta-värdet HELT — det existerar inte för din analys. Analysera ENBART actual_temp vs actual_target.
 - **Ingen pill kopplad** (pill_temp = null): actual_temp = probe_temp. Delta existerar inte.
-- VIKTIGT: Analysera BARA actual_temp vs actual_target för att bedöma kontrollprestanda. Nämn INTE delta eller skillnad mellan pill/probe om controllern inte har dual_sensor_enabled = true.
 
 ## Fysikförståelse — Sensorplacering (relevant vid dual-sensor)
 - **Probe (controller-temp)** sitter i BOTTEN av jäskärlet, nära kylslangen/glykolmanteln. Den reagerar SNABBT på kylning.
