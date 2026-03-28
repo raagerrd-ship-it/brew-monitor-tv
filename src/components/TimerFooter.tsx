@@ -7,8 +7,7 @@ import { useTvMode } from '@/contexts/TvModeContext';
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { cn } from '@/lib/utils';
 
-// Export constant for use in layout calculations
-export const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
+const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
