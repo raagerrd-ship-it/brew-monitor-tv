@@ -4,6 +4,7 @@ import { getValidAccessToken } from "../_shared/sonos-token.ts";
 import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
+import { recoverGroupByName } from "../_shared/sonos-group-recovery.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

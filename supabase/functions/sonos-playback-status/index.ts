@@ -1,6 +1,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getValidAccessToken } from "../_shared/sonos-token.ts";
+import { recoverGroupByName } from "../_shared/sonos-group-recovery.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
