@@ -209,16 +209,47 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
     
-    // Find milestones that are triggered but not acknowledged and not already shown
     const justTriggered = timer.milestones.find(m => {
       return m.triggered && !m.acknowledged && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
       lastTriggeredRef.current.add(justTriggered.label);
-      setTriggeredAlert({ label: justTriggered.label, time: Date.now() });
+      const label = justTriggered.label.replace(/🔥\s*/g, '');
+      showAlert({
+        id: 'timer-milestone',
+        autoDismissMs: null,
+        content: (
+          <div 
+            className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
+            style={{
+              background: 'linear-gradient(145deg, hsl(24 90% 20%) 0%, hsl(20 95% 15%) 100%)',
+              border: '2px solid hsl(24 90% 40% / 0.6)',
+              boxShadow: '0 0 60px 10px rgba(234, 88, 12, 0.4), 0 0 120px 30px rgba(234, 88, 12, 0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
+              animation: 'scale-pulse 0.4s ease-out',
+            }}
+          >
+            <div 
+              className="flex items-center gap-3 px-6 py-2 rounded-full mb-6"
+              style={{
+                background: 'linear-gradient(135deg, hsl(24 95% 50%) 0%, hsl(30 100% 45%) 100%)',
+                boxShadow: '0 0 20px rgba(251, 146, 60, 0.5)',
+              }}
+            >
+              <AlertTriangle className="w-6 h-6 text-white" />
+              <span className="text-white text-lg font-bold uppercase tracking-widest">Dags nu!</span>
+            </div>
+            <div className="text-orange-100 text-5xl md:text-7xl font-bold text-center leading-tight">
+              {label}
+            </div>
+            <div className="text-orange-300/80 text-lg mt-4 font-medium">
+              Kvittera i bryggappen
+            </div>
+          </div>
+        ),
+      });
     }
-  }, [timer.milestones, timer.isActive]);
+  }, [timer.milestones, timer.isActive, showAlert]);
 
   // Dismiss alert when acknowledged externally via synced data
   // Mash: pausedByMilestone becomes false when acknowledged
