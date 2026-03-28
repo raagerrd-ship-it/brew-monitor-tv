@@ -43,7 +43,7 @@ export function BrewingDashboard() {
   useTvRefresh(isTvMode);
 
   // Footer height from self-contained footer components via context
-  const { footerHeight } = useDashboardFooter();
+  const { footerHeight, footerContent } = useDashboardFooter();
 
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
