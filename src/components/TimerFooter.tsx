@@ -281,50 +281,6 @@ export const TimerFooter = memo(function TimerFooter() {
 
   return (
     <>
-      {/* Attention-grabbing alert overlay when milestone triggers */}
-      {triggeredAlert && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
-            animation: 'pulse-bg 1.5s ease-in-out infinite alternate',
-          }}
-        >
-          {/* Card with improved layout */}
-          <div 
-            className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
-            style={{
-              background: 'linear-gradient(145deg, hsl(24 90% 20%) 0%, hsl(20 95% 15%) 100%)',
-              border: '2px solid hsl(24 90% 40% / 0.6)',
-              boxShadow: '0 0 60px 10px rgba(234, 88, 12, 0.4), 0 0 120px 30px rgba(234, 88, 12, 0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
-              animation: 'scale-pulse 0.4s ease-out',
-            }}
-          >
-            {/* Top badge */}
-            <div 
-              className="flex items-center gap-3 px-6 py-2 rounded-full mb-6"
-              style={{
-                background: 'linear-gradient(135deg, hsl(24 95% 50%) 0%, hsl(30 100% 45%) 100%)',
-                boxShadow: '0 0 20px rgba(251, 146, 60, 0.5)',
-              }}
-            >
-              <AlertTriangle className="w-6 h-6 text-white" />
-              <span className="text-white text-lg font-bold uppercase tracking-widest">Dags nu!</span>
-            </div>
-            
-            {/* Main action text */}
-            <div className="text-orange-100 text-5xl md:text-7xl font-bold text-center leading-tight">
-              {triggeredAlert.label.replace(/🔥\s*/g, '')}
-            </div>
-            
-            {/* Subtle instruction */}
-            <div className="text-orange-300/80 text-lg mt-4 font-medium">
-              Kvittera i bryggappen
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Main footer - 3 column grid layout for TV */}
       <div 
         className="absolute bottom-0 left-0 right-0 z-20 backdrop-blur-xl"
