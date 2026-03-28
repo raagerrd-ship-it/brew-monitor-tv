@@ -324,15 +324,14 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
       controllers: (controllers || [])
         .filter((c: any) => c.cooling_enabled || c.heating_enabled)
         .map((c: any) => {
-          // Find fermentation metrics for this controller via running sessions (session has brew_id)
-          const session = (sessions || []).find((s: any) => s.controller_id === c.controller_id);
-          const metrics = session?.brew_id ? (fermentationMetrics || []).find((m: any) => m.brew_id === session.brew_id) : null;
-          // Also try matching via brew_readings.linked_controller_id
-          const directMetrics = !metrics ? (fermentationMetrics || []).find((m: any) => {
-            return (activeBrews || []).some((b: any) => b.id === m.brew_id && b.linked_controller_id === c.controller_id);
-          }) : metrics;
-          const fm = metrics || directMetrics;
           const sessionCtx = sessionProfileMap.get(c.controller_id);
+          // Find the single active brew for this controller (most recently updated)
+          const linkedBrew = (activeBrews || [])
+            .filter((b: any) => b.linked_controller_id === c.controller_id)
+            .sort((a: any, b: any) => new Date(b.last_update || b.updated_at || 0).getTime() - new Date(a.last_update || a.updated_at || 0).getTime())
+            [0] || null;
+          // Match fermentation metrics to the SAME brew we selected
+          const fm = linkedBrew ? (fermentationMetrics || []).find((m: any) => m.brew_id === linkedBrew.id) : null;
           // Find the single active brew for this controller (most recently updated)
           const linkedBrew = (activeBrews || [])
             .filter((b: any) => b.linked_controller_id === c.controller_id)
