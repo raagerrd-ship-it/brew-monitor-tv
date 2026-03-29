@@ -100,10 +100,13 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" (bg: ${bgIsNew ? 'ny' : 'väntar'})`);
           return {
             ...incoming,
-            // Keep current bg/widget if server hasn't updated them yet (Phase 1)
+            // Keep current bg if server hasn't updated yet (Phase 1)
             bg_image_url: bgIsNew ? incoming.bg_image_url : prev.bg_image_url,
+            // Use new widget/album art if available, otherwise null (don't show stale art from previous track)
             widget_art_url: incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url
-              ? incoming.widget_art_url : prev.widget_art_url,
+              ? incoming.widget_art_url : null,
+            album_art_url: incoming.album_art_url && incoming.album_art_url !== prev.album_art_url
+              ? incoming.album_art_url : null,
           };
         }
 
