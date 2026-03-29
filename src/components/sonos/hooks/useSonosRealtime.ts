@@ -41,6 +41,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       if (!incoming.track_name) return;
 
       let accepted = false;
+      let isTrackChange = false;
 
       setNowPlaying(prev => {
         // Monotonic seq check: reject stale data
