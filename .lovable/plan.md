@@ -1,44 +1,40 @@
 
 
-## Plan: Extrahera publik URL från Sonos `getaa`-parametern + Spotify Search-fallback
+# track_seq — skyddar både metadata OCH bakgrund
 
-### Bakgrund
-Sonos `getaa`-URL:er (t.ex. `http://192.168.1.x:1400/getaa?s=1&u=https%3A%2F%2Flh3.googleusercontent.com%2F...`) innehåller ofta en `u`-parameter med den **faktiska publika bild-URL:en** (URL-enkodad). Lotus Lantern-projektet löser detta genom att proxya mot lokalt nätverk — men det fungerar inte i molnet.
+## Bekräftelse
 
-### Lösning i två steg
+Bakgrundsbilden (`bg_image_url`) och widget-art (`widget_art_url`) levereras i samma `NowPlaying`-objekt som låtnamn och artist. Seq-checken i `useSonosRealtime` avvisar hela payloaden vid `incoming.track_seq < prev.track_seq`, vilket betyder att **alla fält** skyddas — inklusive bakgrundsbild.
 
-**Steg 1: Extrahera `u`-parametern från `getaa`-URL:er**
+## Planen (oförändrad från tidigare)
 
-I `sonos-art.ts`, innan vi ger upp på lokala URL:er, parsa `u`-parametern ur `getaa`-URL:en. Om den dekodade URL:en är publik (https), returnera den direkt.
+### 1. Databasmigration
+Lägg till `track_seq integer NOT NULL DEFAULT 0` i `sonos_now_playing`.
 
-```text
-resolveAlbumArt(imgUrl, objectId, trackName, artistName)
-  ├─ Publik URL (https)? → returnera direkt
-  ├─ Lokal URL (192.168.x / getaa)?
-  │   ├─ Har getaa u-parameter med publik URL? → returnera den ← NY
-  │   ├─ Spotify objectId? → oEmbed
-  │   ├─ YouTube videoId? → YouTube thumbnail
-  │   └─ trackName + artist? → Spotify Search API ← NY
-  └─ null
-```
+### 2. Server: `sync-sonos-now-playing`
+Inkrementera `track_seq` vid ny låt, behåll vid samma.
 
-**Steg 2: Spotify Search API som sista fallback**
+### 3. Server: `sonos-playback-status`
+Returnera `track_seq` i svaret.
 
-Om `u`-parametern saknas eller är lokal, och oEmbed/YouTube inte matchar, sök via Spotify Search API med `trackName` + `artistName`. Secrets `SPOTIFY_CLIENT_ID` och `SPOTIFY_CLIENT_SECRET` finns redan.
+### 4. Klient: `NowPlaying`-typ
+Lägg till `track_seq?: number`.
 
-### Filändringar
+### 5. Klient: `useSonosRealtime`
+Avvisa payload om `incoming.track_seq < prev.track_seq`.
 
-**`supabase/functions/_shared/sonos-art.ts`**
-- Lägg till `extractPublicUrlFromGetaa(imgUrl)` — parsar `u`-parameter, returnerar dekodad URL om den är publik (https)
-- Lägg till `getSpotifyClientToken()` — Client Credentials-flöde, cachat i minnet (~1h)
-- Lägg till `searchSpotifyForArt(trackName, artistName)` — söker Spotify, returnerar `album.images[0].url`
-- Uppdatera `resolveAlbumArt()` — nya parametrar `trackName?` och `artistName?`, ny fallback-kedja
+### 6. Klient: `useSonosClientPolling`
+Vid track change — trigga server-sync istället för direkt swap. Låt RT leverera med korrekt seq.
 
-**`supabase/functions/sync-sonos-now-playing/index.ts`**
-- Skicka med `track?.name` och `track?.artist?.name` till `resolveAlbumArt()`-anropet (rad 238 och 352)
+## Vad skyddas
 
-### Tekniska detaljer
-- `u`-parametern i getaa: `http://192.168.1.x:1400/getaa?s=1&u=https%3A%2F%2Flh3.googleusercontent.com%2F...` → `decodeURIComponent('https%3A%2F%2Flh3...')` → publik URL
-- Spotify Client Credentials: POST till `https://accounts.spotify.com/api/token`, svar ger `access_token` giltig ~1h, cachas i edge function-minnet
-- Spotify Search: `GET /v1/search?type=track&q=track:{name} artist:{artist}&limit=1` → `tracks.items[0].album.images[0].url`
+| Fält | Skyddat |
+|------|---------|
+| `track_name`, `artist_name` | Ja |
+| `bg_image_url` (bakgrund) | Ja |
+| `widget_art_url` | Ja |
+| `next_*`-fält | Ja |
+| `position_ms`, `duration_ms` | Ja |
+
+Allt avvisas som en enhet — ingen risk att bakgrunden byter tillbaka utan att låtnamnet gör det.
 
