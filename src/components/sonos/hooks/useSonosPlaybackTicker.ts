@@ -29,6 +29,7 @@ interface UseSonosPlaybackTickerParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 /**
