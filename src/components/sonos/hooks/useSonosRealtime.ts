@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { NowPlaying, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
