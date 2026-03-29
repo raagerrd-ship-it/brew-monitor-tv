@@ -681,8 +681,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         } else {
           await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
         }
+        // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
+        // Only PWM OFF will update DB to revertTarget after confirming success.
         await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+          .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
         // Align to minute boundary so the 1-min cron picks it up precisely
         const minuteFloor2 = Math.floor(Date.now() / 60000) * 60000
