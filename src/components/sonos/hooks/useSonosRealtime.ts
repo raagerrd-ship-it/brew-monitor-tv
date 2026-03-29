@@ -42,6 +42,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       const incoming = payload.new as NowPlaying;
       if (!incoming.track_name) return;
 
+      // Anti-rollback: block stale track data from reverting a recent change
+      if (isRollbackBlocked(rollbackLockRef.current, incoming.track_name)) {
+        tvDebug('sonos', `🔒 RT blocked rollback to "${incoming.track_name}"`);
+        return;
+      }
+      // Clear lock if backend confirms the new track
+      if (shouldClearLock(rollbackLockRef.current, incoming.track_name)) {
+        rollbackLockRef.current = null;
+      }
+
       let accepted = false;
       let isTrackChange = false;
 

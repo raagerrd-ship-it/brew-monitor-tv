@@ -80,6 +80,18 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         lastPredictivePollRef.current = Date.now();
 
         if (data.trackName && data.trackName !== trackName) {
+          // Anti-rollback: if this is the old track, retry instead of swapping
+          if (isRollbackBlocked(rollbackLockRef.current, data.trackName)) {
+            tvDebug('sonos', `🔒 Ticker blocked rollback to "${data.trackName}"`);
+            if (retriesLeft > 0) {
+              predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
+            }
+            return;
+          }
+          // Clear lock if confirmed
+          if (shouldClearLock(rollbackLockRef.current, data.trackName)) {
+            rollbackLockRef.current = null;
+          }
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
