@@ -28,6 +28,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
+    rollbackLockRef,
   } = params;
 
   // Store the handler in a ref so the realtime subscription can call the latest version
