@@ -54,10 +54,15 @@ export async function updateLearnedParam(
   const currentValue = existing ? parseFloat(String(existing.learned_value)) : newObservation
   const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
 
+  // Use 6 decimal precision for parameters like SG residuals (≤0.0003),
+  // but keep 2 decimals for larger values like temperatures/margins.
+  const precision = Math.abs(newValue) < 0.01 ? 1e6 : 100
+  const rounded = Math.round(newValue * precision) / precision
+
   await supabase.from('fermentation_learnings').upsert({
     controller_id: controllerId,
     parameter_name: paramName,
-    learned_value: Math.round(newValue * 100) / 100,
+    learned_value: rounded,
     sample_count: sampleCount + 1,
     last_updated_at: new Date().toISOString(),
   }, { onConflict: 'controller_id,parameter_name' })
