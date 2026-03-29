@@ -442,6 +442,22 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
 
+  // ── Sustained high utilization bypass ─────────────────────
+  // If ANY tank has been at 100% utilization across all buckets (≈2h+),
+  // the cooler must help by forcing its target lower — bypass the no-op guard.
+  const sustainedHighUtil = utilizations.some(u =>
+    u.utilization != null && u.utilization >= 0.99
+    && u.recentUtilization != null && u.recentUtilization >= 0.95
+    && u.midUtilization != null && u.midUtilization >= 0.95
+    && u.oldestUtilization != null && u.oldestUtilization >= 0.95
+    && u.ancientUtilization != null && u.ancientUtilization >= 0.95
+  )
+  if (sustainedHighUtil && !isRamp) {
+    const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99
+      && u.ancientUtilization != null && u.ancientUtilization >= 0.95)
+    log('SUSTAINED_DEMAND', 'action', `${maxUtilTank?.controllerName ?? 'Tank'} kyler 100% ihållande (2h+) — tvingar ökad marginal`)
+  }
+
   // ── Relay-aware no-op guard ────────────────────────────────
   // Instead of a fixed 0.1°C threshold, check if the new target would
   // actually change the cooler relay state. With large hysteresis (e.g. 2°C),
@@ -460,7 +476,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // This ensures the cooler preemptively positions itself for upcoming demand
   // instead of staying too warm until a tank actually triggers its cooling relay.
   const isSignificantLowering = !isRaising && diff > 1.0
-  if (!isRaising && !isSignificantLowering && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
+  if (!isRaising && !isSignificantLowering && !sustainedHighUtil && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
