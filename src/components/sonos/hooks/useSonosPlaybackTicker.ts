@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
-  NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock,
+  NowPlaying, isSeqStale,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
   updateProgressDOM, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer,
@@ -20,7 +20,6 @@ interface UseSonosPlaybackTickerParams {
   nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
   handleTrackChange: (data: TrackChangeData) => void;
   localProgressRef: React.MutableRefObject<number | null>;
-  trackChangedAtRef: React.MutableRefObject<number>;
   lastPredictivePollRef: React.MutableRefObject<number>;
   predictiveScheduledRef: React.MutableRefObject<boolean>;
   bgSentRef: React.MutableRefObject<string | null>;
@@ -29,23 +28,22 @@ interface UseSonosPlaybackTickerParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
-  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
+  acceptedSeqRef: React.MutableRefObject<number>;
 }
 
 /**
  * 1s ticker: progress bar + predictive swap.
- * ≤15s: eager sync if next images missing
- * ≤10s: schedule swap
- * Swap: use next_* if available, else poll
+ * Uses monotonic seq-gate. At predictive swap, bumps acceptedSeqRef
+ * to block all stale data until backend confirms.
  */
 export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
   const {
     nowPlaying, nowPlayingRef, handleTrackChange,
-    localProgressRef, trackChangedAtRef,
+    localProgressRef,
     lastPredictivePollRef, predictiveScheduledRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackChangeOffsetMs,
-    rollbackLockRef,
+    acceptedSeqRef,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
@@ -80,17 +78,17 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         lastPredictivePollRef.current = Date.now();
 
         if (data.trackName && data.trackName !== trackName) {
-          // Anti-rollback: if this is the old track, retry instead of swapping
-          if (isRollbackBlocked(rollbackLockRef.current, data.trackName)) {
-            tvDebug('sonos', `🔒 Ticker blocked rollback to "${data.trackName}"`);
+          // Seq-gate: if polled data has lower seq than accepted, retry
+          if (isSeqStale(acceptedSeqRef.current, data.trackSeq)) {
+            tvDebug('sonos', `🔒 Ticker poll rejected: seq ${data.trackSeq} < accepted ${acceptedSeqRef.current}`);
             if (retriesLeft > 0) {
               predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
             }
             return;
           }
-          // Clear lock if confirmed
-          if (shouldClearLock(rollbackLockRef.current, data.trackName)) {
-            rollbackLockRef.current = null;
+          // Update accepted seq from backend
+          if (typeof data.trackSeq === 'number' && data.trackSeq > acceptedSeqRef.current) {
+            acceptedSeqRef.current = data.trackSeq;
           }
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
@@ -113,16 +111,12 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       updateProgressDOM(progressBarRef, debugTimeRef, next, duration);
 
       const remaining = duration - next;
-
-      // Single preload point: ≤10s remaining, schedule swap
-      // Skip if we just did a track change (prevents re-swap after predictive swap)
-      const msSinceTC = Date.now() - trackChangedAtRef.current;
       const offsetMs = trackChangeOffsetMs ?? PREDICTIVE_MARGIN_MS;
 
-      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && msSinceTC > 15000) {
+      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
         predictiveScheduledRef.current = true;
 
-        // Preload available next images (server sync only happens in handleTrackChange fallback if needed)
+        // Preload next images
         const current = nowPlayingRef?.current;
         [current?.next_widget_art_url, current?.next_bg_image_url]
           .filter(Boolean)
@@ -135,6 +129,9 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
           const snap = nowPlayingRef?.current;
           if (snap?.next_track_name) {
             tvDebug('sonos', `🔮 Swap → "${snap.next_track_name}"`);
+            // Bump seq to block all stale data until backend confirms
+            acceptedSeqRef.current = (snap.track_seq ?? acceptedSeqRef.current) + 1;
+            tvDebug('sonos', `🔮 Seq bumped to ${acceptedSeqRef.current}`);
             if (snap.next_bg_image_url) { const img = new Image(); img.src = snap.next_bg_image_url; }
             handleTrackChangeRef.current({
               trackName: snap.next_track_name,
@@ -144,20 +141,22 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             });
           } else {
             tvDebug('sonos', `🔮 Ingen next-data — pollar`);
+            // Bump seq before polling too
+            acceptedSeqRef.current = (snap?.track_seq ?? acceptedSeqRef.current) + 1;
             pollForNewTrack(PREDICTIVE_MAX_RETRIES);
           }
         }, delay);
       }
 
-      // Safety-net: track ended but no change detected — poll for new track
-      if (remaining <= 0 && msSinceTC > 15000 && predictiveScheduledRef.current) {
+      // Safety-net: track ended but no change detected
+      if (remaining <= 0 && predictiveScheduledRef.current) {
         tvDebug('sonos', `⚠️ Låten slut utan trackbyte — pollar`);
-        predictiveScheduledRef.current = false; // allow re-scheduling
+        predictiveScheduledRef.current = false;
         pollForNewTrack(PREDICTIVE_MAX_RETRIES);
       }
 
-      // Watchdog: widget is active but no background has been sent — try to fetch one
-      if (isPlaying && bgSentRef.current === null && msSinceTC > 5000 && next % 10000 < 1000) {
+      // Watchdog: no background sent
+      if (isPlaying && bgSentRef.current === null && next % 10000 < 1000) {
         tvDebug('sonos', `🔍 Ingen bakgrund — försöker hämta`);
         (async () => {
           try {

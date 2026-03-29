@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
-  NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock,
+  NowPlaying, isSeqStale,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
   updateProgressDOM, triggerServerSync,
 } from './types';
@@ -23,29 +23,27 @@ interface UseSonosClientPollingParams {
   handleTrackChange: (data: TrackChangeData) => void;
   localProgressRef: React.MutableRefObject<number | null>;
   lastPredictivePollRef: React.MutableRefObject<number>;
-  trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
-  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
+  acceptedSeqRef: React.MutableRefObject<number>;
 }
 
 /**
  * 5s poll for position sync + next track metadata + pause resume detection.
+ * Uses monotonic seq-gate to reject stale data.
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
+    localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
-    rollbackLockRef,
+    acceptedSeqRef,
   } = params;
 
   useEffect(() => {
     if (!isConnected || !showWidget) return;
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
-
-    const isPaused = nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED';
 
     const poll = async () => {
       if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
@@ -69,6 +67,12 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const data = await response.json();
         if (!data.ok) return;
 
+        // Seq-gate: reject stale data before any processing
+        if (isSeqStale(acceptedSeqRef.current, data.trackSeq)) {
+          tvDebug('sonos', `🔒 Poll rejected: seq ${data.trackSeq} < accepted ${acceptedSeqRef.current}`);
+          return;
+        }
+
         // Position drift correction (>3s)
         const drift = Math.abs(data.positionMillis - (localProgressRef.current ?? 0));
         if (drift > 3000) localProgressRef.current = data.positionMillis;
@@ -77,41 +81,26 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         updateProgressDOM(progressBarRef, debugTimeRef, localProgressRef.current ?? data.positionMillis, duration);
 
         if (!data.trackName) {
-          // No track name — only update state if not a transient IDLE (skip in progress)
-          if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return; // skip in progress
+          if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return;
           if (data.playbackState !== nowPlaying.playback_state) {
             setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState } : prev);
           }
           return;
         }
 
-        // Anti-rollback: block stale track data
-        if (isRollbackBlocked(rollbackLockRef.current, data.trackName)) {
-          tvDebug('sonos', `🔒 Poll blocked rollback to "${data.trackName}"`);
-          return;
-        }
-        // Clear lock if backend confirms the new track
-        if (shouldClearLock(rollbackLockRef.current, data.trackName)) {
-          rollbackLockRef.current = null;
-        }
-
-        // Transient IDLE during skip: position=0 + same or different track → keep polling, don't set IDLE
+        // Transient IDLE during skip
         const isTransientIdle = data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0;
 
         const current = nowPlayingRef.current;
         const trackChanged = (current?.track_name ?? nowPlaying.track_name) !== data.trackName;
-        const msSinceTC = Date.now() - trackChangedAtRef.current;
 
-        if (trackChanged && msSinceTC >= 15000) {
-          // Don't swap locally — trigger server sync and let RT deliver with correct track_seq
+        if (trackChanged) {
           if (!isTransientIdle) {
             tvDebug('sonos', `🔄 Poll detected track change → triggering server sync`);
             triggerServerSync();
           }
-        } else if (trackChanged && isTransientIdle) {
-          // Skip in progress — ignore stale data, keep polling
         } else if (!trackChanged) {
-          // Same track — only sync state + duration (next_* comes from RT)
+          // Same track — only sync state + duration
           setNowPlaying(prev => {
             if (!prev) return prev;
             const effectiveState = isTransientIdle ? prev.playback_state : data.playbackState;

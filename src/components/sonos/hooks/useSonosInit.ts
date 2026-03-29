@@ -5,13 +5,15 @@ import { NowPlaying } from './types';
 interface UseSonosInitParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   localProgressRef: React.MutableRefObject<number | null>;
+  acceptedSeqRef: React.MutableRefObject<number>;
 }
 
 /**
  * Parallel fetch of settings + now playing on mount.
+ * Seeds acceptedSeqRef with the initial track_seq from DB.
  */
 export function useSonosInit(params: UseSonosInitParams) {
-  const { setNowPlaying, localProgressRef } = params;
+  const { setNowPlaying, localProgressRef, acceptedSeqRef } = params;
   const [isConnected, setIsConnected] = useState(false);
   const [showWidget, setShowWidget] = useState(false);
   const [trackChangeOffsetMs, setTrackChangeOffsetMs] = useState(2000);
@@ -27,7 +29,7 @@ export function useSonosInit(params: UseSonosInitParams) {
             .maybeSingle(),
           supabase
             .from('sonos_now_playing')
-            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url')
+            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url, track_seq')
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
@@ -53,6 +55,10 @@ export function useSonosInit(params: UseSonosInitParams) {
           if (npData.playback_state !== 'PLAYBACK_STATE_IDLE' && !stalePause) {
             setNowPlaying(npData);
             localProgressRef.current = npData.position_ms;
+            // Seed the monotonic seq gate
+            if (typeof npData.track_seq === 'number') {
+              acceptedSeqRef.current = npData.track_seq;
+            }
           }
         }
       } catch {
