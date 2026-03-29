@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
-  NowPlaying,
+  NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
   updateProgressDOM, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer,
