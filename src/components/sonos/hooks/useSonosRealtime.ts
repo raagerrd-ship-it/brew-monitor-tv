@@ -84,8 +84,8 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           const incomingSeq = incoming.track_seq ?? 0;
           const currentSeq = acceptedSeqRef.current;
           
-          if (incomingSeq <= currentSeq) {
-            tvDebug('sonos', `📡 RT track change blocked: seq ${incomingSeq} <= accepted ${currentSeq}`);
+          if (incomingSeq < currentSeq) {
+            tvDebug('sonos', `📡 RT track change blocked: seq ${incomingSeq} < accepted ${currentSeq}`);
             return prev;
           }
 
