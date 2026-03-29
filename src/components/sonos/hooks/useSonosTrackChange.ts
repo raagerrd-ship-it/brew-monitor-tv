@@ -162,7 +162,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_artist_name: null,
       };
     });
-  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef]);
+  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef, rollbackLockRef]);
 
   return { handleTrackChange };
 }
