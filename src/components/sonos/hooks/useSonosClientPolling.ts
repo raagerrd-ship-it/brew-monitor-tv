@@ -3,7 +3,7 @@ import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
-  updateProgressDOM,
+  updateProgressDOM, triggerServerSync,
 } from './types';
 
 interface TrackChangeData {
