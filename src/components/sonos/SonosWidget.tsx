@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
+import { NowPlaying, RollbackLock, stripQuery, pushToBgBuffer } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
