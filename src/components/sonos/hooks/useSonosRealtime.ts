@@ -164,7 +164,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       try {
         const { data } = await supabase
           .from('sonos_now_playing')
-          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url')
+          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url, track_seq')
           .limit(1)
           .maybeSingle();
         if (data) {

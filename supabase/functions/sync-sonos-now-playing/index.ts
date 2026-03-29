@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
+      track_seq: newTrackSeq,
       // Keep existing next-images if same track (they may already be processed), clear if new track
       ...(sameTrack ? {} : {
         next_bg_image_url: null,
