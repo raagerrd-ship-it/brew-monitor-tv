@@ -1352,6 +1352,7 @@ export type Database = {
           playback_state: string
           position_ms: number | null
           track_name: string | null
+          track_seq: number
           updated_at: string
           widget_art_url: string | null
         }
@@ -1372,6 +1373,7 @@ export type Database = {
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
+          track_seq?: number
           updated_at?: string
           widget_art_url?: string | null
         }
@@ -1392,6 +1394,7 @@ export type Database = {
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
+          track_seq?: number
           updated_at?: string
           widget_art_url?: string | null
         }

@@ -43,6 +43,13 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       let accepted = false;
 
       setNowPlaying(prev => {
+        // Monotonic seq check: reject stale data
+        if (prev && typeof incoming.track_seq === 'number' && typeof prev.track_seq === 'number'
+            && incoming.track_seq < prev.track_seq) {
+          tvDebug('sonos', `📡 RT rejected: seq ${incoming.track_seq} < ${prev.track_seq}`);
+          return prev;
+        }
+
         // First state
         if (!prev) {
           accepted = true;
@@ -51,7 +58,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT init: "${incoming.track_name}"`);
+          tvDebug('sonos', `📡 RT init: "${incoming.track_name}" (seq ${incoming.track_seq ?? '?'})`);
           return incoming;
         }
 
@@ -157,7 +164,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       try {
         const { data } = await supabase
           .from('sonos_now_playing')
-          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url')
+          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url, track_seq')
           .limit(1)
           .maybeSingle();
         if (data) {

@@ -78,6 +78,13 @@ Deno.serve(async (req) => {
       metadataResponse.ok ? metadataResponse.json() : null,
     ]);
 
+    // Fetch track_seq from DB
+    const { data: npRow } = await supabase
+      .from('sonos_now_playing')
+      .select('track_seq')
+      .limit(1)
+      .single();
+
     const track = metadata?.currentItem?.track;
     const nextTrack = metadata?.nextItem?.track;
 
@@ -92,6 +99,7 @@ Deno.serve(async (req) => {
       nextTrackName: nextTrack?.name || null,
       nextArtistName: nextTrack?.artist?.name || null,
       nextAlbumArtUrl: nextTrack?.imageUrl || null,
+      trackSeq: npRow?.track_seq ?? 0,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

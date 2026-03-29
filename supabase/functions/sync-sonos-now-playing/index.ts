@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, updated_at, playback_state, album_art_url')
+      .select('id, track_name, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, updated_at, playback_state, album_art_url, track_seq')
       .eq('group_id', groupId)
       .limit(1)
       .single();
@@ -239,6 +239,7 @@ Deno.serve(async (req) => {
 
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
+    const newTrackSeq = sameTrack ? (existingRow?.track_seq ?? 0) : ((existingRow?.track_seq ?? 0) + 1);
 
     // Guard: don't overwrite valid track data with null from API hiccup
     if (!currentTrackName && existingRow?.track_name) {
@@ -267,6 +268,7 @@ Deno.serve(async (req) => {
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
+      track_seq: newTrackSeq,
       // Keep existing next-images if same track (they may already be processed), clear if new track
       ...(sameTrack ? {} : {
         next_bg_image_url: null,

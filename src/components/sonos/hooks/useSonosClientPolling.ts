@@ -3,7 +3,7 @@ import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
-  updateProgressDOM,
+  updateProgressDOM, triggerServerSync,
 } from './types';
 
 interface TrackChangeData {
@@ -91,9 +91,10 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const msSinceTC = Date.now() - trackChangedAtRef.current;
 
         if (trackChanged && msSinceTC >= 15000) {
-          // Only handle if not transient idle
+          // Don't swap locally — trigger server sync and let RT deliver with correct track_seq
           if (!isTransientIdle) {
-            handleTrackChange(data);
+            tvDebug('sonos', `🔄 Poll detected track change → triggering server sync`);
+            triggerServerSync();
           }
         } else if (trackChanged && isTransientIdle) {
           // Skip in progress — ignore stale data, keep polling
