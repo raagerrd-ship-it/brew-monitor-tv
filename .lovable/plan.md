@@ -1,40 +1,24 @@
 
 
-# track_seq — skyddar både metadata OCH bakgrund
+# Lägg till Recharts/SVG-toggle i TV-styrning
 
-## Bekräftelse
+## Ändring
 
-Bakgrundsbilden (`bg_image_url`) och widget-art (`widget_art_url`) levereras i samma `NowPlaying`-objekt som låtnamn och artist. Seq-checken i `useSonosRealtime` avvisar hela payloaden vid `incoming.track_seq < prev.track_seq`, vilket betyder att **alla fält** skyddas — inklusive bakgrundsbild.
+En enda fil ändras: `src/pages/Settings.tsx`.
 
-## Planen (oförändrad från tidigare)
+I sektionen **"TV-styrning"** (rad ~443–471), lägg till en ny rad efter "Splash-fördröjning" med en `Switch` som styr om TV-läge ska använda interaktiva Recharts-diagram istället för server-renderade SVG.
 
-### 1. Databasmigration
-Lägg till `track_seq integer NOT NULL DEFAULT 0` i `sonos_now_playing`.
+- Label: **"Interaktiva diagram"**
+- Beskrivning: *"Använd samma diagram som desktop istället för SVG-bilder"*
+- Värdet sparas i `localStorage` under nyckeln `tv-use-recharts` (`"true"` / `"false"`)
+- Default: `true` (Recharts aktivt)
 
-### 2. Server: `sync-sonos-now-playing`
-Inkrementera `track_seq` vid ny låt, behåll vid samma.
+I `LazyBrewChart.tsx` — läs flaggan från `localStorage` och visa `BrewChartLazy` (Recharts) eller `TvModeChart` (SVG) baserat på den.
 
-### 3. Server: `sonos-playback-status`
-Returnera `track_seq` i svaret.
+## Filer
 
-### 4. Klient: `NowPlaying`-typ
-Lägg till `track_seq?: number`.
-
-### 5. Klient: `useSonosRealtime`
-Avvisa payload om `incoming.track_seq < prev.track_seq`.
-
-### 6. Klient: `useSonosClientPolling`
-Vid track change — trigga server-sync istället för direkt swap. Låt RT leverera med korrekt seq.
-
-## Vad skyddas
-
-| Fält | Skyddat |
-|------|---------|
-| `track_name`, `artist_name` | Ja |
-| `bg_image_url` (bakgrund) | Ja |
-| `widget_art_url` | Ja |
-| `next_*`-fält | Ja |
-| `position_ms`, `duration_ms` | Ja |
-
-Allt avvisas som en enhet — ingen risk att bakgrunden byter tillbaka utan att låtnamnet gör det.
+| Fil | Ändring |
+|-----|---------|
+| `src/pages/Settings.tsx` | Ny Switch-rad i TV-styrning-sektionen |
+| `src/components/brew-chart/LazyBrewChart.tsx` | Läs `localStorage`-flagga, villkorligt rendera Recharts vs SVG i TV-läge |
 
