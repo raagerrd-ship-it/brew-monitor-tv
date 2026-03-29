@@ -2,13 +2,14 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Printer, FileText, Bluetooth, BluetoothOff, Loader2, Settings } from "lucide-react";
+import { Printer, FileText, Bluetooth, BluetoothOff, Loader2, Settings, Bug } from "lucide-react";
 import { BrewData } from "@/types/brew";
 import { renderTankLabel, renderKegLabel } from "./LabelCanvas";
 import { PRINTER_VERSION } from "@/lib/thermal-printer";
 import { usePrinterConnection } from "@/hooks";
 import { printCanvasInWindow, downloadCanvasAsPdf } from "@/lib/label-utils";
 import { useNavigate } from "react-router-dom";
+import { PrintDebugOverlay } from "./PrintDebugOverlay";
 
 type LabelType = 'tank' | 'keg';
 interface PrintLabelDialogProps {
@@ -21,6 +22,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [labelType, setLabelType] = useState<LabelType>('tank');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copies, setCopies] = useState(1);
+  const [debugOpen, setDebugOpen] = useState(false);
   const navigate = useNavigate();
 
   const {
@@ -177,9 +179,23 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           </Button>
         </div>
 
-        {/* Version label */}
-        <p className="text-[10px] text-muted-foreground/30 text-center">Printer {PRINTER_VERSION}</p>
+        {/* Version label + debug toggle */}
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-[10px] text-muted-foreground/30">Printer {PRINTER_VERSION}</p>
+          {hasBle && (
+            <button
+              onClick={() => setDebugOpen(true)}
+              className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+              title="Visa BLE-debug"
+            >
+              <Bug className="h-3 w-3 inline" />
+            </button>
+          )}
+        </div>
       </DialogContent>
+
+      {/* Debug overlay */}
+      <PrintDebugOverlay open={debugOpen} onClose={() => setDebugOpen(false)} />
     </Dialog>
   );
 }

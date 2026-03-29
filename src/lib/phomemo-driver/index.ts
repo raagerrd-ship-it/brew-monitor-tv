@@ -46,7 +46,10 @@ export {
   reconnectLastPrinter,
   disconnectPrinter,
   delay,
+  subscribeBleDebug,
 } from './connection';
+
+export type { BleDebugEntry } from './connection';
 
 // Protocol
 export { sendRasterJob, printBitmap, printBitmapBypassProcessing } from './protocol';

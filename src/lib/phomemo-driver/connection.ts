@@ -16,6 +16,28 @@ import {
 } from './constants';
 import { defaultStorage } from './storage';
 
+// ── Debug log emitter ───────────────────────────────────────────
+
+export type BleDebugEntry = {
+  ts: number;
+  ctx: string;
+  bytes: number;
+  hex: string;        // first 32 bytes as hex
+  direction: 'out' | 'in';
+};
+
+type BleDebugListener = (entry: BleDebugEntry) => void;
+const debugListeners = new Set<BleDebugListener>();
+
+export function subscribeBleDebug(listener: BleDebugListener): () => void {
+  debugListeners.add(listener);
+  return () => { debugListeners.delete(listener); };
+}
+
+function emitDebug(entry: BleDebugEntry) {
+  debugListeners.forEach(l => l(entry));
+}
+
 // ── Utilities ───────────────────────────────────────────────────
 
 export function delay(ms: number): Promise<void> {
@@ -38,13 +60,27 @@ export async function bleWrite(
   ctx: string,
   mode: 'auto' | 'forceNoResponse' | 'forceWithResponse' = 'auto',
 ): Promise<void> {
-  const buffer = new Uint8Array(data).buffer;
+  const arr = new Uint8Array(data);
+  const buffer = arr.buffer;
   const supportsNoResponse = !!conn.characteristic.properties.writeWithoutResponse;
   const supportsWithResponse = !!conn.characteristic.properties.write;
   const useNoResponse = mode === 'forceNoResponse'
     ? supportsNoResponse
     : (mode === 'forceWithResponse' ? false : (conn.writeMethod === 'withoutResponse' && supportsNoResponse));
   const useWithResponse = mode === 'forceWithResponse' && supportsWithResponse;
+
+  // Emit debug entry (truncate hex to first 32 bytes)
+  if (debugListeners.size > 0) {
+    const preview = arr.slice(0, 32);
+    emitDebug({
+      ts: performance.now(),
+      ctx,
+      bytes: arr.length,
+      hex: toHex(preview) + (arr.length > 32 ? ` …(${arr.length - 32} more)` : ''),
+      direction: 'out',
+    });
+  }
+
   const p = (useNoResponse && !useWithResponse)
     ? conn.characteristic.writeValueWithoutResponse(buffer)
     : conn.characteristic.writeValue(buffer);
@@ -98,6 +134,15 @@ export async function setupNotifyChannel(
       const bytes = new Uint8Array(value.buffer.slice(0));
       queue.push(bytes);
       onLog?.(`[Printer][ACK] raw: ${toHex(bytes)}`);
+      if (debugListeners.size > 0) {
+        emitDebug({
+          ts: performance.now(),
+          ctx: 'ACK',
+          bytes: bytes.length,
+          hex: toHex(bytes),
+          direction: 'in',
+        });
+      }
     };
 
     notifyChar.addEventListener('characteristicvaluechanged', onNotify as EventListener);
