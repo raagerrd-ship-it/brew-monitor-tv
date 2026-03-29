@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
       album_art_url_small: rawCurrentArt,
       next_track_name: nextTrackName,
       next_artist_name: nextArtistName,
-      next_album_art_url: rawNextArt,
+      // next_album_art_url is set in Phase 2 with the RESOLVED URL (not raw getaa)
       playback_state: playbackState,
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
