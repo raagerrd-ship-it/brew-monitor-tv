@@ -67,6 +67,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Wake from IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING') {
           accepted = true;
+          isTrackChange = true;
           trackChangedAtRef.current = Date.now();
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
