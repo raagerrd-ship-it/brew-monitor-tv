@@ -1111,9 +1111,15 @@ async function learnFromCurrentState(
 
     if (util >= 0.99 && currentMargin > 1.0) {
       // Cooling circuit running 100% — tank genuinely can't keep up, need more margin
-      const scaledMargin = currentMargin * 1.08  // conservative 8% increase
+      // Check if sustained (all buckets ≥95% ≈ 2h+) → use aggressive 15% increase
+      const isSustained = lowestUtil.recentUtilization != null && lowestUtil.recentUtilization >= 0.95
+        && lowestUtil.midUtilization != null && lowestUtil.midUtilization >= 0.95
+        && lowestUtil.oldestUtilization != null && lowestUtil.oldestUtilization >= 0.95
+        && lowestUtil.ancientUtilization != null && lowestUtil.ancientUtilization >= 0.95
+      const boostFactor = isSustained ? 1.15 : 1.08  // 15% for sustained, 8% for intermittent
+      const scaledMargin = currentMargin * boostFactor
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ' SUSTAINED 2h+' : ''} — increasing ×${boostFactor}: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
       // Under 70% — actively tighten to reduce condensation risk
       // Use faster alpha (0.3) at low util for quicker downward convergence
