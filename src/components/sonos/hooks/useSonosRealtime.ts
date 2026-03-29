@@ -54,6 +54,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // First state
         if (!prev) {
           accepted = true;
+          isTrackChange = true;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
