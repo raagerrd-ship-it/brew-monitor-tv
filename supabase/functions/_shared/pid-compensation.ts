@@ -339,6 +339,23 @@ export async function calculateCompensatedTarget(
         pCorrection = coolingNeed * DUTY_P
         integral = integral * DUTY_DECAY + coolingNeed * DUTY_I
         integral = Math.max(0, Math.min(DUTY_IMAX, integral))
+
+        // ── Settling guard ──────────────────────────────────────
+        // When integral is near-zero (system just started cooling or target
+        // changed significantly) AND there's meaningful cooling need,
+        // cap the P-term to prevent aggressive first bursts.
+        // RAPT telemetry arrives every 15 min — without this cap, the first
+        // burst overshoots because there's no feedback yet on cooling effect.
+        // The cap naturally lifts after ~2 new-data cycles as integral builds.
+        if (integral < 0.15 && coolingNeed > 0.3) {
+          const maxInitialP = 0.30
+          if (pCorrection > maxInitialP) {
+            const uncappedP = pCorrection
+            pCorrection = maxInitialP
+            constraints.push('settling')
+            console.log(`🛡️ Settling guard ${controllerName}: I=${integral.toFixed(3)} < 0.15, capping P ${uncappedP.toFixed(2)} → ${maxInitialP} (väntar på feedback)`)
+          }
+        }
       }
       iCorrection = integral
 

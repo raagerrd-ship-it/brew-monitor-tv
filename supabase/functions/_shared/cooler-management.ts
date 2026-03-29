@@ -886,11 +886,22 @@ function resolveEffectiveLowestTarget(ctx: CoolerContext, controllersWithCooling
         const rampRequiredRate = totalDrop / currentStep.duration_hours // °C/h
 
         if (futureTarget < result.temp) {
+          // Clamp: never plan cooler below the ramp-limited effective target.
+          // The PID ramp-rate-limiter controls how fast the target actually drops;
+          // the cooler should follow that pace, not the raw profile step target.
+          const rampLimitedTarget = getBaseTarget(controller)
+          const clampedFuture = Math.max(futureTarget, rampLimitedTarget)
+          const wasClamped = clampedFuture > futureTarget
+
+          if (wasClamped) {
+            log('RAMP_CLAMP', 'info', `${controller.name}: kylar-lookahead ${futureTarget.toFixed(1)}° klämdes till ${clampedFuture.toFixed(1)}° (ramp-limited baseTarget)`)
+          }
+
           result = {
-            temp: futureTarget,
+            temp: clampedFuture,
             controllerName: controller.name,
             controllerId: controller.controller_id,
-            source: `ramp look-ahead 1h (→ ${stepTarget}°C)`,
+            source: `ramp look-ahead 1h (→ ${stepTarget}°C)${wasClamped ? ' [clamped]' : ''}`,
             isRampingDown: true,
             requiredRatePerHour: rampRequiredRate,
           }
