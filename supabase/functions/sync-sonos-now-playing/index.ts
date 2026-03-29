@@ -239,6 +239,7 @@ Deno.serve(async (req) => {
 
     const currentTrackName = track?.name || container?.name || null;
     const sameTrack = existingRow && existingRow.track_name === currentTrackName;
+    const newTrackSeq = sameTrack ? (existingRow?.track_seq ?? 0) : ((existingRow?.track_seq ?? 0) + 1);
 
     // Guard: don't overwrite valid track data with null from API hiccup
     if (!currentTrackName && existingRow?.track_name) {
