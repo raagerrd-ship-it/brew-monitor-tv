@@ -38,6 +38,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
+    rollbackLockRef,
   } = params;
 
   useEffect(() => {
