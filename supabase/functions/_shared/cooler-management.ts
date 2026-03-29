@@ -442,6 +442,22 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
 
+  // ── Sustained high utilization bypass ─────────────────────
+  // If ANY tank has been at 100% utilization across all buckets (≈2h+),
+  // the cooler must help by forcing its target lower — bypass the no-op guard.
+  const sustainedHighUtil = utilizations.some(u =>
+    u.utilization != null && u.utilization >= 0.99
+    && u.recentUtilization != null && u.recentUtilization >= 0.95
+    && u.midUtilization != null && u.midUtilization >= 0.95
+    && u.oldestUtilization != null && u.oldestUtilization >= 0.95
+    && u.ancientUtilization != null && u.ancientUtilization >= 0.95
+  )
+  if (sustainedHighUtil && !isRamp) {
+    const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99
+      && u.ancientUtilization != null && u.ancientUtilization >= 0.95)
+    log('SUSTAINED_DEMAND', 'action', `${maxUtilTank?.controllerName ?? 'Tank'} kyler 100% ihållande (2h+) — tvingar ökad marginal`)
+  }
+
   // ── Relay-aware no-op guard ────────────────────────────────
   // Instead of a fixed 0.1°C threshold, check if the new target would
   // actually change the cooler relay state. With large hysteresis (e.g. 2°C),
@@ -460,7 +476,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // This ensures the cooler preemptively positions itself for upcoming demand
   // instead of staying too warm until a tank actually triggers its cooling relay.
   const isSignificantLowering = !isRaising && diff > 1.0
-  if (!isRaising && !isSignificantLowering && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
+  if (!isRaising && !isSignificantLowering && !sustainedHighUtil && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
@@ -1095,9 +1111,15 @@ async function learnFromCurrentState(
 
     if (util >= 0.99 && currentMargin > 1.0) {
       // Cooling circuit running 100% — tank genuinely can't keep up, need more margin
-      const scaledMargin = currentMargin * 1.08  // conservative 8% increase
+      // Check if sustained (all buckets ≥95% ≈ 2h+) → use aggressive 15% increase
+      const isSustained = lowestUtil.recentUtilization != null && lowestUtil.recentUtilization >= 0.95
+        && lowestUtil.midUtilization != null && lowestUtil.midUtilization >= 0.95
+        && lowestUtil.oldestUtilization != null && lowestUtil.oldestUtilization >= 0.95
+        && lowestUtil.ancientUtilization != null && lowestUtil.ancientUtilization >= 0.95
+      const boostFactor = isSustained ? 1.15 : 1.08  // 15% for sustained, 8% for intermittent
+      const scaledMargin = currentMargin * boostFactor
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%) — increasing: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ' SUSTAINED 2h+' : ''} — increasing ×${boostFactor}: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
       // Under 70% — actively tighten to reduce condensation risk
       // Use faster alpha (0.3) at low util for quicker downward convergence
