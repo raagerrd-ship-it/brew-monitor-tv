@@ -70,132 +70,134 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Printer className="h-5 w-5" />
-            Skriv ut etikett
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Skriv ut etikett
+            </DialogTitle>
+          </DialogHeader>
 
-        {/* Tab selection */}
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          <button
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              labelType === 'tank' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => setLabelType('tank')}
-          >
-            🧪 Jästank
-          </button>
-          <button
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              labelType === 'keg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => setLabelType('keg')}
-          >
-            🛢️ Fat
-          </button>
-        </div>
-
-        {/* Canvas preview */}
-        <div className="flex justify-center rounded-lg border border-border bg-white p-2">
-          <canvas
-            ref={canvasRef}
-            className="w-full"
-            style={{ maxWidth: '384px', imageRendering: 'auto' }}
-          />
-        </div>
-
-        {/* Copies selector */}
-        {hasBle && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Kopior:</span>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map(n => (
-                <button
-                  key={n}
-                  onClick={() => setCopies(n)}
-                  className={`h-8 w-8 rounded-md text-sm font-medium transition-colors ${
-                    copies === n
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Bluetooth section */}
-        {hasBle && (
-          <div className="space-y-2">
-            {/* Print progress */}
-            {printProgress && (
-              <div className="space-y-1">
-                <Progress value={printProgress.percent} className="h-2" />
-                <p className="text-xs text-muted-foreground text-center">{printProgress.phase}</p>
-              </div>
-            )}
-
-            {/* Single action button */}
-            {!targetPrinterName ? (
-              <Button onClick={goToSettings} className="w-full gap-2" size="lg" variant="outline">
-                <Settings className="h-4 w-4" />
-                Välj skrivare i Inställningar
-              </Button>
-            ) : bleConn ? (
-              <Button onClick={handleBlePrint} className="w-full gap-2" size="lg" disabled={isPrinting}>
-                {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
-                {isPrinting ? 'Skriver ut...' : 'Skriv ut via Bluetooth'}
-              </Button>
-            ) : (
-              <Button
-                onClick={autoConnectFailed ? retry : handleBlePrint}
-                className="w-full gap-2"
-                size="lg"
-                variant={autoConnectFailed ? "outline" : "default"}
-                disabled={isConnecting}
-              >
-                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
-                {isConnecting ? 'Ansluter...' : autoConnectFailed ? `Återanslut till ${targetPrinterName}` : 'Skriv ut via Bluetooth'}
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Secondary actions - hidden on mobile */}
-        <div className="hidden sm:flex gap-2">
-          <Button onClick={handleDownloadPdf} variant="outline" className="flex-1 gap-2" size="lg">
-            <FileText className="h-4 w-4" />
-            Spara som PDF
-          </Button>
-          <Button onClick={handlePrint} variant="outline" className="gap-2" size="lg">
-            <Printer className="h-4 w-4" />
-            Skriv ut
-          </Button>
-        </div>
-
-        {/* Version label + debug toggle */}
-        <div className="flex items-center justify-center gap-2">
-          <p className="text-[10px] text-muted-foreground/30">Printer {PRINTER_VERSION}</p>
-          {hasBle && (
+          {/* Tab selection */}
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
             <button
-              onClick={() => setDebugOpen(true)}
-              className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
-              title="Visa BLE-debug"
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                labelType === 'tank' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setLabelType('tank')}
             >
-              <Bug className="h-3 w-3 inline" />
+              🧪 Jästank
             </button>
-          )}
-        </div>
-      </DialogContent>
+            <button
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                labelType === 'keg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setLabelType('keg')}
+            >
+              🛢️ Fat
+            </button>
+          </div>
 
-      {/* Debug overlay */}
+          {/* Canvas preview */}
+          <div className="flex justify-center rounded-lg border border-border bg-white p-2">
+            <canvas
+              ref={canvasRef}
+              className="w-full"
+              style={{ maxWidth: '384px', imageRendering: 'auto' }}
+            />
+          </div>
+
+          {/* Copies selector */}
+          {hasBle && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Kopior:</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setCopies(n)}
+                    className={`h-8 w-8 rounded-md text-sm font-medium transition-colors ${
+                      copies === n
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bluetooth section */}
+          {hasBle && (
+            <div className="space-y-2">
+              {/* Print progress */}
+              {printProgress && (
+                <div className="space-y-1">
+                  <Progress value={printProgress.percent} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">{printProgress.phase}</p>
+                </div>
+              )}
+
+              {/* Single action button */}
+              {!targetPrinterName ? (
+                <Button onClick={goToSettings} className="w-full gap-2" size="lg" variant="outline">
+                  <Settings className="h-4 w-4" />
+                  Välj skrivare i Inställningar
+                </Button>
+              ) : bleConn ? (
+                <Button onClick={handleBlePrint} className="w-full gap-2" size="lg" disabled={isPrinting}>
+                  {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
+                  {isPrinting ? 'Skriver ut...' : 'Skriv ut via Bluetooth'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={autoConnectFailed ? retry : handleBlePrint}
+                  className="w-full gap-2"
+                  size="lg"
+                  variant={autoConnectFailed ? "outline" : "default"}
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bluetooth className="h-4 w-4" />}
+                  {isConnecting ? 'Ansluter...' : autoConnectFailed ? `Återanslut till ${targetPrinterName}` : 'Skriv ut via Bluetooth'}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Secondary actions - hidden on mobile */}
+          <div className="hidden sm:flex gap-2">
+            <Button onClick={handleDownloadPdf} variant="outline" className="flex-1 gap-2" size="lg">
+              <FileText className="h-4 w-4" />
+              Spara som PDF
+            </Button>
+            <Button onClick={handlePrint} variant="outline" className="gap-2" size="lg">
+              <Printer className="h-4 w-4" />
+              Skriv ut
+            </Button>
+          </div>
+
+          {/* Version label + debug toggle */}
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-[10px] text-muted-foreground/30">Printer {PRINTER_VERSION}</p>
+            {hasBle && (
+              <button
+                onClick={() => setDebugOpen(true)}
+                className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+                title="Visa BLE-debug"
+              >
+                <Bug className="h-3 w-3 inline" />
+              </button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Debug overlay - rendered outside Dialog to avoid Radix portal issues */}
       <PrintDebugOverlay open={debugOpen} onClose={() => setDebugOpen(false)} />
-    </Dialog>
+    </>
   );
 }
