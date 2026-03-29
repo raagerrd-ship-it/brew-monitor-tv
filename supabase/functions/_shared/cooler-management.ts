@@ -499,14 +499,14 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const sustainedTank = utilizations
     .map(u => ({ u, meta: getSustainedDemandMeta(u) }))
     .find(({ meta }) => meta.isSustained)
-  if (sustainedTank && !isRamp) {
+  if (sustainedTank) {
     sustainedHighUtil = true
     // Stronger boost for large hysteresis systems so demand clears faster.
     sustainedBoostApplied = Math.max(0.7, Math.min(1.5, coolerHysteresis * 0.6))
     const newMargin = effectiveMargin + sustainedBoostApplied
     const boostedTarget = Math.round((effectiveTarget.temp - newMargin) * 10) / 10
     const boostedClamped = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, boostedTarget))
-    log('SUSTAINED_DEMAND', 'action', `${sustainedTank.u.controllerName} ihållande hög belastning (${Math.round((sustainedTank.u.utilization ?? 0) * 100)}%, ${sustainedTank.meta.highBucketCount}/${sustainedTank.meta.sampleCount} bucket ≥90%) — sänker kylare ${round1(clampedTarget)}° → ${round1(boostedClamped)}° (marginal ${effectiveMargin.toFixed(1)}° + ${sustainedBoostApplied.toFixed(1)}° = ${newMargin.toFixed(1)}°)`)
+    log('SUSTAINED_DEMAND', 'action', `${sustainedTank.u.controllerName} ihållande hög belastning (${Math.round((sustainedTank.u.utilization ?? 0) * 100)}%, ${sustainedTank.meta.highBucketCount}/${sustainedTank.meta.sampleCount} bucket ≥90%)${isRamp ? ' under ramp' : ''} — sänker kylare ${round1(clampedTarget)}° → ${round1(boostedClamped)}° (marginal ${effectiveMargin.toFixed(1)}° + ${sustainedBoostApplied.toFixed(1)}° = ${newMargin.toFixed(1)}°)`)
     // Override clampedTarget with the boosted value
     clampedTarget = boostedClamped
   }
