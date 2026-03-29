@@ -259,7 +259,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const baseMargin = learnedMargin.value
   const effectiveMargin = Math.round(baseMargin * rateBoostFactor * 10) / 10
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
-  const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
+  let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
   log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
@@ -442,20 +442,30 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
 
-  // ── Sustained high utilization bypass ─────────────────────
+  // ── Sustained high utilization: immediate margin boost ─────
   // If ANY tank has been at 100% utilization across all buckets (≈2h+),
-  // the cooler must help by forcing its target lower — bypass the no-op guard.
-  const sustainedHighUtil = utilizations.some(u =>
+  // the pump is working too hard. It's more efficient for the cooler to
+  // drop its target slightly than for a pump to run continuously.
+  // Apply an immediate 0.5°C extra margin (not just EMA learning).
+  let sustainedHighUtil = false
+  let sustainedBoostApplied = 0
+  const sustainedTank = utilizations.find(u =>
     u.utilization != null && u.utilization >= 0.99
     && u.recentUtilization != null && u.recentUtilization >= 0.95
     && u.midUtilization != null && u.midUtilization >= 0.95
     && u.oldestUtilization != null && u.oldestUtilization >= 0.95
     && u.ancientUtilization != null && u.ancientUtilization >= 0.95
   )
-  if (sustainedHighUtil && !isRamp) {
-    const maxUtilTank = utilizations.find(u => u.utilization != null && u.utilization >= 0.99
-      && u.ancientUtilization != null && u.ancientUtilization >= 0.95)
-    log('SUSTAINED_DEMAND', 'action', `${maxUtilTank?.controllerName ?? 'Tank'} kyler 100% ihållande (2h+) — tvingar ökad marginal`)
+  if (sustainedTank && !isRamp) {
+    sustainedHighUtil = true
+    // Progressive boost: 0.5°C base, increasing if margin is already small relative to demand
+    sustainedBoostApplied = 0.5
+    const newMargin = effectiveMargin + sustainedBoostApplied
+    const boostedTarget = Math.round((effectiveTarget.temp - newMargin) * 10) / 10
+    const boostedClamped = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, boostedTarget))
+    log('SUSTAINED_DEMAND', 'action', `${sustainedTank.controllerName} kyler 100% ihållande (2h+) — sänker kylare ${round1(clampedTarget)}° → ${round1(boostedClamped)}° (marginal ${effectiveMargin.toFixed(1)}° + ${sustainedBoostApplied}° = ${newMargin.toFixed(1)}°)`)
+    // Override clampedTarget with the boosted value
+    clampedTarget = boostedClamped
   }
 
   // ── Relay-aware no-op guard ────────────────────────────────
