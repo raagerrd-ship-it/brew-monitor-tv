@@ -80,6 +80,28 @@ interface CoolingUtilization {
   sensorTimestampMs: number
 }
 
+function getSustainedDemandMeta(u: CoolingUtilization): {
+  sampleCount: number
+  highBucketCount: number
+  veryHighBucketCount: number
+  isSustained: boolean
+} {
+  const buckets = [u.recentUtilization, u.midUtilization, u.oldestUtilization, u.ancientUtilization]
+    .filter((v): v is number => v != null)
+  const sampleCount = buckets.length
+  const highBucketCount = buckets.filter(v => v >= 0.90).length
+  const veryHighBucketCount = buckets.filter(v => v >= 0.95).length
+  const utilNow = u.utilization ?? 0
+
+  // Treat as sustained even if one bucket dips slightly — this avoids missing
+  // real long-running pump load due to single-sample jitter.
+  const isSustained = sampleCount >= 3
+    && utilNow >= 0.97
+    && (veryHighBucketCount >= 2 || highBucketCount >= 3)
+
+  return { sampleCount, highBucketCount, veryHighBucketCount, isSustained }
+}
+
 export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentResult[]> {
   const { supabase, supabaseUrl, serviceRoleKey, allControllers, followedControllersFullData, log } = ctx
   const adjustments: AdjustmentResult[] = []
@@ -318,23 +340,27 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     if (anyTankMaxUtil && coolerAtZero) {
       // ── Sustained demand: if a tank has been at 100% for 2h+, permanently lower ──
       // the cooler target instead of using temporary kicks that oscillate.
-      const sustainedTankInDeadBand = utilizations.find(u =>
-        u.utilization != null && u.utilization >= 0.99
-        && u.recentUtilization != null && u.recentUtilization >= 0.95
-        && u.midUtilization != null && u.midUtilization >= 0.95
-        && u.oldestUtilization != null && u.oldestUtilization >= 0.95
-        && u.ancientUtilization != null && u.ancientUtilization >= 0.95
-      )
+      const sustainedTankInDeadBand = utilizations
+        .map(u => ({ u, meta: getSustainedDemandMeta(u) }))
+        .find(({ meta }) => meta.isSustained)
 
       if (sustainedTankInDeadBand) {
-        // Permanent fix: lower the cooler target by 0.5°C to escape dead band
-        // This is more energy-efficient than running a pump at 100% for hours
-        const sustainedTarget = round1(Math.max(coolerMinTemp, currentCoolerTarget - 0.5))
-        log('SUSTAINED_LOWER', 'action', `${sustainedTankInDeadBand.controllerName} kyler 100% ihållande (2h+), kylare 0% i dead band — sänker permanent ${round1(currentCoolerTarget)}° → ${round1(sustainedTarget)}° (effektivare än pump 100%)`)
-        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, sustainedTarget, effectiveTarget.temp,
-          `📉 Sustained demand: ${sustainedTankInDeadBand.controllerName} 100% i 2h+ → sänker permanent till ${sustainedTarget}°C`,
-          adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
-        return adjustments
+        // Permanent fix: lower enough to actually cross the relay threshold,
+        // not just a tiny step that leaves the cooler in dead band.
+        const baseDrop = Math.max(0.7, Math.min(1.5, coolerHysteresis * 0.6))
+        const relayOnTarget = round1(coolerTemp - coolerHysteresis - 0.1)
+        const desiredTarget = Math.min(round1(currentCoolerTarget - baseDrop), relayOnTarget)
+        const sustainedTarget = round1(Math.max(coolerMinTemp, desiredTarget))
+
+        if (sustainedTarget >= currentCoolerTarget - 0.1) {
+          log('SUSTAINED_LOWER', 'info', `Sustained demand detekterad men kylare redan nära min (${round1(currentCoolerTarget)}°)`)
+        } else {
+          log('SUSTAINED_LOWER', 'action', `${sustainedTankInDeadBand.u.controllerName} ihållande hög belastning (${Math.round((sustainedTankInDeadBand.u.utilization ?? 0) * 100)}%, ${sustainedTankInDeadBand.meta.highBucketCount}/${sustainedTankInDeadBand.meta.sampleCount} bucket ≥90%) — sänker permanent ${round1(currentCoolerTarget)}° → ${round1(sustainedTarget)}° för att passera relätröskel`)
+          await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, sustainedTarget, effectiveTarget.temp,
+            `📉 Sustained demand: ${sustainedTankInDeadBand.u.controllerName} hög last över tid → sänker permanent till ${sustainedTarget}°C`,
+            adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+          return adjustments
+        }
       }
 
       // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
@@ -470,21 +496,17 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // Apply an immediate 0.5°C extra margin (not just EMA learning).
   let sustainedHighUtil = false
   let sustainedBoostApplied = 0
-  const sustainedTank = utilizations.find(u =>
-    u.utilization != null && u.utilization >= 0.99
-    && u.recentUtilization != null && u.recentUtilization >= 0.95
-    && u.midUtilization != null && u.midUtilization >= 0.95
-    && u.oldestUtilization != null && u.oldestUtilization >= 0.95
-    && u.ancientUtilization != null && u.ancientUtilization >= 0.95
-  )
-  if (sustainedTank && !isRamp) {
+  const sustainedTank = utilizations
+    .map(u => ({ u, meta: getSustainedDemandMeta(u) }))
+    .find(({ meta }) => meta.isSustained)
+  if (sustainedTank) {
     sustainedHighUtil = true
-    // Progressive boost: 0.5°C base, increasing if margin is already small relative to demand
-    sustainedBoostApplied = 0.5
+    // Stronger boost for large hysteresis systems so demand clears faster.
+    sustainedBoostApplied = Math.max(0.7, Math.min(1.5, coolerHysteresis * 0.6))
     const newMargin = effectiveMargin + sustainedBoostApplied
     const boostedTarget = Math.round((effectiveTarget.temp - newMargin) * 10) / 10
     const boostedClamped = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, boostedTarget))
-    log('SUSTAINED_DEMAND', 'action', `${sustainedTank.controllerName} kyler 100% ihållande (2h+) — sänker kylare ${round1(clampedTarget)}° → ${round1(boostedClamped)}° (marginal ${effectiveMargin.toFixed(1)}° + ${sustainedBoostApplied}° = ${newMargin.toFixed(1)}°)`)
+    log('SUSTAINED_DEMAND', 'action', `${sustainedTank.u.controllerName} ihållande hög belastning (${Math.round((sustainedTank.u.utilization ?? 0) * 100)}%, ${sustainedTank.meta.highBucketCount}/${sustainedTank.meta.sampleCount} bucket ≥90%)${isRamp ? ' under ramp' : ''} — sänker kylare ${round1(clampedTarget)}° → ${round1(boostedClamped)}° (marginal ${effectiveMargin.toFixed(1)}° + ${sustainedBoostApplied.toFixed(1)}° = ${newMargin.toFixed(1)}°)`)
     // Override clampedTarget with the boosted value
     clampedTarget = boostedClamped
   }
@@ -1142,15 +1164,13 @@ async function learnFromCurrentState(
 
     if (util >= 0.99 && currentMargin > 1.0) {
       // Cooling circuit running 100% — tank genuinely can't keep up, need more margin
-      // Check if sustained (all buckets ≥95% ≈ 2h+) → use aggressive 15% increase
-      const isSustained = lowestUtil.recentUtilization != null && lowestUtil.recentUtilization >= 0.95
-        && lowestUtil.midUtilization != null && lowestUtil.midUtilization >= 0.95
-        && lowestUtil.oldestUtilization != null && lowestUtil.oldestUtilization >= 0.95
-        && lowestUtil.ancientUtilization != null && lowestUtil.ancientUtilization >= 0.95
+      // Check if sustained (majority of buckets high) → use aggressive 15% increase
+      const sustainedMeta = getSustainedDemandMeta(lowestUtil)
+      const isSustained = sustainedMeta.isSustained
       const boostFactor = isSustained ? 1.15 : 1.08  // 15% for sustained, 8% for intermittent
       const scaledMargin = currentMargin * boostFactor
       const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ' SUSTAINED 2h+' : ''} — increasing ×${boostFactor}: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
       // Under 70% — actively tighten to reduce condensation risk
       // Use faster alpha (0.3) at low util for quicker downward convergence
