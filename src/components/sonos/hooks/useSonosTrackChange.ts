@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, RollbackLock, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
+
+const ROLLBACK_LOCK_DURATION_MS = 15000;
 
 interface UseSonosTrackChangeParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
@@ -13,6 +15,7 @@ interface UseSonosTrackChangeParams {
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackNameRef: React.RefObject<HTMLDivElement | null>;
   artistNameRef: React.RefObject<HTMLDivElement | null>;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 interface TrackChangeData {
