@@ -259,7 +259,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const baseMargin = learnedMargin.value
   const effectiveMargin = Math.round(baseMargin * rateBoostFactor * 10) / 10
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
-  const clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
+  let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
   log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
