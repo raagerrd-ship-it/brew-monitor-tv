@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_now_playing ADD COLUMN track_seq integer NOT NULL DEFAULT 0;
