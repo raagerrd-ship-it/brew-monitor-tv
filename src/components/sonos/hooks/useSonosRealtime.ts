@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { NowPlaying, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
@@ -14,6 +14,7 @@ interface UseSonosRealtimeParams {
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 /**
@@ -27,6 +28,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     isConnected, showWidget, setNowPlaying,
     localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
+    rollbackLockRef,
   } = params;
 
   // Store the handler in a ref so the realtime subscription can call the latest version
@@ -39,6 +41,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       if (!payload.new) return;
       const incoming = payload.new as NowPlaying;
       if (!incoming.track_name) return;
+
+      // Anti-rollback: block stale track data from reverting a recent change
+      if (isRollbackBlocked(rollbackLockRef.current, incoming.track_name)) {
+        tvDebug('sonos', `🔒 RT blocked rollback to "${incoming.track_name}"`);
+        return;
+      }
+      // Clear lock if backend confirms the new track
+      if (shouldClearLock(rollbackLockRef.current, incoming.track_name)) {
+        rollbackLockRef.current = null;
+      }
 
       let accepted = false;
       let isTrackChange = false;

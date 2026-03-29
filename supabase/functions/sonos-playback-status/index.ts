@@ -78,10 +78,11 @@ Deno.serve(async (req) => {
       metadataResponse.ok ? metadataResponse.json() : null,
     ]);
 
-    // Fetch track_seq from DB
+    // Fetch track_seq from DB scoped to selected group
     const { data: npRow } = await supabase
       .from('sonos_now_playing')
       .select('track_seq')
+      .eq('group_id', groupId)
       .limit(1)
       .single();
 

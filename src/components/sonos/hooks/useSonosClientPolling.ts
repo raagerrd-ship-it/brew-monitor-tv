@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
-  NowPlaying,
+  NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock,
   PLAYBACK_POLL_INTERVAL, PLAYBACK_POLL_TIMEOUT, PREDICTIVE_COOLDOWN_MS,
   updateProgressDOM, triggerServerSync,
 } from './types';
@@ -26,6 +26,7 @@ interface UseSonosClientPollingParams {
   trackChangedAtRef: React.MutableRefObject<number>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 /**
@@ -37,6 +38,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
+    rollbackLockRef,
   } = params;
 
   useEffect(() => {
@@ -81,6 +83,16 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
             setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState } : prev);
           }
           return;
+        }
+
+        // Anti-rollback: block stale track data
+        if (isRollbackBlocked(rollbackLockRef.current, data.trackName)) {
+          tvDebug('sonos', `🔒 Poll blocked rollback to "${data.trackName}"`);
+          return;
+        }
+        // Clear lock if backend confirms the new track
+        if (shouldClearLock(rollbackLockRef.current, data.trackName)) {
+          rollbackLockRef.current = null;
         }
 
         // Transient IDLE during skip: position=0 + same or different track → keep polling, don't set IDLE

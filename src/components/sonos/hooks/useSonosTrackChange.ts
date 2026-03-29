@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, RollbackLock, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
+
+const ROLLBACK_LOCK_DURATION_MS = 15000;
 
 interface UseSonosTrackChangeParams {
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
@@ -13,6 +15,7 @@ interface UseSonosTrackChangeParams {
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackNameRef: React.RefObject<HTMLDivElement | null>;
   artistNameRef: React.RefObject<HTMLDivElement | null>;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 interface TrackChangeData {
@@ -33,9 +36,20 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
+    rollbackLockRef,
   } = params;
 
   const handleTrackChange = useCallback((data: TrackChangeData) => {
+    // Set rollback lock: block fromTrack for 15s
+    const currentTrack = trackNameRef.current?.textContent ?? '';
+    if (currentTrack && currentTrack !== data.trackName) {
+      rollbackLockRef.current = {
+        fromTrack: currentTrack,
+        toTrack: data.trackName,
+        lockUntil: Date.now() + ROLLBACK_LOCK_DURATION_MS,
+      };
+      tvDebug('sonos', `🔒 Rollback lock: "${currentTrack}" → "${data.trackName}" (${ROLLBACK_LOCK_DURATION_MS / 1000}s)`);
+    }
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
 
@@ -148,7 +162,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         next_artist_name: null,
       };
     });
-  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef]);
+  }, [setNowPlaying, localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef, rollbackLockRef]);
 
   return { handleTrackChange };
 }

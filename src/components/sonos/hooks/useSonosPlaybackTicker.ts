@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
-  NowPlaying,
+  NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock,
   PLAYBACK_POLL_TIMEOUT, PREDICTIVE_THRESHOLD_MS, PREDICTIVE_MARGIN_MS,
   PREDICTIVE_RETRY_INTERVAL_MS, PREDICTIVE_MAX_RETRIES,
   updateProgressDOM, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer,
@@ -29,6 +29,7 @@ interface UseSonosPlaybackTickerParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 /**
@@ -44,6 +45,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     lastPredictivePollRef, predictiveScheduledRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackChangeOffsetMs,
+    rollbackLockRef,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
@@ -78,6 +80,18 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         lastPredictivePollRef.current = Date.now();
 
         if (data.trackName && data.trackName !== trackName) {
+          // Anti-rollback: if this is the old track, retry instead of swapping
+          if (isRollbackBlocked(rollbackLockRef.current, data.trackName)) {
+            tvDebug('sonos', `🔒 Ticker blocked rollback to "${data.trackName}"`);
+            if (retriesLeft > 0) {
+              predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);
+            }
+            return;
+          }
+          // Clear lock if confirmed
+          if (shouldClearLock(rollbackLockRef.current, data.trackName)) {
+            rollbackLockRef.current = null;
+          }
           handleTrackChangeRef.current(data);
         } else if (retriesLeft > 0) {
           predictiveTimer = setTimeout(() => pollForNewTrack(retriesLeft - 1), PREDICTIVE_RETRY_INTERVAL_MS);

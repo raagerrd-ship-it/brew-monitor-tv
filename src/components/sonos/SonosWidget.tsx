@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
+import { NowPlaying, RollbackLock, stripQuery, pushToBgBuffer } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
@@ -34,6 +34,7 @@ export const SonosWidget = memo(function SonosWidget({
   onAlbumArtChangeRef.current = onAlbumArtChange;
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
+  const rollbackLockRef = useRef<RollbackLock | null>(null);
   
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
@@ -46,6 +47,7 @@ export const SonosWidget = memo(function SonosWidget({
     setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
+    rollbackLockRef,
   });
 
   useSonosPlaybackTicker({
@@ -55,6 +57,7 @@ export const SonosWidget = memo(function SonosWidget({
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
     trackChangeOffsetMs,
+    rollbackLockRef,
   });
 
   useSonosClientPolling({
@@ -62,6 +65,7 @@ export const SonosWidget = memo(function SonosWidget({
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef, trackChangedAtRef,
     progressBarRef, debugTimeRef,
+    rollbackLockRef,
   });
 
   useSonosRealtime({
@@ -69,6 +73,7 @@ export const SonosWidget = memo(function SonosWidget({
     localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
+    rollbackLockRef,
   });
 
   // Send bg image on init when nowPlaying arrives with bg_image_url
