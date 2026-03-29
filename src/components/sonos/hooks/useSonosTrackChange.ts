@@ -36,9 +36,20 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
     setNowPlaying, localProgressRef, trackChangedAtRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
+    rollbackLockRef,
   } = params;
 
   const handleTrackChange = useCallback((data: TrackChangeData) => {
+    // Set rollback lock: block fromTrack for 15s
+    const currentTrack = trackNameRef.current?.textContent ?? '';
+    if (currentTrack && currentTrack !== data.trackName) {
+      rollbackLockRef.current = {
+        fromTrack: currentTrack,
+        toTrack: data.trackName,
+        lockUntil: Date.now() + ROLLBACK_LOCK_DURATION_MS,
+      };
+      tvDebug('sonos', `🔒 Rollback lock: "${currentTrack}" → "${data.trackName}" (${ROLLBACK_LOCK_DURATION_MS / 1000}s)`);
+    }
     trackChangedAtRef.current = Date.now();
     localProgressRef.current = data.positionMillis;
 
