@@ -14,6 +14,7 @@ interface UseSonosRealtimeParams {
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
+  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
 }
 
 /**
