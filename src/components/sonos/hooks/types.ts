@@ -10,6 +10,7 @@ export interface NowPlaying {
   next_widget_art_url?: string | null;
   next_bg_image_url?: string | null;
   next_album_art_url?: string | null;
+  track_seq?: number;
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;

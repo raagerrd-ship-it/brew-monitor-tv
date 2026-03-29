@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     // Read existing row (need updated_at for stale-pause check + cached image URLs)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, track_name, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, updated_at, playback_state, album_art_url')
+      .select('id, track_name, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, updated_at, playback_state, album_art_url, track_seq')
       .eq('group_id', groupId)
       .limit(1)
       .single();
