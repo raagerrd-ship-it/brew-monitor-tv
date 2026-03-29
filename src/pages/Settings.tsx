@@ -468,6 +468,20 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
               </div>
+              <SettingsDivider />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Interaktiva diagram</p>
+                  <p className="text-xs text-muted-foreground">Använd samma diagram som desktop istället för SVG-bilder</p>
+                </div>
+                <Switch
+                  checked={localStorage.getItem('tv-use-recharts') !== 'false'}
+                  onCheckedChange={(checked) => {
+                    localStorage.setItem('tv-use-recharts', checked ? 'true' : 'false');
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                />
+              </div>
             </SettingsSection>
 
             {/* Logga ut */}
