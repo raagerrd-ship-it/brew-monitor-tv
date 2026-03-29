@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { subscribeBleDebug, type BleDebugEntry } from "@/lib/phomemo-driver/connection";
-import { X } from "lucide-react";
+import { X, Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 interface PrintDebugOverlayProps {
   open: boolean;
@@ -23,8 +24,7 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
     clear();
     const unsub = subscribeBleDebug((entry) => {
       setEntries(prev => {
-        // Keep max 500 entries to avoid memory issues
-        const next = prev.length >= 500 ? [...prev.slice(-400), entry] : [...prev, entry];
+        const next = prev.length >= 2000 ? [...prev.slice(-1500), entry] : [...prev, entry];
         return next;
       });
       setTotalBytes(prev => prev + entry.bytes);
@@ -32,26 +32,55 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
     return unsub;
   }, [open, clear]);
 
-  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [entries]);
 
+  const buildLogText = useCallback(() => {
+    return entries.map(e => {
+      const dir = e.direction === 'out' ? 'TX' : 'RX';
+      const ts = (e.ts / 1000).toFixed(3);
+      return `${ts}s ${dir} [${e.ctx}] ${e.bytes}B ${e.hex}`;
+    }).join('\n');
+  }, [entries]);
+
+  const handleCopy = async () => {
+    const text = buildLogText();
+    await navigator.clipboard.writeText(text);
+    toast({ title: "Kopierat!", description: `${entries.length} rader kopierade till urklipp.` });
+  };
+
+  const handleDownload = () => {
+    const text = buildLogText();
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ble-print-log-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-foreground">🔬 BLE Debug</h2>
           <span className="text-xs text-muted-foreground font-mono">
-            {entries.length} cmd • {formatBytes(totalBytes)} skickat
+            {entries.length} cmd • {formatBytes(totalBytes)}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={handleCopy} className="text-xs h-7 gap-1" disabled={entries.length === 0}>
+            <Copy className="h-3 w-3" /> Kopiera
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleDownload} className="text-xs h-7 gap-1" disabled={entries.length === 0}>
+            <Download className="h-3 w-3" /> Ladda ner
+          </Button>
           <Button variant="ghost" size="sm" onClick={clear} className="text-xs h-7">
             Rensa
           </Button>
@@ -61,7 +90,6 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
         </div>
       </div>
 
-      {/* Log area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {entries.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
@@ -76,7 +104,7 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
             }`}
           >
             <span className="text-muted-foreground/50 w-16 shrink-0 text-right tabular-nums">
-              {formatMs(e.ts)}
+              {(e.ts / 1000).toFixed(2)}s
             </span>
             <span className={`shrink-0 w-5 text-center ${
               e.direction === 'in' ? 'text-green-500' : 'text-blue-400'
@@ -92,17 +120,11 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
         ))}
       </div>
 
-      {/* Summary bar */}
       <div className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground/50 text-center">
-        Visar alla BLE-skrivningar i realtid • Rasterdata visas trunkerat (32 bytes)
+        TX = skickat till skrivare • RX = svar från skrivare • Rasterdata trunkerat till 32 bytes hex
       </div>
     </div>
   );
-}
-
-function formatMs(ts: number): string {
-  const s = (ts / 1000).toFixed(2);
-  return `${s}s`;
 }
 
 function formatBytes(bytes: number): string {
