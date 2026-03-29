@@ -43,6 +43,13 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       let accepted = false;
 
       setNowPlaying(prev => {
+        // Monotonic seq check: reject stale data
+        if (prev && typeof incoming.track_seq === 'number' && typeof prev.track_seq === 'number'
+            && incoming.track_seq < prev.track_seq) {
+          tvDebug('sonos', `📡 RT rejected: seq ${incoming.track_seq} < ${prev.track_seq}`);
+          return prev;
+        }
+
         // First state
         if (!prev) {
           accepted = true;
@@ -51,7 +58,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT init: "${incoming.track_name}"`);
+          tvDebug('sonos', `📡 RT init: "${incoming.track_name}" (seq ${incoming.track_seq ?? '?'})`);
           return incoming;
         }
 
