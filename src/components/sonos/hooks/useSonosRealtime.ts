@@ -149,7 +149,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         };
       });
 
-      if (accepted && incoming.position_ms != null) {
+      // Only reset position on track change/init — same-track updates would cause jumps
+      // because the server position_ms is stale relative to the local ticker
+      if (isTrackChange && incoming.position_ms != null) {
         localProgressRef.current = incoming.position_ms;
         updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
       }
