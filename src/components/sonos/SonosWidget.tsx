@@ -57,6 +57,7 @@ export const SonosWidget = memo(function SonosWidget({
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
     trackChangeOffsetMs,
+    rollbackLockRef,
   });
 
   useSonosClientPolling({
