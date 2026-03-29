@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { NowPlaying, RollbackLock, stripQuery, pushToBgBuffer } from "./hooks/types";
+import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
@@ -27,53 +27,51 @@ export const SonosWidget = memo(function SonosWidget({
   const trackNameRef = useRef<HTMLDivElement>(null);
   const artistNameRef = useRef<HTMLDivElement>(null);
   const localProgressRef = useRef<number | null>(null);
-  const trackChangedAtRef = useRef<number>(0);
   const bgSentRef = useRef<string | null>(null);
   const validBgBufferRef = useRef<string[]>([]);
   const onAlbumArtChangeRef = useRef(onAlbumArtChange);
   onAlbumArtChangeRef.current = onAlbumArtChange;
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
-  const rollbackLockRef = useRef<RollbackLock | null>(null);
+  const acceptedSeqRef = useRef<number>(0);
   
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
 
   const { isConnected, showWidget, trackChangeOffsetMs } = useSonosInit({
-    setNowPlaying, localProgressRef,
+    setNowPlaying, localProgressRef, acceptedSeqRef,
   });
 
   const { handleTrackChange } = useSonosTrackChange({
-    setNowPlaying, localProgressRef, trackChangedAtRef,
+    setNowPlaying, localProgressRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackNameRef, artistNameRef,
-    rollbackLockRef,
   });
 
   useSonosPlaybackTicker({
     nowPlaying, nowPlayingRef, handleTrackChange,
-    localProgressRef, trackChangedAtRef,
+    localProgressRef,
     lastPredictivePollRef, predictiveScheduledRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
     trackChangeOffsetMs,
-    rollbackLockRef,
+    acceptedSeqRef,
   });
 
   useSonosClientPolling({
     isConnected, showWidget, nowPlaying, nowPlayingRef,
     setNowPlaying, handleTrackChange,
-    localProgressRef, lastPredictivePollRef, trackChangedAtRef,
+    localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
-    rollbackLockRef,
+    acceptedSeqRef,
   });
 
   useSonosRealtime({
     isConnected, showWidget, setNowPlaying,
-    localProgressRef, trackChangedAtRef,
+    localProgressRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
-    rollbackLockRef,
+    acceptedSeqRef,
   });
 
   // Send bg image on init when nowPlaying arrives with bg_image_url
@@ -106,8 +104,6 @@ export const SonosWidget = memo(function SonosWidget({
     if (incomingArtUrl) setImageError(false);
   }, [incomingArtUrl]);
 
-  // Apply art directly when available and nothing is displayed yet (init/reload)
-  // For subsequent changes, use preload to avoid flicker
   const needsDirectApply = incomingArtUrl && !displayedArtUrl && !imageError;
   const isNewArtPending = incomingArtUrl && displayedArtUrl && stripQuery(incomingArtUrl) !== stripQuery(displayedArtUrl) && !imageError;
 

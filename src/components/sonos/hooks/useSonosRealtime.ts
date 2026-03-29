@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { NowPlaying, RollbackLock, isRollbackBlocked, shouldClearLock, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, isSeqStale, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
@@ -8,30 +8,26 @@ interface UseSonosRealtimeParams {
   showWidget: boolean;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
   localProgressRef: React.MutableRefObject<number | null>;
-  trackChangedAtRef: React.MutableRefObject<number>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
   onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
-  rollbackLockRef: React.MutableRefObject<RollbackLock | null>;
+  acceptedSeqRef: React.MutableRefObject<number>;
 }
 
 /**
- * Realtime handler. Only jobs:
- * 1. First init / wake from IDLE → accept all
- * 2. Track change (skip etc) → accept all
- * 3. Same track → only next_* fields + state + fill missing art
+ * Realtime handler with monotonic seq-gate.
+ * Incoming data with track_seq < acceptedSeqRef is always rejected.
  */
 export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
     isConnected, showWidget, setNowPlaying,
-    localProgressRef, trackChangedAtRef, bgSentRef, validBgBufferRef,
+    localProgressRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
-    rollbackLockRef,
+    acceptedSeqRef,
   } = params;
 
-  // Store the handler in a ref so the realtime subscription can call the latest version
   const handlerRef = useRef<((payload: any) => void) | null>(null);
 
   useEffect(() => {
@@ -42,31 +38,21 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       const incoming = payload.new as NowPlaying;
       if (!incoming.track_name) return;
 
-      // Anti-rollback: block stale track data from reverting a recent change
-      if (isRollbackBlocked(rollbackLockRef.current, incoming.track_name)) {
-        tvDebug('sonos', `🔒 RT blocked rollback to "${incoming.track_name}"`);
+      // Monotonic seq-gate: reject stale data
+      if (isSeqStale(acceptedSeqRef.current, incoming.track_seq)) {
+        tvDebug('sonos', `📡 RT rejected: seq ${incoming.track_seq} < accepted ${acceptedSeqRef.current}`);
         return;
-      }
-      // Clear lock if backend confirms the new track
-      if (shouldClearLock(rollbackLockRef.current, incoming.track_name)) {
-        rollbackLockRef.current = null;
       }
 
       let accepted = false;
       let isTrackChange = false;
 
       setNowPlaying(prev => {
-        // Monotonic seq check: reject stale data
-        if (prev && typeof incoming.track_seq === 'number' && typeof prev.track_seq === 'number'
-            && incoming.track_seq < prev.track_seq) {
-          tvDebug('sonos', `📡 RT rejected: seq ${incoming.track_seq} < ${prev.track_seq}`);
-          return prev;
-        }
-
         // First state
         if (!prev) {
           accepted = true;
           isTrackChange = true;
+          if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
@@ -80,7 +66,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING') {
           accepted = true;
           isTrackChange = true;
-          trackChangedAtRef.current = Date.now();
+          if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
@@ -93,28 +79,30 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Already IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE') return prev;
 
-        // Cooldown: ignore different-track (server hasn't caught up)
-        const msSinceTC = Date.now() - trackChangedAtRef.current;
-        if (msSinceTC < 15000 && incoming.track_name !== prev.track_name) return prev;
-
-        // Track change via RT (skip etc)
+        // Track change via RT — only accept if seq is strictly higher
         if (incoming.track_name !== prev.track_name) {
+          const incomingSeq = incoming.track_seq ?? 0;
+          const currentSeq = acceptedSeqRef.current;
+          
+          if (incomingSeq <= currentSeq) {
+            tvDebug('sonos', `📡 RT track change blocked: seq ${incomingSeq} <= accepted ${currentSeq}`);
+            return prev;
+          }
+
           accepted = true;
           isTrackChange = true;
-          trackChangedAtRef.current = Date.now();
-          // Only push bg if it's actually NEW (not stale from Phase 1 where server kept old bg)
+          acceptedSeqRef.current = incomingSeq;
+          
           const bgIsNew = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
           if (bgIsNew) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" (bg: ${bgIsNew ? 'ny' : 'väntar'})`);
+          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} (bg: ${bgIsNew ? 'ny' : 'väntar'})`);
           return {
             ...incoming,
-            // Keep current bg if server hasn't updated yet (Phase 1)
             bg_image_url: bgIsNew ? incoming.bg_image_url : prev.bg_image_url,
-            // Use new widget/album art if available, otherwise null (don't show stale art from previous track)
             widget_art_url: incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url
               ? incoming.widget_art_url : null,
             album_art_url: incoming.album_art_url && incoming.album_art_url !== prev.album_art_url
@@ -124,14 +112,17 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
         // Same track → only next_* + state + fill missing/updated art
         accepted = true;
+        // Update accepted seq if higher (same track, server confirmed)
+        if (typeof incoming.track_seq === 'number' && incoming.track_seq > acceptedSeqRef.current) {
+          acceptedSeqRef.current = incoming.track_seq;
+        }
+
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
         const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
-        // Accept bg if missing OR if server sent a different one (Phase 2 after track change)
         const bgChanged = incoming.bg_image_url && stripQs(incoming.bg_image_url) !== stripQs(prev.bg_image_url);
         const widgetChanged = incoming.widget_art_url && stripQs(incoming.widget_art_url) !== stripQs(prev.widget_art_url);
 
-        // Preload next images
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
         if (nextWidgetNew) { const img = new Image(); img.src = incoming.next_widget_art_url!; }
 
@@ -164,15 +155,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         };
       });
 
-      // Only reset position on track change/init — same-track updates would cause jumps
-      // because the server position_ms is stale relative to the local ticker
       if (isTrackChange && incoming.position_ms != null) {
         localProgressRef.current = incoming.position_ms;
         updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
       }
     };
 
-    // Subscribe to realtime changes on sonos_now_playing
     const channel = supabase
       .channel('sonos-widget-realtime')
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (payload: any) => {
@@ -180,7 +168,6 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       })
       .subscribe();
 
-    // DB polling fallback (30s) — Realtime is unreliable on Chromecast/TV
     const pollDb = async () => {
       try {
         const { data } = await supabase

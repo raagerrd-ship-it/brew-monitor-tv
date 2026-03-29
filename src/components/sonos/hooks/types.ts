@@ -19,25 +19,10 @@ export interface NowPlaying {
 
 export type ArtStatus = 'displayed' | 'detecting' | 'loading';
 
-/** Anti-rollback lock: prevents stale data from reverting a track change */
-export interface RollbackLock {
-  fromTrack: string;
-  toTrack: string;
-  lockUntil: number;
-}
-
-/** Check if a track name is blocked by the rollback lock */
-export function isRollbackBlocked(lock: RollbackLock | null, trackName: string): boolean {
-  if (!lock) return false;
-  if (Date.now() > lock.lockUntil) return false;
-  return trackName === lock.fromTrack;
-}
-
-/** Check if incoming data confirms the new track, clearing the lock */
-export function shouldClearLock(lock: RollbackLock | null, trackName: string): boolean {
-  if (!lock) return false;
-  if (Date.now() > lock.lockUntil) return true;
-  return trackName === lock.toTrack;
+/** Monotonic seq gate: check if incoming seq is stale */
+export function isSeqStale(acceptedSeq: number, incomingSeq: number | undefined): boolean {
+  if (typeof incomingSeq !== 'number') return false; // no seq → allow (legacy)
+  return incomingSeq < acceptedSeq;
 }
 
 export const PLAYBACK_POLL_INTERVAL = 5000;
