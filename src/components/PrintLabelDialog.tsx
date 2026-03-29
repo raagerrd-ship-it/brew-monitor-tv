@@ -51,6 +51,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
 
   const handleBlePrint = () => {
     if (!canvasRef.current) return;
+    setDebugOpen(true);
     print(canvasRef.current, copies);
   };
 
