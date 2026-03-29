@@ -179,9 +179,23 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
           </Button>
         </div>
 
-        {/* Version label */}
-        <p className="text-[10px] text-muted-foreground/30 text-center">Printer {PRINTER_VERSION}</p>
+        {/* Version label + debug toggle */}
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-[10px] text-muted-foreground/30">Printer {PRINTER_VERSION}</p>
+          {hasBle && (
+            <button
+              onClick={() => setDebugOpen(true)}
+              className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+              title="Visa BLE-debug"
+            >
+              <Bug className="h-3 w-3 inline" />
+            </button>
+          )}
+        </div>
       </DialogContent>
+
+      {/* Debug overlay */}
+      <PrintDebugOverlay open={debugOpen} onClose={() => setDebugOpen(false)} />
     </Dialog>
   );
 }
