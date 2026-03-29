@@ -134,6 +134,15 @@ export async function setupNotifyChannel(
       const bytes = new Uint8Array(value.buffer.slice(0));
       queue.push(bytes);
       onLog?.(`[Printer][ACK] raw: ${toHex(bytes)}`);
+      if (debugListeners.size > 0) {
+        emitDebug({
+          ts: performance.now(),
+          ctx: 'ACK',
+          bytes: bytes.length,
+          hex: toHex(bytes),
+          direction: 'in',
+        });
+      }
     };
 
     notifyChar.addEventListener('characteristicvaluechanged', onNotify as EventListener);
