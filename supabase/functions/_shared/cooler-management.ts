@@ -316,6 +316,27 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     const coolerAtZero = coolerUtil != null && coolerUtil < 0.01
 
     if (anyTankMaxUtil && coolerAtZero) {
+      // ── Sustained demand: if a tank has been at 100% for 2h+, permanently lower ──
+      // the cooler target instead of using temporary kicks that oscillate.
+      const sustainedTankInDeadBand = utilizations.find(u =>
+        u.utilization != null && u.utilization >= 0.99
+        && u.recentUtilization != null && u.recentUtilization >= 0.95
+        && u.midUtilization != null && u.midUtilization >= 0.95
+        && u.oldestUtilization != null && u.oldestUtilization >= 0.95
+        && u.ancientUtilization != null && u.ancientUtilization >= 0.95
+      )
+
+      if (sustainedTankInDeadBand) {
+        // Permanent fix: lower the cooler target by 0.5°C to escape dead band
+        // This is more energy-efficient than running a pump at 100% for hours
+        const sustainedTarget = round1(Math.max(coolerMinTemp, currentCoolerTarget - 0.5))
+        log('SUSTAINED_LOWER', 'action', `${sustainedTankInDeadBand.controllerName} kyler 100% ihållande (2h+), kylare 0% i dead band — sänker permanent ${round1(currentCoolerTarget)}° → ${round1(sustainedTarget)}° (effektivare än pump 100%)`)
+        await applyCoolerTarget(ctx, coolerController, currentCoolerTarget, sustainedTarget, effectiveTarget.temp,
+          `📉 Sustained demand: ${sustainedTankInDeadBand.controllerName} 100% i 2h+ → sänker permanent till ${sustainedTarget}°C`,
+          adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
+        return adjustments
+      }
+
       // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
       const { data: lastKickAdj } = await supabase
         .from('auto_cooling_adjustments')
