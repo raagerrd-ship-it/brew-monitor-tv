@@ -16,6 +16,28 @@ import {
 } from './constants';
 import { defaultStorage } from './storage';
 
+// ── Debug log emitter ───────────────────────────────────────────
+
+export type BleDebugEntry = {
+  ts: number;
+  ctx: string;
+  bytes: number;
+  hex: string;        // first 32 bytes as hex
+  direction: 'out' | 'in';
+};
+
+type BleDebugListener = (entry: BleDebugEntry) => void;
+const debugListeners = new Set<BleDebugListener>();
+
+export function subscribeBleDebug(listener: BleDebugListener): () => void {
+  debugListeners.add(listener);
+  return () => { debugListeners.delete(listener); };
+}
+
+function emitDebug(entry: BleDebugEntry) {
+  debugListeners.forEach(l => l(entry));
+}
+
 // ── Utilities ───────────────────────────────────────────────────
 
 export function delay(ms: number): Promise<void> {
