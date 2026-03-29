@@ -34,6 +34,7 @@ export const SonosWidget = memo(function SonosWidget({
   onAlbumArtChangeRef.current = onAlbumArtChange;
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
+  const rollbackLockRef = useRef<RollbackLock | null>(null);
   
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
