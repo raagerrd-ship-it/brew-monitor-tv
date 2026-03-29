@@ -88,6 +88,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Track change via RT (skip etc)
         if (incoming.track_name !== prev.track_name) {
           accepted = true;
+          isTrackChange = true;
           trackChangedAtRef.current = Date.now();
           // Only push bg if it's actually NEW (not stale from Phase 1 where server kept old bg)
           const bgIsNew = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
