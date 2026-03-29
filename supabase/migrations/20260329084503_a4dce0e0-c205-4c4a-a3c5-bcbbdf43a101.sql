@@ -1,0 +1,1 @@
+DELETE FROM fermentation_learnings WHERE parameter_name LIKE 'sg_residual_per_degree:%';
