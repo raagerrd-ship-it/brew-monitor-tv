@@ -22,6 +22,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogP
   const [labelType, setLabelType] = useState<LabelType>('tank');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copies, setCopies] = useState(1);
+  const [debugOpen, setDebugOpen] = useState(false);
   const navigate = useNavigate();
 
   const {
