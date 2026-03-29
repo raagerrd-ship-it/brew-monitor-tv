@@ -145,9 +145,12 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
 export function LazyBrewChart(props: BrewChartProps) {
   const { isTvMode } = useTvMode();
 
-  // TV mode: use server-rendered chart images for hardware performance
+  // TV mode: default to Recharts (same as desktop), fallback to SVG if flag is set
   if (isTvMode && props.brewId) {
-    return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} brewStatus={props.brewStatus} />;
+    const useRecharts = localStorage.getItem('tv-use-recharts') !== 'false';
+    if (!useRecharts) {
+      return <TvModeChart brewId={props.brewId} compact={props.hasFermentationSession} lastUpdateRaw={props.lastUpdateRaw} brewCount={props.brewCount} brewStatus={props.brewStatus} />;
+    }
   }
 
   // Desktop & Mobile: interactive Recharts
