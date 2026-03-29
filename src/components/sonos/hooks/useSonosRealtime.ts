@@ -41,6 +41,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       if (!incoming.track_name) return;
 
       let accepted = false;
+      let isTrackChange = false;
 
       setNowPlaying(prev => {
         // Monotonic seq check: reject stale data
@@ -53,6 +54,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // First state
         if (!prev) {
           accepted = true;
+          isTrackChange = true;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
@@ -65,6 +67,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Wake from IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING') {
           accepted = true;
+          isTrackChange = true;
           trackChangedAtRef.current = Date.now();
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
@@ -85,6 +88,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Track change via RT (skip etc)
         if (incoming.track_name !== prev.track_name) {
           accepted = true;
+          isTrackChange = true;
           trackChangedAtRef.current = Date.now();
           // Only push bg if it's actually NEW (not stale from Phase 1 where server kept old bg)
           const bgIsNew = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
@@ -145,7 +149,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         };
       });
 
-      if (accepted && incoming.position_ms != null) {
+      // Only reset position on track change/init — same-track updates would cause jumps
+      // because the server position_ms is stale relative to the local ticker
+      if (isTrackChange && incoming.position_ms != null) {
         localProgressRef.current = incoming.position_ms;
         updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
       }
