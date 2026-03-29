@@ -128,6 +128,14 @@ Deno.serve(async (req) => {
       // Delete the pending retry
       await supabase.from("pending_rapt_retries").delete().eq("id", retry.id);
 
+      // CRITICAL: Update DB target_temp to the revert value NOW that we've
+      // confirmed the RAPT command succeeded. During the burst, DB was kept
+      // at the burst value (0°C for cooling, maxTemp for heating) to match
+      // the actual hardware state. Only now can we safely update.
+      await supabase.from("rapt_temp_controllers")
+        .update({ target_temp: retry.target_temp, updated_at: new Date().toISOString() })
+        .eq("controller_id", retry.controller_id);
+
       // Create decision log for PWM OFF
       const shortName = (retry.controller_id as string).substring(0, 8);
       try {
