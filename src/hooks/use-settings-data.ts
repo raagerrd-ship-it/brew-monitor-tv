@@ -79,7 +79,7 @@ export function useSettingsData() {
   // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   // stallDetectionEnabled/stallBoostDegrees removed — stall-boost feature removed
-  const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
+  // overshootPreventionEnabled removed — overshoot prevention runs unconditionally
   const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
   const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
