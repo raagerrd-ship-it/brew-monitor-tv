@@ -103,17 +103,27 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
             try {
               await triggerServerSync();
               const result = await fetchNowPlayingImages();
-              const isStale = result?.trackName && result.trackName !== data.trackName;
-              if (isStale) {
-                // Check if another track change already happened — if so, abort
-                const currentTrack = document.querySelector('[data-sonos-track]')?.textContent;
-                if (currentTrack && currentTrack !== data.trackName) {
-                  tvDebug('sonos', `🛑 Avbryter retry — spår redan bytt till "${currentTrack}"`);
-                  break;
+              const dbTrack = result?.trackName;
+              const dbMatchesPredicted = dbTrack === data.trackName;
+              const dbMatchesPrevious = dbTrack === prev?.track_name;
+              
+              if (dbTrack && !dbMatchesPredicted && !dbMatchesPrevious) {
+                // DB has a different NEW track — prediction was wrong, accept DB track
+                tvDebug('sonos', `🔀 Prediktion fel: förväntade "${data.trackName}", DB har "${dbTrack}" — accepterar`);
+                if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
+                  pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
+                  onAlbumArtChangeRef.current?.(result.bgImageUrl, dbTrack);
+                  bgSentRef.current = result.bgImageUrl;
                 }
-                tvDebug('sonos', `⏳ DB har "${result.trackName}" — väntar på "${data.trackName}" (${attempt + 1}/5)`);
+                break;
+              }
+              
+              if (dbTrack && !dbMatchesPredicted && dbMatchesPrevious) {
+                // DB still has the old track — wait for it to update
+                tvDebug('sonos', `⏳ DB har fortfarande "${dbTrack}" (${attempt + 1}/5)`);
                 continue;
               }
+
               if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                 onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
