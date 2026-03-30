@@ -125,10 +125,6 @@ function BridgeDiagnostics() {
                   <CheckCircle2 className={`h-3.5 w-3.5 ${data.bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
                   <span className="text-xs">Bakgrund: {data.bg_image_url ? 'Genererad ✓' : 'Väntar...'}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className={`h-3.5 w-3.5 ${data.widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className="text-xs">Widget: {data.widget_art_url ? 'Genererad ✓' : 'Väntar...'}</span>
-                </div>
               </div>
 
               {/* Next track — always visible */}
@@ -140,10 +136,6 @@ function BridgeDiagnostics() {
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
                       <span className="text-xs">Bakgrund: {data.next_bg_image_url ? 'Klar ✓' : 'Ej genererad'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <span className="text-xs">Widget: {data.next_widget_art_url ? 'Klar ✓' : 'Ej genererad'}</span>
                     </div>
                   </>
                 ) : (
