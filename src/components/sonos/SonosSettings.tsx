@@ -643,6 +643,9 @@ export function SonosSettings() {
 
           {/* Art Resolution Diagnostics */}
           <ArtResolutionDiagnostics />
+
+          {/* Sonos Debug Log */}
+          <SonosDebugLog />
         </>
       )}
 
