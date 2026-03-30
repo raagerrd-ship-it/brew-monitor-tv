@@ -189,8 +189,8 @@ Deno.serve(async (req) => {
     }
 
     const phase1Ms = Date.now() - startTime;
-    const writtenPos = metadataPayload.position_ms;
-    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" pos=${positionMillis}→${writtenPos}ms state=${playbackState} bridgeArt=${bridgeHasArt}`);
+    const writtenPos = skipPositionWrite ? 'skipped' : (metadataPayload.position_ms ?? 0);
+    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms writtenPos=${writtenPos} state=${playbackState} bridgeArt=${bridgeHasArt}`);
 
     // If same track AND background already exists, just a position/state update — done
     const needsBg = !existingRow?.bg_image_url;
