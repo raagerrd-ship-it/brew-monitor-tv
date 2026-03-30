@@ -1196,7 +1196,7 @@ async function learnWarmingRate(
   for (const c of controllersWithCooling) {
     // Use the controller's own target temp for bucket, not the cooler's
     const controllerBucket = getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20')))
-    const rate = await measureCoolingRate(supabase, c.controller_id)
+    const rate = await measureCoolingRateCached(ctx, c.controller_id)
     // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
     if (rate !== null && rate < -0.05) {
       const warmingRate = Math.abs(rate) // °C/h of passive warming
