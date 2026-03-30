@@ -650,11 +650,80 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
 
       const dutyRaw = pidResult.dutyCycle
-      const dutyPct = Math.round(dutyRaw * 10) * 10
+      let dutyPct = Math.round(dutyRaw * 10) * 10
       const totalBurstMin = dutyPct / 10
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
+
+      // ── Heating Session Cap (hold-only) ──────────────────────
+      // Prevents thermal inertia buildup from long continuous low-duty heating.
+      // Tracks cumulative active heating minutes; forces a rest period after cap.
+      // Bypassed during ramps where continuous heating is needed.
+      const HEATING_SESSION_CAP_MIN = 10
+      const HEATING_REST_MIN = 30
+      let forcedRest = false
+
+      if (!isProfileRamp && dutyPct > 0 && !ctx.skipLearning) {
+        const sessionParam = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
+        const restParam = await getLearnedParam(supabase, fc.controller_id, 'heating_rest_until', 0)
+        const restUntil = restParam.value // stored as unix timestamp in ms, 0 = no rest
+        const nowMs = Date.now()
+
+        if (restUntil > nowMs) {
+          // Forced rest is active — clamp duty to 0
+          const restRemainMin = Math.round((restUntil - nowMs) / 60000)
+          log('HEATING_REST', 'info', `${fc.name}: vilofas aktiv, ${restRemainMin} min kvar`)
+          dutyPct = 0
+          forcedRest = true
+        } else if (sessionParam.value >= HEATING_SESSION_CAP_MIN) {
+          // Cap hit → start forced rest period
+          const restEnd = nowMs + HEATING_REST_MIN * 60000
+          await supabase.from('fermentation_learnings').upsert({
+            controller_id: fc.controller_id,
+            parameter_name: 'heating_rest_until',
+            learned_value: restEnd,
+            sample_count: (restParam.sampleCount || 0) + 1,
+            last_updated_at: new Date().toISOString(),
+          }, { onConflict: 'controller_id,parameter_name' })
+          await supabase.from('fermentation_learnings').upsert({
+            controller_id: fc.controller_id,
+            parameter_name: 'heating_session_minutes',
+            learned_value: 0,
+            sample_count: 0,
+            last_updated_at: new Date().toISOString(),
+          }, { onConflict: 'controller_id,parameter_name' })
+          log('HEATING_CAP_HIT', 'action', `${fc.name}: ${round1(sessionParam.value)} min heating → ${HEATING_REST_MIN} min vila`)
+          dutyPct = 0
+          forcedRest = true
+        } else {
+          // Accumulate: add this burst's active minutes
+          const newTotal = sessionParam.value + currentBurstMin
+          await supabase.from('fermentation_learnings').upsert({
+            controller_id: fc.controller_id,
+            parameter_name: 'heating_session_minutes',
+            learned_value: newTotal,
+            sample_count: (sessionParam.sampleCount || 0) + 1,
+            last_updated_at: new Date().toISOString(),
+          }, { onConflict: 'controller_id,parameter_name' })
+          log('HEATING_SESSION', 'info', `${fc.name}: session ${round1(newTotal)}/${HEATING_SESSION_CAP_MIN} min`)
+        }
+      }
+
+      // Reset session counter when PID naturally outputs 0% (not during forced rest or ramp)
+      if (!isProfileRamp && dutyPct === 0 && !forcedRest && !ctx.skipLearning) {
+        const sessionCheck = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
+        if (sessionCheck.value > 0) {
+          await supabase.from('fermentation_learnings').upsert({
+            controller_id: fc.controller_id,
+            parameter_name: 'heating_session_minutes',
+            learned_value: 0,
+            sample_count: 0,
+            last_updated_at: new Date().toISOString(),
+          }, { onConflict: 'controller_id,parameter_name' })
+          log('HEATING_SESSION_RESET', 'info', `${fc.name}: PID 0% naturligt → session nollställd`)
+        }
+      }
       const revertTarget = round1(pidEffectiveTarget)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
