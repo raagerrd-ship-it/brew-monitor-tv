@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
               // stale PWM burst values long after PWM OFF has reverted.
               const maxTarget = existingMap.get(controller.id)?.max_target_temp;
               const isPwmCoolingArtifact = targetTemp <= -4;
-              const isPwmHeatingArtifact = maxTarget != null && Math.abs(targetTemp - maxTarget) < 0.5;
+              const isPwmHeatingArtifact = targetTemp >= 39;
               const isPwmBurstArtifact = isPidManaged && (isPwmCoolingArtifact || isPwmHeatingArtifact);
 
               if (isAutomationLatency || isPwmBurstArtifact) {
