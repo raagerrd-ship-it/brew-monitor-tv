@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, playback_state, album_art_url')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, playback_state, album_art_url')
         .limit(1)
         .single(),
     ]);
@@ -131,6 +131,18 @@ Deno.serve(async (req) => {
 
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
+    const hasExplicitPosition = typeof positionMillis === 'number';
+    const preserveExistingPosition =
+      sameTrack &&
+      playbackState === 'PLAYBACK_STATE_PLAYING' &&
+      existingRow?.playback_state === 'PLAYBACK_STATE_PLAYING' &&
+      typeof existingRow?.position_ms === 'number' &&
+      existingRow.position_ms > 5000 &&
+      (!hasExplicitPosition || positionMillis <= 1000);
+
+    if (preserveExistingPosition) {
+      console.log(`[BridgePush] Preserving existing position ${existingRow?.position_ms}ms for same-track PLAYING event`);
+    }
 
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
@@ -143,7 +155,9 @@ Deno.serve(async (req) => {
       next_artist_name: nextArtistName || null,
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
-      position_ms: positionMillis || 0,
+      position_ms: preserveExistingPosition
+        ? existingRow.position_ms
+        : (hasExplicitPosition ? positionMillis : 0),
       track_seq: newTrackSeq,
       // Bridge-provided metadata columns
       volume: volume ?? null,
