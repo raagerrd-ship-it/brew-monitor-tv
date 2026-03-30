@@ -4,18 +4,12 @@ import { getTvDebugEntries, subscribeTvDebug, type TvDebugEntry } from "@/lib/tv
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, RefreshCw, ChevronDown, ImageIcon, CheckCircle2, XCircle, Circle, Radio, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-interface SonosGroup {
-  id: string;
-  name: string;
-  householdId: string;
-}
 
 function BridgeDiagnostics() {
   const [data, setData] = useState<any>(null);
