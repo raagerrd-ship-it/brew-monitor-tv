@@ -894,28 +894,4 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
 // Smart Relay was removed — RAPT API does not support relay/hysteresis control for TemperatureControllers.
 
-// ─── Stall Detection ─────────────────────────────────────────
-
-async function runStallDetection(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
-  const { stallSettings, log } = ctx
-
-  if (!stallSettings.enabled) {
-    log('STALL', 'info', 'Stall detection disabled')
-    return []
-  }
-
-  const stallCtx: StallContext = {
-    supabase: ctx.supabase,
-    supabaseUrl: ctx.supabaseUrl,
-    serviceRoleKey: ctx.serviceRoleKey,
-    followedControllersFullData: ctx.followedControllersFullData,
-    profileOwnedControllerIds: ctx.profileOwnedControllerIds,
-    profileTargetMap: ctx.profileTargetMap,
-    sessionBrewIdMap: ctx.sessionBrewIdMap,
-    log,
-    updateBatch: ctx.updateBatch,
-  }
-
-  await evaluateBoostOutcomes(stallCtx, ctx.stallSettings)
-  return await detectAndHandleStalls(stallCtx, ctx.stallSettings)
-}
+// Stall detection removed — gradual_ramp (Smart diacetylvila) handles the same use case
