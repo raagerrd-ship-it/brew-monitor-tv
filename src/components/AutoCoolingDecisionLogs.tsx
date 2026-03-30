@@ -377,7 +377,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   if (settingsDetails) {
     if (!settingsDetails.cooling) disabledFeatures.push('Glykolkylare');
     if (!settingsDetails.pill_compensation) disabledFeatures.push('PID-kompensation');
-    if (!settingsDetails.stall_boost) disabledFeatures.push('Stall-boost');
+    // stall_boost removed
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
