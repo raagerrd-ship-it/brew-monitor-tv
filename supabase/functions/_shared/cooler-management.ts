@@ -251,26 +251,24 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
 
   // Fallback chain: load-specific → generic cooler_margin
+  // Batch all margin-related reads in one Promise.all (was 3-4 separate queries)
   const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
-  const [loadMargin, genericMargin] = await Promise.all([
+  const coolingRateKey = `cooling_rate:${tempBucket}:${loadBucket}`
+  const [loadMargin, genericMargin, minEffective, learnedRate] = await Promise.all([
     getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
     getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0),
+    getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0),
+    getLearnedParam(supabase, coolerController.controller_id, coolingRateKey, -1),
   ])
   const learnedMargin = loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
   const marginSource = loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
 
-  const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
-
   // ── Rate-aware margin boost during ramps ──────────────────
-  // If we know the required cooling rate AND the learned cooling rate for this zone,
-  // predict whether the current margin is sufficient
   let rateBoostFactor = 1.0
   if (isRamp && effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0) {
-    const learnedRate = await getLearnedParam(supabase, coolerController.controller_id, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
     if (learnedRate.sampleCount >= 3 && learnedRate.value > 0.05) {
       const rateRatio = effectiveTarget.requiredRatePerHour / learnedRate.value
       if (rateRatio > 1.1) {
-        // Required rate exceeds learned rate — need more margin
         rateBoostFactor = Math.min(rateRatio, 1.5)
         log('RATE_PREDICT', 'action', `Ramp kräver ${effectiveTarget.requiredRatePerHour.toFixed(2)}°C/h men lärd rate är ${learnedRate.value.toFixed(2)}°C/h — ökar marginal ×${rateBoostFactor.toFixed(2)}`)
       } else {
