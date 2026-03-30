@@ -46,6 +46,10 @@ export interface CoolerContext {
   skipLearning?: boolean
   /** PWM bursts from PID — used to detect active cooling need even when hardware util is 0% */
   pwmBursts?: Array<{ controller_id: string; duty_pct: number }>
+  /** Pre-calculated utilization results from PID step — avoids re-querying */
+  sharedUtilizations?: Map<string, UtilizationResult>
+  /** Cached cooling rate results per controller — avoids duplicate DB queries */
+  coolingRateCache?: Map<string, number | null>
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
