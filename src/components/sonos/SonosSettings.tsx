@@ -665,7 +665,6 @@ function SonosDebugLog() {
                 max={200}
                 step={5}
                 onValueChange={(v) => setBgTopGradientHeight(v[0])}
-                onValueCommit={(v) => saveField({ bg_top_gradient_height: v[0] })}
               />
             </div>
 
