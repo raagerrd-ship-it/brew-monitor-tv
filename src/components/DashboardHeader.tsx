@@ -123,14 +123,14 @@ export function DashboardHeader({
               )}
             </div>
 
-            <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
+            <div className="flex items-center gap-3 flex-shrink-0 self-stretch">
               <Clock />
 
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
                 <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
                     <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
                   </Button>
                 </div>
