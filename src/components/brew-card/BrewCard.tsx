@@ -332,6 +332,8 @@ function BrewCardComponent({
                 brewCount={brewCount}
                 smoothLines={smoothLines}
                 onSmoothLinesChange={setSmoothLines}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
                 brewStatus={brew.status}
               />
             )}
