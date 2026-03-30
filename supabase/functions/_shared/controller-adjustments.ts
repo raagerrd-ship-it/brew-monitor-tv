@@ -670,7 +670,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
           // that causes a sync loop where RAPT reports old value, we correct, repeat.
           const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-          if (ctrlTarget < -4 || ctrlTarget >= maxTemp - 0.5) {
+          if (ctrlTarget < -4 || ctrlTarget >= 39) {
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
@@ -785,7 +785,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         ? round1(Math.max(raptProbeTemp - 2, minTemp))
         : round1(actualTarget) // fallback: neutral target (no probe data)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-      const onTarget = round1(maxTemp) // heating ON = max temp
+      const HEATING_ON_TARGET = 40 // +5° over max to guarantee relay activation past 5°C hysteresis
+      const onTarget = HEATING_ON_TARGET
 
       if (dutyPct >= 100) {
         // 100%: hold maxTemp entire cycle
@@ -861,8 +862,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
               .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
               .eq('controller_id', fc.controller_id)
             adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
-          } else if (ctrlTarget < -4 || ctrlTarget >= maxTemp - 0.5) {
-            // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst,
+          } else if (ctrlTarget < -4 || ctrlTarget >= 39) {
+            // Only revert if hardware is stuck at a PWM extreme (40°C from a heating burst,
             // or -5°C from a previous cooling burst after mode switch)
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
