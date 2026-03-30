@@ -196,6 +196,13 @@ function BrewCardComponent({
                     </button>
                     <button
                       className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      onClick={() => { setTimeRange(timeRange === 'full' ? '12h' : 'full'); }}
+                    >
+                      <Clock className={`h-3.5 w-3.5 ${timeRange === '12h' ? 'text-primary' : 'text-muted-foreground'}`} />
+                      {timeRange === '12h' ? 'Visa allt' : 'Senaste 12h'}
+                    </button>
+                    <button
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
                       onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
                     >
                       <Share2 className="h-3.5 w-3.5" />
