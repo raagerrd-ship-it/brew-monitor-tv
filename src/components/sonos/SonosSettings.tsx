@@ -131,21 +131,25 @@ function BridgeDiagnostics() {
                 </div>
               </div>
 
-              {/* Next track */}
-              {data.next_track_name && (
-                <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">Nästa låt (förprocessad)</p>
-                  <p className="text-xs text-foreground">{data.next_track_name} — {data.next_artist_name || '—'}</p>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className="text-xs">Bakgrund: {data.next_bg_image_url ? 'Klar ✓' : 'Ej genererad'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className="text-xs">Widget: {data.next_widget_art_url ? 'Klar ✓' : 'Ej genererad'}</span>
-                  </div>
-                </div>
-              )}
+              {/* Next track — always visible */}
+              <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Nästa låt (förladdning)</p>
+                {data.next_track_name ? (
+                  <>
+                    <p className="text-xs text-foreground">{data.next_track_name} — {data.next_artist_name || '—'}</p>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <span className="text-xs">Bakgrund: {data.next_bg_image_url ? 'Klar ✓' : 'Ej genererad'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <span className="text-xs">Widget: {data.next_widget_art_url ? 'Klar ✓' : 'Ej genererad'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Ingen nästa låt rapporterad från bridge</p>
+                )}
+              </div>
 
               {/* Track URI */}
               {data.track_uri && (
