@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
+import { round1, TempController, setControllerTargetTemp, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
 import { computeDualSensorTarget } from './dual-sensor.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
