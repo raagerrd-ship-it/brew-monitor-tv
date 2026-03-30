@@ -1,100 +1,87 @@
 
 
-# Temperaturreglering — Kodgranskning med färska ögon
+# Kodgranskning — Optimeringsmöjligheter
 
 ## Sammanfattning
 
-Systemet är en **PI-regulator** (Proportional + Integral, ingen D-term) som styr duty cycle (0–100%) och exekverar via PWM-bursts mot RAPT-hårdvaran. Kärnidén är korrekt och matchar industrin (BrewPi, CraftBeerPi, Fermentrack använder alla PI). Men runt denna kärna har det ackumulerats **flera lager av workarounds och specialfall** som delvis överlappar varandra.
+PI-regulatorn och PWM-exekveringen är nu rena och välstrukturerade. De största optimeringsmöjligheterna ligger i **cooler-management.ts** (1389 rader) och **onödiga databasanrop** som körs varje 5-minuterscykel.
 
 ---
 
-## Vad som är RÄTT och bör behållas
+## 1. Utilization-tracking: Massiva DB-anrop per cykel (STOR VINST)
 
-| Funktion | Motivering |
-|---|---|
-| PI utan D-term | Korrekt för långsamma termiska system. D-term förstärker sensorbrus. |
-| Duty cycle → PWM | Rätt approach givet att RAPT bara stöder SetTargetTemperature. |
-| Extreme targets (-5°C / 40°C) | Nödvändigt för att forcera reläer förbi 5°C hysteres. |
-| Stale-data guard (P=0 vid gammal data) | Förhindrar att P-termen triggar 3× på samma mätning. |
-| Deadband (±0.05°C) | Standard. |
-| Probe-baserad suppression vid revert | Korrekt — RAPT:s termostat ser bara proben. |
-| 2-cykels A/B PWM-modell | Smart lösning för 10%-upplösning. |
+`calculateSingleUtilization` gör **8 DB-anrop** (getLearnedParam × 8) bara för att läsa util-historiken, plus upp till **8 skrivningar** vid varje data-shift. Med 3 controllers = **48 DB-anrop bara för utilization**.
+
+**Problem:** Alla 8 parametrar (util_p4_run_time, util_p4_at, util_anchor_run_time, etc.) lagras som separata rader i `fermentation_learnings`. Varje kräver en egen query.
+
+**Fix:** Slå ihop till EN JSON-kolumn eller EN rad med alla util-fält. Alternativt: batch-läs alla util-parametrar i en enda IN-query istället för 8 separata anrop.
+
+**Estimat:** Sparar ~40 DB-anrop per cykel.
 
 ---
 
-## Vad som ÖVERLAPPAR eller är ONÖDIGT
+## 2. cooler-management.ts — Duplicerade DB-queries
 
-### 1. D-term / Damping Factor (~40 rader i pid-compensation.ts)
-Beräknar `dampingFactor` från pill rate + ETA, men den bara **skalar ner P-termen** marginellt. En ren PI-regulator behöver inte detta — deadband + integral decay hanterar redan konvergens. Effekten är minimal men koden är komplex.
+`runCoolerCooling` anropar `calculateSingleUtilization` för kylaren (rad 140), sedan anropas `calculateCoolingUtilizations` (rad 201) som i sin tur anropar `calculateSingleUtilization` igen för varje controller — **inklusive** samma controllers som PID redan beräknade utilization för i `controller-adjustments.ts` (rad 580).
 
-**Rekommendation:** Ta bort D-term-beräkningen. Behåll PI rent.
+**Fix:** Beräkna utilization EN gång i PID-steget, skicka med via context. Kylaren återanvänder.
 
-### 2. Ramp Rate Limiting (~30 rader i controller-adjustments.ts)
-Begränsar hur snabbt `pidEffectiveTarget` kan ändras (4°C/h kyla, 3°C/h värme). Men profilsystemet har redan `gradual_ramp` som hanterar detta. Dubbel rate-limiting kan göra att systemet reagerar långsammare än nödvändigt vid t.ex. cold crash.
-
-**Rekommendation:** Behåll ENBART om man vill skydda mot manuella stegändringar (t.ex. 18°→2°). Annars ta bort — profilen hanterar ramper.
-
-### 3. Heating Session Cap (~60 rader)
-Forcerar 30 min vila efter 10 min kontinuerlig värme. Detta borde inte behövas med korrekt PI-tuning — om systemet övervärmer med låg duty beror det på för aggressiva gains, inte på att det behövs en timer. BrewPi/CraftBeerPi har inget liknande.
-
-**Rekommendation:** Ta bort. Justera heating P-gain/I-gain istället om överskjutning sker.
-
-### 4. Style-Key Fallback (~30 rader i pid-compensation.ts)
-Söker i databasen efter inlärda PI-värden från samma ölstil. Kräver 3 DB-anrop (session → brew → style lookup). Vinsten är marginell — integralen konvergerar på 2-3 cykler ändå.
-
-**Rekommendation:** Ta bort. Sparar 3 DB-queries per controller per cykel.
-
-### 5. Temperaturinterpolation (~30 rader)
-Estimerar temperatur mellan RAPT:s 15-min synkar. Men integralen håller redan steady-state duty — P-termen nollställs vid stale data. Interpoleringen ger en marginellt bättre P-respons men lägger till komplexitet och risk för felaktig estimering.
-
-**Rekommendation:** Kan behållas som optimering, men är inte kritisk. Borttagning förenklar utan märkbar försämring.
-
-### 6. Dubbel saturation detection
-Både rate-baserad (pill rate vs learned thermal rate) OCH utilization-baserad (>90%). Dessa mäter i princip samma sak — hårdvaran är maxad.
-
-**Rekommendation:** Behåll enbart utilization-baserad (enklare, mer direkt).
-
-### 7. Cooling vs Heating PWM-block — 95% identiska (~200 rader duplicerade)
-Raderna 580–691 (cooling) och 694–886 (heating) är nästan identiska förutom:
-- ON-target: -5°C vs 40°C
-- Revert-riktning: probe+2 vs probe-2
-- Heating session cap (extra logik)
-
-**Rekommendation:** Refaktorera till EN gemensam `executePwmDutyCycle(mode, ...)` funktion. Sparar ~150 rader.
+**Estimat:** Halverar antalet util-beräkningar (och deras 8 DB-anrop var).
 
 ---
 
-## Sammanfattning av förenklingsmöjligheter
+## 3. `learnFromCurrentState` — Överdriven inlärningsgranularitet
 
-```text
-Funktion                    Rader   Effekt av borttagning
-─────────────────────────────────────────────────────────
-D-term / damping            ~40     Ingen märkbar försämring
-Ramp rate limiting          ~30     Profilen hanterar redan
-Heating session cap         ~60     Bättre löst via PI-tuning
-Style-key fallback          ~30     3 färre DB-anrop/cykel
-Temp interpolation          ~30     Marginell optimering
-Dubbel saturation           ~15     Förenkling
-PWM-duplicering             ~150    Ren refaktorering
-─────────────────────────────────────────────────────────
-Totalt                      ~355    ~40% mindre kod
-```
+Systemet lär sig marginaler i **3 dimensioner**: tempBucket × loadBucket × activityBucket, plus generiska varianter av varje. Det innebär att `learnFromCurrentState` gör **6+ `updateLearnedParam`-anrop** per cykel.
 
-## Vad industrin gör annorlunda
+**Problem:** Med ett litet bryggeri (2–3 controllers) konvergerar dessa aldrig ordentligt. Du behöver hundratals cykler per bucket-kombination för meningsfull data.
 
-**BrewPi** (referensimplementation):
-- Ren PI-regulator, ~200 rader totalt
-- Direkt reläkontroll (ingen PWM-workaround behövs)
-- Ingen inlärning, ingen interpolation, ingen mode-switching-logik
-- Hysteres hanteras av hårdvaran
+**Fix:** Ta bort activityBucket-dimensionen. Behåll bara `tempBucket` för marginaler. Sparar 2 DB-anrop per cykel + ger snabbare konvergens.
 
-Ert system är mer komplext pga RAPT-hårdvarans begränsningar (15-min telemetri, ingen reläkontroll, 5°C hysteres). Men **flera av workarounds löser problem som andra workarounds redan löst**.
+---
 
-## Förslag: Stegvis förenkling
+## 4. Temperaturinterpolation — Bör ligga i pid-compensation.ts
 
-1. **Steg 1** (låg risk): Refaktorera cooling/heating PWM till gemensam funktion
-2. **Steg 2** (låg risk): Ta bort style-key fallback + dubbel saturation
-3. **Steg 3** (medel risk): Ta bort D-term/damping
-4. **Steg 4** (medel risk): Ta bort heating session cap, justera gains vid behov
-5. **Steg 5** (diskutera): Ramp rate limiting — behåll eller ta bort beroende på om manuella stegändringar ska stödjas
+Interpolationslogiken (rad 318–362 i controller-adjustments.ts) läser 8 parametrar från `fermentation_learnings` via en batch-query (bra!), men den duplicerar mode-detektionslogik som PID redan gör. Den borde vara en del av PID-beräkningen, inte en pre-processing i controllern.
+
+**Fix:** Flytta interpolation in i `calculateCompensatedTarget` — den har redan tillgång till `deltaHistory` och mode. Förenklar controller-adjustments och eliminerar den separata batch-queryn.
+
+---
+
+## 5. `measureCoolingRate` anropas dubbelt
+
+`measureCoolingRate` körs för kylaren (rad 144), sedan igen i `learnFromCurrentState` (rad 1092), och potentiellt en tredje gång i `learnMinEffectiveMargin` (rad 1230). Varje anrop gör en DB-query mot `temp_controller_history`.
+
+**Fix:** Cache resultatet i context.
+
+---
+
+## 6. Mode-switching — Komplex men korrekt
+
+Mode-switching-logiken (rad 408–520 i controller-adjustments.ts) är ~110 rader med många branches. Den är **korrekt** och hanterar edge cases väl (step-change, emergency, ramp override). Kan förenklas till ~60 rader med en state-machine approach, men risken är högre än vinsten.
+
+**Rekommendation:** Lämna — fungerar och är väl loggrundad.
+
+---
+
+## 7. `PillCompensationSettings` — Vestigial interface
+
+`PillCompensationSettings` med fält som `rateLimit`, `emergencyThreshold`, `minScale`, `maxCompensation`, `anticipationWindowHours` används inte längre i `calculateCompensatedTarget`. Hela interfacet och `loadPillCompSettings` gör en onödig DB-query varje cykel.
+
+**Fix:** Ta bort interfacet, queryn, och parametern. PID:n använder sina hårdkodade gains.
+
+---
+
+## Prioriterad plan
+
+| Steg | Vad | Risk | DB-besparing |
+|------|-----|------|-------------|
+| 1 | Batch-läs util-parametrar i EN query | Låg | ~40 anrop/cykel |
+| 2 | Dela util-beräkning mellan PID och cooler via context | Låg | ~24 anrop/cykel |
+| 3 | Ta bort activityBucket från marginalinlärning | Låg | ~6 anrop/cykel |
+| 4 | Ta bort PillCompensationSettings (vestigial) | Låg | 1 query/cykel |
+| 5 | Cache measureCoolingRate per controller | Låg | 2–3 queries/cykel |
+| 6 | Flytta interpolation till pid-compensation (refaktorering) | Medel | Bättre struktur |
+
+**Total estimerad besparing: ~70 DB-anrop per 5-minuterscykel**, vilket minskar latens och Supabase-kostnad.
 
