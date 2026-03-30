@@ -97,7 +97,7 @@ export function DashboardHeader({
               </div>
               <NotificationBell />
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
                   <Settings className="w-5 h-5" />
                 </Button>
               </div>
