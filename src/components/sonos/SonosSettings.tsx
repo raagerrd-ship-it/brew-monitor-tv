@@ -629,7 +629,6 @@ function SonosDebugLog() {
                 max={100}
                 step={5}
                 onValueChange={(v) => setBgBrightness(v[0])}
-                onValueCommit={(v) => saveField({ bg_brightness: v[0] })}
               />
               <p className="text-xs text-muted-foreground">
                 Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
