@@ -431,8 +431,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const oldT = details?.old_target ?? null;
     const newT = details?.new_target ?? null;
 
-    // Detect PWM ON sends (marked as PWM, or target=0 for cooling, or very high target for heating)
-    const isPwmOn = details?.is_pwm || (newT === 0 && oldT != null && oldT > 0);
+    // Detect PWM ON sends (marked as PWM, or target=-5 for cooling, or target=40 for heating)
+    const isPwmOn = details?.is_pwm || (newT != null && (newT <= -4 || newT >= 39));
 
     // Detect if this RAPT_SEND was triggered by a DUTY_ZERO (0% duty revert/suppress)
     const isDutyZeroSend = dutyZeroControllerNames.has(controllerFullName);
