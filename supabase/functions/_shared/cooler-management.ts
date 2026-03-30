@@ -1002,23 +1002,19 @@ async function learnFromCurrentState(
   }
 
   // ── Only learn when at least one controller is actively cooling ──
-  // If no tank has active demand, the observed margin is meaningless
   const anyActive = utilizations?.some(u => u.isActivelyCooling) ?? false
   if (!anyActive) {
-    // ── Learn warming rate + duty cycle even during PWM — these use probe history, not hardware targets ──
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
     log('MARGIN_LEARN', 'info', `Hoppar marginalinlärning — ingen controller kyler aktivt`)
     return
   }
 
-  // ── Skip margin/cooling-rate learning during PWM ON phases — targets are temporary ──
-  // Detect PWM burst from hardware target: -5 = cooling ON, 40 = heating ON
+  // ── Skip margin/cooling-rate learning during PWM ON phases ──
   const anyPwmActive = controllersWithCooling.some(c => {
     const t = parseFloat(String(c.target_temp ?? '20'))
     return t <= -4 || t >= 39
   })
   if (anyPwmActive) {
-    // Still learn warming rate + duty cycle — PWM only affects hardware target, not thermal behavior
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
     log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
@@ -1028,9 +1024,6 @@ async function learnFromCurrentState(
   const currentMargin = Math.abs(effectiveTarget.temp - currentCoolerTarget)
 
   // ── Guard: skip hold_margin learning when cooler is at/near max (idle) ──
-  // When the cooler target is clamped at max_target_temp, the observed margin
-  // is artificially small (e.g. 1.0°C). Learning this value creates a
-  // self-reinforcing loop where the margin stays too small to ever cool.
   const coolerEffectivelyIdle = currentCoolerTarget >= coolerMaxTemp - 0.5
   if (coolerEffectivelyIdle) {
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
@@ -1038,7 +1031,6 @@ async function learnFromCurrentState(
     return
   }
 
-  // Use baseTarget (grundmål) for margin learning — stable and not affected by PI fluctuations
   const getBaseTarget = (c: TempController): number =>
     ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
 
@@ -1052,19 +1044,31 @@ async function learnFromCurrentState(
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
-  // ── Measure actual cooling rate from history (last 30 min, cached) ──
   const actualRate = await measureCoolingRateCached(ctx, lowestController.controller_id)
-
   const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
 
-  // ── Determine load bucket (how many tanks are actively cooling) ──
   const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
   const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
+
+  const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
+  const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
+  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
+
+  // ── Pre-read ALL candidate params in a single query, compute EMA in memory ──
+  const batch = new LearnBatch(supabase, coolerController.controller_id)
+  const candidateParams = [
+    `cooling_rate:${tempBucket}:${loadBucket}`,
+    `cooling_capacity:${loadBucket}`,
+    `cooler_margin:${tempBucket}`,
+    marginParam,
+    `min_effective_margin:${tempBucket}`,
+  ]
+  await batch.preload(candidateParams)
 
   // ── Learn cooling rate per bucket+load ──
   if (actualRate !== null && actualRate > 0.05) {
     const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
-    const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
+    const rateResult = batch.update(rateParam, actualRate, 0.01, 20.0)
     if (Math.abs(rateResult.oldValue - rateResult.newValue) > 0.01) {
       log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
     }
@@ -1072,84 +1076,65 @@ async function learnFromCurrentState(
 
   // ── Learn cooling capacity at near-100% utilization ──
   if (lowestUtil?.utilization != null && lowestUtil.utilization >= 0.95 && actualRate !== null && actualRate > 0) {
-    const capParam = `cooling_capacity:${loadBucket}`
-    await updateLearnedParam(supabase, coolerController.controller_id, capParam, actualRate, 0.01, 20.0)
+    batch.update(`cooling_capacity:${loadBucket}`, actualRate, 0.01, 20.0)
   }
-
-  // ── Determine if current state is hold or ramp for separate margin learning ──
-  const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
-  const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
-  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
 
   // ── Rate-based learning during active ramps ──
   if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
     const requiredRate = effectiveTarget.requiredRatePerHour
-    const ratio = actualRate > 0.05 ? requiredRate / actualRate : 2.0 // avoid div-by-zero
+    const ratio = actualRate > 0.05 ? requiredRate / actualRate : 2.0
 
     log('RATE_LEARN', 'info', `Ramp rate: actual ${actualRate.toFixed(2)}°C/h vs required ${requiredRate.toFixed(2)}°C/h (ratio ${ratio.toFixed(2)})`)
 
     if (ratio > 1.1) {
       const scaledMargin = currentMargin * Math.min(ratio, 1.5)
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
+      const result = batch.update(`cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `[${tempBucket}] Rate too slow — increasing: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (ratio < 0.85) {
       const tighterMargin = currentMargin * 0.95
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
+      const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     }
 
-    // Learn ramp-specific margin
-    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
-
-    await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+    batch.update(marginParam, currentMargin, 1.0, 15.0)
+    learnMinEffectiveMarginBatched(batch, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+    await batch.flush()
     return
   }
 
   // ── Utilization-based learning (hold steps) ──
-  // Primary learning signal: how hard is the cooling circuit working?
-  // Philosophy: only increase margin at 100% utilization (tank can't keep up).
-  // Otherwise tighten aggressively to keep cooler temp as high as possible
-  // (minimizes condensation risk on glycol lines).
   if (lowestUtil?.utilization != null) {
     const util = lowestUtil.utilization
 
     log('UTIL_LEARN', 'info', `[${tempBucket}] Cooling utilization: ${Math.round(util * 100)}% (margin ${currentMargin.toFixed(1)}°C)`)
 
     if (util >= 0.99 && currentMargin > 1.0) {
-      // Cooling circuit running 100% — tank genuinely can't keep up, need more margin
-      // Check if sustained (majority of buckets high) → use aggressive 15% increase
       const sustainedMeta = getSustainedDemandMeta(lowestUtil)
       const isSustained = sustainedMeta.isSustained
-      const boostFactor = isSustained ? 1.15 : 1.08  // 15% for sustained, 8% for intermittent
+      const boostFactor = isSustained ? 1.15 : 1.08
       const scaledMargin = currentMargin * boostFactor
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
+      const result = batch.update(`cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
-      // Under 70% — actively tighten to reduce condensation risk
-      // Use faster alpha (0.3) at low util for quicker downward convergence
-      // Threshold lowered from 2.0 to 1.2 so margins approaching min_effective can still converge
-      const tighterMargin = currentMargin * 0.93  // 7% decrease (more aggressive)
+      const tighterMargin = currentMargin * 0.93
       const alphaOverride = util < 0.5 ? 0.3 : undefined
-      const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
+      const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
       log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
     } else if (util >= 0.7 && util < 0.99) {
-      // 70–99%: good zone, but still try to nudge tighter slowly
       if (currentMargin > 2.5) {
-        const nudge = currentMargin * 0.98  // gentle 2% decrease
-        const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
+        const nudge = currentMargin * 0.98
+        const result = batch.update(`cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — nudging tighter: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
       } else {
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal`)
       }
     }
 
-    // Learn hold-specific margin
-    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
-
-    // Also learn max effective during hold if we have rate data
+    batch.update(marginParam, currentMargin, 1.0, 15.0)
     if (actualRate !== null) {
-      await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+      learnMinEffectiveMarginBatched(batch, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
     }
+    await batch.flush()
     return
   }
 
@@ -1159,24 +1144,23 @@ async function learnFromCurrentState(
 
   if (atTarget && !overshot && currentMargin > 1.0) {
     const tighterMargin = currentMargin * 0.97
-    const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
+    const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   } else if (overshot) {
     const reducedMargin = currentMargin * 0.75
-    const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
+    const result = batch.update(`cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Overshoot! Reducing: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   } else if (!atTarget) {
     const biggerMargin = currentMargin * 1.15
-    const result = await updateLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, biggerMargin, 2.0, 15.0)
+    const result = batch.update(`cooler_margin:${tempBucket}`, biggerMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   }
 
-  // Learn hold-specific margin
-  await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
-
+  batch.update(marginParam, currentMargin, 1.0, 15.0)
   if (actualRate !== null) {
-    await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
+    learnMinEffectiveMarginBatched(batch, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
   }
+  await batch.flush()
 }
 
 // ─── Learn passive warming rate ──────────────────────────────
