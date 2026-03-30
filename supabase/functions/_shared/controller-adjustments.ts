@@ -598,11 +598,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      // Prevent RAPT's internal thermostat from acting after a cooling burst:
-      // - If probe > target: RAPT would continue cooling → set revert ABOVE probe
-      // - If probe < target: RAPT would start heating → set revert BELOW probe
-      // - If probe ≈ target: use actualTarget directly
-      // RAPT's thermostat always compares against its own probe sensor.
+      // Prevent RAPT's internal thermostat from acting after a cooling burst.
+      // We are in COOLING mode here, so after the burst ends we must SUPPRESS
+      // cooling by setting the hw target ABOVE the probe. This prevents the
+      // RAPT relay from continuing to cool between PID cycles.
       // Use fc.current_temp explicitly — never fall back to actualTemp (pill/fusion).
       const raptProbeTemp = fc.current_temp
       const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
@@ -612,14 +611,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // Cannot calculate safe suppression target without probe data — use neutral target
         revertTarget = round1(pidEffectiveTarget)
         log('REVERT_NO_PROBE', 'fail', `${fc.name}: probe saknas, revert → ${revertTarget}° (neutral)`)
-      } else if (raptProbeTemp > pidEffectiveTarget + 0.3) {
-        // Probe above target — set hw target ABOVE probe to stop cooling relay
-        revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
-      } else if (raptProbeTemp < pidEffectiveTarget - 0.3) {
-        // Probe below target — set hw target BELOW probe to stop heating relay
-        revertTarget = round1(Math.max(raptProbeTemp - 2, coolingMinTemp))
       } else {
-        revertTarget = round1(pidEffectiveTarget)
+        // COOLING mode: always suppress cooling → set hw target ABOVE probe
+        revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
       }
 
       if (dutyPct >= 100) {
