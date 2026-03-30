@@ -1466,7 +1466,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Duty</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Est</th>
           </tr>
         </thead>
         <tbody>
