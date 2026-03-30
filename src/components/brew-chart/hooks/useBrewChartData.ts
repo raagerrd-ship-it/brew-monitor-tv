@@ -21,6 +21,7 @@ interface UseBrewChartDataProps {
   controllerId?: string;
   brewId?: string;
   smoothLines: boolean;
+  timeRange?: '12h' | 'full';
   /** @deprecated ignored — dual sensor is per-controller now */
   pillCompensation?: boolean;
 }
