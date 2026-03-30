@@ -565,7 +565,6 @@ export function useSettingsData() {
     handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
     handlePillCompMaxCompensationChange,
-    handleStallDetectionEnabledChange, handleStallBoostDegreesChange,
     handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
     handleCoolerControllerChange,
     handleFollowedControllerToggle,
