@@ -602,16 +602,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // - If probe > target: RAPT would continue cooling → set revert ABOVE probe
       // - If probe < target: RAPT would start heating → set revert BELOW probe
       // - If probe ≈ target: use actualTarget directly
-      const coolingProbeTemp = fc.current_temp ?? actualTemp
+      // RAPT's thermostat always compares against its own probe sensor.
+      // Use fc.current_temp explicitly — never fall back to actualTemp (pill/fusion).
+      const raptProbeTemp = fc.current_temp
       const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
       const coolingMaxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       let revertTarget: number
-      if (coolingProbeTemp > pidEffectiveTarget + 0.3) {
+      if (raptProbeTemp == null) {
+        // Cannot calculate safe suppression target without probe data — use neutral target
+        revertTarget = round1(pidEffectiveTarget)
+        log('REVERT_NO_PROBE', 'fail', `${fc.name}: probe saknas, revert → ${revertTarget}° (neutral)`)
+      } else if (raptProbeTemp > pidEffectiveTarget + 0.3) {
         // Probe above target — set hw target ABOVE probe to stop cooling relay
-        revertTarget = round1(Math.min(coolingProbeTemp + 2, coolingMaxTemp))
-      } else if (coolingProbeTemp < pidEffectiveTarget - 0.3) {
+        revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
+      } else if (raptProbeTemp < pidEffectiveTarget - 0.3) {
         // Probe below target — set hw target BELOW probe to stop heating relay
-        revertTarget = round1(Math.max(coolingProbeTemp - 2, coolingMinTemp))
+        revertTarget = round1(Math.max(raptProbeTemp - 2, coolingMinTemp))
       } else {
         revertTarget = round1(pidEffectiveTarget)
       }
