@@ -224,8 +224,9 @@ Deno.serve(async (req) => {
         let nextArtUrl: string | null = null;
         if (bridgeHasNextArt) {
           nextArtUrl = bustCache(nextAlbumArtUri);
-        } else if (nextAlbumArtUri) {
-          const nextResolved = await resolveAlbumArt(nextAlbumArtUri, undefined, nextTrackName, nextArtistName);
+        } else {
+          // Resolve art even if nextAlbumArtUri is missing — resolveAlbumArt will fall back to Spotify search
+          const nextResolved = await resolveAlbumArt(nextAlbumArtUri || null, undefined, nextTrackName, nextArtistName);
           nextArtUrl = nextResolved.medium;
         }
         if (nextArtUrl) {
