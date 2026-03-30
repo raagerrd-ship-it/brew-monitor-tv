@@ -85,7 +85,7 @@ export function DashboardHeader({
             <div className="flex items-center gap-1">
               {onRefresh && !isOnSettings && (
                 <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
+                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-50 hover:opacity-90 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
                     <RefreshCw className="w-5 h-5" />
                   </Button>
                 </div>
