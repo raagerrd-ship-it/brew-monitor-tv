@@ -542,6 +542,9 @@ Deno.serve(async (req) => {
         baseTargetMap,
         skipLearning: systemIsIdle,
         pwmBursts,
+        preloadedProfileCache: loadedSessions.length > 0
+          ? { sessions: loadedSessions, stepsMap: loadedProfileStepsMap }
+          : undefined,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);
