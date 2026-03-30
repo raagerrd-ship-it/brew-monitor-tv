@@ -58,6 +58,16 @@ Deno.serve(async (req) => {
       playbackState,
       positionMillis,
       durationMillis,
+      volume,
+      mute,
+      bass,
+      treble,
+      loudness,
+      crossfade,
+      mediaType,
+      trackNumber,
+      trackURI,
+      nrTracks,
     } = body;
 
     if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
@@ -128,6 +138,17 @@ Deno.serve(async (req) => {
       duration_ms: durationMillis || null,
       position_ms: positionMillis || 0,
       track_seq: newTrackSeq,
+      // Bridge-provided metadata columns
+      volume: volume ?? null,
+      mute: mute ?? null,
+      bass: bass ?? null,
+      treble: treble ?? null,
+      loudness: loudness ?? null,
+      crossfade: crossfade ?? null,
+      media_type: mediaType ?? null,
+      track_number: trackNumber ?? null,
+      track_uri: trackURI ?? null,
+      nr_tracks: nrTracks ?? null,
       // If bridge uploaded art, set album_art_url immediately (cache-busted)
       ...(bridgeHasArt ? { album_art_url: bustCache(albumArtUri) } : {}),
       ...(bridgeHasNextArt ? { next_album_art_url: bustCache(nextAlbumArtUri) } : {}),
