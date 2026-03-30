@@ -192,7 +192,6 @@ Deno.serve(async (req) => {
 - PI(D)-regulator kompenserar för skillnaden mellan actual_temp (fuserat sensorvärde) och actual_target (profilmål). actual_target = profile_target_temp (vad användaren satt). hardware_target = target_temp på hårdvaran (kan avvika pga PID-kompensation/PWM).
 - Varje controller har 'dual_sensor_enabled' och 'preferred_sensor' som anger sensorläge.
 - Glykolkylare sänks automatiskt under lägsta följda controller
-- Stall-detektion upptäcker avstannad jäsning och applicerar temperatur-boost
 - Inlärda parametrar sparas per controller i fermentation_learnings
 
 ## KRITISK: Bryggdata (OG/FG/SG)
