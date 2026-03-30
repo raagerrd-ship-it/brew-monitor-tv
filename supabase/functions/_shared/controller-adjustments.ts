@@ -861,9 +861,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
               .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
               .eq('controller_id', fc.controller_id)
             adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
-          } else if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
+          } else if (ctrlTarget < -4 || ctrlTarget >= maxTemp - 0.5) {
             // Only revert if hardware is stuck at a PWM extreme (maxTemp from a heating burst,
-            // or 0°C from a previous cooling burst after mode switch)
+            // or -5°C from a previous cooling burst after mode switch)
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
