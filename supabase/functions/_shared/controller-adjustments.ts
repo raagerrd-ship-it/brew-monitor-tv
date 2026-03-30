@@ -526,6 +526,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
       actual_temp: round1(actualTemp),
+      interpolated_temp: tempInterpolated ? round1(interpolatedTemp) : undefined,
       dual_sensors: dualEnabled,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
