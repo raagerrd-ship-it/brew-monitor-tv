@@ -782,16 +782,21 @@ async function calculateCoolingUtilizations(
     const probeTemp = parseFloat(String(c.current_temp ?? c.pill_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-    // Calculate hardware utilization (needed for raw data fields)
-    const utilResult = await calculateSingleUtilization(ctx.supabase, c)
+
+    // Reuse pre-calculated utilization from PID step if available (saves 1 batch read per controller)
+    let utilResult: UtilizationResult
+    const shared = ctx.sharedUtilizations?.get(c.controller_id)
+    if (shared) {
+      utilResult = shared
+    } else {
+      utilResult = await calculateSingleUtilization(ctx.supabase, c)
+    }
+
     // PID duty cycle is the primary demand signal; hardware util is fallback
     const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
-    const pwmDutyFraction = pwmDuty / 100 // convert 0-100% to 0-1 fraction
-    // Effective utilization = max(PID duty, hardware util)
-    // PID duty reflects the calculated cooling need; hardware util reflects actual relay runtime
+    const pwmDutyFraction = pwmDuty / 100
     const hwUtil = utilResult.rolling
     const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
-    // Consider "actively cooling" if probe exceeds threshold OR effective util is meaningfully high
     const isAboveThreshold = probeTemp > targetTemp + hysteresis
     const isHighUtil = effectiveUtil != null && effectiveUtil >= 0.30
     const isActivelyCooling = isAboveThreshold || isHighUtil
