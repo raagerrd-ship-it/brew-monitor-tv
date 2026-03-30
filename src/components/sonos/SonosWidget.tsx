@@ -74,6 +74,7 @@ export const SonosWidget = memo(function SonosWidget({
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
     acceptedSeqRef,
+    swappedFromRef,
   });
 
   // Send bg image on init when nowPlaying arrives with bg_image_url
