@@ -678,6 +678,9 @@ function SonosDebugLog() {
             </div>
           </Collapsible>
 
+          {/* Bridge Status Diagnostics */}
+          <BridgeDiagnostics />
+
           {/* Art Resolution Diagnostics */}
           <ArtResolutionDiagnostics />
 
