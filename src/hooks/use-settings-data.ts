@@ -186,7 +186,7 @@ export function useSettingsData() {
         // pillCompEnabled removed — was: setPillCompEnabled(data.pill_compensation_enabled ?? false);
         setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
         setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
-        setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
+        // overshootPreventionEnabled removed
         setAiAuditEnabled(data.ai_audit_enabled ?? true);
         setSgTempCorrectionEnabled((data as any).sg_temp_correction_enabled ?? false);
       }
