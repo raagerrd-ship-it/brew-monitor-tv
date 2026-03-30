@@ -46,7 +46,7 @@ export interface ControllerAdjustmentContext {
   profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
-  stallSettings: StallSettings
+  // stallSettings removed — stall-boost feature removed
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
