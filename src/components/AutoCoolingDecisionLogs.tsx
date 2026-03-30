@@ -388,278 +388,157 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // Extract RAPT_SEND outcomes from decisions
   const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND' && !d.message?.includes('PWM revert'));
-  const batchFlushFail = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.result === 'fail');
-  const batchFlushTimeout = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.message?.includes('Timeout'));
-  const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
-  const pidDbOnly = log.decisions.filter(d => d.step === 'PID_PWM_UPDATE');
 
-  // Build lookup: controller names that have DUTY_ZERO (0% duty)
-  const dutyZeroControllerNames = new Set(
-    log.decisions.filter(d => d.step === 'DUTY_ZERO').map(d => {
-      const m = d.message.match(/^([^:]+):/);
-      return m ? m[1].trim() : '';
-    }).filter(Boolean)
-  );
-  // Build lookup: controller names that have DUTY_FULL (100% duty)
-  const dutyFullControllerNames = new Set(
-    log.decisions.filter(d => d.step === 'DUTY_FULL').map(d => {
-      const m = d.message.match(/^([^:]+):/);
-      return m ? m[1].trim() : '';
-    }).filter(Boolean)
-  );
+  // ═══════════════════════════════════════════════════════════════════
+  // Unified badge builder: one badge per active controller
+  // Format: {🔥/❄️} {Name} {duty}% – {ON/OFF/SKIP}
+  // ═══════════════════════════════════════════════════════════════════
+  type ControllerBadgeInfo = {
+    fullName: string;
+    shortName: string;
+    mode: 'heating' | 'cooling';
+    dutyPct: number;
+    status: 'ON' | 'OFF' | 'SKIP' | null;
+    priority: number;
+  };
 
-  // Build header badge from RAPT communication outcomes
+  const badgeMap = new Map<string, ControllerBadgeInfo>();
+
+  const ensureEntry = (fullName: string, mode: 'heating' | 'cooling', dutyPct: number): ControllerBadgeInfo => {
+    const existing = badgeMap.get(fullName);
+    if (existing) return existing;
+    const entry: ControllerBadgeInfo = {
+      fullName,
+      shortName: fullName.replace('Temp Controller ', ''),
+      mode,
+      dutyPct,
+      status: null,
+      priority: 0,
+    };
+    badgeMap.set(fullName, entry);
+    return entry;
+  };
+
+  // 1. Seed from PILL_COMP_STATUS (all active controllers with mode + duty)
+  for (const d of log.decisions.filter(d => d.step === 'PILL_COMP_STATUS')) {
+    const nameMatch = d.message.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
+    if (!nameMatch) continue;
+    const fullName = nameMatch[1].trim();
+    const det = d.details as Record<string, unknown> | undefined;
+    const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
+    const dutyPct = det?.duty_cycle != null ? Number(det.duty_cycle) : 0;
+    ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
+  }
+
+  // 2. DUTY_BURST / DUTY_FULL → ON
+  for (const d of log.decisions.filter(d => d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL')) {
+    const m = d.message.match(/^([^:]+):/);
+    if (!m) continue;
+    const fullName = m[1].trim();
+    const det = d.details as Record<string, unknown> | undefined;
+    const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
+    const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : (d.step === 'DUTY_FULL' ? 100 : 0);
+    const entry = ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
+    entry.dutyPct = dutyPct;
+    entry.status = 'ON';
+    entry.priority = 3;
+  }
+
+  // 3. DUTY_ZERO → SKIP (0% duty)
+  for (const d of log.decisions.filter(d => d.step === 'DUTY_ZERO')) {
+    const m = d.message.match(/^([^:]+):/);
+    if (!m) continue;
+    const fullName = m[1].trim();
+    const isHeating = d.message.toLowerCase().includes('heating') || d.message.includes('uppvärmning');
+    const entry = ensureEntry(fullName, isHeating ? 'heating' : 'cooling', 0);
+    if (entry.priority < 1) { entry.dutyPct = 0; entry.status = 'SKIP'; entry.priority = 1; }
+  }
+
+  // 4. DUTY_PHASE_B → SKIP (has duty but phase B skips)
+  for (const d of log.decisions.filter(d => d.step === 'DUTY_PHASE_B')) {
+    const m = d.message.match(/^([^:]+):/);
+    if (!m) continue;
+    const fullName = m[1].trim();
+    const det = d.details as Record<string, unknown> | undefined;
+    const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
+    const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : 0;
+    const entry = ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
+    if (entry.priority < 1) { entry.dutyPct = dutyPct; entry.status = 'SKIP'; entry.priority = 1; }
+  }
+
+  // 5. DUTY_ZERO + RAPT_SEND → upgrade to ON (had to revert hw target)
+  const sentControllerNames = new Set(raptSends.map(s => {
+    const m = s.message?.match(/^(.+?):\s/);
+    return m ? m[1].trim() : '';
+  }).filter(Boolean));
+  for (const fullName of sentControllerNames) {
+    const entry = badgeMap.get(fullName);
+    if (entry && entry.status === 'SKIP') { entry.status = 'ON'; entry.priority = 3; }
+  }
+
+  // 6. PWM OFF decision logs → OFF
+  const isPwmOffLog = log.final_result.startsWith('⚡ PWM OFF:');
+  if (isPwmOffLog) {
+    const pwmOffDecision = log.decisions.find(d => d.step === 'PWM_OFF');
+    const det = pwmOffDecision?.details as Record<string, unknown> | undefined;
+    const controllerName = String(det?.controller_name || '');
+    const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : 0;
+    const mode = (det?.mode === 'heating' ? 'heating' : 'cooling') as 'heating' | 'cooling';
+    if (controllerName) {
+      const entry = ensureEntry(controllerName, mode, dutyPct);
+      entry.dutyPct = dutyPct; entry.status = 'OFF'; entry.priority = 2;
+    }
+  }
+
+  // Render badges
   let headerBadge: React.ReactNode;
-
   const raptBadges: React.ReactNode[] = [];
 
-  // Add warning indicators
   if (hasError) {
     raptBadges.push(<XCircle key="err" className="h-3.5 w-3.5 text-destructive shrink-0" />);
   } else if (showWarningTriangle) {
     raptBadges.push(<AlertTriangle key="warn" className="h-3 w-3 text-destructive shrink-0" />);
   }
 
-  // RAPT_SEND badges — actual hardware commands sent
-  for (const send of raptSends) {
-    const details = send.details as { old_target?: number; new_target?: number; controller_id?: string; duty_pct?: number; is_pwm?: boolean; mode?: string } | undefined;
-    // Extract short controller name from message (e.g. "Temp Controller Gul: 0°C → 6.4°C")
-    const nameMatch = send.message?.match(/^(.+?):\s/);
-    const shortName = nameMatch ? nameMatch[1].replace('Temp Controller ', '') : '?';
-    const controllerFullName = nameMatch ? nameMatch[1] : '';
-    const color = controllerColors[controllerFullName];
-    const oldT = details?.old_target ?? null;
-    const newT = details?.new_target ?? null;
-
-    // Detect PWM ON sends (marked as PWM, or target=-5 for cooling, or target=40 for heating)
-    const isPwmOn = details?.is_pwm || (newT != null && (newT <= -4 || newT >= 39));
-
-    // Detect if this RAPT_SEND was triggered by a DUTY_ZERO (0% duty revert/suppress)
-    const isDutyZeroSend = dutyZeroControllerNames.has(controllerFullName);
-
-    if (isDutyZeroSend) {
-      // Show as duty 0% badge instead of adjustment arrows
-      const isHeating = log.decisions.find(d => d.step === 'DUTY_ZERO' && d.message.startsWith(controllerFullName))?.message?.toLowerCase().includes('heating') || false;
-      const modeIcon = isHeating ? '🔥' : '❄️';
-      raptBadges.push(
-        <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
-          background: color ? `${color}33` : 'hsl(150 60% 45% / 0.2)',
-          color: color || 'hsl(150 60% 45%)',
-          borderColor: color ? `${color}4d` : 'hsl(150 60% 45% / 0.3)',
-        }}>
-          {modeIcon} {shortName} 0%
-        </Badge>
-      );
-    } else if (isPwmOn) {
-      const dutyPctVal = details?.duty_pct;
-      const modeIcon = details?.mode === 'heating' ? '🔥' : '❄️';
-      raptBadges.push(
-        <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
-          background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-          color: color || 'hsl(45 90% 55%)',
-          borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
-        }}>
-          {modeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – ON
-        </Badge>
-      );
-    } else {
-      const adjText = oldT != null && newT != null ? `${r1(oldT)}° → ${r1(newT)}°` : send.message;
-      raptBadges.push(
-        <Badge key={`rapt-${send.message}`} variant="default" className="text-[10px] px-1.5" style={{
-          background: color ? `${color}33` : 'hsl(150 60% 45% / 0.2)',
-          color: color || 'hsl(150 60% 45%)',
-          borderColor: color ? `${color}4d` : 'hsl(150 60% 45% / 0.3)',
-        }}>
-          <Send className="h-2.5 w-2.5 mr-0.5" />{shortName} {adjText}
-        </Badge>
-      );
-    }
-  }
-
-  // BATCH_FLUSH failure badge
-  if (batchFlushFail || batchFlushTimeout) {
-    const label = batchFlushTimeout ? 'RAPT Timeout' : 'RAPT Fel';
+  // One badge per active controller
+  for (const [, info] of badgeMap) {
+    const color = controllerColors[info.fullName];
+    const modeIcon = info.mode === 'heating' ? '🔥' : '❄️';
+    const isActive = info.status === 'ON';
+    const bg = color ? `${color}${isActive ? '33' : '22'}` : (isActive ? 'hsl(45 90% 55% / 0.2)' : 'hsl(45 90% 55% / 0.12)');
+    const fg = color ? (isActive ? color : `${color}99`) : (isActive ? 'hsl(45 90% 55%)' : 'hsl(45 90% 55% / 0.6)');
+    const border = color ? `${color}${isActive ? '4d' : '33'}` : (isActive ? 'hsl(45 90% 55% / 0.3)' : 'hsl(45 90% 55% / 0.2)');
+    const statusLabel = info.status ? ` – ${info.status}` : '';
     raptBadges.push(
-      <Badge key="flush-fail" variant="default" className="text-[10px] px-1.5" style={{
-        background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)',
-      }}>
-        <XCircle className="h-2.5 w-2.5 mr-0.5" />{label}
+      <Badge key={`ctrl-${info.fullName}`} variant="default" className="text-[10px] px-1.5" style={{ background: bg, color: fg, borderColor: border }}>
+        {modeIcon} {info.shortName} {info.dutyPct}%{statusLabel}
       </Badge>
     );
   }
 
-  // Retry actions (fallback sends)
+  // BATCH_FLUSH failure
+  const batchFlushFail = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.result === 'fail');
+  const batchFlushTimeout = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.message?.includes('Timeout'));
+  if (batchFlushFail || batchFlushTimeout) {
+    raptBadges.push(
+      <Badge key="flush-fail" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)' }}>
+        <XCircle className="h-2.5 w-2.5 mr-0.5" />{batchFlushTimeout ? 'RAPT Timeout' : 'RAPT Fel'}
+      </Badge>
+    );
+  }
+
+  // Retry actions
+  const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
   for (const retry of retryActions) {
     const nameMatch = retry.message?.match(/Temp Controller (\S+)/);
-    const shortName = nameMatch ? nameMatch[1] : '?';
     raptBadges.push(
-      <Badge key={`retry-${retry.message}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', borderColor: 'hsl(38 92% 55% / 0.3)',
-      }}>
-        <RefreshCw className="h-2.5 w-2.5 mr-0.5" />Retry {shortName}
+      <Badge key={`retry-${retry.message}`} variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(38 92% 55% / 0.2)', color: 'hsl(38 92% 55%)', borderColor: 'hsl(38 92% 55% / 0.3)' }}>
+        <RefreshCw className="h-2.5 w-2.5 mr-0.5" />Retry {nameMatch ? nameMatch[1] : '?'}
       </Badge>
     );
   }
 
-  // DB-only PID updates (no hw send)
-  for (const dbUpdate of pidDbOnly) {
-    const nameMatch = dbUpdate.message?.match(/^(.+?):\s/);
-    const shortName = nameMatch ? nameMatch[1].replace('Temp Controller ', '') : '?';
-    raptBadges.push(
-      <Badge key={`db-${dbUpdate.message}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: 'hsl(280 40% 50% / 0.15)', color: 'hsl(280 40% 55%)', borderColor: 'hsl(280 40% 50% / 0.25)',
-      }}>
-        <Database className="h-2.5 w-2.5 mr-0.5" />{shortName} DB
-      </Badge>
-    );
-  }
-
-  // PWM badges from adjustments or PWM OFF decision logs
-  const pwmAdjs = adjs.filter(a => a.category === 'pwm');
-  const isPwmOffLog = log.final_result.startsWith('⚡ PWM OFF:');
-  if (isPwmOffLog) {
-    // Dedicated PWM OFF decision log — extract details from the PWM_OFF decision
-    const pwmOffDecision = log.decisions.find(d => d.step === 'PWM_OFF');
-    const details = pwmOffDecision?.details as { controller_name?: string; duty_seconds?: number; duty_pct?: number; off_target?: number } | undefined;
-    const controllerName = details?.controller_name || '';
-    const shortName = controllerName.replace('Temp Controller ', '') || log.final_result.match(/PWM OFF: (.+?) /)?.[1] || '?';
-    const color = controllerColors[controllerName];
-    const dutyPctVal = details?.duty_pct;
-    // Detect mode from details or message
-    const offMode = (details as any)?.mode || (pwmOffDecision?.message?.toLowerCase().includes('heating') ? 'heating' : 'cooling');
-    const offModeIcon = offMode === 'heating' ? '🔥' : '❄️';
-    raptBadges.push(
-      <Badge key="pwm-off" variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-        color: color || 'hsl(45 90% 55%)',
-        borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
-      }}>
-        {offModeIcon} {shortName} {dutyPctVal ? `${dutyPctVal}%` : ''} – OFF
-      </Badge>
-    );
-  }
-
-  // PWM duty 0% badges — controllers with no burst this cycle
-  // Skip controllers that already have a RAPT_SEND badge (duty-zero send or adjustment)
-  const sentControllerNames = new Set(raptSends.map(s => {
-    const m = s.message?.match(/^(.+?):\s/);
-    return m ? m[1].trim() : '';
-  }).filter(Boolean));
-  const dutySkipDecisions = log.decisions.filter(d => d.step === 'DUTY_ZERO');
-  for (const skipD of dutySkipDecisions) {
-    const nameMatch = skipD.message.match(/^([^:]+):/);
-    const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge (0% or adjustment)
-    const shortName = fullName.replace('Temp Controller ', '');
-    const color = controllerColors[fullName];
-    const dutyMatch = skipD.message.match(/PWM (\d+)%/);
-    const dutyPctVal = dutyMatch ? dutyMatch[1] : '0';
-    const isHeating = skipD.message.toLowerCase().includes('heating') || skipD.message.includes('uppvärmning');
-    const modeIcon = isHeating ? '🔥' : '❄️';
-    raptBadges.push(
-      <Badge key={`skip-${skipD.message}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
-        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
-        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-      }}>
-        {modeIcon} {shortName} {dutyPctVal}% – SKIP
-      </Badge>
-    );
-  }
-
-  // DUTY_PHASE_B badges — controllers with PWM duty but phase B skip this cycle
-  const dutyPhaseBDecisions = log.decisions.filter(d => d.step === 'DUTY_PHASE_B');
-  for (const phaseD of dutyPhaseBDecisions) {
-    const nameMatch = phaseD.message.match(/^([^:]+):/);
-    const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (sentControllerNames.has(fullName)) continue;
-    const shortName = fullName.replace('Temp Controller ', '');
-    const color = controllerColors[fullName];
-    const det = phaseD.details as Record<string, unknown> | undefined;
-    const dutyPctVal = det?.duty_pct != null ? String(det.duty_pct) : '0';
-    const isHeating = (det?.mode === 'heating') || phaseD.message.toLowerCase().includes('heating');
-    const modeIcon = isHeating ? '🔥' : '❄️';
-    raptBadges.push(
-      <Badge key={`phaseb-${phaseD.message}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
-        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
-        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-      }}>
-        {modeIcon} {shortName} {dutyPctVal}% – SKIP
-      </Badge>
-    );
-  }
-
-  // DUTY_FULL (100%) badges — show SKIP when no RAPT_SEND was needed (hw already at target)
-  const dutyFullDecisions = log.decisions.filter(d => d.step === 'DUTY_FULL');
-  for (const fullD of dutyFullDecisions) {
-    const nameMatch = fullD.message.match(/^([^:]+):/);
-    const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (sentControllerNames.has(fullName)) continue; // already has RAPT_SEND badge
-    const shortName = fullName.replace('Temp Controller ', '');
-    const color = controllerColors[fullName];
-    const isHeating = fullD.message.toLowerCase().includes('heating');
-    const modeIcon = isHeating ? '🔥' : '❄️';
-    raptBadges.push(
-      <Badge key={`full-skip-${fullD.message}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
-        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
-        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-      }}>
-        {modeIcon} {shortName} 100% – SKIP
-      </Badge>
-    );
-  }
-
-  for (const pwm of pwmAdjs) {
-    const shortName = pwm.cooler_controller_name.replace('Temp Controller ', '');
-    const color = controllerColors[pwm.cooler_controller_name];
-    // Extract duty_pct from the reason field (e.g. "⚡ PWM burst duty 20%: ...")
-    const dutyMatch = pwm.reason?.match(/(\d+)%\s*duty/i) || pwm.reason?.match(/duty\s*(\d+)%/i);
-    const dutyPct = dutyMatch ? dutyMatch[1] : null;
-    raptBadges.push(
-      <Badge key={`pwm-${pwm.id}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-        color: color || 'hsl(45 90% 55%)',
-        borderColor: color ? `${color}4d` : 'hsl(45 90% 55% / 0.3)',
-      }}>
-        PWM · {shortName} ON{dutyPct ? ` ${dutyPct}%` : ''}
-      </Badge>
-    );
-  }
-
-  // Catch-all: ensure every active controller has a badge
-  // Collect all controller names that already have a badge
-  const badgedControllerNames = new Set([
-    ...Array.from(sentControllerNames),
-    ...Array.from(dutyZeroControllerNames),
-    ...dutyPhaseBDecisions.map(d => { const m = d.message.match(/^([^:]+):/); return m ? m[1].trim() : ''; }).filter(Boolean),
-    ...dutyFullDecisions.map(d => { const m = d.message.match(/^([^:]+):/); return m ? m[1].trim() : ''; }).filter(Boolean),
-  ]);
-  // Add badges for controllers that appear in PILL_COMP_STATUS but have no badge yet
-  const pillCompDecisions = log.decisions.filter(d => d.step === 'PILL_COMP_STATUS');
-  for (const pcs of pillCompDecisions) {
-    const nameMatch = pcs.message.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
-    const fullName = nameMatch ? nameMatch[1].trim() : '';
-    if (!fullName || badgedControllerNames.has(fullName)) continue;
-    const shortName = fullName.replace('Temp Controller ', '');
-    const color = controllerColors[fullName];
-    const det = pcs.details as Record<string, unknown> | undefined;
-    const dutyPctVal = det?.duty_cycle != null ? String(det.duty_cycle) : '0';
-    const isHeating = det?.mode === 'heating';
-    const modeIcon = isHeating ? '🔥' : '❄️';
-    raptBadges.push(
-      <Badge key={`active-${fullName}`} variant="default" className="text-[10px] px-1.5" style={{
-        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
-        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
-        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
-      }}>
-        {modeIcon} {shortName} {dutyPctVal}%
-      </Badge>
-    );
-  }
-
-  // Fallback: no RAPT communication at all
+  // Fallback: no active controllers
   if (raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle))) {
     raptBadges.push(
       <Badge key="system" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
