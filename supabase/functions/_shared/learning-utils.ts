@@ -70,6 +70,79 @@ export async function updateLearnedParam(
   return { oldValue: currentValue, newValue, sampleCount: sampleCount + 1 }
 }
 
+/**
+ * Batched learning: pre-reads all candidate params, computes EMA in memory,
+ * flushes all updates as a single upsert. Saves N reads + N writes → 1 read + 1 write.
+ */
+export class LearnBatch {
+  private supabase: ReturnType<typeof createClient>
+  private controllerId: string
+  private cache = new Map<string, { value: number; sampleCount: number }>()
+  private updates: Array<{ paramName: string; rounded: number; sampleCount: number }> = []
+  private loaded = false
+
+  constructor(supabase: ReturnType<typeof createClient>, controllerId: string) {
+    this.supabase = supabase
+    this.controllerId = controllerId
+  }
+
+  /** Pre-load all candidate params in a single query */
+  async preload(paramNames: string[]): Promise<void> {
+    const { data } = await this.supabase
+      .from('fermentation_learnings')
+      .select('parameter_name, learned_value, sample_count')
+      .eq('controller_id', this.controllerId)
+      .in('parameter_name', paramNames)
+
+    for (const row of data ?? []) {
+      this.cache.set(row.parameter_name, {
+        value: parseFloat(String(row.learned_value)),
+        sampleCount: row.sample_count ?? 0,
+      })
+    }
+    this.loaded = true
+  }
+
+  /** Compute EMA update in memory (no DB call) */
+  update(
+    paramName: string,
+    newObservation: number,
+    clampMin: number,
+    clampMax: number,
+    alphaOverride?: number,
+  ): { oldValue: number; newValue: number; sampleCount: number } {
+    const existing = this.cache.get(paramName)
+    const sampleCount = existing?.sampleCount ?? 0
+    const alpha = alphaOverride ?? (sampleCount < 5 ? 0.5 : 0.2)
+    const currentValue = existing ? existing.value : newObservation
+    const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
+
+    const precision = Math.abs(newValue) < 0.01 ? 1e6 : 100
+    const rounded = Math.round(newValue * precision) / precision
+
+    // Update cache so subsequent reads in the same batch see the new value
+    this.cache.set(paramName, { value: rounded, sampleCount: sampleCount + 1 })
+    this.updates.push({ paramName, rounded, sampleCount: sampleCount + 1 })
+
+    return { oldValue: currentValue, newValue, sampleCount: sampleCount + 1 }
+  }
+
+  /** Flush all accumulated updates as a single upsert */
+  async flush(): Promise<void> {
+    if (this.updates.length === 0) return
+    const now = new Date().toISOString()
+    const rows = this.updates.map(u => ({
+      controller_id: this.controllerId,
+      parameter_name: u.paramName,
+      learned_value: u.rounded,
+      sample_count: u.sampleCount,
+      last_updated_at: now,
+    }))
+    await this.supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' })
+    this.updates = []
+  }
+}
+
 /** Batch-read multiple learned parameters in a single query.
  *  controllerId can be a single string or an array of controller IDs.
  *  When multiple controllers are provided, returned keys are prefixed: `{controllerId}:{paramName}` */
