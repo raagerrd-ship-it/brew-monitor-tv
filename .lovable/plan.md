@@ -1,90 +1,75 @@
 
 
-# Förenklad anti-rollback: monoton seq-gate
+# Heating Session Cap — bara vid "hold", inte vid ramp
 
 ## Problem
-Nuvarande skydd har tre överlappande mekanismer (`RollbackLock`, `trackChangedAtRef` 15s-cooldown, `track_seq`-check) som inte samverkar. Rollback-locket löper ut efter 15s och gammal data kan då vinna. Dessutom saknas seq-gate i polling och ticker.
+Controller Grön kör 10% heating-bursts i 30–60 minuter kontinuerligt, vilket bygger upp termisk tröghet och orsakar oscillationer med ~6 timmars period. PID:n kan inte gå lägre än 10% (lägsta icke-noll-steg), så den "låser" sig.
 
-## Ny design: en enda gate
+## Lösning
+Inför en "macro duty cycle" som begränsar hur länge kontinuerlig uppvärmning får köra innan ett vilopass tvingas fram. **Gäller enbart hold-läge** — under aktiva ramper (gradual_ramp/ramp) ska uppvärmningen vara obegränsad.
 
-Ersätt `RollbackLock` + `trackChangedAtRef`-cooldowns med **en enda ref `acceptedSeqRef`** som aldrig minskar.
+## Hur det fungerar
 
-```text
-Flöde:
-1. Backend skriver track_seq = N vid ny låt
-2. Klienten accepterar data om incoming.seq >= acceptedSeqRef
-3. Vid prediktivt byte: klienten sätter acceptedSeqRef = currentSeq + 1
-   → all data med gamla seq:n blockeras automatiskt
-4. Backend bekräftar med seq = N+1 → klienten accepterar
+1. Spåra `heating_session_minutes` i `fermentation_learnings` per controller
+2. Varje gång en heating burst körs (10–90% duty) och controllern **inte** rampar → öka räknaren med burst-minuter
+3. När räknaren når **10 minuter** → tvinga duty till 0 i **30 minuter** (spara `heating_rest_until` timestamp)
+4. Under viloperioden: clampa heating duty till 0, logga `HEATING_REST`
+5. Auto-reset: om PID naturligt ger 0% duty → nollställ räknaren (inget tvångsvilopass behövs)
+6. Under ramp (`isProfileRamp === true`): hoppa över all session-cap-logik helt
+
+## Implementation
+
+### Fil: `supabase/functions/_shared/controller-adjustments.ts`
+
+**Före heating-burst-exekveringen (rad ~646)**, lägg till:
+
+```typescript
+// ── Heating Session Cap (hold-only) ──
+const HEATING_SESSION_CAP_MIN = 10
+const HEATING_REST_MIN = 30
+
+// Only apply session cap during hold (not during ramps)
+if (!isProfileRamp && pidMode === 'heating' && dutyPct > 0) {
+  const sessionParam = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
+  const restParam = await getLearnedParam(supabase, fc.controller_id, 'heating_rest_until', 0)
+  const restUntil = restParam.value  // unix timestamp in ms, 0 = no rest
+  const now = Date.now()
+
+  if (restUntil > now) {
+    // Force rest active
+    log('HEATING_REST', 'info', `${fc.name}: vilofas aktiv, ${Math.round((restUntil - now)/60000)} min kvar`)
+    dutyPct = 0  // clamp to zero
+  } else if (sessionParam.value >= HEATING_SESSION_CAP_MIN) {
+    // Cap hit → start rest
+    const restEnd = now + HEATING_REST_MIN * 60000
+    await updateLearnedParam(..., 'heating_rest_until', restEnd, ...)
+    await updateLearnedParam(..., 'heating_session_minutes', 0, ...)
+    log('HEATING_CAP_HIT', 'action', `${fc.name}: ${sessionParam.value} min heating → ${HEATING_REST_MIN} min vila`)
+    dutyPct = 0
+  } else {
+    // Accumulate: add this burst's minutes
+    const burstMin = currentBurstMin  // already calculated
+    await updateLearnedParam(..., 'heating_session_minutes', sessionParam.value + burstMin, ...)
+  }
+}
+
+// Reset counter when PID outputs 0% naturally (and not in forced rest)
+if (!isProfileRamp && pidMode === 'heating' && dutyPct === 0 && !forcedRest) {
+  await updateLearnedParam(..., 'heating_session_minutes', 0, ...)
+}
 ```
 
-### Regler för alla datakällor (RT, polling, ticker):
-- **Seq-gate**: `incoming.track_seq < acceptedSeqRef` → ignorera helt
-- **Samma låt-namn + samma/högre seq** → uppdatera state/art/position
-- **Ny låt + högre seq** → acceptera låtbyte
-- **Ny låt + samma seq** → ignorera (backend har inte bekräftat ännu)
+### Varför inte vid ramp?
+Vid ramp (t.ex. höja från 13°C till 20°C) **behöver** controllern köra kontinuerligt tills målet nås. Session cap skulle göra rampen onödigt långsam. Oscillationsproblemet uppstår bara vid hold, där PID:n pendlar kring ett stabilt mål.
 
-### Vid prediktivt byte (ticker):
-- `acceptedSeqRef.current = (currentSeq ?? 0) + 1`
-- Kör `handleTrackChange` som vanligt
-- All gammal data blockeras automatiskt tills backend skriver ny seq
+### Parametrar (tunable via fermentation_learnings)
+| Parameter | Default | Beskrivning |
+|-----------|---------|-------------|
+| `HEATING_SESSION_CAP_MIN` | 10 | Max ackumulerade uppvärmningsminuter före vila |
+| `HEATING_REST_MIN` | 30 | Viloperiod efter cap |
 
-## Ändringar
+### Förväntat resultat
+**Före**: 10% duty × 60 min kontinuerligt → 6 min total uppvärmning → termisk tröghet → overshoot
 
-### 1. `types.ts`
-- Ta bort `RollbackLock`, `isRollbackBlocked`, `shouldClearLock`
-- Behåll resten
-
-### 2. `SonosWidget.tsx`
-- Ersätt `rollbackLockRef` med `acceptedSeqRef = useRef<number>(0)`
-- Ta bort `trackChangedAtRef` (behövs inte längre)
-- Skicka `acceptedSeqRef` till alla hooks istället
-
-### 3. `useSonosInit.ts`
-- Hämta `track_seq` i init-queryn
-- Sätt `acceptedSeqRef.current = data.track_seq` vid uppstart
-
-### 4. `useSonosRealtime.ts`
-- Ersätt rollback-lock + trackChangedAt-cooldown med enkel seq-gate:
-  ```
-  if (incoming.track_seq < acceptedSeqRef.current) return prev;
-  ```
-- Vid track change: `acceptedSeqRef.current = incoming.track_seq`
-- Ta bort 15s-cooldown-logik (rad 97-98)
-
-### 5. `useSonosClientPolling.ts`
-- Hämta `trackSeq` från polling-response (redan returneras av backend)
-- `if (trackSeq < acceptedSeqRef.current) return;` — early return före all annan logik
-- Ta bort rollback-lock-checks och `msSinceTC >= 15000`-guards
-- Vid track change via polling: trigga server sync (som idag), men låt seq-gaten hantera skyddet
-
-### 6. `useSonosPlaybackTicker.ts`
-- Vid prediktivt byte: `acceptedSeqRef.current = (nowPlaying.track_seq ?? 0) + 1`
-- Ta bort rollback-lock-checks i `pollForNewTrack`
-- Använd seq-gate: om polled `trackSeq < acceptedSeqRef` → retry
-
-### 7. `useSonosTrackChange.ts`
-- Ta bort rollback-lock-logik helt
-- Behåll allt annat (DOM-swap, image-hantering)
-
-### 8. `sonos-playback-status` (backend)
-- Redan fixad att hämta `track_seq` per `group_id` — ingen ändring behövs
-
-## Filer
-
-| Fil | Ändring |
-|-----|---------|
-| `src/components/sonos/hooks/types.ts` | Ta bort RollbackLock, isRollbackBlocked, shouldClearLock |
-| `src/components/sonos/SonosWidget.tsx` | `acceptedSeqRef` ersätter `rollbackLockRef` + `trackChangedAtRef` |
-| `src/components/sonos/hooks/useSonosInit.ts` | Hämta `track_seq`, sätt `acceptedSeqRef` |
-| `src/components/sonos/hooks/useSonosRealtime.ts` | Enkel seq-gate istället för lock+cooldown |
-| `src/components/sonos/hooks/useSonosClientPolling.ts` | Seq-gate, ta bort lock-checks |
-| `src/components/sonos/hooks/useSonosPlaybackTicker.ts` | Bumpa seq vid prediktivt byte, seq-gate i poll |
-| `src/components/sonos/hooks/useSonosTrackChange.ts` | Ta bort lock-logik |
-
-## Resultat
-- En enda mekanism istället för tre
-- Inget timeout-problem (seq löper aldrig ut)
-- Prediktivt byte fungerar fortfarande (bumpar seq lokalt)
-- Backend-bekräftelse via seq garanterar att gammal data aldrig vinner
+**Efter**: 10% duty × 10 min → ~1 min uppvärmning → 30 min vila → inertia dissiperar → ingen overshoot. Upprepas ~2× per timme.
 
