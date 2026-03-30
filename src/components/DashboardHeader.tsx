@@ -85,19 +85,19 @@ export function DashboardHeader({
             <div className="flex items-center gap-1">
               {onRefresh && !isOnSettings && (
                 <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-40 hover:opacity-100 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
+                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-50 hover:opacity-90 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
                     <RefreshCw className="w-5 h-5" />
                   </Button>
                 </div>
               )}
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-40 hover:opacity-100'}`}>
+                <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-50 hover:opacity-90'}`}>
                   <Timer className="w-5 h-5" />
                 </Button>
               </div>
               <NotificationBell />
               <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
                   <Settings className="w-5 h-5" />
                 </Button>
               </div>
@@ -123,14 +123,14 @@ export function DashboardHeader({
               )}
             </div>
 
-            <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
+            <div className="flex items-center gap-3 flex-shrink-0 self-stretch">
               <Clock />
 
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
                 <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}>
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
                     <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
                   </Button>
                 </div>
@@ -251,11 +251,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-center rounded-lg isolate overflow-hidden px-3 justify-evenly scrollbar-hide backdrop-blur-xl`} style={{
-          background: 'linear-gradient(180deg, hsl(222 20% 13% / 0.7) 0%, hsl(222 20% 9% / 0.75) 100%)',
-          border: showWarning ? '1px solid hsl(0 70% 45% / 0.6)' : '1px solid hsl(222 15% 30% / 0.35)',
-          boxShadow: 'inset 0 1px 0 hsl(0 0% 100% / 0.08), inset 0 -1px 0 hsl(0 0% 0% / 0.2)',
-          height: '50px',
+        <div className="flex items-center px-1 justify-evenly scrollbar-hide" style={{
+          background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
           {isStale && latestUpdate && (
