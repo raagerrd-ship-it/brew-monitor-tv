@@ -613,24 +613,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
       }
 
+      const COOLING_ON_TARGET = Math.max(-5, coolingMinTemp)
       if (dutyPct >= 100) {
-        // 100%: hold 0°C entire cycle (no revert needed)
-        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → 0°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
+        // 100%: hold -5°C entire cycle (no revert needed)
+        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → ${COOLING_ON_TARGET}°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
         if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, COOLING_ON_TARGET, revertTarget)
         } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, 0)
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, COOLING_ON_TARGET)
         }
         await supabase.from('pending_rapt_retries')
           .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-        // CRITICAL: Keep DB target_temp at 0 (matching actual hardware state).
-        // Same principle as DUTY_BURST — prevents DB/hardware desync if PID
-        // drops to 0% duty next cycle: DUTY_ZERO_REVERT checks ctrlTarget < 1.
+        // CRITICAL: Keep DB target_temp at COOLING_ON_TARGET (matching actual hardware state).
         await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: 0, updated_at: new Date().toISOString() })
+          .update({ target_temp: COOLING_ON_TARGET, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
-        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
-        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: COOLING_ON_TARGET })
+        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: COOLING_ON_TARGET, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
       } else if (burstSeconds > 0) {
         // 10-90%: burst at 0°C, schedule revert to actualTarget
         log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
