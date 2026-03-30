@@ -4,7 +4,7 @@ import { getTvDebugEntries, subscribeTvDebug, type TvDebugEntry } from "@/lib/tv
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, RefreshCw, ChevronDown, ImageIcon, CheckCircle2, XCircle, Circle, Radio, Wifi, WifiOff } from "lucide-react";
