@@ -68,6 +68,13 @@ Deno.serve(async (req) => {
       trackNumber,
       trackURI,
       nrTracks,
+      currentURI,
+      nextAVTransportURI,
+      playMedium,
+      streamContent,
+      radioShowMd,
+      originalTrackNumber,
+      protocolInfo,
     } = body;
 
     if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
