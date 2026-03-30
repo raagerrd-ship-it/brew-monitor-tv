@@ -478,7 +478,6 @@ Svara ENBART med JSON (inget annat).`;
 
     // Whitelist for fermentation_learnings parameter_name (exact or prefix match)
     const VALID_LEARNING_EXACT = new Set([
-      'stall_boost_degrees',
       'cooler_margin:cold', 'cooler_margin:cool', 'cooler_margin:warm', 'cooler_margin:hot',
       'thermal_rate', 'glycol_cooler_rate',
     ]);
