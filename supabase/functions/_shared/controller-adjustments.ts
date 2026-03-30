@@ -532,46 +532,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       switchPressure = 0
     }
 
-    // Persist the switch-pressure counter + last probe temp + current mode
-    if (!ctx.skipLearning) {
-      await supabase.from('fermentation_learnings').upsert([
-        {
-          controller_id: fc.controller_id,
-          parameter_name: 'mode_switch_pressure',
-          learned_value: switchPressure,
-          sample_count: switchPressure,
-          last_updated_at: new Date().toISOString(),
-        },
-        {
-          controller_id: fc.controller_id,
-          parameter_name: 'mode_last_probe',
-          learned_value: round1(actualTemp),
-          sample_count: 1,
-          last_updated_at: new Date().toISOString(),
-        },
-        {
-          controller_id: fc.controller_id,
-          parameter_name: 'pid_current_mode',
-          learned_value: pidMode === 'heating' ? 1 : 2,
-          sample_count: 1,
-          last_updated_at: new Date().toISOString(),
-        },
-        ...(currentStepIndex != null ? [{
-          controller_id: fc.controller_id,
-          parameter_name: 'mode_last_step_index',
-          learned_value: currentStepIndex,
-          sample_count: 1,
-          last_updated_at: new Date().toISOString(),
-        }] : []),
-        {
-          controller_id: fc.controller_id,
-          parameter_name: 'pid_effective_target',
-          learned_value: pidEffectiveTarget,
-          sample_count: 1,
-          last_updated_at: new Date().toISOString(),
-        },
-      ], { onConflict: 'controller_id,parameter_name' })
-    }
+    // NOTE: fermentation_learnings upsert deferred until after PID calculation
+    // to merge all writes into a single batch (mode, pressure, duty, effective_target)
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
