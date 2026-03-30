@@ -140,12 +140,23 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           acceptedSeqRef.current = incoming.track_seq;
         }
 
-        // Sync local progress from periodic push to prevent ticker drift
-        if (typeof incoming.position_ms === 'number' && incoming.position_ms > 0) {
-          const drift = Math.abs((localProgressRef.current ?? 0) - incoming.position_ms);
-          if (drift > 3000) {
-            tvDebug('sonos', `📡 RT positionskorrigering: ${((localProgressRef.current ?? 0) / 1000).toFixed(0)}s → ${(incoming.position_ms / 1000).toFixed(0)}s (drift ${(drift / 1000).toFixed(1)}s)`);
+        // Sync local progress from periodic push to prevent ticker drift,
+        // but ignore bogus near-start regressions from duplicate bridge events.
+        if (typeof incoming.position_ms === 'number' && incoming.position_ms >= 0) {
+          const currentLocal = localProgressRef.current ?? prev.position_ms ?? 0;
+          const drift = currentLocal - incoming.position_ms;
+          const looksLikeStaleRestart =
+            incoming.playback_state === 'PLAYBACK_STATE_PLAYING' &&
+            currentLocal > 15000 &&
+            incoming.position_ms < 5000 &&
+            drift > 15000;
+
+          if (looksLikeStaleRestart) {
+            tvDebug('sonos', `📡 RT positionskorrigering ignorerad: ${Math.round(currentLocal / 1000)}s → ${Math.round(incoming.position_ms / 1000)}s (stale)`);
+          } else if (Math.abs(drift) > 3000) {
+            tvDebug('sonos', `📡 RT positionskorrigering: ${Math.round(currentLocal / 1000)}s → ${Math.round(incoming.position_ms / 1000)}s (drift ${(Math.abs(drift) / 1000).toFixed(1)}s)`);
             localProgressRef.current = incoming.position_ms;
+            updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms ?? prev.duration_ms);
           }
         }
 
