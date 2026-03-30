@@ -78,8 +78,7 @@ export function useSettingsData() {
   const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
   // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
-  const [stallDetectionEnabled, setStallDetectionEnabled] = useState(false);
-  const [stallBoostDegrees, setStallBoostDegrees] = useState<string>("1.0");
+  // stallDetectionEnabled/stallBoostDegrees removed — stall-boost feature removed
   const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
   const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
   const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
