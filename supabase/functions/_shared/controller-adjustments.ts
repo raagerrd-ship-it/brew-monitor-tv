@@ -289,7 +289,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     supabase, supabaseUrl, serviceRoleKey,
     followedControllersFullData, profileOwnedControllerIds,
     cooloffControllerIds, profileStatusMap, lastAdjTimestampMap,
-    pillCompSettings, log,
+    log,
   } = ctx
   const adjustments: AdjustmentResult[] = []
 
