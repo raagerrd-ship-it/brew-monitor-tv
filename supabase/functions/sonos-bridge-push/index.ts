@@ -58,6 +58,16 @@ Deno.serve(async (req) => {
       playbackState,
       positionMillis,
       durationMillis,
+      volume,
+      mute,
+      bass,
+      treble,
+      loudness,
+      crossfade,
+      mediaType,
+      trackNumber,
+      trackURI,
+      nrTracks,
     } = body;
 
     if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
