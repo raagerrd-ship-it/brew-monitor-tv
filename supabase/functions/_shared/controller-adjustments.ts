@@ -516,7 +516,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
+      interpolatedTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
     )
 
     // Log PID status
