@@ -125,7 +125,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
-  const stallThreshold = useStallThreshold();
+  const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
   const isInactive = brew.status === "Konditionering" || brew.status === "Klar";
