@@ -229,7 +229,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
   // ── Load profile data once (used for ramp detection + blocking) ──
-  const profileCache = await loadProfileCache(ctx, controllersWithCooling)
+  // Use pre-loaded cache from PID step if available, otherwise load from DB
+  const profileCache = ctx.preloadedProfileCache ?? await loadProfileCache(ctx, controllersWithCooling)
 
   // ── Determine effective lowest target ─────────────────────
   // No PWM correction needed — DB target_temp is always the real PID value
