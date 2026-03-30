@@ -601,24 +601,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (computedDutyPct > 0 && switchPressure > 0) {
       log('MODE_PRESSURE_RESET', 'info', `${fc.name}: duty ${computedDutyPct}% aktiv, nollställer switch pressure ${switchPressure} → 0`)
       switchPressure = 0
-      if (!ctx.skipLearning) {
-        await supabase.from('fermentation_learnings').upsert({
-          controller_id: fc.controller_id,
-          parameter_name: 'mode_switch_pressure',
-          learned_value: 0,
-          sample_count: 0,
-          last_updated_at: new Date().toISOString(),
-        }, { onConflict: 'controller_id,parameter_name' })
-      }
     }
+
+    // ── Single merged upsert for all PID state ──
     if (!ctx.skipLearning) {
-      await supabase.from('fermentation_learnings').upsert({
-        controller_id: fc.controller_id,
-        parameter_name: 'pid_last_duty',
-        learned_value: computedDutyPct,
-        sample_count: 1,
-        last_updated_at: new Date().toISOString(),
-      }, { onConflict: 'controller_id,parameter_name' })
+      const now = new Date().toISOString()
+      const rows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = [
+        { controller_id: fc.controller_id, parameter_name: 'mode_switch_pressure', learned_value: switchPressure, sample_count: switchPressure, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'mode_last_probe', learned_value: round1(actualTemp)!, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'pid_current_mode', learned_value: pidMode === 'heating' ? 1 : 2, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'pid_effective_target', learned_value: pidEffectiveTarget, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
+      ]
+      if (currentStepIndex != null) {
+        rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
+      }
+      await supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' })
 
       // Learn steady-state duty cycle when PID is in deadband (system at equilibrium)
       if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && pidResult.iCorrection != null) {
