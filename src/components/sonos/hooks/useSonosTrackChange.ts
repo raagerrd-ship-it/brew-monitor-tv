@@ -105,6 +105,12 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               const result = await fetchNowPlayingImages();
               const isStale = result?.trackName && result.trackName !== data.trackName;
               if (isStale) {
+                // Check if another track change already happened — if so, abort
+                const currentTrack = document.querySelector('[data-sonos-track]')?.textContent;
+                if (currentTrack && currentTrack !== data.trackName) {
+                  tvDebug('sonos', `🛑 Avbryter retry — spår redan bytt till "${currentTrack}"`);
+                  break;
+                }
                 tvDebug('sonos', `⏳ DB har "${result.trackName}" — väntar på "${data.trackName}" (${attempt + 1}/5)`);
                 continue;
               }
