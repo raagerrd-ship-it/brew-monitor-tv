@@ -26,6 +26,7 @@ interface UseSonosClientPollingParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   acceptedSeqRef: React.MutableRefObject<number>;
+  swappedFromRef: React.MutableRefObject<{ trackName: string; ts: number } | null>;
 }
 
 /**
