@@ -1,50 +1,49 @@
 
 
-## Plan: Rensa AI-auditens parameterlista från döda funktioner
+## Plan: Nollställ all data under Kylare-inlärning
 
-### Bakgrund
-AI-auditen (ai-automation-audit) kan idag justera **~25 parametrar**, men många av dem tillhör borttagna eller oanvända funktioner. Att ha dessa kvar slösar AI-tokens, riskerar att modellen gör meningslösa ändringar, och gör prompten onödigt komplex.
+All learned cooler data has been based on incorrect cooling logic and needs to be wiped clean.
 
-### Parametrar som ska TAS BORT (helt döda)
+### Data to reset
 
-**Stall-detektion (borttagen)**:
-- `stall_rate_threshold` — ingen stall-logik finns
-- `auto_boost_degrees` — ingen boost-logik finns  
-- `stall_min_attenuation` — ingen stall-logik finns
-- `stall_max_attenuation` — ingen stall-logik finns
-- `stall_boost_degrees` (fermentation_learnings) — ingen stall-logik finns
+**1. `fermentation_learnings` — all cooler-related parameters**
+Delete all rows where `parameter_name` matches:
+- `cooling_rate:%`
+- `warming_rate:%`
+- `hold_margin:%`
+- `ramp_margin:%`
+- `cooler_margin:%`
+- `cooling_capacity:%`
+- `glycol_rate:%`
+- `steady_state_duty:%`
 
-**Overshoot-prevention (borttagen som toggle)**:
-- `overshoot_pill_threshold` — inte refererad i PID/control-koden
-- `overshoot_delta_threshold` — inte refererad i PID/control-koden
+This covers LearnedThermalProfile, LearnedPidCoolingRates, and LearnedCoolerMarginValues.
 
-**Smart Relay (ej implementerat i control-koden)**:
-- `smart_relay_min_hysteresis` — finns inte i _shared/
-- `smart_relay_cooling_only_below` — finns inte i _shared/
-- `smart_relay_heating_only_above` — finns inte i _shared/
-- `smart_relay_tighten_after_minutes` — finns inte i _shared/
+**2. `cooler_margin_history` — all rows**
+Delete all historical margin tracking data (LearnedMarginHistory).
 
-**Totalt: 11 parametrar bort** → AI-prompten blir kortare och mer fokuserad.
+**3. `controller_learned_compensation` — all rows**
+Delete all PID baselines for all controllers (these are also tainted).
 
-### Parametrar som BEHÅLLS (faktisk påverkan)
+### Implementation
 
-**PID-kompensation (5 st)** — används i `pid-compensation.ts`:
-- `pill_compensation_damping`, `pill_compensation_rate_limit`, `pill_compensation_max_compensation`, `pill_compensation_min_scale`, `pill_compensation_emergency_threshold`
+Single database migration with three DELETE statements. No code changes needed — the UI components will simply show "Inga inlärda värden ännu" after reset.
 
-**Kylare (3 st)** — används i `cooler-management.ts`:
-- `delta_alert_threshold`, `temp_reduction_degrees`, `max_diff_from_lowest`
+### Technical detail
 
-**Inlärda parametrar (fermentation_learnings)** — används i control-logik:
-- `cooler_margin:{bucket}`, `hold_margin:*`, `ramp_margin:*`, `steady_state_duty:*`, `cooling_rate:*`, `warming_rate:*`
+```sql
+DELETE FROM fermentation_learnings
+WHERE parameter_name LIKE 'cooling_rate:%'
+   OR parameter_name LIKE 'warming_rate:%'
+   OR parameter_name LIKE 'hold_margin:%'
+   OR parameter_name LIKE 'ramp_margin:%'
+   OR parameter_name LIKE 'cooler_margin:%'
+   OR parameter_name LIKE 'cooling_capacity:%'
+   OR parameter_name LIKE 'glycol_rate:%'
+   OR parameter_name LIKE 'steady_state_duty:%';
 
-### Ändringar
+DELETE FROM cooler_margin_history;
 
-**1. `supabase/functions/ai-automation-audit/index.ts`**:
-- Ta bort stall-, overshoot- och smart-relay-sektioner från systemprompten (rad 253–273)
-- Ta bort dessa parametrar från `dataPayload.settings` (rad 307–321)
-- Ta bort dem från `MAX_STEP`, `BOUNDS`, `VALID_SETTINGS_PARAMS`, `VALID_LEARNING_EXACT` 
-- Ta bort `stall_boost_degrees` från `VALID_LEARNING_EXACT`
-- Ta bort `boost_outcomes` från datainsamling och payload (rad 139–142, 409–416)
-- Uppdatera "Stall-detektion"-referens i systemprompten (rad 200)
-- Ta bort `auto_boost_enabled` och `smart_relay_enabled` från FÖRBJUDET-listan (rad 277)
+DELETE FROM controller_learned_compensation;
+```
 
