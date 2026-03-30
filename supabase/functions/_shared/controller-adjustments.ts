@@ -785,7 +785,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         ? round1(Math.max(raptProbeTemp - 2, minTemp))
         : round1(actualTarget) // fallback: neutral target (no probe data)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-      const onTarget = round1(maxTemp) // heating ON = max temp
+      const HEATING_ON_TARGET = 40 // +5° over max to guarantee relay activation past 5°C hysteresis
+      const onTarget = HEATING_ON_TARGET
 
       if (dutyPct >= 100) {
         // 100%: hold maxTemp entire cycle
