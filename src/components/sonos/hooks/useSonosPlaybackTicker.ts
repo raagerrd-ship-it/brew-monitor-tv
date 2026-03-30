@@ -117,11 +117,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
         predictiveScheduledRef.current = true;
 
-        // Preload next images
+        // Preload next images into browser cache
         const current = nowPlayingRef?.current;
-        [current?.next_widget_art_url, current?.next_bg_image_url]
-          .filter(Boolean)
-          .forEach(url => { const img = new Image(); img.src = url!; });
+        const preloadUrls = [current?.next_widget_art_url, current?.next_bg_image_url].filter(Boolean) as string[];
+        if (preloadUrls.length > 0) {
+          preloadUrls.forEach(url => { const img = new Image(); img.src = url; });
+          tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut`);
+        }
 
         const delay = Math.max(remaining - offsetMs, 100);
         tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s`);
