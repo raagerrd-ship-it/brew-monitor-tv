@@ -27,7 +27,7 @@ interface Notification {
 }
 
 const TYPE_ICONS: Record<string, string> = {
-  stall_boost: "🔥",
+  // stall_boost removed
   delta_alert: "⚠️",
   rapt_api_degraded: "📡",
   stale_sensor: "📴",
