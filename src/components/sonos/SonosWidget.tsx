@@ -66,6 +66,7 @@ export const SonosWidget = memo(function SonosWidget({
     localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
     acceptedSeqRef,
+    swappedFromRef,
   });
 
   useSonosRealtime({
