@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
       }
 
       // Add learned duty cycle percentage if available (for non-glycol, active controllers)
-      // Use profile target or original target for bucket (target_temp may be 0°C during PWM burst)
+      // Use profile target or original target for bucket (target_temp may be -5°C during PWM burst)
       if (!isGlycol && isFollowed && !isStale) {
         const dutyBucketTemp = originalTarget !== targetTemp && originalTarget < 900 ? originalTarget : targetTemp;
         const cBucket = getTempBucket(dutyBucketTemp);
