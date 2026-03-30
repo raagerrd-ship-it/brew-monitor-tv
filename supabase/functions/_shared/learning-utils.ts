@@ -70,28 +70,55 @@ export async function updateLearnedParam(
   return { oldValue: currentValue, newValue, sampleCount: sampleCount + 1 }
 }
 
-/** Batch-read multiple learned parameters in a single query */
+/** Batch-read multiple learned parameters in a single query.
+ *  controllerId can be a single string or an array of controller IDs.
+ *  When multiple controllers are provided, returned keys are prefixed: `{controllerId}:{paramName}` */
 export async function getLearnedParams(
   supabase: ReturnType<typeof createClient>,
-  controllerId: string,
+  controllerId: string | string[],
   paramNames: string[],
   defaults: Record<string, number>,
 ): Promise<Map<string, { value: number; sampleCount: number }>> {
-  const { data } = await supabase
+  const isMulti = Array.isArray(controllerId)
+  const controllerIds = isMulti ? controllerId : [controllerId]
+
+  let query = supabase
     .from('fermentation_learnings')
-    .select('parameter_name, learned_value, sample_count')
-    .eq('controller_id', controllerId)
+    .select('controller_id, parameter_name, learned_value, sample_count')
     .in('parameter_name', paramNames)
 
-  const dataMap = new Map((data ?? []).map(r => [r.parameter_name, r]))
+  if (controllerIds.length === 1) {
+    query = query.eq('controller_id', controllerIds[0])
+  } else {
+    query = query.in('controller_id', controllerIds)
+  }
+
+  const { data } = await query
+
   const result = new Map<string, { value: number; sampleCount: number }>()
 
-  for (const name of paramNames) {
-    const row = dataMap.get(name)
-    result.set(name, {
-      value: row ? parseFloat(String(row.learned_value)) : (defaults[name] ?? 0),
-      sampleCount: row?.sample_count ?? 0,
-    })
+  if (isMulti) {
+    // Multi-controller: key = `controllerId:paramName`
+    const dataMap = new Map((data ?? []).map(r => [`${r.controller_id}:${r.parameter_name}`, r]))
+    for (const cId of controllerIds) {
+      for (const name of paramNames) {
+        const row = dataMap.get(`${cId}:${name}`)
+        result.set(`${cId}:${name}`, {
+          value: row ? parseFloat(String(row.learned_value)) : (defaults[name] ?? 0),
+          sampleCount: row?.sample_count ?? 0,
+        })
+      }
+    }
+  } else {
+    // Single controller: key = paramName (backward-compatible)
+    const dataMap = new Map((data ?? []).map(r => [r.parameter_name, r]))
+    for (const name of paramNames) {
+      const row = dataMap.get(name)
+      result.set(name, {
+        value: row ? parseFloat(String(row.learned_value)) : (defaults[name] ?? 0),
+        sampleCount: row?.sample_count ?? 0,
+      })
+    }
   }
   return result
 }
