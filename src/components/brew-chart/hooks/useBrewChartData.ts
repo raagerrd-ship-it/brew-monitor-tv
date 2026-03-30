@@ -47,6 +47,7 @@ export function useBrewChartData({
   controllerId: _controllerId,
   brewId,
   smoothLines,
+  timeRange = 'full',
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
