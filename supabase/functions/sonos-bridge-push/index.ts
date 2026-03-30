@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
       nextAlbumArtUri,
       playbackState,
       positionMillis,
+      pushedAt,
       durationMillis,
       volume,
       mute,
@@ -132,8 +133,9 @@ Deno.serve(async (req) => {
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
-    // Skip writing position_ms entirely when bridge sends 0 for same track
-    const skipPositionWrite = sameTrack && !hasRealPosition;
+    // Compensate for network latency using pushedAt timestamp
+    const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0) ? Math.max(0, Date.now() - pushedAt) : 0;
+    const compensatedPosition = hasRealPosition ? positionMillis + latencyMs : 0;
 
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
@@ -146,7 +148,7 @@ Deno.serve(async (req) => {
       next_artist_name: nextArtistName || null,
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
-      ...(skipPositionWrite ? {} : { position_ms: hasRealPosition ? positionMillis : 0 }),
+      position_ms: compensatedPosition,
       track_seq: newTrackSeq,
       // Bridge-provided metadata columns
       volume: volume ?? null,
@@ -189,8 +191,7 @@ Deno.serve(async (req) => {
     }
 
     const phase1Ms = Date.now() - startTime;
-    const writtenPos = skipPositionWrite ? 'skipped' : (metadataPayload.position_ms ?? 0);
-    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms writtenPos=${writtenPos} state=${playbackState} bridgeArt=${bridgeHasArt}`);
+    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms +latency=${latencyMs}ms → written=${compensatedPosition}ms state=${playbackState} bridgeArt=${bridgeHasArt}`);
 
     // If same track AND background already exists, just a position/state update — done
     const needsBg = !existingRow?.bg_image_url;

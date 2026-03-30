@@ -141,20 +141,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         // Sync local progress from periodic push to prevent ticker drift,
-        // Sync position: log app vs Sonos position on every periodic push
+        // Sync position from bridge (now latency-compensated server-side)
         if (typeof incoming.position_ms === 'number' && incoming.position_ms >= 0) {
           const appPos = localProgressRef.current ?? prev.position_ms ?? 0;
           const sonosPos = incoming.position_ms;
           const drift = appPos - sonosPos;
-          const looksLikeStaleRestart =
-            incoming.playback_state === 'PLAYBACK_STATE_PLAYING' &&
-            appPos > 15000 &&
-            sonosPos < 5000 &&
-            drift > 15000;
 
-          tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s${looksLikeStaleRestart ? ' (stale — ignorerad)' : Math.abs(drift) > 3000 ? ' → korrigerad' : ''}`);
+          tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s${Math.abs(drift) > 3000 ? ' → korrigerad' : ''}`);
 
-          if (!looksLikeStaleRestart && Math.abs(drift) > 3000) {
+          if (Math.abs(drift) > 3000) {
             localProgressRef.current = sonosPos;
             updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, incoming.duration_ms ?? prev.duration_ms);
           }
