@@ -664,24 +664,22 @@ export async function calculateSingleUtilization(
   const currentRunTime = c.cooling_run_time ?? 0
   const sensorTimestampMs = c.last_update ? new Date(c.last_update).getTime() : 0
 
-  // Load all 5 stored points: p4 (oldest) → p3 (anchor) → p2 → p1 (prev) → p0 (current from hw)
-  const [p4RunTimeParam, p4TimestampParam, anchorRunTimeParam, anchorTimestampParam, p2RunTimeParam, p2TimestampParam, prevRunTimeParam, prevTimestampParam] = await Promise.all([
-    getLearnedParam(supabase, c.controller_id, 'util_p4_run_time', -1),
-    getLearnedParam(supabase, c.controller_id, 'util_p4_at', 0),
-    getLearnedParam(supabase, c.controller_id, 'util_anchor_run_time', -1),
-    getLearnedParam(supabase, c.controller_id, 'util_anchor_at', 0),
-    getLearnedParam(supabase, c.controller_id, 'util_p2_run_time', -1),
-    getLearnedParam(supabase, c.controller_id, 'util_p2_at', 0),
-    getLearnedParam(supabase, c.controller_id, 'util_prev_run_time', -1),
-    getLearnedParam(supabase, c.controller_id, 'util_prev_at', 0),
-  ])
+  // ── Batch-read all 8 util params in ONE query (was 8 individual queries) ──
+  const UTIL_PARAMS = ['util_p4_run_time', 'util_p4_at', 'util_anchor_run_time', 'util_anchor_at', 'util_p2_run_time', 'util_p2_at', 'util_prev_run_time', 'util_prev_at']
+  const UTIL_DEFAULTS: Record<string, number> = {
+    util_p4_run_time: -1, util_p4_at: 0,
+    util_anchor_run_time: -1, util_anchor_at: 0,
+    util_p2_run_time: -1, util_p2_at: 0,
+    util_prev_run_time: -1, util_prev_at: 0,
+  }
+  const params = await getLearnedParams(supabase, c.controller_id, UTIL_PARAMS, UTIL_DEFAULTS)
 
-  let p4RunTime = p4RunTimeParam.value
-  let p4TimestampMs = p4TimestampParam.value
-  let anchorRunTime = anchorRunTimeParam.value
-  let anchorTimestampMs = anchorTimestampParam.value
-  let p2RunTime = p2RunTimeParam.value
-  let p2TimestampMs = p2TimestampParam.value
+  let p4RunTime = params.get('util_p4_run_time')!.value
+  let p4TimestampMs = params.get('util_p4_at')!.value
+  let anchorRunTime = params.get('util_anchor_run_time')!.value
+  let anchorTimestampMs = params.get('util_anchor_at')!.value
+  let p2RunTime = params.get('util_p2_run_time')!.value
+  let p2TimestampMs = params.get('util_p2_at')!.value
 
   // Preserve pre-shift values for calcInterval (shift mutates p2/anchor/p4)
   const origP2RunTime = p2RunTime
@@ -691,8 +689,8 @@ export async function calculateSingleUtilization(
   const origP4RunTime = p4RunTime
   const origP4TimestampMs = p4TimestampMs
 
-  const prevSensorMs = prevTimestampParam.value
-  const prevRunTime = prevRunTimeParam.value
+  const prevSensorMs = params.get('util_prev_at')!.value
+  const prevRunTime = params.get('util_prev_run_time')!.value
   const isNewData = sensorTimestampMs > 0 && (prevSensorMs === 0 || sensorTimestampMs > prevSensorMs + 30_000)
 
   if (isNewData && prevSensorMs > 0 && !options?.skipShift) {
@@ -703,72 +701,37 @@ export async function calculateSingleUtilization(
     if (anchorRunTime >= 0 && anchorTimestampMs > 0) {
       p4RunTime = anchorRunTime
       p4TimestampMs = anchorTimestampMs
-      await Promise.all([
-        supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_p4_run_time',
-          learned_value: p4RunTime, sample_count: 1, last_updated_at: now,
-        }, { onConflict: 'controller_id,parameter_name' }),
-        supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_p4_at',
-          learned_value: p4TimestampMs, sample_count: 1, last_updated_at: now,
-        }, { onConflict: 'controller_id,parameter_name' }),
-      ])
     }
 
     // Promote p2 → anchor (p3)
     if (p2RunTime >= 0 && p2TimestampMs > 0) {
       anchorRunTime = p2RunTime
       anchorTimestampMs = p2TimestampMs
-      await Promise.all([
-        supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_anchor_run_time',
-          learned_value: anchorRunTime, sample_count: 1, last_updated_at: now,
-        }, { onConflict: 'controller_id,parameter_name' }),
-        supabase.from('fermentation_learnings').upsert({
-          controller_id: c.controller_id, parameter_name: 'util_anchor_at',
-          learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: now,
-        }, { onConflict: 'controller_id,parameter_name' }),
-      ])
     }
 
     // Promote prev → p2
     p2RunTime = prevRunTime
     p2TimestampMs = prevSensorMs
-    await Promise.all([
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_p2_run_time',
-        learned_value: p2RunTime, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_p2_at',
-        learned_value: p2TimestampMs, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-    ])
 
-    // Save current as new prev (p1)
-    await Promise.all([
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
-        learned_value: currentRunTime, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_at',
-        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-    ])
+    // ── Batch-write all shifted params in ONE upsert (was up to 8 individual upserts) ──
+    const upsertRows = [
+      { controller_id: c.controller_id, parameter_name: 'util_p4_run_time', learned_value: p4RunTime, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_p4_at', learned_value: p4TimestampMs, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_anchor_run_time', learned_value: anchorRunTime, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_anchor_at', learned_value: anchorTimestampMs, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_p2_run_time', learned_value: p2RunTime, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_p2_at', learned_value: p2TimestampMs, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_prev_run_time', learned_value: currentRunTime, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_prev_at', learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now },
+    ]
+    await supabase.from('fermentation_learnings').upsert(upsertRows, { onConflict: 'controller_id,parameter_name' })
   } else if (isNewData && prevSensorMs === 0 && !options?.skipShift) {
     // First data point ever — just save as prev
     const now = new Date().toISOString()
-    await Promise.all([
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_run_time',
-        learned_value: currentRunTime, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-      supabase.from('fermentation_learnings').upsert({
-        controller_id: c.controller_id, parameter_name: 'util_prev_at',
-        learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now,
-      }, { onConflict: 'controller_id,parameter_name' }),
-    ])
+    await supabase.from('fermentation_learnings').upsert([
+      { controller_id: c.controller_id, parameter_name: 'util_prev_run_time', learned_value: currentRunTime, sample_count: 1, last_updated_at: now },
+      { controller_id: c.controller_id, parameter_name: 'util_prev_at', learned_value: sensorTimestampMs, sample_count: 1, last_updated_at: now },
+    ], { onConflict: 'controller_id,parameter_name' })
   }
 
   // Helper to compute utilization between two points
