@@ -1,75 +1,73 @@
 
 
-# Heating Session Cap — bara vid "hold", inte vid ramp
+# Temperaturinterpolering mellan RAPT-synkningar
 
 ## Problem
-Controller Grön kör 10% heating-bursts i 30–60 minuter kontinuerligt, vilket bygger upp termisk tröghet och orsakar oscillationer med ~6 timmars period. PID:n kan inte gå lägre än 10% (lägsta icke-noll-steg), så den "låser" sig.
+RAPT-sensorn synkar var 15:e minut, men PID:n kör var 5:e minut. 2 av 3 PID-cykler använder gammal temperaturdata, vilket gör att PID:n reagerar sent — speciellt problematiskt vid aktiv kylning/värmning där temperaturen förändras snabbt.
 
 ## Lösning
-Inför en "macro duty cycle" som begränsar hur länge kontinuerlig uppvärmning får köra innan ett vilopass tvingas fram. **Gäller enbart hold-läge** — under aktiva ramper (gradual_ramp/ramp) ska uppvärmningen vara obegränsad.
+Interpolera (estimera) `actualTemp` mellan synkningar med hjälp av:
+1. **Senast kända temperatur** (från RAPT-synk)
+2. **Tid sedan senaste synk** (från `fc.last_update`)
+3. **Inlärd termisk hastighet** (`thermal_rate_heating` / `thermal_rate_cooling` i °C/h)
+4. **Aktuellt PID-läge och duty** (om vi kör 30% kylning estimerar vi sänkning)
 
 ## Hur det fungerar
 
-1. Spåra `heating_session_minutes` i `fermentation_learnings` per controller
-2. Varje gång en heating burst körs (10–90% duty) och controllern **inte** rampar → öka räknaren med burst-minuter
-3. När räknaren når **10 minuter** → tvinga duty till 0 i **30 minuter** (spara `heating_rest_until` timestamp)
-4. Under viloperioden: clampa heating duty till 0, logga `HEATING_REST`
-5. Auto-reset: om PID naturligt ger 0% duty → nollställ räknaren (inget tvångsvilopass behövs)
-6. Under ramp (`isProfileRamp === true`): hoppa över all session-cap-logik helt
+```text
+RAPT synk        PID cykel 2      PID cykel 3      Nästa RAPT synk
+  │──── 5 min ─────│──── 5 min ─────│──── 5 min ─────│
+  20.0°C           19.7° (est)      19.4° (est)      19.1° (verifierad)
+                   ↑                ↑                 ↑
+                   interpolerad     interpolerad      ny sensor-data ersätter
+```
 
-## Implementation
-
-### Fil: `supabase/functions/_shared/controller-adjustments.ts`
-
-**Före heating-burst-exekveringen (rad ~646)**, lägg till:
+### Interpoleringslogik (i `controller-adjustments.ts`, vid rad ~191)
 
 ```typescript
-// ── Heating Session Cap (hold-only) ──
-const HEATING_SESSION_CAP_MIN = 10
-const HEATING_REST_MIN = 30
+// After reading actualTemp from fc.actual_temp:
+const lastUpdateMs = new Date(fc.last_update).getTime()
+const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
-// Only apply session cap during hold (not during ramps)
-if (!isProfileRamp && pidMode === 'heating' && dutyPct > 0) {
-  const sessionParam = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
-  const restParam = await getLearnedParam(supabase, fc.controller_id, 'heating_rest_until', 0)
-  const restUntil = restParam.value  // unix timestamp in ms, 0 = no rest
-  const now = Date.now()
-
-  if (restUntil > now) {
-    // Force rest active
-    log('HEATING_REST', 'info', `${fc.name}: vilofas aktiv, ${Math.round((restUntil - now)/60000)} min kvar`)
-    dutyPct = 0  // clamp to zero
-  } else if (sessionParam.value >= HEATING_SESSION_CAP_MIN) {
-    // Cap hit → start rest
-    const restEnd = now + HEATING_REST_MIN * 60000
-    await updateLearnedParam(..., 'heating_rest_until', restEnd, ...)
-    await updateLearnedParam(..., 'heating_session_minutes', 0, ...)
-    log('HEATING_CAP_HIT', 'action', `${fc.name}: ${sessionParam.value} min heating → ${HEATING_REST_MIN} min vila`)
-    dutyPct = 0
-  } else {
-    // Accumulate: add this burst's minutes
-    const burstMin = currentBurstMin  // already calculated
-    await updateLearnedParam(..., 'heating_session_minutes', sessionParam.value + burstMin, ...)
+if (staleMinutes > 3 && pidMode != null) {
+  // Hämta inlärd termisk hastighet för aktuellt läge
+  const rateParam = await getLearnedParam(supabase, fc.controller_id, 
+    `thermal_rate_${pidMode}`, 0)
+  
+  if (rateParam.value > 0 && rateParam.sampleCount >= 3) {
+    const ratePerMin = rateParam.value / 60  // °C/h → °C/min
+    const lastDuty = pressureMap.get('pid_last_duty') ?? 0
+    const dutyFraction = lastDuty / 100
+    
+    // Estimerad temperaturförändring = hastighet × tid × duty-fraktion
+    const deltaEst = ratePerMin * staleMinutes * dutyFraction
+    const sign = pidMode === 'cooling' ? -1 : 1
+    
+    estimatedTemp = actualTemp + sign * deltaEst
+    // Clampa: aldrig förbi target (den logiska gränsen)
+    if (pidMode === 'cooling') estimatedTemp = Math.max(estimatedTemp, actualTarget)
+    if (pidMode === 'heating') estimatedTemp = Math.min(estimatedTemp, actualTarget)
+    
+    log('TEMP_INTERPOLATED', 'info', 
+      `${fc.name}: sensor ${actualTemp}° (${staleMinutes.toFixed(0)}min gammal) → est ${estimatedTemp}°`)
   }
-}
-
-// Reset counter when PID outputs 0% naturally (and not in forced rest)
-if (!isProfileRamp && pidMode === 'heating' && dutyPct === 0 && !forcedRest) {
-  await updateLearnedParam(..., 'heating_session_minutes', 0, ...)
 }
 ```
 
-### Varför inte vid ramp?
-Vid ramp (t.ex. höja från 13°C till 20°C) **behöver** controllern köra kontinuerligt tills målet nås. Session cap skulle göra rampen onödigt långsam. Oscillationsproblemet uppstår bara vid hold, där PID:n pendlar kring ett stabilt mål.
+### Säkerhetsregler
+- **Minst 3 minuter** sedan senaste synk innan interpolering aktiveras (undvik brus)
+- **Minst 3 samples** av inlärd hastighet krävs (inte gissa med dålig data)
+- **Clampa** mot target: aldrig estimera att vi passerat måltemperaturen
+- **Duty-skalning**: vid 30% duty estimeras bara 30% av full hastighet
+- **Auto-korrigering**: vid varje ny RAPT-synk ersätts estimatet med verifierad sensordata
+- **Vid 0% duty**: ingen interpolering (temp borde vara stabil)
+- **Logga** estimatet så det syns i beslutslogs för felsökning
 
-### Parametrar (tunable via fermentation_learnings)
-| Parameter | Default | Beskrivning |
-|-----------|---------|-------------|
-| `HEATING_SESSION_CAP_MIN` | 10 | Max ackumulerade uppvärmningsminuter före vila |
-| `HEATING_REST_MIN` | 30 | Viloperiod efter cap |
+### Fil som ändras
+- `supabase/functions/_shared/controller-adjustments.ts` — lägg till interpoleringslogik efter `actualTemp`-beräkningen (rad ~191) men **före** PID-beräkningen
 
-### Förväntat resultat
-**Före**: 10% duty × 60 min kontinuerligt → 6 min total uppvärmning → termisk tröghet → overshoot
-
-**Efter**: 10% duty × 10 min → ~1 min uppvärmning → 30 min vila → inertia dissiperar → ingen overshoot. Upprepas ~2× per timme.
+### Beroenden (redan tillgängliga)
+- `getLearnedParam` — för att läsa `thermal_rate_heating`/`thermal_rate_cooling`
+- `fc.last_update` — finns i `rapt_temp_controllers`-tabellen
+- `pressureMap` → `pid_last_duty` — redan läses in
 
