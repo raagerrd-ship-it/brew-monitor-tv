@@ -483,15 +483,7 @@ export function useSettingsData() {
     await updateAutoCoolingSetting('pill_compensation_max_compensation', parseFloat(value));
   }, [updateAutoCoolingSetting]);
 
-  const handleStallDetectionEnabledChange = useCallback(async (checked: boolean) => {
-    setStallDetectionEnabled(checked);
-    await updateAutoCoolingSetting('auto_boost_enabled', checked);
-  }, [updateAutoCoolingSetting]);
-
-  const handleStallBoostDegreesChange = useCallback(async (value: string) => {
-    setStallBoostDegrees(value);
-    await updateAutoCoolingSetting('auto_boost_degrees', parseFloat(value));
-  }, [updateAutoCoolingSetting]);
+  // handleStallDetectionEnabledChange/handleStallBoostDegreesChange removed
 
   const handleOvershootPreventionChange = useCallback(async (checked: boolean) => {
     setOvershootPreventionEnabled(checked);
