@@ -90,6 +90,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             return prev;
           }
 
+          // Revert guard: reject track changes back to the track we just swapped away from
+          const REVERT_GUARD_MS = 30_000;
+          const swapped = swappedFromRef.current;
+          if (swapped && incoming.track_name === swapped.trackName && (Date.now() - swapped.ts) < REVERT_GUARD_MS) {
+            tvDebug('sonos', `📡 RT revert blocked: "${incoming.track_name}" (swapped from ${((Date.now() - swapped.ts) / 1000).toFixed(1)}s ago)`);
+            return prev;
+          }
+
+          // Clear revert guard since we're accepting a new track
+          swappedFromRef.current = null;
           accepted = true;
           isTrackChange = true;
           acceptedSeqRef.current = incomingSeq;
