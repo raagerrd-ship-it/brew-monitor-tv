@@ -57,6 +57,7 @@ function BrewCardComponent({
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
+  const [timeRange, setTimeRange] = useState<'12h' | 'full'>('full');
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
