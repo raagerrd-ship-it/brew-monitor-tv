@@ -312,9 +312,11 @@ export async function calculateCompensatedTarget(
     let dutyCycle = 0
 
     if (Math.abs(avgError) <= 0.05) {
-      // DEADBAND: hold integral steady (this IS the learned steady-state duty)
-      // Do NOT decay — the integral represents the duty needed to maintain temperature.
-      // Decaying it causes the system to lose its learned baseline and stop cooling.
+      // DEADBAND: gentle decay to converge toward zero when at target.
+      // 0.90 per cycle → halves in ~7 cycles (35 min) instead of ~35 cycles (3h).
+      // This prevents residual integral from causing unnecessary PWM bursts
+      // while still allowing the integral to re-accumulate quickly if error returns.
+      integral *= 0.90
       dutyCycle = Math.max(0, integral)
       constraints.push('deadband')
       console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
@@ -424,7 +426,8 @@ export async function calculateCompensatedTarget(
   let hDutyCycle = 0
 
   if (Math.abs(avgError) <= 0.05) {
-    // DEADBAND: hold at integral (learned steady-state duty) — no decay
+    // DEADBAND: gentle decay (0.90/cycle) to prevent residual PWM bursts
+    hIntegral *= 0.90
     hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
     console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
