@@ -188,11 +188,15 @@ Deno.serve(async (req) => {
     const phase1Ms = Date.now() - startTime;
     console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgeArt=${bridgeHasArt}`);
 
-    // If same track, just a position/state update — done
-    if (sameTrack) {
+    // If same track AND background already exists, just a position/state update — done
+    const needsBg = !existingRow?.bg_image_url;
+    if (sameTrack && !needsBg) {
       return new Response(JSON.stringify({ ok: true, phase: 1, same_track: true, duration_ms: phase1Ms }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+    if (sameTrack && needsBg) {
+      console.log(`[BridgePush] Same track but missing bg — running Phase 2`);
     }
 
     // --- Phase 2: Resolve art + generate background/widget ---
