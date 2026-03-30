@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
