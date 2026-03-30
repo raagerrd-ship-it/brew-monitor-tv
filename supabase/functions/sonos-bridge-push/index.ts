@@ -217,8 +217,9 @@ Deno.serve(async (req) => {
       if (result.widgetUrl) imageUpdate.widget_art_url = result.widgetUrl;
     }
 
-    // Next track images
-    if (nextTrackName) {
+    // Next track images (skip for radio — next track metadata is unreliable)
+    const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
+    if (nextTrackName && !isRadio) {
       try {
         let nextArtUrl: string | null = null;
         if (bridgeHasNextArt) {
