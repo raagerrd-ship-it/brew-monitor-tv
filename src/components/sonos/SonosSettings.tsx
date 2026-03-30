@@ -303,12 +303,11 @@ export function SonosSettings() {
     saveField({ show_on_dashboard: value });
   };
 function SonosDebugLog() {
-  const [entries, setEntries] = useState<import('@/lib/tv-debug-log').TvDebugEntry[]>([]);
+  const [entries, setEntries] = useState<TvDebugEntry[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    const { getTvDebugEntries, subscribeTvDebug } = require('@/lib/tv-debug-log') as typeof import('@/lib/tv-debug-log');
     setEntries([...getTvDebugEntries()]);
     return subscribeTvDebug(() => setEntries([...getTvDebugEntries()]));
   }, [isOpen]);
