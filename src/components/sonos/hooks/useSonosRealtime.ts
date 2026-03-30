@@ -140,6 +140,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           acceptedSeqRef.current = incoming.track_seq;
         }
 
+        // Sync local progress from periodic push to prevent ticker drift
+        if (typeof incoming.position_ms === 'number' && incoming.position_ms > 0) {
+          const drift = Math.abs((localProgressRef.current ?? 0) - incoming.position_ms);
+          if (drift > 3000) {
+            tvDebug('sonos', `📡 RT positionskorrigering: ${((localProgressRef.current ?? 0) / 1000).toFixed(0)}s → ${(incoming.position_ms / 1000).toFixed(0)}s (drift ${(drift / 1000).toFixed(1)}s)`);
+            localProgressRef.current = incoming.position_ms;
+          }
+        }
+
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
         const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
