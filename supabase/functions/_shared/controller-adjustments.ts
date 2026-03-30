@@ -766,7 +766,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           log('HEATING_SESSION_RESET', 'info', `${fc.name}: PID 0% naturligt → session nollställd`)
         }
       }
-      const revertTarget = round1(pidEffectiveTarget)
+      // For heating, revert to a target BELOW the probe to prevent
+      // RAPT's internal thermostat from continuing to heat after burst.
+      // Same logic as DUTY_ZERO_SUPPRESS — probe - 2°C, clamped to min.
+      const probeTemp = fc.current_temp ?? actualTemp
+      const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
+      const revertTarget = round1(Math.max(probeTemp - 2, minTemp))
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
