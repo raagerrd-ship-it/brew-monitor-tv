@@ -245,26 +245,10 @@ Deno.serve(async (req) => {
 - pill_compensation_min_scale (0.05-0.5): Lägsta skalningsfaktor för PID nära target. Sänk om systemet blir för passivt nära target. MAX ÄNDRING: ±0.05 per audit.
 - pill_compensation_emergency_threshold (1.0-5.0): Nödlägeströskel — om felet överstiger detta ignoreras damping. Sänk om systemet reagerar för långsamt på stora avvikelser. MAX ÄNDRING: ±0.5 per audit.
 
-### Overshoot-skydd
-- overshoot_pill_threshold (0.1-1.0): Marginal innan pill-overshoot-guard triggas. Sänk om pill skjuter över target, höj om PID bromsas i onödan. MAX ÄNDRING: ±0.1 per audit.
-- overshoot_delta_threshold (0.5-5.0): Delta-tröskel för overshoot-prevention. MAX ÄNDRING: ±0.5 per audit.
-
-### Stall-detektering
-- stall_rate_threshold (0.0005-0.005): SG-tröskelvärde för stall-detektion. MAX ÄNDRING: ±0.0005 per audit.
-- auto_boost_degrees (0.5-4.0): Standard boost-grader vid stall. Höj om boosts inte bryter stalls. MAX ÄNDRING: ±0.5 per audit.
-- stall_min_attenuation (5-30): Minsta dämpning (%) innan stall-detektion aktiveras. Sänk om stalls missas tidigt. MAX ÄNDRING: ±5 per audit.
-- stall_max_attenuation (70-95): Högsta dämpning (%) för stall-detektion. Höj om stalls missas sent. MAX ÄNDRING: ±5 per audit.
-
 ### Kylare
 - delta_alert_threshold (0.5-5.0): Tröskelvärde för delta-alarm. MAX ÄNDRING: ±0.5 per audit.
 - temp_reduction_degrees (1.0-10.0): Hur mycket glykolkylaren sänks under lägsta target. MAX ÄNDRING: ±1.0 per audit.
 - max_diff_from_lowest (3.0-15.0): Max avstånd kylaren går under lägsta följda controllers target. Höj om kylaren inte hinner, sänk om den kyler för aggressivt. MAX ÄNDRING: ±1.0 per audit.
-
-### Smart Relay
-- smart_relay_min_hysteresis (0.1-1.0): Minsta hysteres smart relay tillåter. Sänk för tightare kontroll, höj om reläet cyklar för ofta. MAX ÄNDRING: ±0.1 per audit.
-- smart_relay_cooling_only_below (0-10): Temperatur under target där enbart kylning aktiveras (stänger av värme). Sänk om värme stör kylningen, höj om systemet tappar värme för tidigt. MAX ÄNDRING: ±1.0 per audit.
-- smart_relay_heating_only_above (0-10): Temperatur över target där enbart värme aktiveras (stänger av kylning). Sänk om kylning stör uppvärmning, höj om systemet tappar kylning för tidigt. MAX ÄNDRING: ±1.0 per audit.
-- smart_relay_tighten_after_minutes (5-60): Minuter innan smart relay börjar strama åt hysteres. Sänk för snabbare anpassning, höj om reläet cyklar för tidigt. MAX ÄNDRING: ±5 per audit.
 
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
