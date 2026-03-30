@@ -57,8 +57,7 @@ function BrewCardComponent({
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
-  const [smoothLines, setSmoothLines] = useState(true);
-  const [timeRange, setTimeRange] = useState<'12h' | 'full'>('full');
+  const { smoothLines, setSmoothLines, timeRange, setTimeRange } = useChartSettings();
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
