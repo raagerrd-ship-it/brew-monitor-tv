@@ -1,9 +1,23 @@
-import { memo, useMemo, useState, useEffect } from "react";
+import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const STALL_THRESHOLD = 0.002;
+
+const phaseLabels: Record<string, string> = {
+  lag: 'Lagfas',
+  exponential: 'Exponentiell',
+  declining: 'Avtagande',
+  stationary: 'Stationär',
+};
+
+const phaseDescriptions: Record<string, string> = {
+  lag: '⏳ Lagfas — jästen anpassar sig, ingen märkbar SG-förändring ännu',
+  exponential: '🚀 Exponentiell — jäsningen är som mest aktiv',
+  declining: '↘ Avtagande — jäsningen saktar ner, närmar sig slutet',
+  stationary: '⏳ Stationär — minimal aktivitet, SG stabil',
+};
 
 interface GravityStatProps {
   brew: BrewData;
