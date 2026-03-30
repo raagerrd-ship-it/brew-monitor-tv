@@ -580,7 +580,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // ═══════════════════════════════════════════════════
     // COOLING: Unified PWM duty cycle execution
     // PID output is a duty cycle (0–100%). Hardware is controlled
-    // via PWM bursts: 0°C = cooling ON, baseTarget = cooling OFF.
+    // via PWM bursts: -5°C = cooling ON, baseTarget = cooling OFF.
     // ═══════════════════════════════════════════════════
     if (pidMode === 'cooling' && pidResult.dutyCycle != null) {
       if (!fc.cooling_enabled) {
