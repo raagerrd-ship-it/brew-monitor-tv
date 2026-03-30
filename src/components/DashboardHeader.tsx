@@ -324,22 +324,22 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       const pillActive = hasPill && (isDual || preferred === 'pill');
                       const probeActive = isDual || preferred === 'probe' || !hasPill;
                       return (
-                         <div className="flex items-center gap-1.5">
+                         <div className="flex items-center gap-2">
                            <Pill style={{
-                             width: '0.65rem',
-                             height: '0.65rem',
+                             width: '0.85rem',
+                             height: '0.85rem',
                              flexShrink: 0,
-                             opacity: pillActive ? 1 : 0.2,
+                             opacity: pillActive ? 1 : 0.15,
                              color: pillActive ? controllerColor : 'currentColor',
-                             filter: pillActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                             filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
                            }} strokeWidth={2} />
                            <AirVent style={{
-                             width: '0.65rem',
-                             height: '0.65rem',
+                             width: '0.85rem',
+                             height: '0.85rem',
                              flexShrink: 0,
-                             opacity: probeActive ? 0.9 : 0.2,
+                             opacity: probeActive ? 0.9 : 0.15,
                              color: probeActive ? controllerColor : 'currentColor',
-                             filter: probeActive ? `drop-shadow(0 0 3px ${controllerColor}88)` : 'none',
+                             filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
                            }} />
                          </div>
                       );
