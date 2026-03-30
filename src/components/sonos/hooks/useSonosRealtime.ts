@@ -141,22 +141,22 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         // Sync local progress from periodic push to prevent ticker drift,
-        // but ignore bogus near-start regressions from duplicate bridge events.
+        // Sync position: log app vs Sonos position on every periodic push
         if (typeof incoming.position_ms === 'number' && incoming.position_ms >= 0) {
-          const currentLocal = localProgressRef.current ?? prev.position_ms ?? 0;
-          const drift = currentLocal - incoming.position_ms;
+          const appPos = localProgressRef.current ?? prev.position_ms ?? 0;
+          const sonosPos = incoming.position_ms;
+          const drift = appPos - sonosPos;
           const looksLikeStaleRestart =
             incoming.playback_state === 'PLAYBACK_STATE_PLAYING' &&
-            currentLocal > 15000 &&
-            incoming.position_ms < 5000 &&
+            appPos > 15000 &&
+            sonosPos < 5000 &&
             drift > 15000;
 
-          if (looksLikeStaleRestart) {
-            tvDebug('sonos', `📡 RT positionskorrigering ignorerad: ${Math.round(currentLocal / 1000)}s → ${Math.round(incoming.position_ms / 1000)}s (stale)`);
-          } else if (Math.abs(drift) > 3000) {
-            tvDebug('sonos', `📡 RT positionskorrigering: ${Math.round(currentLocal / 1000)}s → ${Math.round(incoming.position_ms / 1000)}s (drift ${(Math.abs(drift) / 1000).toFixed(1)}s)`);
-            localProgressRef.current = incoming.position_ms;
-            updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms ?? prev.duration_ms);
+          tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s${looksLikeStaleRestart ? ' (stale — ignorerad)' : Math.abs(drift) > 3000 ? ' → korrigerad' : ''}`);
+
+          if (!looksLikeStaleRestart && Math.abs(drift) > 3000) {
+            localProgressRef.current = sonosPos;
+            updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, incoming.duration_ms ?? prev.duration_ms);
           }
         }
 
