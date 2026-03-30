@@ -598,13 +598,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      // If probe is below actualTarget, revert to a suppression target
-      // to prevent RAPT's thermostat from heating after a cooling burst.
+      // Prevent RAPT's internal thermostat from acting after a cooling burst:
+      // - If probe > target: RAPT would continue cooling → set revert ABOVE probe
+      // - If probe < target: RAPT would start heating → set revert BELOW probe
+      // - If probe ≈ target: use actualTarget directly
       const coolingProbeTemp = fc.current_temp ?? actualTemp
       const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
-      const revertTarget = coolingProbeTemp < pidEffectiveTarget
-        ? round1(Math.max(coolingProbeTemp - 2, coolingMinTemp))
-        : round1(pidEffectiveTarget)
+      const coolingMaxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+      let revertTarget: number
+      if (coolingProbeTemp > pidEffectiveTarget + 0.3) {
+        // Probe above target — set hw target ABOVE probe to stop cooling relay
+        revertTarget = round1(Math.min(coolingProbeTemp + 2, coolingMaxTemp))
+      } else if (coolingProbeTemp < pidEffectiveTarget - 0.3) {
+        // Probe below target — set hw target BELOW probe to stop heating relay
+        revertTarget = round1(Math.max(coolingProbeTemp - 2, coolingMinTemp))
+      } else {
+        revertTarget = round1(pidEffectiveTarget)
+      }
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
