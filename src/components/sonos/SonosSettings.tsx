@@ -647,7 +647,6 @@ function SonosDebugLog() {
                 max={1.0}
                 step={0.05}
                 onValueChange={(v) => setBgTopGradientOpacity(v[0])}
-                onValueCommit={(v) => saveField({ bg_top_gradient_opacity: v[0] })}
               />
               <p className="text-xs text-muted-foreground">
                 Mörkare överkant för bättre läsbarhet av headern
