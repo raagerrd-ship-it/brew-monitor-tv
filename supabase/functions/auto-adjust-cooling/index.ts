@@ -86,8 +86,6 @@ Deno.serve(async (req) => {
     log('SETTINGS', 'info', 'Feature toggles', {
       cooling: coolingEnabled,
       pill_compensation: pillCompEnabled,
-      stall_boost: !!settings.auto_boost_enabled,
-      overshoot_prevention: !!settings.overshoot_prevention_enabled,
       ai_audit: !!settings.ai_audit_enabled,
     });
 

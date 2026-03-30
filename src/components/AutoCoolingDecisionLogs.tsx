@@ -378,7 +378,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     if (!settingsDetails.cooling) disabledFeatures.push('Glykolkylare');
     if (!settingsDetails.pill_compensation) disabledFeatures.push('PID-kompensation');
     // stall_boost removed
-    if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
+    // overshoot_prevention removed — runs unconditionally
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
   const phaseTimings = log.decisions.find(d => d.step === 'PHASE_TIMINGS')?.details as Record<string, unknown> | undefined;

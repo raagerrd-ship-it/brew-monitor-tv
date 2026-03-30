@@ -550,7 +550,7 @@ export default function Settings() {
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
                     stallDetectionEnabled={false}
-                    overshootPreventionEnabled={settings.overshootPreventionEnabled}
+                    overshootPreventionEnabled={false}
                     aiAuditEnabled={settings.aiAuditEnabled}
                     availableControllers={settings.availableControllers}
                     coolerControllerId={settings.coolerControllerId}

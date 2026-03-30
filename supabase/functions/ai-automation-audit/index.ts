@@ -312,7 +312,6 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         delta_alert_threshold: settings.delta_alert_threshold,
         temp_reduction_degrees: settings.temp_reduction_degrees,
         max_diff_from_lowest: settings.max_diff_from_lowest,
-        overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
         overshoot_pill_threshold: settings.overshoot_pill_threshold,
         overshoot_delta_threshold: settings.overshoot_delta_threshold,
         smart_relay_enabled: settings.smart_relay_enabled,

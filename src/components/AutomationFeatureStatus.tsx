@@ -240,33 +240,7 @@ function buildFeatureBlocks(
 
   // Stall detection block removed — feature removed
 
-  // 4. Overshoot prevention — show ALL controllers
-  if (props.overshootPreventionEnabled) {
-    const controllers: ControllerLine[] = [];
-
-    for (const c of allNonCooler) {
-      const name = c.name;
-      const isFollowed = followedControllerIds.includes(c.controller_id);
-
-      if (!isFollowed) {
-        controllers.push({ name, status: "Ej följd", variant: "skip" });
-        continue;
-      }
-
-      const overshoot = decisions.find(d =>
-        d.message.toLowerCase().includes("overshoot") && d.result === "action" && d.message.includes(name)
-      );
-      controllers.push({
-        name, status: overshoot ? "Åtgärd" : "OK",
-        variant: overshoot ? "action" : "idle",
-      });
-    }
-
-    blocks.push({
-      icon: Shield, label: "Overshoot-prevention", controllers,
-      hasAction: controllers.some(c => c.variant === "action"),
-    });
-  }
+  // Overshoot prevention block removed — runs unconditionally, no toggle needed
 
   // 5. AI audit
   if (props.aiAuditEnabled) {
