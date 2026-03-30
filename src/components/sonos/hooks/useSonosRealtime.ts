@@ -26,7 +26,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     isConnected, showWidget, setNowPlaying,
     localProgressRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
-    acceptedSeqRef,
+    acceptedSeqRef, swappedFromRef,
   } = params;
 
   const handlerRef = useRef<((payload: any) => void) | null>(null);
