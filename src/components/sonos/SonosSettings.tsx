@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
+import { getTvDebugEntries, subscribeTvDebug, type TvDebugEntry } from "@/lib/tv-debug-log";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
