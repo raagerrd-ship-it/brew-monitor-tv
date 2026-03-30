@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
       { data: learnedComp },
       { data: settings },
       { data: controllers },
-      { data: boostOutcomes },
+      
       { data: recentAdjustments },
       { data: sessions },
       { data: deltaHistory },
