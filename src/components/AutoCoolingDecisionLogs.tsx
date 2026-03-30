@@ -388,10 +388,6 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // Extract RAPT_SEND outcomes from decisions
   const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND' && !d.message?.includes('PWM revert'));
-  const batchFlushFail = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.result === 'fail');
-  const batchFlushTimeout = log.decisions.find(d => d.step === 'BATCH_FLUSH' && d.message?.includes('Timeout'));
-  const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
-  const pidDbOnly = log.decisions.filter(d => d.step === 'PID_PWM_UPDATE');
 
   // ═══════════════════════════════════════════════════════════════════
   // Unified badge builder: one badge per active controller
