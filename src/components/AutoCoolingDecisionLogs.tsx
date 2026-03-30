@@ -1466,7 +1466,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Är</th>
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Mål</th>
             <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Duty</th>
-            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Ctrl</th>
+            <th className="text-right py-1 px-1.5 font-semibold whitespace-nowrap">Est</th>
           </tr>
         </thead>
         <tbody>
@@ -1567,8 +1567,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                     </TooltipProvider>
                   ) : <span className="text-muted-foreground/40">—</span>}
                 </td>
-                <td className="py-1 px-1.5 text-right text-muted-foreground/50 whitespace-nowrap">
-                  {ctrlTarget != null ? `${r1(ctrlTarget)}°` : '—'}
+                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: (det.interpolated_temp as number) != null && (det.interpolated_temp as number) !== actualTempVal ? 'hsl(170 60% 50%)' : undefined }}>
+                  {(det.interpolated_temp as number) != null ? `${r1(det.interpolated_temp as number)}°` : '—'}
                 </td>
               </tr>
               </React.Fragment>
