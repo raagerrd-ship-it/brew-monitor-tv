@@ -464,14 +464,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // Cooldown: only idle once per 30 min to let new utilization data arrive
-    const { data: lastIdleAdj } = await ctx.supabase
-      .from('auto_cooling_adjustments')
-      .select('created_at')
-      .eq('cooler_controller_id', coolerController.controller_id)
-      .like('reason', '%Alla controllers aktiverade 0%%')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const lastIdleAdj = findRecentAdj('Alla controllers aktiverade 0%')
     const idleCooldownMs = 30 * 60 * 1000
     const timeSinceLastIdle = lastIdleAdj
       ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
