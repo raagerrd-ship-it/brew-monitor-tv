@@ -43,6 +43,8 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   } = params;
 
   useEffect(() => {
+    // Bridge-push disabled polling; PLAYBACK_POLL_INTERVAL=0 means no polling
+    if (PLAYBACK_POLL_INTERVAL <= 0) return;
     if (!isConnected || !showWidget) return;
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
 
