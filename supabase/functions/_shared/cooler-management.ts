@@ -1064,19 +1064,12 @@ async function learnFromCurrentState(
   const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
   const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
 
-  // ── Determine activity bucket for learning ──
-  const activityBucket = await getActivityBucket(supabase, lowestController.controller_id)
-
-  // ── Learn cooling rate per bucket+load+activity ──
+  // ── Learn cooling rate per bucket+load (activityBucket removed for faster convergence) ──
   if (actualRate !== null && actualRate > 0.05) {
-    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}:${activityBucket}`
-    const rateParamGeneric = `cooling_rate:${tempBucket}:${loadBucket}`
-    const [rateResult] = await Promise.all([
-      updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0),
-      updateLearnedParam(supabase, coolerController.controller_id, rateParamGeneric, actualRate, 0.01, 20.0),
-    ])
+    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
+    const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
     if (Math.abs(rateResult.oldValue - rateResult.newValue) > 0.01) {
-      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}:${activityBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
+      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
     }
   }
 
@@ -1089,8 +1082,7 @@ async function learnFromCurrentState(
   // ── Determine if current state is hold or ramp for separate margin learning ──
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
   const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
-  const marginParam = `${marginType}:${tempBucket}:${loadBucket}:${activityBucket}`
-  const marginParamGeneric = `${marginType}:${tempBucket}:${loadBucket}`
+  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
 
   // ── Rate-based learning during active ramps ──
   if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
