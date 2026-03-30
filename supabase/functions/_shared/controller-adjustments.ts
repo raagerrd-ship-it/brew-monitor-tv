@@ -52,6 +52,9 @@ export interface ControllerAdjustmentContext {
   baseTargetMap: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
+  /** Populated by PID: maps controller_id → pre-calculated UtilizationResult.
+   *  Shared with cooler to avoid duplicate DB queries. */
+  sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
 }
 
 /**
