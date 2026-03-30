@@ -114,7 +114,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       const remaining = duration - next;
       const offsetMs = trackChangeOffsetMs ?? PREDICTIVE_MARGIN_MS;
 
-      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current) {
+      const isRadio = nowPlayingRef?.current?.media_type === 'radio';
+      if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && !isRadio) {
         predictiveScheduledRef.current = true;
 
         // Preload next images into browser cache
