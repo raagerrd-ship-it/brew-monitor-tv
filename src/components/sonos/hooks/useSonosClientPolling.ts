@@ -74,7 +74,15 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const appPos = localProgressRef.current ?? nowPlayingRef.current?.position_ms ?? nowPlaying.position_ms ?? 0;
         const sonosPos = data.positionMillis ?? 0;
         const diff = appPos - sonosPos;
-        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
+        const shouldCorrect = Math.abs(diff) > 3000;
+        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s${shouldCorrect ? ' → korrigerad' : ''}`);
+
+        // Correct ticker from direct Sonos position (ground truth)
+        if (shouldCorrect) {
+          localProgressRef.current = sonosPos;
+          const duration = data.durationMillis ?? nowPlaying.duration_ms;
+          updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
+        }
 
         if (!shouldSyncPlayback) return;
 
