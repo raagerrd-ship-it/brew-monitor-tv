@@ -245,21 +245,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use context-specific margin (hold vs ramp) when available, fall back to generic cooler_margin
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
-  const activityBucket = await getActivityBucket(supabase, effectiveTarget.controllerId)
   const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
 
-  // Fallback chain: activity-specific → load-specific → generic cooler_margin
-  const activityMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}:${activityBucket}`
+  // Simplified fallback chain: load-specific → generic cooler_margin (activityBucket removed)
   const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
-  const [activityMargin, loadMargin, genericMargin] = await Promise.all([
-    getLearnedParam(supabase, coolerController.controller_id, activityMarginKey, -1),
+  const [loadMargin, genericMargin] = await Promise.all([
     getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
     getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0),
   ])
-  const learnedMargin = activityMargin.sampleCount >= 3 ? activityMargin
-    : loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
-  const marginSource = activityMargin.sampleCount >= 3 ? activityMarginKey
-    : loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
+  const learnedMargin = loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
+  const marginSource = loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
 
   const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
 
