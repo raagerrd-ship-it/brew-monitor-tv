@@ -26,6 +26,7 @@ interface UseSonosClientPollingParams {
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   acceptedSeqRef: React.MutableRefObject<number>;
+  swappedFromRef: React.MutableRefObject<{ trackName: string; ts: number } | null>;
 }
 
 /**
@@ -38,7 +39,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
-    acceptedSeqRef,
+    acceptedSeqRef, swappedFromRef,
   } = params;
 
   useEffect(() => {
@@ -96,8 +97,15 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
 
         if (trackChanged) {
           if (!isTransientIdle) {
-            tvDebug('sonos', `🔄 Poll detected track change → triggering server sync`);
-            triggerServerSync();
+            // Suppress server sync if we recently did a predictive swap (avoids stale revert)
+            const swapped = swappedFromRef.current;
+            const recentSwap = swapped && (Date.now() - swapped.ts) < 15_000;
+            if (recentSwap) {
+              tvDebug('sonos', `🔒 Poll: suppressed server sync (recent swap ${((Date.now() - swapped!.ts) / 1000).toFixed(1)}s ago)`);
+            } else {
+              tvDebug('sonos', `🔄 Poll detected track change → triggering server sync`);
+              triggerServerSync();
+            }
           }
         } else if (!trackChanged) {
           // Same track — only sync state + duration

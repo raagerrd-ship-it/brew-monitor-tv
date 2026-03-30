@@ -34,6 +34,7 @@ export const SonosWidget = memo(function SonosWidget({
   const lastPredictivePollRef = useRef<number>(0);
   const predictiveScheduledRef = useRef(false);
   const acceptedSeqRef = useRef<number>(0);
+  const swappedFromRef = useRef<{ trackName: string; ts: number } | null>(null);
   
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
@@ -56,6 +57,7 @@ export const SonosWidget = memo(function SonosWidget({
     progressBarRef, debugTimeRef,
     trackChangeOffsetMs,
     acceptedSeqRef,
+    swappedFromRef,
   });
 
   useSonosClientPolling({
@@ -64,6 +66,7 @@ export const SonosWidget = memo(function SonosWidget({
     localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
     acceptedSeqRef,
+    swappedFromRef,
   });
 
   useSonosRealtime({
@@ -72,6 +75,7 @@ export const SonosWidget = memo(function SonosWidget({
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
     acceptedSeqRef,
+    swappedFromRef,
   });
 
   // Send bg image on init when nowPlaying arrives with bg_image_url

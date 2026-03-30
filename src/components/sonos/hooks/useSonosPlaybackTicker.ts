@@ -29,6 +29,7 @@ interface UseSonosPlaybackTickerParams {
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
   acceptedSeqRef: React.MutableRefObject<number>;
+  swappedFromRef: React.MutableRefObject<{ trackName: string; ts: number } | null>;
 }
 
 /**
@@ -43,7 +44,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     lastPredictivePollRef, predictiveScheduledRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackChangeOffsetMs,
-    acceptedSeqRef,
+    acceptedSeqRef, swappedFromRef,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
@@ -128,6 +129,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         predictiveTimer = setTimeout(() => {
           const snap = nowPlayingRef?.current;
           if (snap?.next_track_name) {
+            // Record what we're swapping FROM for revert guard
+            swappedFromRef.current = { trackName: trackName, ts: Date.now() };
             tvDebug('sonos', `🔮 Swap → "${snap.next_track_name}"`);
             // Bump seq to block all stale data until backend confirms
             acceptedSeqRef.current = (snap.track_seq ?? acceptedSeqRef.current) + 1;
