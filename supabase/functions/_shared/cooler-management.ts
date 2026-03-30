@@ -50,6 +50,8 @@ export interface CoolerContext {
   sharedUtilizations?: Map<string, UtilizationResult>
   /** Cached cooling rate results per controller — avoids duplicate DB queries */
   coolingRateCache?: Map<string, number | null>
+  /** Pre-loaded profile cache from PID step — avoids duplicate session/step queries */
+  preloadedProfileCache?: ProfileCache
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
