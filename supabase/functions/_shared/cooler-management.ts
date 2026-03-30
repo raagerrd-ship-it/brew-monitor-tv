@@ -568,13 +568,6 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
   if (!previousWasKick) {
-    const { data: lastAdjust } = await supabase
-      .from('auto_cooling_adjustments')
-      .select('created_at')
-      .eq('cooler_controller_id', coolerController.controller_id)
-      .order('created_at', { ascending: false }).limit(1)
-
-    const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0
     const timeSinceLastAdjust = Date.now() - lastAdjustTime
 
     if (timeSinceLastAdjust < 5 * 60 * 1000) {
