@@ -505,8 +505,9 @@ Deno.serve(async (req) => {
     // CONTROLLER ADJUSTMENTS (PID — tank-level)
     // ══════════════════════════════════════════════════════════════
 
-    const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = []; // kept for type compat
+    const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = [];
     const baseTargetMap = new Map<string, number>();
+    const sharedUtilizations = new Map<string, import('../_shared/cooler-management.ts').UtilizationResult>();
 
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
@@ -518,6 +519,7 @@ Deno.serve(async (req) => {
       pwmBursts,
       baseTargetMap,
       skipLearning: systemIsIdle,
+      sharedUtilizations,
     };
 
     const controllerAdjs = await runControllerAdjustments(controllerCtx);

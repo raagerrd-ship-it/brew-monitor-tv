@@ -52,6 +52,9 @@ export interface ControllerAdjustmentContext {
   baseTargetMap: Map<string, number>
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
+  /** Populated by PID: maps controller_id → pre-calculated UtilizationResult.
+   *  Shared with cooler to avoid duplicate DB queries. */
+  sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
 }
 
 /**
@@ -573,13 +576,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
-    // Calculate cooling utilization for this controller
+    // Calculate cooling utilization for this controller and share with cooler
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
     if (fc.cooling_enabled) {
       const utilResult = await calculateSingleUtilization(supabase, fc, { skipShift: true })
       coolingUtil = utilResult.rolling
       recentUtil = utilResult.recent
+      // Share with cooler context to avoid re-querying
+      ctx.sharedUtilizations.set(fc.controller_id, utilResult)
     }
 
     // Build ramp context for PID rate-aware boost
