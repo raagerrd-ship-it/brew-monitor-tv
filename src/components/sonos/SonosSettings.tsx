@@ -301,6 +301,47 @@ export function SonosSettings() {
     setShowOnDashboard(value);
     saveField({ show_on_dashboard: value });
   };
+function SonosDebugLog() {
+  const [entries, setEntries] = useState<import('@/lib/tv-debug-log').TvDebugEntry[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const { getTvDebugEntries, subscribeTvDebug } = require('@/lib/tv-debug-log') as typeof import('@/lib/tv-debug-log');
+    setEntries([...getTvDebugEntries()]);
+    return subscribeTvDebug(() => setEntries([...getTvDebugEntries()]));
+  }, [isOpen]);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="border border-border rounded-lg p-3">
+        <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+          <span className="text-sm font-medium">Logg (låtbyten & bakgrund)</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-3 max-h-[300px] overflow-y-auto rounded bg-black/50 p-2 font-mono text-[11px] leading-relaxed space-y-0.5">
+            {entries.length === 0 && (
+              <div className="text-muted-foreground text-center py-4">Inga loggar ännu — spela musik så dyker de upp</div>
+            )}
+            {entries.map((e, i) => {
+              const time = new Date(e.ts).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const catColor = e.category === 'sonos' ? 'text-blue-400' : 'text-green-400';
+              return (
+                <div key={i} className="flex gap-2">
+                  <span className="text-muted-foreground flex-shrink-0">{time}</span>
+                  <span className={`flex-shrink-0 ${catColor}`}>{e.category === 'sonos' ? '♫' : '🖼'}</span>
+                  <span className="text-foreground break-all">{e.message}</span>
+                  {e.elapsed != null && <span className="text-yellow-400 flex-shrink-0">{e.elapsed}ms</span>}
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
 
 
 
