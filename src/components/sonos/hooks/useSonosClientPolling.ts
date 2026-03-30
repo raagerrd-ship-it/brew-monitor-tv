@@ -39,7 +39,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     setNowPlaying, handleTrackChange,
     localProgressRef, lastPredictivePollRef,
     progressBarRef, debugTimeRef,
-    acceptedSeqRef,
+    acceptedSeqRef, swappedFromRef,
   } = params;
 
   useEffect(() => {
