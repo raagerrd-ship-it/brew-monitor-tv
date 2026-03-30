@@ -613,7 +613,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
       }
 
-      const COOLING_ON_TARGET = Math.max(-5, coolingMinTemp)
+      // Use -5°C to force relay ON — ignore RAPT's configured min_target_temp
+      // since we intentionally overshoot to guarantee the relay activates.
+      const COOLING_ON_TARGET = -5
       if (dutyPct >= 100) {
         // 100%: hold -5°C entire cycle (no revert needed)
         log('DUTY_FULL', 'action', `${fc.name}: duty 100% → ${COOLING_ON_TARGET}°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
