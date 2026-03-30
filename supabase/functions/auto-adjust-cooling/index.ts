@@ -504,14 +504,8 @@ Deno.serve(async (req) => {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // CONTROLLER ADJUSTMENTS (PID + Stall — tank-level)
+    // CONTROLLER ADJUSTMENTS (PID — tank-level)
     // ══════════════════════════════════════════════════════════════
-    const stallSettings: StallSettings = {
-      enabled: settings.auto_boost_enabled ?? false,
-      sgRateThreshold: parseFloat(String(settings.stall_rate_threshold ?? 0.001)),
-      minAttenuation: parseFloat(String(settings.stall_min_attenuation ?? 10)),
-      maxAttenuation: parseFloat(String(settings.stall_max_attenuation ?? 90)),
-    };
 
     const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = []; // kept for type compat
     const baseTargetMap = new Map<string, number>();
