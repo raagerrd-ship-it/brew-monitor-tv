@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
       nextAlbumArtUri,
       playbackState,
       positionMillis,
+      pushedAt,
       durationMillis,
       volume,
       mute,
