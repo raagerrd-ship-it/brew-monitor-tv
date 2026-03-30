@@ -1343,6 +1343,7 @@ export type Database = {
           bass: number | null
           bg_image_url: string | null
           crossfade: boolean | null
+          current_uri: string | null
           duration_ms: number | null
           group_id: string
           id: string
@@ -1351,12 +1352,18 @@ export type Database = {
           mute: boolean | null
           next_album_art_url: string | null
           next_artist_name: string | null
+          next_av_transport_uri: string | null
           next_bg_image_url: string | null
           next_track_name: string | null
           next_widget_art_url: string | null
           nr_tracks: number | null
+          original_track_number: number | null
+          play_medium: string | null
           playback_state: string
           position_ms: number | null
+          protocol_info: string | null
+          radio_show_md: string | null
+          stream_content: string | null
           track_name: string | null
           track_number: number | null
           track_seq: number
@@ -1374,6 +1381,7 @@ export type Database = {
           bass?: number | null
           bg_image_url?: string | null
           crossfade?: boolean | null
+          current_uri?: string | null
           duration_ms?: number | null
           group_id: string
           id?: string
@@ -1382,12 +1390,18 @@ export type Database = {
           mute?: boolean | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
+          next_av_transport_uri?: string | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null
           nr_tracks?: number | null
+          original_track_number?: number | null
+          play_medium?: string | null
           playback_state?: string
           position_ms?: number | null
+          protocol_info?: string | null
+          radio_show_md?: string | null
+          stream_content?: string | null
           track_name?: string | null
           track_number?: number | null
           track_seq?: number
@@ -1405,6 +1419,7 @@ export type Database = {
           bass?: number | null
           bg_image_url?: string | null
           crossfade?: boolean | null
+          current_uri?: string | null
           duration_ms?: number | null
           group_id?: string
           id?: string
@@ -1413,12 +1428,18 @@ export type Database = {
           mute?: boolean | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
+          next_av_transport_uri?: string | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null
           nr_tracks?: number | null
+          original_track_number?: number | null
+          play_medium?: string | null
           playback_state?: string
           position_ms?: number | null
+          protocol_info?: string | null
+          radio_show_md?: string | null
+          stream_content?: string | null
           track_name?: string | null
           track_number?: number | null
           track_seq?: number
