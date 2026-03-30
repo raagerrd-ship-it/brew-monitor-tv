@@ -5,13 +5,14 @@ import { updateLearnedParam, getLearnedParam, getTempBucket } from './learning-u
 async function persistPidState(
   supabase: ReturnType<typeof createClient>,
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
-  pCorrection: number, iCorrection: number, dampingFactor: number, avgError: number,
+  pCorrection: number, iCorrection: number, avgError: number,
   extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string },
 ): Promise<void> {
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
     latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-    latest_d_damping: dampingFactor, latest_avg_error: avgError,
+    latest_d_damping: 1.0, // D-term removed — always 1.0
+    latest_avg_error: avgError,
     accumulated_integral: iCorrection,
     updated_at: new Date().toISOString(),
     ...extra,
@@ -28,20 +29,6 @@ function computeIntegral(
   return Math.max(-iClamp, Math.min(iClamp, newIntegral))
 }
 
-/**
- * Retrieve the learned cooling rate for a specific temp bucket and load.
- * Returns null if insufficient data (< 3 samples).
- */
-async function getLearnedCoolingRate(
-  supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-  tempBucket: string,
-  loadBucket: string,
-): Promise<number | null> {
-  const param = await getLearnedParam(supabase, controllerId, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
-  return param.sampleCount >= 3 ? param.value : null
-}
-
 // ============================================================
 // PID Control & Thermal Learning
 //
@@ -52,6 +39,9 @@ async function getLearnedCoolingRate(
 //   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
 //
 // PID error = actualTarget - actualTemp (same domain user sees)
+//
+// Pure PI regulator — no D-term. Slow thermal systems don't benefit
+// from derivative action, and sensor noise gets amplified.
 // ============================================================
 
 export interface PillCompensationSettings {
@@ -121,17 +111,11 @@ export async function calculateCompensatedTarget(
   skipRateLimit?: boolean,
   skipLearning?: boolean,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
-  const constraints: string[] = [];
-  const { rateLimit: maxChangePerCycle, emergencyThreshold, minScale: minScaleFactor, maxCompensation, anticipationWindowHours } = settings
-  const mp = MODE_PARAMS[mode]
-  const effectiveMaxRate = mode === 'heating' ? Math.min(maxChangePerCycle, 0.5) : maxChangePerCycle
-  const effectiveMaxComp = mode === 'heating' ? Math.min(maxCompensation, 3.0) : maxCompensation
-
-  // No sensor delta needed — PID works directly in actual_temp / actual_target domain
+  const constraints: string[] = []
   const avgDelta = 0
   const compensation = 0
 
-  // Fetch delta history — still needed for D-term rate calculations
+  // Fetch recent delta history for stale-data detection and pill rate
   const { data: deltaHistory } = await supabase
     .from('temp_delta_history')
     .select('delta, pill_temp, controller_temp, recorded_at')
@@ -146,51 +130,27 @@ export async function calculateCompensatedTarget(
     }
   }
 
-  // === D-term: calculate pill rate, damping factor, and use learned thermal rate ===
-  let dampingFactor = 1.0
+  // === Pill rate (used for ramp boost) ===
   let _pillRate: number | null = null
   let _probeRate: number | null = null
-  let _etaMinutes: number | null = null
-  const ANTICIPATION_WINDOW_HOURS = anticipationWindowHours
-
-  const learnedThermalRate = await learnThermalRate(supabase, controllerId, mode, skipLearning)
 
   if (deltaHistory && deltaHistory.length >= 3) {
     const newest = deltaHistory[0]
     const oldest = deltaHistory[deltaHistory.length - 1]
-    const pillNow = parseFloat(String(newest.pill_temp))
-    const pillOld = parseFloat(String(oldest.pill_temp))
-    const ctrlNow = parseFloat(String(newest.controller_temp))
     const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
     const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
 
     if (timeDiffHours > 0.05) {
-      const pillRate = (pillNow - pillOld) / timeDiffHours
-      _pillRate = pillRate
-      const ctrlOld = parseFloat(String(oldest.controller_temp))
-      _probeRate = (ctrlNow - ctrlOld) / timeDiffHours
-
-      const currentAvg = (pillNow + ctrlNow) / 2
-      const avgDistance = currentAvg - actualTarget
-
-      const isConverging = (avgDistance > 0 && pillRate < -0.1) || (avgDistance < 0 && pillRate > 0.1)
-      if (Math.abs(avgDistance) > 0.1 && isConverging) {
-        const observedAvgRate = Math.abs(pillRate) / 2
-        const hwRate = learnedThermalRate ? learnedThermalRate / 2 : null
-        const avgRate = hwRate ? Math.min(observedAvgRate, hwRate) : observedAvgRate
-        const etaHours = avgRate > 0.01 ? Math.abs(avgDistance) / avgRate : 99
-        _etaMinutes = Math.round(etaHours * 60)
-        dampingFactor = Math.min(1.0, Math.max(0.2, etaHours / ANTICIPATION_WINDOW_HOURS))
-        console.log(`🌡️ D-term ${controllerName} [${mode}]: pillRate=${pillRate.toFixed(2)}°C/h, hwRate=${learnedThermalRate?.toFixed(2) ?? '?'}°C/h, avg=${currentAvg.toFixed(1)}°C→${actualTarget}°C, ETA=${_etaMinutes}min, damping=${dampingFactor.toFixed(2)}`)
-      } else {
-        _etaMinutes = null
-        console.log(`🌡️ D-term ${controllerName}: pillRate=${pillRate.toFixed(2)}°C/h, avg=${((pillNow + ctrlNow) / 2).toFixed(1)}°C vs mål=${actualTarget}°C (ej mot mål eller för långsam), damping=1.0`)
-      }
+      _pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
+      _probeRate = (parseFloat(String(newest.controller_temp)) - parseFloat(String(oldest.controller_temp))) / timeDiffHours
     }
   }
 
+  // Learn thermal rate (side-effect: updates fermentation_learnings for interpolation)
+  await learnThermalRate(supabase, controllerId, mode, skipLearning)
+
   // === Adaptive PI-term ===
-  const deltaBucket = 'low' // No sensor delta buckets needed anymore
+  const deltaBucket = 'low'
 
   let learnedRow: any = null;
   {
@@ -205,42 +165,7 @@ export async function calculateCompensatedTarget(
     learnedRow = data;
   }
 
-  // Style-key fallback
-  if (!learnedRow) {
-    const { data: sessionData } = await supabase
-      .from('fermentation_sessions')
-      .select('brew_id')
-      .eq('controller_id', controllerId)
-      .eq('status', 'running')
-      .limit(1)
-      .maybeSingle();
-
-    if (sessionData?.brew_id) {
-      const { data: brewData } = await supabase
-        .from('brew_readings')
-        .select('style')
-        .eq('id', sessionData.brew_id)
-        .maybeSingle();
-
-      if (brewData?.style) {
-        const { data: styleRow } = await supabase
-          .from('controller_learned_compensation')
-          .select('learned_pi_correction, convergence_count, accumulated_integral, style_key')
-          .eq('style_key', brewData.style)
-          .eq('delta_bucket', deltaBucket)
-          .eq('mode', mode)
-          .eq('step_type', stepType)
-          .order('convergence_count', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (styleRow && (styleRow.convergence_count ?? 0) >= 3) {
-          learnedRow = styleRow;
-          console.log(`🧬 Style fallback: using learned data from style "${brewData.style}" (n=${styleRow.convergence_count})`);
-        }
-      }
-    }
-  }
+  // Style-key fallback removed — integral converges in 2-3 cycles
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
@@ -262,230 +187,137 @@ export async function calculateCompensatedTarget(
 
   let pCorrection = 0
   let iCorrection = 0
-  let errorCorrection = 0
-
-  // === Saturation detection ===
-  let isSaturated = false
-  if (learnedThermalRate && _pillRate !== null) {
-    const absRate = Math.abs(_pillRate)
-    const saturationRatio = absRate / learnedThermalRate
-    if (saturationRatio >= 0.8) {
-      isSaturated = true
-      console.log(`⚡ Saturation ${controllerName} [${mode}]: rate=${absRate.toFixed(2)}°C/h ≈ ${(saturationRatio * 100).toFixed(0)}% av max ${learnedThermalRate.toFixed(2)}°C/h — begränsar kompensation`)
-    }
-  }
 
   // === Utilization-based saturation ===
   // If cooling circuit is running >90% of the time, the hardware is maxed out.
   // No point pushing the target further — it would only accumulate integral error.
+  let isSaturated = false
   if (coolingUtilization != null && coolingUtilization >= 0.90 && mode === 'cooling') {
-    if (!isSaturated) {
-      isSaturated = true
-      console.log(`⚡ Util saturation ${controllerName}: cooling util ${Math.round(coolingUtilization * 100)}% ≥ 90% — hardware maxed, begränsar kompensation`)
-    }
+    isSaturated = true
+    console.log(`⚡ Util saturation ${controllerName}: cooling util ${Math.round(coolingUtilization * 100)}% ≥ 90% — hardware maxed`)
     constraints.push(`util-sat=${Math.round(coolingUtilization * 100)}%`)
   }
 
   // ═══════════════════════════════════════════════════════
-  // COOLING DUTY CYCLE MODEL
-  // PID output = duty cycle (0.0–1.0) instead of a target offset.
-  // The hardware is controlled via PWM bursts: 0°C = cooling ON,
-  // actualTarget = cooling OFF. Burst length = duty × 300s.
+  // UNIFIED DUTY CYCLE MODEL (cooling & heating)
+  // PID output = duty cycle (0.0–1.0).
+  // Hardware is controlled via PWM bursts:
+  //   Cooling: -5°C = relay ON, suppress = probe+2°C
+  //   Heating: 40°C = relay ON, suppress = probe-2°C
+  // Burst length = duty × 300s (5-min cycle).
   // The integral accumulates the steady-state duty needed at equilibrium.
   // ═══════════════════════════════════════════════════════
-  if (mode === 'cooling') {
-    const coolingNeed = -avgError // positive when actualTemp > actualTarget (needs cooling)
-    const DUTY_P = 0.5    // duty per °C error
-    const DUTY_I = 0.10   // duty accumulation per cycle per °C (was 0.05)
-    const DUTY_DECAY = 0.98 // slow decay for stable steady-state
-    const DUTY_IMAX = 0.95  // max 95% from integral
-
-    // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
-    let integral = persistedIntegral
-    if (integral > 1.0) {
-      const cBucket = getTempBucket(actualTarget)
-      const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
-      integral = seed.sampleCount >= 3 ? seed.value : 0
-      console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
-    }
-
-    let dutyCycle = 0
-
-    if (Math.abs(avgError) <= 0.05) {
-      // DEADBAND: gentle decay to converge toward zero when at target.
-      // 0.90 per cycle → halves in ~7 cycles (35 min) instead of ~35 cycles (3h).
-      // This prevents residual integral from causing unnecessary PWM bursts
-      // while still allowing the integral to re-accumulate quickly if error returns.
-      integral *= 0.90
-      dutyCycle = Math.max(0, integral)
-      constraints.push('deadband')
-      console.log(`✅ Duty deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-    } else if (coolingNeed < -0.05) {
-      // OVERCOOLED: stop cooling, fast-decay integral
-      integral *= 0.85
-      dutyCycle = 0
-      constraints.push('overcooled')
-      console.log(`❄️ Duty overcooled ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0%`)
-    } else {
-      // NEEDS COOLING — proportional + integral
-      //
-      // CRITICAL: RAPT telemetry arrives ~every 15 minutes, but PID runs every 5 min.
-      // Without stale-data awareness, P-term fires 3× on the same reading, stacking
-      // PWM bursts and causing overcooling oscillation.
-      // Fix: When data is stale, zero the P-term and let only the integral (learned
-      // steady-state duty) drive the output. P reacts only to NEW measurements.
-      if (isStaleData) {
-        pCorrection = 0
-        console.log(`⏸️ Duty stale ${controllerName}: P=0 (no new data), holding I=${integral.toFixed(3)}`)
-      } else {
-        pCorrection = coolingNeed * DUTY_P
-        integral = integral * DUTY_DECAY + coolingNeed * DUTY_I
-        integral = Math.max(0, Math.min(DUTY_IMAX, integral))
-
-        // ── Settling guard ──────────────────────────────────────
-        // When integral is near-zero (system just started cooling or target
-        // changed significantly) AND there's meaningful cooling need,
-        // cap the P-term to prevent aggressive first bursts.
-        // RAPT telemetry arrives every 15 min — without this cap, the first
-        // burst overshoots because there's no feedback yet on cooling effect.
-        // The cap naturally lifts after ~2 new-data cycles as integral builds.
-        if (integral < 0.15 && coolingNeed > 0.3) {
-          const maxInitialP = 0.30
-          if (pCorrection > maxInitialP) {
-            const uncappedP = pCorrection
-            pCorrection = maxInitialP
-            constraints.push('settling')
-            console.log(`🛡️ Settling guard ${controllerName}: I=${integral.toFixed(3)} < 0.15, capping P ${uncappedP.toFixed(2)} → ${maxInitialP} (väntar på feedback)`)
-          }
-        }
-      }
-      iCorrection = integral
-
-      // D-term: damp P only (integral = steady-state, must persist)
-      let raw = pCorrection * dampingFactor + integral
-
-      // Saturation guard: don't push duty past integral + 10% when hardware is maxed
-      if (isSaturated && raw > integral + 0.1) {
-        raw = integral + 0.1
-        constraints.push('duty-sat')
-      }
-
-      // Full cooling at large error (> 2°C too warm)
-      if (coolingNeed > 2.0) {
-        raw = Math.max(raw, 1.0)
-        constraints.push('full-cooling')
-      }
-
-      // Ramp rate boost: if cooling too slowly for the required ramp
-      if (rampContext && !isSaturated && _pillRate !== null) {
-        const observedRate = Math.abs(_pillRate)
-        const rateDeficit = rampContext.requiredRatePerHour - observedRate
-        if (rateDeficit > 0.1) {
-          const rampBoost = Math.min(rateDeficit * 0.2, 0.3)
-          raw = Math.min(1.0, raw + rampBoost)
-          constraints.push(`ramp-boost=${rampBoost.toFixed(2)}`)
-          console.log(`🚀 Duty ramp boost ${controllerName}: required=${rampContext.requiredRatePerHour.toFixed(2)}°/h, actual=${observedRate.toFixed(2)}°/h → +${(rampBoost * 100).toFixed(0)}%`)
-        }
-      }
-
-      dutyCycle = Math.max(0, Math.min(1.0, raw))
-      console.log(`🎯 Duty ${controllerName}: need=${coolingNeed.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, damp=${dampingFactor.toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
-    }
-
-    await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
-      pCorrection, integral, dampingFactor, avgError)
-
-    return {
-      ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
-      compensation, avgDelta, dampingFactor,
-      pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
-      errorCorrection: 0, pCorrection, iCorrection: integral,
-      learnedBaseline, deltaBucket, convergenceCount, constraints,
-    }
-  }
-  // ═══════════════════════════════════════════════════════
-  // HEATING DUTY CYCLE MODEL
-  // Mirror of cooling: PID output = duty cycle (0.0–1.0).
-  // Hardware controlled via PWM: maxTemp = heating ON,
-  // actualTarget = heating OFF. Burst length = duty × 300s.
-  // ═══════════════════════════════════════════════════════
-  // mode === 'heating' guaranteed here (cooling returns early above)
-  const heatingNeed = avgError // positive when actualTemp < actualTarget (needs heating)
-  const HEAT_P = 0.5
-  const HEAT_I = 0.10
-  const HEAT_DECAY = 0.98
-  const HEAT_IMAX = 0.95
+  const isCooling = mode === 'cooling'
+  const need = isCooling ? -avgError : avgError // positive when action is needed
+  const DUTY_P = 0.5
+  const DUTY_I = 0.10
+  const DUTY_DECAY = 0.98
+  const DUTY_IMAX = 0.95
+  const modeLabel = isCooling ? 'Duty' : 'Heating duty'
 
   // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
-  let hIntegral = persistedIntegral
-  if (Math.abs(hIntegral) > 1.0) {
-    hIntegral = 0
+  let integral = persistedIntegral
+  if (isCooling && integral > 1.0) {
+    const cBucket = getTempBucket(actualTarget)
+    const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
+    integral = seed.sampleCount >= 3 ? seed.value : 0
+    console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
+  } else if (!isCooling && Math.abs(integral) > 1.0) {
+    integral = 0
     console.log(`🔄 Heating duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → 0 duty`)
   }
 
-  let hDutyCycle = 0
+  let dutyCycle = 0
 
   if (Math.abs(avgError) <= 0.05) {
     // DEADBAND: gentle decay (0.90/cycle) to prevent residual PWM bursts
-    hIntegral *= 0.90
-    hDutyCycle = Math.max(0, hIntegral)
+    integral *= 0.90
+    dutyCycle = Math.max(0, integral)
     constraints.push('deadband')
-    console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
-  } else if (heatingNeed < -0.05) {
-    // OVERHEATED: stop heating, fast-decay integral
-    hIntegral *= 0.85
-    hDutyCycle = 0
-    constraints.push('overheated')
-    console.log(`🔥 Heating overheated ${controllerName}: err=${avgError.toFixed(2)}°, I→${hIntegral.toFixed(3)}, duty=0%`)
+    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+  } else if (need < -0.05) {
+    // OVER-ACTUATED: stop, fast-decay integral
+    integral *= 0.85
+    dutyCycle = 0
+    constraints.push(isCooling ? 'overcooled' : 'overheated')
+    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0%`)
   } else {
-    // NEEDS HEATING — proportional + integral
-    // Same stale-data logic as cooling: P only fires on new measurements
+    // NEEDS ACTION — proportional + integral
+    //
+    // CRITICAL: RAPT telemetry arrives ~every 15 minutes, but PID runs every 5 min.
+    // Without stale-data awareness, P-term fires 3× on the same reading, stacking
+    // PWM bursts and causing oscillation.
+    // Fix: When data is stale, zero the P-term and let only the integral (learned
+    // steady-state duty) drive the output. P reacts only to NEW measurements.
     if (isStaleData) {
       pCorrection = 0
-      console.log(`⏸️ Heating stale ${controllerName}: P=0 (no new data), holding I=${hIntegral.toFixed(3)}`)
+      console.log(`⏸️ ${modeLabel} stale ${controllerName}: P=0 (no new data), holding I=${integral.toFixed(3)}`)
     } else {
-      pCorrection = heatingNeed * HEAT_P
-      hIntegral = hIntegral * HEAT_DECAY + heatingNeed * HEAT_I
-      hIntegral = Math.max(0, Math.min(HEAT_IMAX, hIntegral))
+      pCorrection = need * DUTY_P
+      integral = integral * DUTY_DECAY + need * DUTY_I
+      integral = Math.max(0, Math.min(DUTY_IMAX, integral))
+
+      // ── Settling guard (cooling only) ──────────────────────────
+      // When integral is near-zero AND there's meaningful need,
+      // cap the P-term to prevent aggressive first bursts.
+      // RAPT telemetry arrives every 15 min — without this cap, the first
+      // burst overshoots because there's no feedback yet on cooling effect.
+      if (isCooling && integral < 0.15 && need > 0.3) {
+        const maxInitialP = 0.30
+        if (pCorrection > maxInitialP) {
+          const uncappedP = pCorrection
+          pCorrection = maxInitialP
+          constraints.push('settling')
+          console.log(`🛡️ Settling guard ${controllerName}: I=${integral.toFixed(3)} < 0.15, capping P ${uncappedP.toFixed(2)} → ${maxInitialP} (väntar på feedback)`)
+        }
+      }
     }
-    iCorrection = hIntegral
+    iCorrection = integral
 
-    // D-term: damp P only (integral = steady-state, must persist)
-    let raw = pCorrection * dampingFactor + hIntegral
+    let raw = pCorrection + integral
 
-    // Saturation guard
-    if (isSaturated && raw > hIntegral + 0.1) {
-      raw = hIntegral + 0.1
+    // Saturation guard: don't push duty past integral + 10% when hardware is maxed
+    if (isSaturated && raw > integral + 0.1) {
+      raw = integral + 0.1
       constraints.push('duty-sat')
     }
 
-    // Full heating at large error (> 2°C too cold)
-    if (heatingNeed > 2.0) {
+    // Full action at large error (> 2°C)
+    if (need > 2.0) {
       raw = Math.max(raw, 1.0)
-      constraints.push('full-heating')
+      constraints.push(isCooling ? 'full-cooling' : 'full-heating')
     }
 
-    hDutyCycle = Math.max(0, Math.min(1.0, raw))
-    console.log(`🎯 Heating duty ${controllerName}: need=${heatingNeed.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${hIntegral.toFixed(3)}, damp=${dampingFactor.toFixed(2)}, duty=${(hDutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
+    // Ramp rate boost: if cooling too slowly for the required ramp
+    if (isCooling && rampContext && !isSaturated && _pillRate !== null) {
+      const observedRate = Math.abs(_pillRate)
+      const rateDeficit = rampContext.requiredRatePerHour - observedRate
+      if (rateDeficit > 0.1) {
+        const rampBoost = Math.min(rateDeficit * 0.2, 0.3)
+        raw = Math.min(1.0, raw + rampBoost)
+        constraints.push(`ramp-boost=${rampBoost.toFixed(2)}`)
+        console.log(`🚀 Duty ramp boost ${controllerName}: required=${rampContext.requiredRatePerHour.toFixed(2)}°/h, actual=${observedRate.toFixed(2)}°/h → +${(rampBoost * 100).toFixed(0)}%`)
+      }
+    }
+
+    dutyCycle = Math.max(0, Math.min(1.0, raw))
+    console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
 
   await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
-    pCorrection, hIntegral, dampingFactor, avgError)
+    pCorrection, integral, avgError)
 
   return {
-    ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle: hDutyCycle,
-    compensation, avgDelta, dampingFactor,
-    pillRate: _pillRate, probeRate: _probeRate, etaMinutes: _etaMinutes,
-    errorCorrection: 0, pCorrection, iCorrection: hIntegral,
+    ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
+    compensation, avgDelta, dampingFactor: 1.0,
+    pillRate: _pillRate, probeRate: _probeRate, etaMinutes: null,
+    errorCorrection: 0, pCorrection, iCorrection: integral,
     learnedBaseline, deltaBucket, convergenceCount, constraints,
   }
 }
 
 // ============================================================
 // Thermal Rate Learning
-// ============================================================
-// ============================================================
-// Shared thermal-rate learning core
 // ============================================================
 
 interface RateFilter {
