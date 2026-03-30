@@ -89,13 +89,6 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           return;
         }
 
-        // Position drift correction (>3s)
-        const drift = Math.abs(data.positionMillis - (localProgressRef.current ?? 0));
-        if (drift > 3000) localProgressRef.current = data.positionMillis;
-
-        const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        updateProgressDOM(progressBarRef, debugTimeRef, localProgressRef.current ?? data.positionMillis, duration);
-
         if (!data.trackName) {
           if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return;
           if (data.playbackState !== nowPlaying.playback_state) {
