@@ -251,7 +251,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className="w-full">
       <div className="relative w-full">
-        <div className="flex items-center px-1 justify-evenly scrollbar-hide" style={{
+        <div className="flex items-center px-1 justify-center gap-1 scrollbar-hide" style={{
           background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
