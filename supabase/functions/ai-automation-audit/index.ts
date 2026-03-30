@@ -372,14 +372,6 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, sg_te
         reason: sanitize(a.reason?.substring(0, 100) ?? ''),
         at: a.created_at,
       })),
-      boost_outcomes: (boostOutcomes || []).slice(0, 20).map((b: any) => ({
-        controller_id: b.controller_id,
-        boost_degrees: b.boost_degrees,
-        sg_rate_before: b.sg_rate_before,
-        sg_rate_after: b.sg_rate_after,
-        outcome: sanitize(b.outcome, 30),
-        created_at: b.created_at,
-      })),
       delta_trend: summarizeDeltaTrend(deltaHistory || []),
     };
 
