@@ -73,7 +73,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT wake: "${incoming.track_name}"`);
+          tvDebug('sonos', `📡 RT wake: "${incoming.track_name}" (pos ${Math.round((incoming.position_ms ?? 0) / 1000)}s)`);
           return incoming;
         }
 
