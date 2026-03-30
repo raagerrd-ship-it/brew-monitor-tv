@@ -238,41 +238,7 @@ function buildFeatureBlocks(
     });
   }
 
-  // 3. Stall detection — show ALL controllers
-  if (props.stallDetectionEnabled) {
-    const controllers: ControllerLine[] = [];
-
-    for (const c of allNonCooler) {
-      const name = c.name;
-      const isFollowed = followedControllerIds.includes(c.controller_id);
-
-      if (!isFollowed) {
-        controllers.push({ name, status: "Ej följd", variant: "skip" });
-        continue;
-      }
-
-      const boost = decisions.find(d =>
-        d.step === "STALL_BOOST" && d.result === "action" && d.message.startsWith(name)
-      );
-      const unboost = decisions.find(d =>
-        d.step === "STALL_UNBOOST" && d.result === "action" && d.message.startsWith(name)
-      );
-
-      if (boost) {
-        const match = boost.message.match(/boost \+([\d.]+)°C/i);
-        controllers.push({ name, status: match ? `Boost +${match[1]}°` : "Boost", variant: "action" });
-      } else if (unboost) {
-        controllers.push({ name, status: "Un-boost", variant: "action" });
-      } else {
-        controllers.push({ name, status: "Ingen stall", variant: "idle" });
-      }
-    }
-
-    blocks.push({
-      icon: AlertTriangle, label: "Stall-detektering", controllers,
-      hasAction: controllers.some(c => c.variant === "action"),
-    });
-  }
+  // Stall detection block removed — feature removed
 
   // 4. Overshoot prevention — show ALL controllers
   if (props.overshootPreventionEnabled) {
