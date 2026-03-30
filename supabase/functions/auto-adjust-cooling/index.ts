@@ -178,6 +178,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Load profile data (use injected sessions if available) ──
+    let loadedSessions: any[] = [];
+    let loadedProfileStepsMap = new Map<string, any[]>();
     {
       let runningSessions: any[] | null;
       if (reqBody?.injected_sessions) {
