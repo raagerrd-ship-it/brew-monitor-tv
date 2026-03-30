@@ -191,6 +191,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const actualTemp = (fc as any).actual_temp != null
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
+    // ── Temperature Interpolation between RAPT syncs ──
+    // RAPT reports every 15 min but PID runs every 5 min.
+    // Estimate current temp using learned thermal rates when data is stale.
+    let interpolatedTemp = actualTemp
+    let tempInterpolated = false
+    const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
+    const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
     // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
     // NOTE: Previously read from controller_learned_compensation, but that table has
@@ -198,10 +205,44 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // flip between heating/cooling depending on which was persisted last — causing
     // false mode switches. fermentation_learnings has one row per parameter_name.
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
-      .select('parameter_name, learned_value')
+      .select('parameter_name, learned_value, sample_count')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target', 'thermal_rate_heating', 'thermal_rate_cooling'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
+    const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
+
+    // ── Temperature interpolation using learned thermal rates ──
+    // When sensor data is stale (>3 min), estimate current temp based on
+    // last known duty and learned thermal rate for the active mode.
+    if (staleMinutes > 3) {
+      const lastModeVal = pressureMap.get('pid_current_mode')
+      const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
+      if (lastMode) {
+        const rateKey = `thermal_rate_${lastMode}`
+        const thermalRate = pressureMap.get(rateKey) ?? 0
+        const rateSamples = sampleCountMap.get(rateKey) ?? 0
+        const lastDuty = pressureMap.get('pid_last_duty') ?? 0
+
+        if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
+          const ratePerMin = thermalRate / 60  // °C/h → °C/min
+          const dutyFraction = Math.min(lastDuty, 100) / 100
+          const deltaEst = ratePerMin * staleMinutes * dutyFraction
+          const sign = lastMode === 'cooling' ? -1 : 1
+
+          interpolatedTemp = actualTemp + sign * deltaEst
+          // Clamp: never estimate past target
+          if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
+          if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
+          interpolatedTemp = round1(interpolatedTemp)
+
+          if (Math.abs(interpolatedTemp - actualTemp) >= 0.05) {
+            tempInterpolated = true
+            log('TEMP_INTERPOLATED', 'info',
+              `${fc.name}: sensor ${actualTemp}° (${staleMinutes.toFixed(0)}min gammal) → est ${interpolatedTemp}° (rate ${thermalRate}°/h, duty ${lastDuty}%)`)
+          }
+        }
+      }
+    }
 
     // ── Ramp-rate-limiting: soft D-term alternative ──────────
     // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
@@ -475,7 +516,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, actualTarget, ctrlTarget,
       fc.name || fc.controller_id, pillCompSettings, pidMode, stepType,
-      actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
+      interpolatedTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
     )
 
     // Log PID status
@@ -485,6 +526,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
       actual_temp: round1(actualTemp),
+      interpolated_temp: tempInterpolated ? round1(interpolatedTemp) : undefined,
       dual_sensors: dualEnabled,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
