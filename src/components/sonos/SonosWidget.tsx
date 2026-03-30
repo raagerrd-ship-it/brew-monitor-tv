@@ -131,7 +131,7 @@ export const SonosWidget = memo(function SonosWidget({
     return (
       <div
         className="relative flex items-center justify-center rounded px-3 gap-2 flex-shrink-0"
-        style={{ background: 'transparent', width: '320px', paddingTop: '4px', paddingBottom: nowPlaying.duration_ms ? '10px' : '4px' }}
+        style={{ background: 'transparent', width: '350px', paddingTop: '4px', paddingBottom: nowPlaying.duration_ms ? '10px' : '4px' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
       >
