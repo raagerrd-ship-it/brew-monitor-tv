@@ -521,13 +521,6 @@ export default function Settings() {
                   <Switch checked={settings.autoCoolingEnabled} onCheckedChange={settings.handleAutoCoolingEnabledChange} />
                 </div>
                 <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-medium">Stall-detektering</p>
-                  </div>
-                  <Switch checked={settings.stallDetectionEnabled} onCheckedChange={settings.handleStallDetectionEnabledChange} />
-                </div>
                 <SettingsDivider />
                 <div className="flex items-center justify-between py-2.5 px-1">
                   <div className="flex items-center gap-2.5">
