@@ -144,8 +144,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerUtilResult = await calculateSingleUtilization(supabase, coolerController)
   const coolerUtil = coolerUtilResult.rolling
 
-  // ── Measure cooler's own cooling rate ──
-  const coolerCoolingRate = await measureCoolingRate(supabase, coolerController.controller_id)
+  // ── Measure cooler's own cooling rate (cached) ──
+  const coolerCoolingRate = await measureCoolingRateCached(ctx, coolerController.controller_id)
 
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}${coolerCoolingRate != null ? ` rate=${coolerCoolingRate.toFixed(2)}°C/h` : ''}`, {
     target_temp: round1(currentCoolerTarget),
