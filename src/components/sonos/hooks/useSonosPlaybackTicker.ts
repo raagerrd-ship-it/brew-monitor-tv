@@ -44,7 +44,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     lastPredictivePollRef, predictiveScheduledRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef, trackChangeOffsetMs,
-    acceptedSeqRef,
+    acceptedSeqRef, swappedFromRef,
   } = params;
 
   const handleTrackChangeRef = useRef(handleTrackChange);
