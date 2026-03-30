@@ -131,18 +131,9 @@ Deno.serve(async (req) => {
 
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
-    const hasExplicitPosition = typeof positionMillis === 'number';
-    const preserveExistingPosition =
-      sameTrack &&
-      playbackState === 'PLAYBACK_STATE_PLAYING' &&
-      existingRow?.playback_state === 'PLAYBACK_STATE_PLAYING' &&
-      typeof existingRow?.position_ms === 'number' &&
-      existingRow.position_ms > 5000 &&
-      (!hasExplicitPosition || positionMillis <= 1000);
-
-    if (preserveExistingPosition) {
-      console.log(`[BridgePush] Preserving existing position ${existingRow?.position_ms}ms for same-track PLAYING event`);
-    }
+    const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
+    // Skip writing position_ms entirely when bridge sends 0 for same track
+    const skipPositionWrite = sameTrack && !hasRealPosition;
 
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
