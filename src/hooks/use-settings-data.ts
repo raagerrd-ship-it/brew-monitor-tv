@@ -79,7 +79,7 @@ export function useSettingsData() {
   // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
   const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
   // stallDetectionEnabled/stallBoostDegrees removed — stall-boost feature removed
-  const [overshootPreventionEnabled, setOvershootPreventionEnabled] = useState(true);
+  // overshootPreventionEnabled removed — overshoot prevention runs unconditionally
   const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
   const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
   const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
@@ -186,7 +186,7 @@ export function useSettingsData() {
         // pillCompEnabled removed — was: setPillCompEnabled(data.pill_compensation_enabled ?? false);
         setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
         setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
-        setOvershootPreventionEnabled(data.overshoot_prevention_enabled ?? true);
+        // overshootPreventionEnabled removed
         setAiAuditEnabled(data.ai_audit_enabled ?? true);
         setSgTempCorrectionEnabled((data as any).sg_temp_correction_enabled ?? false);
       }
@@ -316,7 +316,7 @@ export function useSettingsData() {
           // stallDetectionEnabled/stallBoostDegrees removed
           // pillCompEnabled removed — was: if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
           if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
-          if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
+          // overshootPreventionEnabled removed
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
           if ((newData as any).sg_temp_correction_enabled !== undefined) setSgTempCorrectionEnabled((newData as any).sg_temp_correction_enabled);
         }
@@ -484,11 +484,7 @@ export function useSettingsData() {
   }, [updateAutoCoolingSetting]);
 
   // handleStallDetectionEnabledChange/handleStallBoostDegreesChange removed
-
-  const handleOvershootPreventionChange = useCallback(async (checked: boolean) => {
-    setOvershootPreventionEnabled(checked);
-    await updateAutoCoolingSetting('overshoot_prevention_enabled', checked);
-  }, [updateAutoCoolingSetting]);
+  // handleOvershootPreventionChange removed — overshoot prevention runs unconditionally
 
   const handleAiAuditEnabledChange = useCallback(async (checked: boolean) => {
     setAiAuditEnabled(checked);
@@ -552,7 +548,7 @@ export function useSettingsData() {
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
     pillCompMaxCompensation,
-    overshootPreventionEnabled, aiAuditEnabled, sgTempCorrectionEnabled,
+    aiAuditEnabled, sgTempCorrectionEnabled,
     lastAutoCoolingCheck, lastAdjustment,
     // Controllers & devices
     availableControllers, headerControllers, headerPillsData,
@@ -565,7 +561,7 @@ export function useSettingsData() {
     handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
     handlePillCompMaxCompensationChange,
-    handleOvershootPreventionChange, handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
+    handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
     handleCoolerControllerChange,
     handleFollowedControllerToggle,
     handleLogout, handleForceTvRefresh,

@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
 
 VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om du vill göra en större ändring, dela upp den över flera audit-cykler.
 
-FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, overshoot_prevention_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. dual_sensor_enabled styrs per controller av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
+FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_boost_enabled, smart_relay_enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. dual_sensor_enabled styrs per controller av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
 
 ## Parametrar du kan ändra (i fermentation_learnings per controller):
 - stall_boost_degrees: Hur stor boost vid stall. MAX ÄNDRING: ±1.0 per audit. Range: 0.5-6.0.
@@ -312,7 +312,6 @@ FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, auto_
         delta_alert_threshold: settings.delta_alert_threshold,
         temp_reduction_degrees: settings.temp_reduction_degrees,
         max_diff_from_lowest: settings.max_diff_from_lowest,
-        overshoot_prevention_enabled: settings.overshoot_prevention_enabled,
         overshoot_pill_threshold: settings.overshoot_pill_threshold,
         overshoot_delta_threshold: settings.overshoot_delta_threshold,
         smart_relay_enabled: settings.smart_relay_enabled,
