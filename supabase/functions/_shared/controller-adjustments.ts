@@ -191,6 +191,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const actualTemp = (fc as any).actual_temp != null
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
+    // ── Temperature Interpolation between RAPT syncs ──
+    // RAPT reports every 15 min but PID runs every 5 min.
+    // Estimate current temp using learned thermal rates when data is stale.
+    let interpolatedTemp = actualTemp
+    let tempInterpolated = false
+    const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
+    const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
     // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
     // NOTE: Previously read from controller_learned_compensation, but that table has
