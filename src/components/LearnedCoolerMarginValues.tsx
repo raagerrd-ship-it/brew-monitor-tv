@@ -32,7 +32,7 @@ const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 function formatBucketLabel(bucket: string): string {
   const parts = bucket.split(":");
   const labels = parts.map((p) => {
-    return BUCKET_LABELS[p] ?? LOAD_LABELS[p] ?? ACTIVITY_LABELS[p] ?? p;
+    return BUCKET_LABELS[p] ?? LOAD_LABELS[p] ?? p;
   });
   return labels.join(" · ");
 }
