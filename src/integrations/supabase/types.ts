@@ -1340,20 +1340,30 @@ export type Database = {
           album_art_url_small: string | null
           album_name: string | null
           artist_name: string | null
+          bass: number | null
           bg_image_url: string | null
+          crossfade: boolean | null
           duration_ms: number | null
           group_id: string
           id: string
+          loudness: boolean | null
+          media_type: string | null
+          mute: boolean | null
           next_album_art_url: string | null
           next_artist_name: string | null
           next_bg_image_url: string | null
           next_track_name: string | null
           next_widget_art_url: string | null
+          nr_tracks: number | null
           playback_state: string
           position_ms: number | null
           track_name: string | null
+          track_number: number | null
           track_seq: number
+          track_uri: string | null
+          treble: number | null
           updated_at: string
+          volume: number | null
           widget_art_url: string | null
         }
         Insert: {
@@ -1361,20 +1371,30 @@ export type Database = {
           album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
+          bass?: number | null
           bg_image_url?: string | null
+          crossfade?: boolean | null
           duration_ms?: number | null
           group_id: string
           id?: string
+          loudness?: boolean | null
+          media_type?: string | null
+          mute?: boolean | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null
+          nr_tracks?: number | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
+          track_number?: number | null
           track_seq?: number
+          track_uri?: string | null
+          treble?: number | null
           updated_at?: string
+          volume?: number | null
           widget_art_url?: string | null
         }
         Update: {
@@ -1382,20 +1402,30 @@ export type Database = {
           album_art_url_small?: string | null
           album_name?: string | null
           artist_name?: string | null
+          bass?: number | null
           bg_image_url?: string | null
+          crossfade?: boolean | null
           duration_ms?: number | null
           group_id?: string
           id?: string
+          loudness?: boolean | null
+          media_type?: string | null
+          mute?: boolean | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null
+          nr_tracks?: number | null
           playback_state?: string
           position_ms?: number | null
           track_name?: string | null
+          track_number?: number | null
           track_seq?: number
+          track_uri?: string | null
+          treble?: number | null
           updated_at?: string
+          volume?: number | null
           widget_art_url?: string | null
         }
         Relationships: []
