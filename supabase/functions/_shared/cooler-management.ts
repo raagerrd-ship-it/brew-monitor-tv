@@ -1237,34 +1237,16 @@ async function measureCoolingRate(
   return tempDiff / hoursDiff // positive = cooling
 }
 
-// ─── Get activity bucket for a controller ────────────────────
-// Looks up the fermentation activity_score via running session → brew → metrics
-// Returns 'activity_high' (≥40%) or 'activity_low' (<40%)
-
-async function getActivityBucket(
-  supabase: ReturnType<typeof createClient>,
+// ─── Cached wrapper for measureCoolingRate ───────────────────
+async function measureCoolingRateCached(
+  ctx: CoolerContext,
   controllerId: string,
-): Promise<'activity_high' | 'activity_low'> {
-  const { data: session } = await supabase
-    .from('fermentation_sessions')
-    .select('brew_id')
-    .eq('controller_id', controllerId)
-    .eq('status', 'running')
-    .limit(1)
-    .maybeSingle()
-
-  if (!session?.brew_id) return 'activity_low'
-
-  const { data: metrics } = await supabase
-    .from('brew_fermentation_metrics')
-    .select('activity_score')
-    .eq('brew_id', session.brew_id)
-    .limit(1)
-    .maybeSingle()
-
-  if (!metrics) return 'activity_low'
-
-  return parseFloat(String(metrics.activity_score)) >= 40 ? 'activity_high' : 'activity_low'
+): Promise<number | null> {
+  if (!ctx.coolingRateCache) ctx.coolingRateCache = new Map()
+  if (ctx.coolingRateCache.has(controllerId)) return ctx.coolingRateCache.get(controllerId) ?? null
+  const rate = await measureCoolingRate(ctx.supabase, controllerId)
+  ctx.coolingRateCache.set(controllerId, rate)
+  return rate
 }
 
 
