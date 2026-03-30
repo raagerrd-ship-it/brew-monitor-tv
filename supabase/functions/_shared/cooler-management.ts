@@ -1232,27 +1232,23 @@ async function measureCoolingRateCached(
 
 
 
-async function learnMinEffectiveMargin(
-  supabase: ReturnType<typeof createClient>,
-  coolerId: string,
+/** Batched version — uses LearnBatch instead of individual DB calls */
+function learnMinEffectiveMarginBatched(
+  batch: LearnBatch,
   tempBucket: string,
   currentMargin: number,
   currentRate: number,
   log: CoolerContext['log'],
   utilization?: number | null,
-): Promise<void> {
-  // Only learn from cycles where cooling is actually happening (rate > 0)
+): void {
   if (currentRate <= 0 || currentMargin < 0.5) {
-    // No boost at 100% util — cooler_margin learning already handles escalation
     if (utilization != null && utilization >= 0.99) {
       log('MIN_MARGIN', 'info', `[${tempBucket}] Util 100% + rate≤0 — skipping min_effective boost (cooler_margin handles escalation)`)
     }
     return
   }
 
-  // Pure observation: converge toward current margin when cooling actually works
-  // No boost logic — this is just tracking what margin produces cooling
-  const result = await updateLearnedParam(supabase, coolerId, `min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
+  const result = batch.update(`min_effective_margin:${tempBucket}`, currentMargin, 0.5, 20.0)
   if (Math.abs(result.oldValue - result.newValue) > 0.05) {
     log('MIN_MARGIN', 'info', `[${tempBucket}] Min eff marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (rate ${currentRate.toFixed(2)}°C/h, util ${utilization != null ? Math.round(utilization * 100) : '?'}%, n=${result.sampleCount})`)
   }
