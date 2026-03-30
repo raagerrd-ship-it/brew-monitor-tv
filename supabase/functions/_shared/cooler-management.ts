@@ -314,6 +314,19 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
+  // ── Pre-fetch recent adjustments once (replaces 4 separate DB queries) ──
+  const { data: recentAdjustments } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('created_at, reason, old_target_temp, new_target_temp')
+    .eq('cooler_controller_id', coolerController.controller_id)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  const findRecentAdj = (pattern: string) =>
+    recentAdjustments?.find(a => a.reason.includes(pattern)) ?? null
+  const lastAdjustTime = recentAdjustments?.[0]?.created_at
+    ? new Date(recentAdjustments[0].created_at).getTime() : 0
+
   // Detect if the PREVIOUS cycle was a kick using the DB flag (set when kick is sent)
   const previousWasKick = !!(coolerController as any).hysteresis_kick_active
 
