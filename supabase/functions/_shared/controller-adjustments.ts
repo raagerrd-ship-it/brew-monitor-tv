@@ -2,7 +2,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, loadPillCompSettings, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
 import { computeDualSensorTarget } from './dual-sensor.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
-import { evaluateBoostOutcomes, detectAndHandleStalls, StallSettings, StallContext } from './stall-detection.ts'
+import { calculateSingleUtilization } from './cooler-management.ts'
+import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
 
@@ -45,7 +46,7 @@ export interface ControllerAdjustmentContext {
   profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
-  stallSettings: StallSettings
+  // stallSettings removed — stall-boost feature removed
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
@@ -79,9 +80,7 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
     }
   }
 
-  // ── Step 3: Stall Detection (separate concern) ────────────
-  const stallAdjs = await runStallDetection(ctx)
-  adjustments.push(...stallAdjs)
+  // Stall detection removed — gradual_ramp (Smart diacetylvila) handles the same use case
 
   return adjustments
 }
@@ -895,28 +894,4 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
 // Smart Relay was removed — RAPT API does not support relay/hysteresis control for TemperatureControllers.
 
-// ─── Stall Detection ─────────────────────────────────────────
-
-async function runStallDetection(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
-  const { stallSettings, log } = ctx
-
-  if (!stallSettings.enabled) {
-    log('STALL', 'info', 'Stall detection disabled')
-    return []
-  }
-
-  const stallCtx: StallContext = {
-    supabase: ctx.supabase,
-    supabaseUrl: ctx.supabaseUrl,
-    serviceRoleKey: ctx.serviceRoleKey,
-    followedControllersFullData: ctx.followedControllersFullData,
-    profileOwnedControllerIds: ctx.profileOwnedControllerIds,
-    profileTargetMap: ctx.profileTargetMap,
-    sessionBrewIdMap: ctx.sessionBrewIdMap,
-    log,
-    updateBatch: ctx.updateBatch,
-  }
-
-  await evaluateBoostOutcomes(stallCtx, ctx.stallSettings)
-  return await detectAndHandleStalls(stallCtx, ctx.stallSettings)
-}
+// Stall detection removed — gradual_ramp (Smart diacetylvila) handles the same use case

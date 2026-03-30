@@ -129,7 +129,7 @@ const PIPELINE_STEPS = new Set([
   'SYNC_DATA', 'BREW_SG_STATUS',
   'PILL_COMP_STATUS', 'PILL_COMP_ACTION',
   'PASS_THROUGH',
-  'STALL', 'STALL_SKIP', 'STALL_ANALYSIS', 'STALL_BOOST', 'STALL_LEARN',
+  'STALL',
   'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
   'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
   'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
@@ -377,7 +377,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   if (settingsDetails) {
     if (!settingsDetails.cooling) disabledFeatures.push('Glykolkylare');
     if (!settingsDetails.pill_compensation) disabledFeatures.push('PID-kompensation');
-    if (!settingsDetails.stall_boost) disabledFeatures.push('Stall-boost');
+    // stall_boost removed
     if (!settingsDetails.overshoot_prevention) disabledFeatures.push('Overshoot');
   }
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
@@ -1163,7 +1163,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
-  const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
+  // stallEntries removed — stall-boost feature removed
   const coolerEntries = decisions.filter(d =>
     d.step === 'COOLING' || d.step.startsWith('COOLER_') ||
     d.step === 'COOLING_CAPABILITY' || d.step === 'COOLING_UTIL' ||
@@ -1591,46 +1591,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     </PipelineSection>
   ) : null;
 
-  const stallContent = stallEntries.length > 0 ? (() => {
-    const actionableStall = stallEntries.filter(d =>
-      d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
-      d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
-      d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR' ||
-      d.step === 'STALL_SKIP'
-    );
-    if (actionableStall.length === 0) return null;
-    return (
-      <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
-        {actionableStall.map((d, i) => {
-          const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
-          const isError = d.step === 'STALL_ERROR';
-          const isAnalysis = d.step === 'STALL_ANALYSIS';
-          const isSkip = d.step === 'STALL_SKIP';
-          const stallDetected = isAnalysis && d.result === 'action';
-          return (
-            <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-              <div className="mt-0.5 flex-shrink-0">
-                {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                 isError ? <XCircle className="h-3 w-3 text-red-400" /> :
-                 stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
-                 isSkip ? <Info className="h-3 w-3 text-muted-foreground" /> :
-                 <CheckCircle2 className="h-3 w-3 text-green-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className={`font-medium ${isError ? 'text-red-400' : isSkip ? 'text-muted-foreground' : ''}`}>{d.message}</span>
-                {isAnalysis && d.details && (
-                  <span className="text-muted-foreground ml-2">
-                    SG: {r1(d.details.sg_rate_per_day as number)}/dag
-                    {d.details.activity != null && ` · Akt: ${r1(d.details.activity as number)}`}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </PipelineSection>
-    );
-  })() : null;
+  // stallContent removed — stall-boost feature removed
+  const stallContent = null;
+
 
   const coolerContent = coolerEntries.length > 0 ? (
     <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">

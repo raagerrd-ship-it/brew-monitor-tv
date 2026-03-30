@@ -10,7 +10,7 @@ import { AiTunableParameters } from "@/components/AiTunableParameters";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
-import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
+
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
@@ -521,13 +521,6 @@ export default function Settings() {
                   <Switch checked={settings.autoCoolingEnabled} onCheckedChange={settings.handleAutoCoolingEnabledChange} />
                 </div>
                 <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <AlertTriangle className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-medium">Stall-detektering</p>
-                  </div>
-                  <Switch checked={settings.stallDetectionEnabled} onCheckedChange={settings.handleStallDetectionEnabledChange} />
-                </div>
                 <SettingsDivider />
                 <div className="flex items-center justify-between py-2.5 px-1">
                   <div className="flex items-center gap-2.5">
@@ -564,7 +557,7 @@ export default function Settings() {
                 <div className="space-y-3">
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
-                    stallDetectionEnabled={settings.stallDetectionEnabled}
+                    stallDetectionEnabled={false}
                     overshootPreventionEnabled={settings.overshootPreventionEnabled}
                     aiAuditEnabled={settings.aiAuditEnabled}
                     availableControllers={settings.availableControllers}
@@ -581,10 +574,8 @@ export default function Settings() {
             )}
 
             <CategorySeparator icon={Brain} label="Inlärning" />
-                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation, stall-boost och termiska hastigheter per controller" collapsible defaultOpen={false}>
+                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
                   <LearnedCompensationBaselines />
-                  <SettingsDivider />
-                  <LearnedStallBoostValues />
                   <SettingsDivider />
                   <LearnedDutyCycle />
                 </SettingsSection>
