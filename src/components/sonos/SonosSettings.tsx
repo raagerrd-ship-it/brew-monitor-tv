@@ -129,8 +129,10 @@ function BridgeDiagnostics() {
 
               {/* Next track — always visible */}
               <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Nästa låt (förladdning)</p>
-                {data.next_track_name ? (
+                <p className="text-xs font-medium text-muted-foreground">Nästa låt{data.media_type !== 'radio' ? ' (förladdning)' : ''}</p>
+                {data.media_type === 'radio' ? (
+                  <p className="text-xs text-muted-foreground italic">RADIO — Ej aktuell</p>
+                ) : data.next_track_name ? (
                   <>
                     <p className="text-xs text-foreground">{data.next_track_name} — {data.next_artist_name || '—'}</p>
                     <div className="flex items-center gap-2">
