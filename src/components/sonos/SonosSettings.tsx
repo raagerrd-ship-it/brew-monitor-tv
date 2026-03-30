@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -188,6 +189,7 @@ function ArtResolutionDiagnostics() {
 }
 
 export function SonosSettings() {
+  const { handleAlbumArtChange } = useAlbumArt();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -416,7 +418,7 @@ export function SonosSettings() {
       }
 
       // Trigger server sync to regenerate background without touching playback state
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sonos-now-playing`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
@@ -424,6 +426,19 @@ export function SonosSettings() {
         },
         body: JSON.stringify({ bg_only: true }),
       });
+
+      // After regeneration, poll for the new bg_image_url and push it to the background
+      if (response.ok) {
+        const { data: nowPlaying } = await supabase
+          .from('sonos_now_playing')
+          .select('bg_image_url, track_name')
+          .limit(1)
+          .maybeSingle();
+        if (nowPlaying?.bg_image_url) {
+          handleAlbumArtChange(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
+        }
+      }
+
       toast.success('Bakgrundsbild genereras om med nya inställningar');
     } catch (error) {
       console.error('Failed to regenerate background:', error);
