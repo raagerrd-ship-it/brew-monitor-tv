@@ -1,4 +1,5 @@
 import { useMemo, memo, useState, useRef, useEffect } from "react";
+import { useChartSettings } from "@/hooks/use-chart-settings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTvMode } from "@/contexts/TvModeContext";
