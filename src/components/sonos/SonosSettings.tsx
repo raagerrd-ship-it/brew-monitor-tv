@@ -614,7 +614,6 @@ function SonosDebugLog() {
                 max={50}
                 step={1}
                 onValueChange={(v) => setBgBlur(v[0])}
-                onValueCommit={(v) => saveField({ bg_blur: v[0] })}
               />
             </div>
 
