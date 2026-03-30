@@ -50,6 +50,8 @@ export interface CoolerContext {
   sharedUtilizations?: Map<string, UtilizationResult>
   /** Cached cooling rate results per controller — avoids duplicate DB queries */
   coolingRateCache?: Map<string, number | null>
+  /** Pre-loaded profile cache from PID step — avoids duplicate session/step queries */
+  preloadedProfileCache?: ProfileCache
 }
 
 // Cached profile data shared between functions to avoid duplicate queries
@@ -227,7 +229,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
   // ── Load profile data once (used for ramp detection + blocking) ──
-  const profileCache = await loadProfileCache(ctx, controllersWithCooling)
+  // Use pre-loaded cache from PID step if available, otherwise load from DB
+  const profileCache = ctx.preloadedProfileCache ?? await loadProfileCache(ctx, controllersWithCooling)
 
   // ── Determine effective lowest target ─────────────────────
   // No PWM correction needed — DB target_temp is always the real PID value
@@ -1015,15 +1018,15 @@ async function learnFromCurrentState(
   }
 
   // ── Skip margin/cooling-rate learning during PWM ON phases — targets are temporary ──
-  const { data: activePwmReverts } = await supabase
-    .from('pending_rapt_retries')
-    .select('controller_id')
-    .like('reason', '%PWM OFF%')
-    .limit(1)
-  if (activePwmReverts && activePwmReverts.length > 0) {
+  // Detect PWM burst from hardware target: -5 = cooling ON, 40 = heating ON
+  const anyPwmActive = controllersWithCooling.some(c => {
+    const t = parseFloat(String(c.target_temp ?? '20'))
+    return t <= -4 || t >= 39
+  })
+  if (anyPwmActive) {
     // Still learn warming rate + duty cycle — PWM only affects hardware target, not thermal behavior
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
-    log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (duty cycle uppdateras separat)`)
+    log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))

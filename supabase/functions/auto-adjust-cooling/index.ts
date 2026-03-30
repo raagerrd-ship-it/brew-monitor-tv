@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { round1, TempController, loadPillCompSettings, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
+import { round1, TempController, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
 import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
@@ -79,9 +79,8 @@ Deno.serve(async (req) => {
       }
       settings = settingsData;
     }
-    const pillCompSettings = await loadPillCompSettings(supabase);
     const coolingEnabled = settings.enabled;
-    const pillCompEnabled = pillCompSettings.enabled;
+    const pillCompEnabled = true; // PID always active (vestigial toggle removed)
 
     log('SETTINGS', 'info', 'Feature toggles', {
       cooling: coolingEnabled,
@@ -179,6 +178,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Load profile data (use injected sessions if available) ──
+    let loadedSessions: any[] = [];
+    let loadedProfileStepsMap = new Map<string, any[]>();
     {
       let runningSessions: any[] | null;
       if (reqBody?.injected_sessions) {
@@ -238,6 +239,9 @@ Deno.serve(async (req) => {
             profileStepsMap.set(step.profile_id, list);
           }
         }
+        // Hoist for cooler reuse
+        loadedSessions = runningSessions!;
+        loadedProfileStepsMap = profileStepsMap;
 
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
@@ -513,7 +517,7 @@ Deno.serve(async (req) => {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
       followedControllersFullData, profileOwnedControllerIds,
       profileTargetMap, sessionBrewIdMap, cooloffControllerIds,
-      profileStatusMap, lastAdjTimestampMap, pillCompSettings,
+      profileStatusMap, lastAdjTimestampMap,
       log,
       updateBatch,
       pwmBursts,
@@ -538,6 +542,9 @@ Deno.serve(async (req) => {
         baseTargetMap,
         skipLearning: systemIsIdle,
         pwmBursts,
+        preloadedProfileCache: loadedSessions.length > 0
+          ? { sessions: loadedSessions, stepsMap: loadedProfileStepsMap }
+          : undefined,
       };
       const coolerAdjs = await runCoolerCooling(coolerCtx);
       allAdjustments.push(...coolerAdjs);
