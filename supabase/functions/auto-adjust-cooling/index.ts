@@ -3,7 +3,7 @@ import { round1, TempController, loadPillCompSettings, isSensorDataStale, filter
 import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
-import { StallSettings } from '../_shared/stall-detection.ts';
+// StallSettings removed — stall-boost feature removed
 import { runControllerAdjustments, ControllerAdjustmentContext } from '../_shared/controller-adjustments.ts';
 import { runCoolerCooling, CoolerContext } from '../_shared/cooler-management.ts';
 
