@@ -880,7 +880,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
           }
         } else {
-          log('DUTY_PHASE_B', 'info', `${fc.name}: heating PWM ${dutyPct}% fas B — ingen burst denna cykel`)
+          log('DUTY_PHASE_B', 'info', `${fc.name}: heating PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode: 'heating' })
         }
       }
       continue
