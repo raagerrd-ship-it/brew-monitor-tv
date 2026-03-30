@@ -80,9 +80,7 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
     }
   }
 
-  // ── Step 3: Stall Detection (separate concern) ────────────
-  const stallAdjs = await runStallDetection(ctx)
-  adjustments.push(...stallAdjs)
+  // Stall detection removed — gradual_ramp (Smart diacetylvila) handles the same use case
 
   return adjustments
 }
