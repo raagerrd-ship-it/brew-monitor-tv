@@ -425,26 +425,37 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // ── Warming rate prediction: keep cooler ready if temp will exceed target soon ──
-    // Check if any tank's learned warming rate predicts it'll need cooling within 15 min
-    let keepCoolerReady = false
+    // Batch-read all warming_rate + steady_state_duty params for all controllers in ONE query
+    const warmingParamNames: string[] = []
+    const controllerBucketMap = new Map<string, string>()
     for (const c of controllersWithCooling) {
       const cBaseTarget = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
       const cTempBucket = getTempBucket(cBaseTarget)
-      const warmingParam = await getLearnedParam(supabase, c.controller_id, `warming_rate:${cTempBucket}`, -1)
+      controllerBucketMap.set(c.controller_id, cTempBucket)
+      warmingParamNames.push(`warming_rate:${cTempBucket}`, `steady_state_duty:${cTempBucket}`)
+    }
+    // Batch-read all warming params for all controllers at once
+    const allWarmingParams = await getLearnedParams(
+      supabase,
+      controllersWithCooling.map(c => c.controller_id),
+      [...new Set(warmingParamNames)],
+      Object.fromEntries([...new Set(warmingParamNames)].map(k => [k, -1])),
+    )
+
+    let keepCoolerReady = false
+    for (const c of controllersWithCooling) {
+      const cTempBucket = controllerBucketMap.get(c.controller_id)!
+      const warmingParam = allWarmingParams.get(`warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
         const probeTemp = parseFloat(String(c.current_temp ?? '0'))
-        const targetTemp = cBaseTarget
+        const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-        const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
+        const headroom = (targetTemp + hysteresis) - probeTemp
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-
-          // Use learned duty cycle for smarter prediction:
-          // High duty cycle = controller spends a lot of time cooling = keep cooler ready sooner
-          const dutyParam = await getLearnedParam(supabase, c.controller_id, `steady_state_duty:${cTempBucket}`, -1)
+          const dutyParam = allWarmingParams.get(`steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
           const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
-            ? 20  // high duty cycle → longer lookahead (keep cooler ready earlier)
-            : 15  // default
+            ? 20 : 15
 
           if (minutesUntilCooling < dutyThresholdMinutes) {
             const dutyInfo = dutyParam.sampleCount >= 3 ? ` duty=${Math.round(dutyParam.value * 100)}%` : ''
