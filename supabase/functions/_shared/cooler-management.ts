@@ -250,7 +250,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
   const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
 
-  // Simplified fallback chain: load-specific → generic cooler_margin (activityBucket removed)
+  // Fallback chain: load-specific → generic cooler_margin
   const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
   const [loadMargin, genericMargin] = await Promise.all([
     getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
@@ -1067,7 +1067,7 @@ async function learnFromCurrentState(
   const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
   const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
 
-  // ── Learn cooling rate per bucket+load (activityBucket removed for faster convergence) ──
+  // ── Learn cooling rate per bucket+load ──
   if (actualRate !== null && actualRate > 0.05) {
     const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
     const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
