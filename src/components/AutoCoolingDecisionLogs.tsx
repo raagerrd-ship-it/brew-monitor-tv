@@ -628,6 +628,37 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
+  // Catch-all: ensure every active controller has a badge
+  // Collect all controller names that already have a badge
+  const badgedControllerNames = new Set([
+    ...Array.from(sentControllerNames),
+    ...Array.from(dutyZeroControllerNames),
+    ...dutyPhaseBDecisions.map(d => { const m = d.message.match(/^([^:]+):/); return m ? m[1].trim() : ''; }).filter(Boolean),
+    ...dutyFullDecisions.map(d => { const m = d.message.match(/^([^:]+):/); return m ? m[1].trim() : ''; }).filter(Boolean),
+  ]);
+  // Add badges for controllers that appear in PILL_COMP_STATUS but have no badge yet
+  const pillCompDecisions = log.decisions.filter(d => d.step === 'PILL_COMP_STATUS');
+  for (const pcs of pillCompDecisions) {
+    const nameMatch = pcs.message.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
+    const fullName = nameMatch ? nameMatch[1].trim() : '';
+    if (!fullName || badgedControllerNames.has(fullName)) continue;
+    const shortName = fullName.replace('Temp Controller ', '');
+    const color = controllerColors[fullName];
+    const det = pcs.details as Record<string, unknown> | undefined;
+    const dutyPctVal = det?.duty_cycle != null ? String(det.duty_cycle) : '0';
+    const isHeating = det?.mode === 'heating';
+    const modeIcon = isHeating ? '🔥' : '❄️';
+    raptBadges.push(
+      <Badge key={`active-${fullName}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
+        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
+        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+      }}>
+        {modeIcon} {shortName} {dutyPctVal}%
+      </Badge>
+    );
+  }
+
   // Fallback: no RAPT communication at all
   if (raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle))) {
     raptBadges.push(
