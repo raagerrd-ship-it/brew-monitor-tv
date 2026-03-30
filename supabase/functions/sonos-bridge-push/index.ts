@@ -8,6 +8,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bridge-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+/** Check if URL points to our own storage bucket */
+function isStorageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.includes('/storage/v1/object/public/sonos-backgrounds/');
+}
+
+/** Append a cache-buster timestamp to a storage URL */
+function bustCache(url: string): string {
+  const base = url.split('?')[0];
+  return `${base}?v=${Date.now()}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -80,7 +92,7 @@ Deno.serve(async (req) => {
       topGradientHeight: settings?.bg_top_gradient_height ?? 85,
     };
 
-    // Handle IDLE/PAUSED from bridge
+    // Handle IDLE
     if (playbackState === 'PLAYBACK_STATE_IDLE') {
       if (existingRow) {
         await supabase.from('sonos_now_playing').update({
@@ -100,7 +112,10 @@ Deno.serve(async (req) => {
       ? (existingRow?.track_seq ?? 0)
       : ((existingRow?.track_seq ?? 0) + 1);
 
-    // --- Phase 1: Write metadata immediately for fast Realtime text update ---
+    const bridgeHasArt = isStorageUrl(albumArtUri);
+    const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
+
+    // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
       group_id: groupId,
       track_name: trackName,
@@ -113,6 +128,9 @@ Deno.serve(async (req) => {
       duration_ms: durationMillis || null,
       position_ms: positionMillis || 0,
       track_seq: newTrackSeq,
+      // If bridge uploaded art, set album_art_url immediately (cache-busted)
+      ...(bridgeHasArt ? { album_art_url: bustCache(albumArtUri) } : {}),
+      ...(bridgeHasNextArt ? { next_album_art_url: bustCache(nextAlbumArtUri) } : {}),
       // Clear images on new track to prevent stale bg flash
       ...(sameTrack ? {} : {
         bg_image_url: null,
@@ -132,38 +150,51 @@ Deno.serve(async (req) => {
     }
 
     const phase1Ms = Date.now() - startTime;
-    console.log(`[BridgePush] Phase 1 (metadata) done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}"`);
+    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgeArt=${bridgeHasArt}`);
 
-    // If same track and just a position/state update, we're done
+    // If same track, just a position/state update — done
     if (sameTrack) {
       return new Response(JSON.stringify({ ok: true, phase: 1, same_track: true, duration_ms: phase1Ms }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // --- Phase 2: Resolve album art + generate background/widget (async, new track only) ---
-    const currentArt = await resolveAlbumArt(albumArtUri || null, undefined, trackName, artistName);
+    // --- Phase 2: Resolve art + generate background/widget ---
+    // If bridge uploaded art, use it directly; otherwise fall back to resolveAlbumArt
+    let currentArtUrl: string | null = null;
+    if (bridgeHasArt) {
+      currentArtUrl = bustCache(albumArtUri);
+    } else {
+      const resolved = await resolveAlbumArt(albumArtUri || null, undefined, trackName, artistName);
+      currentArtUrl = resolved.medium;
+    }
 
     const imageUpdate: Record<string, any> = {};
 
-    if (currentArt.medium) {
-      imageUpdate.album_art_url = currentArt.medium;
+    if (currentArtUrl) {
+      if (!bridgeHasArt) imageUpdate.album_art_url = currentArtUrl;
       const trackId = trackName || '';
       const result = await resolveBackgroundAndWidget(
-        supabase, currentArt.medium, trackId, bgSettings, viewportW, viewportH, null, false, trackName
+        supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, null, false, trackName
       );
       if (result.bgUrl) imageUpdate.bg_image_url = result.bgUrl;
       if (result.widgetUrl) imageUpdate.widget_art_url = result.widgetUrl;
     }
 
     // Next track images
-    if (nextTrackName && nextAlbumArtUri) {
+    if (nextTrackName) {
       try {
-        const nextArt = await resolveAlbumArt(nextAlbumArtUri, undefined, nextTrackName, nextArtistName);
-        if (nextArt.medium) {
-          imageUpdate.next_album_art_url = nextArt.medium;
+        let nextArtUrl: string | null = null;
+        if (bridgeHasNextArt) {
+          nextArtUrl = bustCache(nextAlbumArtUri);
+        } else if (nextAlbumArtUri) {
+          const nextResolved = await resolveAlbumArt(nextAlbumArtUri, undefined, nextTrackName, nextArtistName);
+          nextArtUrl = nextResolved.medium;
+        }
+        if (nextArtUrl) {
+          if (!bridgeHasNextArt) imageUpdate.next_album_art_url = nextArtUrl;
           const nextResult = await resolveBackgroundAndWidget(
-            supabase, nextArt.medium, nextTrackName, bgSettings, viewportW, viewportH, null, false, nextTrackName
+            supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, null, false, nextTrackName
           );
           if (nextResult.bgUrl) imageUpdate.next_bg_image_url = nextResult.bgUrl;
           if (nextResult.widgetUrl) imageUpdate.next_widget_art_url = nextResult.widgetUrl;
@@ -189,7 +220,7 @@ Deno.serve(async (req) => {
     }
 
     const totalMs = Date.now() - startTime;
-    console.log(`[BridgePush] Phase 2 (images) done in ${totalMs}ms — bg: ${!!imageUpdate.bg_image_url}, widget: ${!!imageUpdate.widget_art_url}`);
+    console.log(`[BridgePush] Phase 2 done in ${totalMs}ms — bg: ${!!imageUpdate.bg_image_url}, widget: ${!!imageUpdate.widget_art_url}`);
 
     return new Response(JSON.stringify({
       ok: true,
@@ -198,6 +229,7 @@ Deno.serve(async (req) => {
       phase1_ms: phase1Ms,
       has_bg: !!imageUpdate.bg_image_url,
       has_widget: !!imageUpdate.widget_art_url,
+      bridge_art: bridgeHasArt,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
