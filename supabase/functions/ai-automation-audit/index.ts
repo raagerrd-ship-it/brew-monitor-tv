@@ -255,7 +255,7 @@ VIKTIGT: Gör ALDRIG stora hopp. Små steg (max 10-15% av nuvarande värde). Om 
 FÖRBJUDET: Du får ALDRIG ändra booleska on/off-inställningar (enabled, sg_temp_correction_enabled, etc.). Dessa styrs ENBART av användaren. dual_sensor_enabled styrs per controller av användaren. Försök inte heller ändra check_interval_minutes, cooler_controller_id, eller andra strukturella inställningar.
 
 ## Parametrar du kan ändra (i fermentation_learnings per controller):
-- stall_boost_degrees: Hur stor boost vid stall. MAX ÄNDRING: ±1.0 per audit. Range: 0.5-6.0.
+
 - cooler_margin:{bucket}: Marginal för glykolkylaren per temperatur-bucket (cold/cool/warm/hot). Range: 0.5-8.0.
 - hold_margin:{bucket}:{load}[:{activity}]: Optimal marginal under hold-steg. Activity = activity_high/activity_low. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
 - ramp_margin:{bucket}:{load}[:{activity}]: Optimal marginal under ramp-steg. Range: 0.5-8.0. MAX ÄNDRING: ±1.0 per audit.
