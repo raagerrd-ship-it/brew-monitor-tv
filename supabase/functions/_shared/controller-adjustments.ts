@@ -43,7 +43,6 @@ export interface ControllerAdjustmentContext {
   cooloffControllerIds: Set<string>
   profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
-  pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
