@@ -239,6 +239,9 @@ Deno.serve(async (req) => {
             profileStepsMap.set(step.profile_id, list);
           }
         }
+        // Hoist for cooler reuse
+        loadedSessions = runningSessions!;
+        loadedProfileStepsMap = profileStepsMap;
 
         for (const session of runningSessions) {
           profileOwnedControllerIds.add(session.controller_id);
