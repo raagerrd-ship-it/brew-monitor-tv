@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Music, ExternalLink, Unlink, RefreshCw, ChevronDown, ImageIcon, CheckCircle2, XCircle, Circle, Radio, Wifi, WifiOff } from "lucide-react";
+import { Loader2, RefreshCw, ChevronDown, ImageIcon, CheckCircle2, XCircle, Circle, Radio, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
