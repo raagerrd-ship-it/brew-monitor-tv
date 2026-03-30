@@ -159,6 +159,14 @@ Deno.serve(async (req) => {
       // If bridge uploaded art, set album_art_url immediately (cache-busted)
       ...(bridgeHasArt ? { album_art_url: bustCache(albumArtUri) } : {}),
       ...(bridgeHasNextArt ? { next_album_art_url: bustCache(nextAlbumArtUri) } : {}),
+      // Extended UPnP metadata
+      current_uri: currentURI ?? null,
+      next_av_transport_uri: nextAVTransportURI ?? null,
+      play_medium: playMedium ?? null,
+      stream_content: streamContent ?? null,
+      radio_show_md: radioShowMd ?? null,
+      original_track_number: originalTrackNumber ?? null,
+      protocol_info: protocolInfo ?? null,
       // Clear images on new track to prevent stale bg flash
       ...(sameTrack ? {} : {
         bg_image_url: null,
