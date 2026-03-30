@@ -431,8 +431,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const oldT = details?.old_target ?? null;
     const newT = details?.new_target ?? null;
 
-    // Detect PWM ON sends (marked as PWM, or target=0 for cooling, or very high target for heating)
-    const isPwmOn = details?.is_pwm || (newT === 0 && oldT != null && oldT > 0);
+    // Detect PWM ON sends (marked as PWM, or target=-5 for cooling, or target=40 for heating)
+    const isPwmOn = details?.is_pwm || (newT != null && (newT <= -4 || newT >= 39));
 
     // Detect if this RAPT_SEND was triggered by a DUTY_ZERO (0% duty revert/suppress)
     const isDutyZeroSend = dutyZeroControllerNames.has(controllerFullName);
@@ -558,6 +558,29 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     const modeIcon = isHeating ? '🔥' : '❄️';
     raptBadges.push(
       <Badge key={`skip-${skipD.message}`} variant="default" className="text-[10px] px-1.5" style={{
+        background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
+        color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
+        borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
+      }}>
+        {modeIcon} {shortName} {dutyPctVal}% – SKIP
+      </Badge>
+    );
+  }
+
+  // DUTY_PHASE_B badges — controllers with PWM duty but phase B skip this cycle
+  const dutyPhaseBDecisions = log.decisions.filter(d => d.step === 'DUTY_PHASE_B');
+  for (const phaseD of dutyPhaseBDecisions) {
+    const nameMatch = phaseD.message.match(/^([^:]+):/);
+    const fullName = nameMatch ? nameMatch[1].trim() : '';
+    if (sentControllerNames.has(fullName)) continue;
+    const shortName = fullName.replace('Temp Controller ', '');
+    const color = controllerColors[fullName];
+    const det = phaseD.details as Record<string, unknown> | undefined;
+    const dutyPctVal = det?.duty_pct != null ? String(det.duty_pct) : '0';
+    const isHeating = (det?.mode === 'heating') || phaseD.message.toLowerCase().includes('heating');
+    const modeIcon = isHeating ? '🔥' : '❄️';
+    raptBadges.push(
+      <Badge key={`phaseb-${phaseD.message}`} variant="default" className="text-[10px] px-1.5" style={{
         background: color ? `${color}22` : 'hsl(45 90% 55% / 0.12)',
         color: color ? `${color}99` : 'hsl(45 90% 55% / 0.6)',
         borderColor: color ? `${color}33` : 'hsl(45 90% 55% / 0.2)',
