@@ -14,6 +14,7 @@ export interface NowPlaying {
   duration_ms: number | null;
   position_ms: number | null;
   playback_state: string;
+  media_type?: string | null;
 }
 
 
