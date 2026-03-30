@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
       // CRITICAL: Update DB target_temp to the revert value NOW that we've
       // confirmed the RAPT command succeeded. During the burst, DB was kept
-      // at the burst value (0°C for cooling, maxTemp for heating) to match
+      // at the burst value (-5°C for cooling, maxTemp for heating) to match
       // the actual hardware state. Only now can we safely update.
       await supabase.from("rapt_temp_controllers")
         .update({ target_temp: retry.target_temp, updated_at: new Date().toISOString() })
