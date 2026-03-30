@@ -182,8 +182,7 @@ export function useSettingsData() {
         setTempReduction(data.temp_reduction_degrees.toString());
         setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
         setLastAutoCoolingCheck(data.last_check_at);
-        setStallDetectionEnabled(data.auto_boost_enabled ?? false);
-        setStallBoostDegrees((data.auto_boost_degrees ?? 1.0).toString());
+        // stallDetectionEnabled/stallBoostDegrees removed
         // pillCompEnabled removed — was: setPillCompEnabled(data.pill_compensation_enabled ?? false);
         setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
         setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
