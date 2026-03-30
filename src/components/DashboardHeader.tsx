@@ -324,7 +324,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       const pillActive = hasPill && (isDual || preferred === 'pill');
                       const probeActive = isDual || preferred === 'probe' || !hasPill;
                       return (
-                         <div className="flex items-center gap-2">
+                         <div className="flex items-center gap-3">
                            <Pill style={{
                              width: '0.85rem',
                              height: '0.85rem',
