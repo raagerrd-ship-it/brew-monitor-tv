@@ -74,20 +74,25 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const sonosPos = data.positionMillis ?? 0;
         const appPos = localProgressRef.current ?? 0;
         const diff = appPos - sonosPos;
-        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
-
-        // Always sync to Sonos position (ground truth)
-        localProgressRef.current = sonosPos;
         const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
+        const currentTrack = nowPlayingRef.current?.track_name ?? nowPlaying.track_name;
+        const isStaleSeq = isSeqStale(acceptedSeqRef.current, data.trackSeq);
+        const isTrackMismatch = !!(currentTrack && data.trackName && data.trackName !== currentTrack);
 
-        if (!shouldSyncPlayback) return;
-
-        // Seq-gate: reject stale data before any processing
-        if (isSeqStale(acceptedSeqRef.current, data.trackSeq)) {
-          tvDebug('sonos', `🔒 Poll rejected: seq ${data.trackSeq} < accepted ${acceptedSeqRef.current}`);
+        if (isStaleSeq) {
+          tvDebug('sonos', `🔒 Sonos direkt ignorerad: seq ${data.trackSeq} < accepted ${acceptedSeqRef.current}`);
           return;
         }
+
+        if (!isTrackMismatch) {
+          tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
+          localProgressRef.current = sonosPos;
+          updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
+        } else {
+          tvDebug('sonos', `🔒 Sonos direkt ignorerad: "${data.trackName}" ≠ "${currentTrack}"`);
+        }
+
+        if (!shouldSyncPlayback) return;
 
         if (!data.trackName) {
           if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return;
