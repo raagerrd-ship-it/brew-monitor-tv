@@ -510,12 +510,8 @@ Svara ENBART med JSON (inget annat).`;
       'pill_compensation_damping', 'pill_compensation_rate_limit',
       'pill_compensation_max_compensation', 'pill_compensation_min_scale',
       'pill_compensation_emergency_threshold',
-      'overshoot_pill_threshold', 'overshoot_delta_threshold',
-      'delta_alert_threshold', 'stall_rate_threshold',
-      'auto_boost_degrees', 'stall_min_attenuation', 'stall_max_attenuation',
+      'delta_alert_threshold',
       'temp_reduction_degrees', 'max_diff_from_lowest',
-      'smart_relay_min_hysteresis', 'smart_relay_cooling_only_below',
-      'smart_relay_heating_only_above', 'smart_relay_tighten_after_minutes',
     ];
 
     // Helper: get the REAL current value from the database, not AI's claimed old_value
