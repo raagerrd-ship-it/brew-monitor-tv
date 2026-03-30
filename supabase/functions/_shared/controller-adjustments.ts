@@ -602,16 +602,22 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // - If probe > target: RAPT would continue cooling → set revert ABOVE probe
       // - If probe < target: RAPT would start heating → set revert BELOW probe
       // - If probe ≈ target: use actualTarget directly
-      const coolingProbeTemp = fc.current_temp ?? actualTemp
+      // RAPT's thermostat always compares against its own probe sensor.
+      // Use fc.current_temp explicitly — never fall back to actualTemp (pill/fusion).
+      const raptProbeTemp = fc.current_temp
       const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
       const coolingMaxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       let revertTarget: number
-      if (coolingProbeTemp > pidEffectiveTarget + 0.3) {
+      if (raptProbeTemp == null) {
+        // Cannot calculate safe suppression target without probe data — use neutral target
+        revertTarget = round1(pidEffectiveTarget)
+        log('REVERT_NO_PROBE', 'fail', `${fc.name}: probe saknas, revert → ${revertTarget}° (neutral)`)
+      } else if (raptProbeTemp > pidEffectiveTarget + 0.3) {
         // Probe above target — set hw target ABOVE probe to stop cooling relay
-        revertTarget = round1(Math.min(coolingProbeTemp + 2, coolingMaxTemp))
-      } else if (coolingProbeTemp < pidEffectiveTarget - 0.3) {
+        revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
+      } else if (raptProbeTemp < pidEffectiveTarget - 0.3) {
         // Probe below target — set hw target BELOW probe to stop heating relay
-        revertTarget = round1(Math.max(coolingProbeTemp - 2, coolingMinTemp))
+        revertTarget = round1(Math.max(raptProbeTemp - 2, coolingMinTemp))
       } else {
         revertTarget = round1(pidEffectiveTarget)
       }
@@ -785,9 +791,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // For heating, revert to a target BELOW the probe to prevent
       // RAPT's internal thermostat from continuing to heat after burst.
       // Same logic as DUTY_ZERO_SUPPRESS — probe - 2°C, clamped to min.
-      const probeTemp = fc.current_temp ?? actualTemp
+      // RAPT's thermostat always compares against its own probe sensor.
+      const raptProbeTemp = fc.current_temp
       const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
-      const revertTarget = round1(Math.max(probeTemp - 2, minTemp))
+      const revertTarget = raptProbeTemp != null
+        ? round1(Math.max(raptProbeTemp - 2, minTemp))
+        : round1(actualTarget) // fallback: neutral target (no probe data)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
@@ -850,11 +859,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // the hardware's built-in thermostat would heat (probe < hwTarget).
           // Prevent this by lowering the hardware target below the probe temp.
           // Use tighter threshold (0.05°) during ramp override to prevent unwanted heating
-          const probeTemp = fc.current_temp ?? actualTemp
+          // RAPT's thermostat always compares against its own probe sensor.
+          const raptProbeTemp = fc.current_temp
           const suppressThreshold = rampOverrideApplied ? 0.05 : 0.3
-          if (actualTemp > actualTarget + suppressThreshold && probeTemp < ctrlTarget) {
-            const suppressTarget = round1(Math.max(probeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
-            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(probeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
+          if (raptProbeTemp != null && actualTemp > actualTarget + suppressThreshold && raptProbeTemp < ctrlTarget) {
+            const suppressTarget = round1(Math.max(raptProbeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
+            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(raptProbeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
             } else {
