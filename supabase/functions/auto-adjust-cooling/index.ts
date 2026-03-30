@@ -79,9 +79,8 @@ Deno.serve(async (req) => {
       }
       settings = settingsData;
     }
-    const pillCompSettings = await loadPillCompSettings(supabase);
     const coolingEnabled = settings.enabled;
-    const pillCompEnabled = pillCompSettings.enabled;
+    const pillCompEnabled = true; // PID always active (vestigial toggle removed)
 
     log('SETTINGS', 'info', 'Feature toggles', {
       cooling: coolingEnabled,
