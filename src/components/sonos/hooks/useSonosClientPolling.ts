@@ -43,13 +43,14 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   } = params;
 
   useEffect(() => {
-    // Bridge-push disabled polling; PLAYBACK_POLL_INTERVAL=0 means no polling
-    if (PLAYBACK_POLL_INTERVAL <= 0) return;
     if (!isConnected || !showWidget) return;
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
 
+    const shouldSyncPlayback = PLAYBACK_POLL_INTERVAL > 0;
+    const intervalMs = shouldSyncPlayback ? PLAYBACK_POLL_INTERVAL : 10_000;
+
     const poll = async () => {
-      if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
+      if (shouldSyncPlayback && Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
@@ -69,6 +70,13 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         if (!response.ok) return;
         const data = await response.json();
         if (!data.ok) return;
+
+        const appPos = localProgressRef.current ?? nowPlayingRef.current?.position_ms ?? nowPlaying.position_ms ?? 0;
+        const sonosPos = data.positionMillis ?? 0;
+        const diff = appPos - sonosPos;
+        tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
+
+        if (!shouldSyncPlayback) return;
 
         // Seq-gate: reject stale data before any processing
         if (isSeqStale(acceptedSeqRef.current, data.trackSeq)) {
@@ -134,7 +142,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     };
 
     poll();
-    const interval = setInterval(poll, PLAYBACK_POLL_INTERVAL);
+    const interval = setInterval(poll, intervalMs);
     return () => clearInterval(interval);
   }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.playback_state]);
 }
