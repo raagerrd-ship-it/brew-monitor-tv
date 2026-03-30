@@ -189,6 +189,7 @@ function ArtResolutionDiagnostics() {
 }
 
 export function SonosSettings() {
+  const { handleAlbumArtChange } = useAlbumArt();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
