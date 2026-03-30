@@ -576,13 +576,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
 
-    // Calculate cooling utilization for this controller
+    // Calculate cooling utilization for this controller and share with cooler
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
     if (fc.cooling_enabled) {
       const utilResult = await calculateSingleUtilization(supabase, fc, { skipShift: true })
       coolingUtil = utilResult.rolling
       recentUtil = utilResult.recent
+      // Share with cooler context to avoid re-querying
+      ctx.sharedUtilizations.set(fc.controller_id, utilResult)
     }
 
     // Build ramp context for PID rate-aware boost
