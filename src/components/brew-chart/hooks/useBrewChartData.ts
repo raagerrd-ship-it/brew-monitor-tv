@@ -21,6 +21,7 @@ interface UseBrewChartDataProps {
   controllerId?: string;
   brewId?: string;
   smoothLines: boolean;
+  timeRange?: '12h' | 'full';
   /** @deprecated ignored — dual sensor is per-controller now */
   pillCompensation?: boolean;
 }
@@ -46,6 +47,7 @@ export function useBrewChartData({
   controllerId: _controllerId,
   brewId,
   smoothLines,
+  timeRange = 'full',
 }: UseBrewChartDataProps): UseBrewChartDataReturn {
   const [snapshotRows, setSnapshotRows] = useState<SnapshotRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -132,11 +134,18 @@ export function useBrewChartData({
       return [];
     }
 
+    // Apply time range filter
+    if (timeRange === '12h' && basePoints.length > 0) {
+      const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+      const filtered = basePoints.filter(p => new Date(p.date).getTime() >= cutoff);
+      if (filtered.length > 0) basePoints = filtered;
+    }
+
     // Apply smoothing for visual presentation (raw values preserved for tooltips)
     const windowSize = getOptimalWindowSize(basePoints.length);
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
     return addTimestamps(smoothed);
-  }, [data, snapshotRows, smoothLines]);
+  }, [data, snapshotRows, smoothLines, timeRange]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);

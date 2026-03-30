@@ -60,6 +60,10 @@ export interface BrewChartProps {
   smoothLines?: boolean;
   /** Callback when smooth lines state changes */
   onSmoothLinesChange?: (value: boolean) => void;
+  /** Time range filter: '12h' shows last 12 hours, 'full' shows all data */
+  timeRange?: '12h' | 'full';
+  /** Callback when time range changes */
+  onTimeRangeChange?: (value: '12h' | 'full') => void;
   /** @deprecated No longer used — dual sensor is per-controller */
   pillCompensation?: boolean;
   /** Brew status — used in TV mode to skip regeneration for inactive brews */

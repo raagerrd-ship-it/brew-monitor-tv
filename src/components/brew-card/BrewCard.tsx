@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play, Clock } from "lucide-react";
 import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
@@ -57,6 +57,7 @@ function BrewCardComponent({
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
+  const [timeRange, setTimeRange] = useState<'12h' | 'full'>('full');
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -195,6 +196,13 @@ function BrewCardComponent({
                     </button>
                     <button
                       className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      onClick={() => { setTimeRange(timeRange === 'full' ? '12h' : 'full'); }}
+                    >
+                      <Clock className={`h-3.5 w-3.5 ${timeRange === '12h' ? 'text-primary' : 'text-muted-foreground'}`} />
+                      {timeRange === '12h' ? 'Visa allt' : 'Senaste 12h'}
+                    </button>
+                    <button
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
                       onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
                     >
                       <Share2 className="h-3.5 w-3.5" />
@@ -324,6 +332,8 @@ function BrewCardComponent({
                 brewCount={brewCount}
                 smoothLines={smoothLines}
                 onSmoothLinesChange={setSmoothLines}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
                 brewStatus={brew.status}
               />
             )}
