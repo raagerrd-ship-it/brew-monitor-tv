@@ -37,6 +37,8 @@ function BrewChartComponent({
   brewId,
   smoothLines: externalSmoothLines,
   onSmoothLinesChange,
+  timeRange = 'full',
+  onTimeRangeChange: _onTimeRangeChange,
   pillCompensation: _pillCompensation = true,
 }: BrewChartProps) {
   const [internalSmoothLines, setInternalSmoothLines] = useState(true);
