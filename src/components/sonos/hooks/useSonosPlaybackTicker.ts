@@ -114,6 +114,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       const remaining = duration - next;
       const offsetMs = trackChangeOffsetMs ?? PREDICTIVE_MARGIN_MS;
 
+      if (predictiveScheduledRef.current && predictiveTimer && remaining > PREDICTIVE_THRESHOLD_MS + 1000) {
+        clearTimeout(predictiveTimer);
+        predictiveTimer = null;
+        predictiveScheduledRef.current = false;
+        tvDebug('sonos', `🛑 Prediktiv swap avbruten — ${(remaining / 1000).toFixed(1)}s kvar efter positionskorrigering`);
+      }
+
       const isRadio = nowPlayingRef?.current?.media_type === 'radio';
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && !isRadio) {
         predictiveScheduledRef.current = true;
