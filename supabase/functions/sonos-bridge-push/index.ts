@@ -133,8 +133,9 @@ Deno.serve(async (req) => {
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
-    // Skip writing position_ms entirely when bridge sends 0 for same track
-    const skipPositionWrite = sameTrack && !hasRealPosition;
+    // Compensate for network latency using pushedAt timestamp
+    const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0) ? Math.max(0, Date.now() - pushedAt) : 0;
+    const compensatedPosition = hasRealPosition ? positionMillis + latencyMs : 0;
 
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
