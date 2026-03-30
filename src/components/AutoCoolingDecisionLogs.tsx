@@ -1163,7 +1163,7 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
   });
   const pidStatusEntries = decisions.filter(d => d.step === 'PILL_COMP_STATUS');
   const pidActionEntries = decisions.filter(d => d.step === 'PILL_COMP_ACTION');
-  const stallEntries = decisions.filter(d => d.step.startsWith('STALL'));
+  // stallEntries removed — stall-boost feature removed
   const coolerEntries = decisions.filter(d =>
     d.step === 'COOLING' || d.step.startsWith('COOLER_') ||
     d.step === 'COOLING_CAPABILITY' || d.step === 'COOLING_UTIL' ||
