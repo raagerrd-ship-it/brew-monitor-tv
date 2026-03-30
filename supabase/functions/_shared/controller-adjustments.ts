@@ -205,10 +205,44 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // flip between heating/cooling depending on which was persisted last — causing
     // false mode switches. fermentation_learnings has one row per parameter_name.
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
-      .select('parameter_name, learned_value')
+      .select('parameter_name, learned_value, sample_count')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target'])
+      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target', 'thermal_rate_heating', 'thermal_rate_cooling'])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
+    const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
+
+    // ── Temperature interpolation using learned thermal rates ──
+    // When sensor data is stale (>3 min), estimate current temp based on
+    // last known duty and learned thermal rate for the active mode.
+    if (staleMinutes > 3) {
+      const lastModeVal = pressureMap.get('pid_current_mode')
+      const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
+      if (lastMode) {
+        const rateKey = `thermal_rate_${lastMode}`
+        const thermalRate = pressureMap.get(rateKey) ?? 0
+        const rateSamples = sampleCountMap.get(rateKey) ?? 0
+        const lastDuty = pressureMap.get('pid_last_duty') ?? 0
+
+        if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
+          const ratePerMin = thermalRate / 60  // °C/h → °C/min
+          const dutyFraction = Math.min(lastDuty, 100) / 100
+          const deltaEst = ratePerMin * staleMinutes * dutyFraction
+          const sign = lastMode === 'cooling' ? -1 : 1
+
+          interpolatedTemp = actualTemp + sign * deltaEst
+          // Clamp: never estimate past target
+          if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
+          if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
+          interpolatedTemp = round1(interpolatedTemp)
+
+          if (Math.abs(interpolatedTemp - actualTemp) >= 0.05) {
+            tempInterpolated = true
+            log('TEMP_INTERPOLATED', 'info',
+              `${fc.name}: sensor ${actualTemp}° (${staleMinutes.toFixed(0)}min gammal) → est ${interpolatedTemp}° (rate ${thermalRate}°/h, duty ${lastDuty}%)`)
+          }
+        }
+      }
+    }
 
     // ── Ramp-rate-limiting: soft D-term alternative ──────────
     // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
