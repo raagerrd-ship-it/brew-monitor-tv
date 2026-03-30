@@ -71,18 +71,15 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const data = await response.json();
         if (!data.ok) return;
 
-        const appPos = localProgressRef.current ?? nowPlayingRef.current?.position_ms ?? nowPlaying.position_ms ?? 0;
         const sonosPos = data.positionMillis ?? 0;
+        const appPos = localProgressRef.current ?? 0;
         const diff = appPos - sonosPos;
-        const shouldCorrect = Math.abs(diff) > 3000;
-        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s${shouldCorrect ? ' → korrigerad' : ''}`);
+        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
 
-        // Correct ticker from direct Sonos position (ground truth)
-        if (shouldCorrect) {
-          localProgressRef.current = sonosPos;
-          const duration = data.durationMillis ?? nowPlaying.duration_ms;
-          updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
-        }
+        // Always sync to Sonos position (ground truth)
+        localProgressRef.current = sonosPos;
+        const duration = data.durationMillis ?? nowPlaying.duration_ms;
+        updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
 
         if (!shouldSyncPlayback) return;
 
@@ -91,13 +88,6 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           tvDebug('sonos', `🔒 Poll rejected: seq ${data.trackSeq} < accepted ${acceptedSeqRef.current}`);
           return;
         }
-
-        // Position drift correction (>3s)
-        const drift = Math.abs(data.positionMillis - (localProgressRef.current ?? 0));
-        if (drift > 3000) localProgressRef.current = data.positionMillis;
-
-        const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        updateProgressDOM(progressBarRef, debugTimeRef, localProgressRef.current ?? data.positionMillis, duration);
 
         if (!data.trackName) {
           if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return;
