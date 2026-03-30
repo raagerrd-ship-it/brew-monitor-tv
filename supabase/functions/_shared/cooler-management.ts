@@ -1,8 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, RaptUpdateBatch } from './temp-utils.ts'
-import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
+import { getTempBucket, getLearnedParam, updateLearnedParam, getLearnedParams } from './learning-utils.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { insertNotification } from './notifications.ts'
+import type { UtilizationResult } from './cooler-management.ts'
 
 // ============================================================
 // Cooler Management
