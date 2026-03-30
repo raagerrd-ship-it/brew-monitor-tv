@@ -457,8 +457,7 @@ export function SonosSettings() {
       {/* Bridge Status Diagnostics */}
       <BridgeDiagnostics />
 
-      {/* Art Resolution Diagnostics */}
-      <ArtResolutionDiagnostics />
+
 
       {/* Sonos Debug Log */}
       <SonosDebugLog />
