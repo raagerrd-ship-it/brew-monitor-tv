@@ -44,13 +44,10 @@ function computeIntegral(
 // from derivative action, and sensor noise gets amplified.
 // ============================================================
 
+/** @deprecated PillCompensationSettings is vestigial — PI regulator uses hardcoded gains.
+ *  Kept as empty type alias for backward compatibility. */
 export interface PillCompensationSettings {
   enabled: boolean
-  rateLimit: number
-  emergencyThreshold: number
-  minScale: number
-  maxCompensation: number
-  anticipationWindowHours: number
 }
 
 // Mode-specific PID tuning constants

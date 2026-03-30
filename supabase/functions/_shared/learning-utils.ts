@@ -69,3 +69,29 @@ export async function updateLearnedParam(
 
   return { oldValue: currentValue, newValue, sampleCount: sampleCount + 1 }
 }
+
+/** Batch-read multiple learned parameters in a single query */
+export async function getLearnedParams(
+  supabase: ReturnType<typeof createClient>,
+  controllerId: string,
+  paramNames: string[],
+  defaults: Record<string, number>,
+): Promise<Map<string, { value: number; sampleCount: number }>> {
+  const { data } = await supabase
+    .from('fermentation_learnings')
+    .select('parameter_name, learned_value, sample_count')
+    .eq('controller_id', controllerId)
+    .in('parameter_name', paramNames)
+
+  const dataMap = new Map((data ?? []).map(r => [r.parameter_name, r]))
+  const result = new Map<string, { value: number; sampleCount: number }>()
+
+  for (const name of paramNames) {
+    const row = dataMap.get(name)
+    result.set(name, {
+      value: row ? parseFloat(String(row.learned_value)) : (defaults[name] ?? 0),
+      sampleCount: row?.sample_count ?? 0,
+    })
+  }
+  return result
+}
