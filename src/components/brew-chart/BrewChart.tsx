@@ -54,6 +54,7 @@ function BrewChartComponent({
     controllerId: shouldRenderChart ? controllerId : undefined,
     brewId,
     smoothLines,
+    timeRange,
   });
 
   // Memoize sorted events
