@@ -103,21 +103,33 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           accepted = true;
           isTrackChange = true;
           acceptedSeqRef.current = incomingSeq;
-          
-          const bgIsNew = incoming.bg_image_url && incoming.bg_image_url !== prev.bg_image_url;
-          if (bgIsNew) {
-            pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
-            bgSentRef.current = incoming.bg_image_url;
+
+          // Use preloaded next-track images if they match the incoming track
+          const preloadMatch = prev.next_track_name === incoming.track_name;
+          const preloadedBg = preloadMatch ? prev.next_bg_image_url : null;
+          const preloadedWidget = preloadMatch ? prev.next_widget_art_url : null;
+          const preloadedArt = preloadMatch ? prev.next_album_art_url : null;
+
+          const effectiveBg = incoming.bg_image_url || preloadedBg;
+          const effectiveWidget = incoming.widget_art_url || preloadedWidget;
+          const effectiveArt = incoming.album_art_url || preloadedArt;
+
+          if (effectiveBg && effectiveBg !== prev.bg_image_url) {
+            pushToBgBuffer(validBgBufferRef.current, effectiveBg);
+            onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name);
+            bgSentRef.current = effectiveBg;
           }
-          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} (bg: ${bgIsNew ? 'ny' : 'väntar'})`);
+          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} (bg: ${effectiveBg ? (preloadedBg ? 'förladdad ✅' : 'ny') : 'väntar'})`);
           return {
             ...incoming,
-            bg_image_url: bgIsNew ? incoming.bg_image_url : prev.bg_image_url,
-            widget_art_url: incoming.widget_art_url && incoming.widget_art_url !== prev.widget_art_url
-              ? incoming.widget_art_url : null,
-            album_art_url: incoming.album_art_url && incoming.album_art_url !== prev.album_art_url
-              ? incoming.album_art_url : null,
+            bg_image_url: effectiveBg || null,
+            widget_art_url: effectiveWidget || null,
+            album_art_url: effectiveArt || prev.album_art_url,
+            next_widget_art_url: null,
+            next_bg_image_url: null,
+            next_album_art_url: null,
+            next_track_name: null,
+            next_artist_name: null,
           };
         }
 
