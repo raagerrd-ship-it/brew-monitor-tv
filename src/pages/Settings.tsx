@@ -10,7 +10,7 @@ import { AiTunableParameters } from "@/components/AiTunableParameters";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
-import { LearnedStallBoostValues } from "@/components/LearnedStallBoostValues";
+
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
