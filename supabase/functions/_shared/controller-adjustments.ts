@@ -791,9 +791,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // For heating, revert to a target BELOW the probe to prevent
       // RAPT's internal thermostat from continuing to heat after burst.
       // Same logic as DUTY_ZERO_SUPPRESS — probe - 2°C, clamped to min.
-      const probeTemp = fc.current_temp ?? actualTemp
+      // RAPT's thermostat always compares against its own probe sensor.
+      const raptProbeTemp = fc.current_temp
       const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
-      const revertTarget = round1(Math.max(probeTemp - 2, minTemp))
+      const revertTarget = raptProbeTemp != null
+        ? round1(Math.max(raptProbeTemp - 2, minTemp))
+        : round1(actualTarget) // fallback: neutral target (no probe data)
       const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
       const onTarget = round1(maxTemp) // heating ON = max temp
 
