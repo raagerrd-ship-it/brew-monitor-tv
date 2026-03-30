@@ -459,7 +459,7 @@ export function SonosSettings() {
   const handleShowOnDashboardChange = (value: boolean) => {
     setShowOnDashboard(value);
     saveField({ show_on_dashboard: value });
-
+  };
 
   const loadGroups = async () => {
     setIsLoadingGroups(true);
