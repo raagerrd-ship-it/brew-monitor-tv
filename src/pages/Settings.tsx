@@ -574,10 +574,8 @@ export default function Settings() {
             )}
 
             <CategorySeparator icon={Brain} label="Inlärning" />
-                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation, stall-boost och termiska hastigheter per controller" collapsible defaultOpen={false}>
+                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
                   <LearnedCompensationBaselines />
-                  <SettingsDivider />
-                  <LearnedStallBoostValues />
                   <SettingsDivider />
                   <LearnedDutyCycle />
                 </SettingsSection>
