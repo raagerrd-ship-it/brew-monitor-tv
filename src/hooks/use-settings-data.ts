@@ -316,7 +316,7 @@ export function useSettingsData() {
           // stallDetectionEnabled/stallBoostDegrees removed
           // pillCompEnabled removed — was: if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
           if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
-          if (newData.overshoot_prevention_enabled !== undefined) setOvershootPreventionEnabled(newData.overshoot_prevention_enabled);
+          // overshootPreventionEnabled removed
           if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
           if ((newData as any).sg_temp_correction_enabled !== undefined) setSgTempCorrectionEnabled((newData as any).sg_temp_correction_enabled);
         }
