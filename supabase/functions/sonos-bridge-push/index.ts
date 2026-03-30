@@ -146,9 +146,7 @@ Deno.serve(async (req) => {
       next_artist_name: nextArtistName || null,
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
-      position_ms: preserveExistingPosition
-        ? existingRow.position_ms
-        : (hasExplicitPosition ? positionMillis : 0),
+      ...(skipPositionWrite ? {} : { position_ms: hasRealPosition ? positionMillis : 0 }),
       track_seq: newTrackSeq,
       // Bridge-provided metadata columns
       volume: volume ?? null,
