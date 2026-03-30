@@ -29,6 +29,7 @@ interface UseSonosPlaybackTickerParams {
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
   acceptedSeqRef: React.MutableRefObject<number>;
+  swappedFromRef: React.MutableRefObject<{ trackName: string; ts: number } | null>;
 }
 
 /**
