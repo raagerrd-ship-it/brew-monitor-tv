@@ -22,19 +22,9 @@ const BOUNDS: Record<string, [number, number]> = {
   pill_compensation_max_compensation: [1.0, 8.0],
   pill_compensation_min_scale: [0.05, 0.5],
   pill_compensation_emergency_threshold: [1.0, 5.0],
-  overshoot_pill_threshold: [0.1, 1.0],
-  overshoot_delta_threshold: [0.5, 5.0],
-  stall_rate_threshold: [0.0005, 0.005],
-  auto_boost_degrees: [0.5, 4.0],
-  stall_min_attenuation: [5, 30],
-  stall_max_attenuation: [70, 95],
   temp_reduction_degrees: [1.0, 10.0],
   max_diff_from_lowest: [3.0, 15.0],
   delta_alert_threshold: [0.5, 5.0],
-  smart_relay_min_hysteresis: [0.1, 1.0],
-  smart_relay_cooling_only_below: [0, 10],
-  smart_relay_heating_only_above: [0, 10],
-  smart_relay_tighten_after_minutes: [5, 60],
 };
 
 interface PerControllerLearning {
@@ -52,19 +42,9 @@ interface GlobalParams {
   pill_compensation_max_compensation: number;
   pill_compensation_min_scale: number;
   pill_compensation_emergency_threshold: number;
-  overshoot_pill_threshold: number;
-  overshoot_delta_threshold: number;
-  stall_rate_threshold: number;
-  auto_boost_degrees: number;
-  stall_min_attenuation: number;
-  stall_max_attenuation: number;
   temp_reduction_degrees: number;
   delta_alert_threshold: number;
   max_diff_from_lowest: number;
-  smart_relay_min_hysteresis: number;
-  smart_relay_cooling_only_below: number;
-  smart_relay_heating_only_above: number;
-  smart_relay_tighten_after_minutes: number;
 }
 
 function ParamRow({ label, value, unit = "", boundsKey }: { label: string; value: string | number; unit?: string; boundsKey?: string }) {
@@ -96,13 +76,13 @@ export function AiTunableParameters() {
       const [settingsRes, learningsRes, controllersRes] = await Promise.all([
         supabase
           .from("auto_cooling_settings")
-          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, overshoot_pill_threshold, overshoot_delta_threshold, stall_rate_threshold, auto_boost_degrees, stall_min_attenuation, stall_max_attenuation, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest, smart_relay_min_hysteresis, smart_relay_cooling_only_below, smart_relay_heating_only_above, smart_relay_tighten_after_minutes")
+          .select("pill_compensation_damping, pill_compensation_rate_limit, pill_compensation_max_compensation, pill_compensation_min_scale, pill_compensation_emergency_threshold, temp_reduction_degrees, delta_alert_threshold, max_diff_from_lowest")
           .limit(1)
           .single(),
         supabase
           .from("fermentation_learnings")
           .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-          .or("parameter_name.eq.stall_boost_degrees,parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.steady_state_duty:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
+          .or("parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%,parameter_name.like.steady_state_duty:%,parameter_name.like.cooling_rate:%,parameter_name.like.warming_rate:%")
           .order("last_updated_at", { ascending: false }),
         supabase
           .from("rapt_temp_controllers")
@@ -152,7 +132,6 @@ export function AiTunableParameters() {
 
   if (!globals) return null;
 
-  const boostEntries = perController.filter((p) => p.parameter_name === "stall_boost_degrees");
   const marginEntries = perController.filter((p) => p.parameter_name.startsWith("cooler_margin:"));
   const holdMarginEntries = perController.filter((p) => p.parameter_name.startsWith("hold_margin:"));
   const rampMarginEntries = perController.filter((p) => p.parameter_name.startsWith("ramp_margin:"));
@@ -234,29 +213,6 @@ export function AiTunableParameters() {
           <ParamRow label="Max komp" value={globals.pill_compensation_max_compensation} unit="°C" boundsKey="pill_compensation_max_compensation" />
           <ParamRow label="Min scale" value={globals.pill_compensation_min_scale} boundsKey="pill_compensation_min_scale" />
           <ParamRow label="Nödläge" value={globals.pill_compensation_emergency_threshold} unit="°C" boundsKey="pill_compensation_emergency_threshold" />
-        </div>
-      </div>
-
-      {/* Overshoot */}
-      <div>
-        <SectionHeader>Overshoot-skydd</SectionHeader>
-        <div className="mt-0.5">
-          <ParamRow label="Pill-tröskel" value={globals.overshoot_pill_threshold} unit="°C" boundsKey="overshoot_pill_threshold" />
-          <ParamRow label="Delta-tröskel" value={globals.overshoot_delta_threshold} unit="°C" boundsKey="overshoot_delta_threshold" />
-        </div>
-      </div>
-
-      {/* Stall */}
-      <div>
-        <SectionHeader>Stall-detektering</SectionHeader>
-        <div className="mt-0.5">
-          <ParamRow label="SG-tröskel" value={globals.stall_rate_threshold.toFixed(4)} unit="/h" boundsKey="stall_rate_threshold" />
-          <ParamRow label="Boost" value={globals.auto_boost_degrees} unit="°C" boundsKey="auto_boost_degrees" />
-          <ParamRow label="Min dämpning" value={globals.stall_min_attenuation} unit="%" boundsKey="stall_min_attenuation" />
-          <ParamRow label="Max dämpning" value={globals.stall_max_attenuation} unit="%" boundsKey="stall_max_attenuation" />
-          {boostEntries.map((b) => (
-            <ParamRow key={b.controller_id} label={`${b.controller_name} boost`} value={b.learned_value.toFixed(1)} unit="°C" />
-          ))}
         </div>
       </div>
 

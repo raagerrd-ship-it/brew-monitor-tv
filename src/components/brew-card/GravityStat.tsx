@@ -2,47 +2,8 @@ import { memo, useMemo, useState, useEffect } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
 
-const DEFAULT_STALL_THRESHOLD = 0.002;
-
-const phaseLabels: Record<string, string> = {
-  lag: 'Lagfas',
-  exponential: 'Exponentiell',
-  declining: 'Avtagande',
-  stationary: 'Stationär',
-};
-
-const phaseDescriptions: Record<string, string> = {
-  lag: '⏳ Lagfas — jästen anpassar sig, ingen märkbar SG-förändring ännu',
-  exponential: '🚀 Exponentiell — jäsningen är som mest aktiv',
-  declining: '↘ Avtagande — jäsningen saktar ner, närmar sig slutet',
-  stationary: '⏳ Stationär — minimal aktivitet, SG stabil',
-};
-
-// Cached module-level value to avoid re-fetching on every render
-let cachedStallThreshold: number | null = null;
-
-function useStallThreshold(): number {
-  const [threshold, setThreshold] = useState(cachedStallThreshold ?? DEFAULT_STALL_THRESHOLD);
-
-  useEffect(() => {
-    if (cachedStallThreshold !== null) return;
-    supabase
-      .from('auto_cooling_settings')
-      .select('stall_rate_threshold')
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data?.stall_rate_threshold != null) {
-          cachedStallThreshold = Number(data.stall_rate_threshold);
-          setThreshold(cachedStallThreshold);
-        }
-      });
-  }, []);
-
-  return threshold;
-}
+const STALL_THRESHOLD = 0.002;
 
 interface GravityStatProps {
   brew: BrewData;
