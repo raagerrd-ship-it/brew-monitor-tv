@@ -670,7 +670,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
           // that causes a sync loop where RAPT reports old value, we correct, repeat.
           const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-          if (ctrlTarget < 1 || ctrlTarget >= maxTemp - 0.5) {
+          if (ctrlTarget < -4 || ctrlTarget >= maxTemp - 0.5) {
             log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
