@@ -129,6 +129,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         predictiveTimer = setTimeout(() => {
           const snap = nowPlayingRef?.current;
           if (snap?.next_track_name) {
+            // Record what we're swapping FROM for revert guard
+            swappedFromRef.current = { trackName: trackName, ts: Date.now() };
             tvDebug('sonos', `🔮 Swap → "${snap.next_track_name}"`);
             // Bump seq to block all stale data until backend confirms
             acceptedSeqRef.current = (snap.track_seq ?? acceptedSeqRef.current) + 1;
