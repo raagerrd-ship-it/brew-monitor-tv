@@ -445,7 +445,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     let keepCoolerReady = false
     for (const c of controllersWithCooling) {
       const cTempBucket = controllerBucketMap.get(c.controller_id)!
-      const warmingParam = allWarmingParams.get(`warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
+      const warmingParam = allWarmingParams.get(`${c.controller_id}:warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
         const probeTemp = parseFloat(String(c.current_temp ?? '0'))
         const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
@@ -453,7 +453,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         const headroom = (targetTemp + hysteresis) - probeTemp
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-          const dutyParam = allWarmingParams.get(`steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
+          const dutyParam = allWarmingParams.get(`${c.controller_id}:steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
           const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
             ? 20 : 15
 
