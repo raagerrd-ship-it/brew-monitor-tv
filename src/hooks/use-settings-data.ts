@@ -484,11 +484,7 @@ export function useSettingsData() {
   }, [updateAutoCoolingSetting]);
 
   // handleStallDetectionEnabledChange/handleStallBoostDegreesChange removed
-
-  const handleOvershootPreventionChange = useCallback(async (checked: boolean) => {
-    setOvershootPreventionEnabled(checked);
-    await updateAutoCoolingSetting('overshoot_prevention_enabled', checked);
-  }, [updateAutoCoolingSetting]);
+  // handleOvershootPreventionChange removed — overshoot prevention runs unconditionally
 
   const handleAiAuditEnabledChange = useCallback(async (checked: boolean) => {
     setAiAuditEnabled(checked);
