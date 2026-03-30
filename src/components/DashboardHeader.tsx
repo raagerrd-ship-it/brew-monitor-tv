@@ -307,9 +307,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    {(() => {
                       const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
-                      <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                       <span className="font-semibold tabular-nums whitespace-nowrap" style={{
                         fontSize: '16px',
-                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : controller.is_glycol_cooler ? { color: 'hsl(200 70% 60%)', textShadow: '0 0 8px hsl(200 70% 60% / 0.3)' } : {}),
                       }}>
                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                      </span>
