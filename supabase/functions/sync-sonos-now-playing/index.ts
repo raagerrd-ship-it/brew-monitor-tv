@@ -269,8 +269,12 @@ Deno.serve(async (req) => {
       duration_ms: track?.durationMillis || null,
       position_ms: positionMs,
       track_seq: newTrackSeq,
-      // Keep existing next-images if same track (they may already be processed), clear if new track
+      // Keep existing images if same track (they may already be processed), clear ALL if new track
+      // Critical: clearing bg_image_url prevents stale old-track bg from being delivered via RT
+      // between Phase 1 (metadata) and Phase 2 (images), which caused background "jumping"
       ...(sameTrack ? {} : {
+        bg_image_url: null,
+        widget_art_url: null,
         next_bg_image_url: null,
         next_widget_art_url: null,
       }),
