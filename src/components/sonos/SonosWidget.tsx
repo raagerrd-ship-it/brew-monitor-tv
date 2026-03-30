@@ -154,7 +154,7 @@ export const SonosWidget = memo(function SonosWidget({
           }}>
             <div
               ref={progressBarRef}
-              className="absolute top-0 bottom-0 left-0 rounded-full transition-all duration-500"
+              className="absolute top-0 bottom-0 left-0 rounded-full"
               style={{
                 width: `${Math.max(progress, 0.5)}%`,
                 background: 'hsl(0 0% 100% / 0.7)',
