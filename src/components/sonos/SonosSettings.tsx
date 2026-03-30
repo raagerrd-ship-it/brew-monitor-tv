@@ -17,6 +17,164 @@ interface SonosGroup {
   householdId: string;
 }
 
+function BridgeDiagnostics() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data: row } = await supabase
+        .from('sonos_now_playing')
+        .select('track_name, artist_name, album_name, playback_state, volume, mute, bass, treble, loudness, crossfade, media_type, track_number, nr_tracks, track_uri, duration_ms, position_ms, track_seq, updated_at, album_art_url, album_art_url_small, bg_image_url, widget_art_url, next_track_name, next_artist_name, next_bg_image_url, next_widget_art_url')
+        .limit(1)
+        .single();
+      setData(row);
+    } catch (e) {
+      console.error('Bridge diagnostics error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isRecent = (updatedAt: string | null) => {
+    if (!updatedAt) return false;
+    return Date.now() - new Date(updatedAt).getTime() < 120_000; // 2 min
+  };
+
+  const isBridgeArt = (url: string | null) => url?.includes('sonos-backgrounds/') ?? false;
+
+  const formatMs = (ms: number | null) => {
+    if (!ms) return '—';
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+
+  return (
+    <Collapsible>
+      <div className="p-4 rounded-lg border border-border/60 bg-muted/20">
+        <CollapsibleTrigger className="flex items-center justify-between w-full group">
+          <div className="space-y-0.5 text-left">
+            <p className="settings-label flex items-center gap-2">
+              Bridge-status (lokal push)
+              {data && (
+                isRecent(data.updated_at)
+                  ? <Wifi className="h-3.5 w-3.5 text-primary" />
+                  : <WifiOff className="h-3.5 w-3.5 text-destructive" />
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Diagnostik för Cast Away → sonos-bridge-push
+            </p>
+          </div>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4 space-y-3">
+          {!data && (
+            <Button variant="outline" size="sm" onClick={load} disabled={loading} className="w-full">
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Radio className="h-4 w-4 mr-2" />}
+              Hämta bridge-status
+            </Button>
+          )}
+          {data && (
+            <div className="space-y-3 text-sm">
+              {/* Connection status */}
+              <div className="flex items-center gap-2 rounded-md bg-background/50 p-3 border border-border/40">
+                {isRecent(data.updated_at) ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span className="text-xs">Bridge aktiv — senaste push {new Date(data.updated_at).toLocaleTimeString('sv-SE')}</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                    <span className="text-xs">
+                      Ingen push senaste 2 min — senast {data.updated_at ? new Date(data.updated_at).toLocaleTimeString('sv-SE') : 'aldrig'}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Current track */}
+              <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Nuvarande låt</p>
+                <p className="font-medium text-foreground">{data.track_name || '(ingen)'}</p>
+                <p className="text-xs text-muted-foreground">{data.artist_name || '—'} · {data.album_name || '—'}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-2">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="text-foreground">{data.playback_state?.replace('PLAYBACK_STATE_', '')}</span>
+                  <span className="text-muted-foreground">Position</span>
+                  <span className="text-foreground tabular-nums">{formatMs(data.position_ms)} / {formatMs(data.duration_ms)}</span>
+                  <span className="text-muted-foreground">Volym</span>
+                  <span className="text-foreground tabular-nums">{data.volume ?? '—'}{data.mute ? ' 🔇' : ''}</span>
+                  <span className="text-muted-foreground">Mediatyp</span>
+                  <span className="text-foreground">{data.media_type || '—'}</span>
+                  <span className="text-muted-foreground">Spår</span>
+                  <span className="text-foreground tabular-nums">{data.track_number ?? '—'} / {data.nr_tracks ?? '—'}</span>
+                  <span className="text-muted-foreground">Sekvens</span>
+                  <span className="text-foreground tabular-nums">{data.track_seq}</span>
+                  <span className="text-muted-foreground">EQ</span>
+                  <span className="text-foreground tabular-nums">
+                    B:{data.bass ?? '—'} T:{data.treble ?? '—'} {data.loudness ? 'Loud' : ''} {data.crossfade ? 'X-fade' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Art source */}
+              <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Bildkälla</p>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${isBridgeArt(data.album_art_url) ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="text-xs">Album art: {isBridgeArt(data.album_art_url) ? 'Bridge-uppladdad ✓' : data.album_art_url ? 'Cloud-resolvad' : 'Saknas'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${data.bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="text-xs">Bakgrund: {data.bg_image_url ? 'Genererad ✓' : 'Väntar...'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${data.widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="text-xs">Widget: {data.widget_art_url ? 'Genererad ✓' : 'Väntar...'}</span>
+                </div>
+              </div>
+
+              {/* Next track */}
+              {data.next_track_name && (
+                <div className="rounded-md bg-background/50 p-3 border border-border/40 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Nästa låt (förprocessad)</p>
+                  <p className="text-xs text-foreground">{data.next_track_name} — {data.next_artist_name || '—'}</p>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_bg_image_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <span className="text-xs">Bakgrund: {data.next_bg_image_url ? 'Klar ✓' : 'Ej genererad'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-3.5 w-3.5 ${data.next_widget_art_url ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <span className="text-xs">Widget: {data.next_widget_art_url ? 'Klar ✓' : 'Ej genererad'}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Track URI */}
+              {data.track_uri && (
+                <div className="rounded-md bg-background/50 p-3 border border-border/40">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Track URI</p>
+                  <p className="text-[10px] font-mono text-foreground break-all select-all leading-relaxed bg-muted/50 p-2 rounded">
+                    {data.track_uri}
+                  </p>
+                </div>
+              )}
+
+              <Button variant="outline" size="sm" onClick={load} disabled={loading} className="w-full">
+                {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Uppdatera
+              </Button>
+            </div>
+          )}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
 function ArtResolutionDiagnostics() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
