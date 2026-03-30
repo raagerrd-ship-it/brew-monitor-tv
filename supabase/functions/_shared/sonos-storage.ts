@@ -91,6 +91,9 @@ export async function storageObjectExistsByPublicUrl(supabase: any, publicUrl: s
 // Delete ALL files in bucket except those actively referenced by the given URLs.
 // Pass an empty array to delete everything (e.g. on IDLE transition).
 export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUrls: (string | null | undefined)[]) {
+  // Bridge-uploaded files are managed by the bridge — never delete them
+  const BRIDGE_FILES = new Set(['bridge-current.jpg', 'bridge-next.jpg']);
+
   try {
     const keepNames = new Set(
       referencedUrls
@@ -98,6 +101,8 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
         .map(url => fileNameFromUrl(url!))
         .filter(Boolean) as string[]
     );
+    // Always protect bridge files
+    for (const bf of BRIDGE_FILES) keepNames.add(bf);
 
     const { data: files } = await supabase.storage
       .from('sonos-backgrounds')
