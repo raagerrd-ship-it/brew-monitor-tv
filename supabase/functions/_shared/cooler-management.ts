@@ -1055,8 +1055,8 @@ async function learnFromCurrentState(
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
-  // ── Measure actual cooling rate from history (last 30 min) ──
-  const actualRate = await measureCoolingRate(supabase, lowestController.controller_id)
+  // ── Measure actual cooling rate from history (last 30 min, cached) ──
+  const actualRate = await measureCoolingRateCached(ctx, lowestController.controller_id)
 
   const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
 
