@@ -273,7 +273,7 @@ export function useBrewData(): UseBrewDataReturn {
     if (allControllerIds.length > 0) {
       // Fetch overshoot/PID adjustments, duty cycle, and controller names in parallel
       const uniqueIds = [...new Set(allControllerIds)] as string[];
-      const [adjRes, decisionRes, controllerNamesRes] = await Promise.all([
+      const [adjRes, dutyRes] = await Promise.all([
         supabase
           .from('auto_cooling_adjustments')
           .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
@@ -281,40 +281,30 @@ export function useBrewData(): UseBrewDataReturn {
           .or('reason.like.🌡️%,reason.like.🎯%')
           .order('created_at', { ascending: false }),
         supabase
-          .from('auto_cooling_decision_logs')
-          .select('decisions')
-          .order('created_at', { ascending: false })
-          .limit(1),
-        supabase
-          .from('rapt_temp_controllers')
-          .select('controller_id, name')
-          .in('controller_id', uniqueIds),
+          .from('fermentation_learnings')
+          .select('controller_id, parameter_name, learned_value')
+          .in('controller_id', uniqueIds)
+          .in('parameter_name', ['pid_last_duty', 'pid_current_mode']),
       ]);
       
       const adjData = adjRes.data;
 
-      // Extract PILL_COMP_STATUS from the most recent decision log
-      // controller_id is not in details, so match by name from message: "Controller: Temp Controller Blå [cooling]"
+      // Build duty map directly from fermentation_learnings (reliable, no name-matching needed)
       const dutyByControllerId = new Map<string, { duty: number; mode: 'cooling' | 'heating' | null }>();
-      const latestDecisions = (decisionRes.data?.[0]?.decisions as any[]) || [];
-      
-      // Build name→controller_id map from DB query
-      const nameToIdMap = new Map<string, string>();
-      (controllerNamesRes.data || []).forEach((c: any) => {
-        nameToIdMap.set(c.name, c.controller_id);
-      });
-      
-      for (const d of latestDecisions) {
-        if (d.step === 'PILL_COMP_STATUS' && d.details) {
-          const det = d.details;
-          // Parse controller name from message: "Controller: Temp Controller Blå [cooling]"
-          const nameMatch = d.message?.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
-          const controllerName = nameMatch?.[1]?.trim();
-          const cid = controllerName ? nameToIdMap.get(controllerName) : null;
-          if (cid && typeof det.duty_cycle === 'number') {
+      if (dutyRes.data) {
+        const dutyMap = new Map<string, number>();
+        const modeMap = new Map<string, number>();
+        for (const row of dutyRes.data) {
+          if (row.parameter_name === 'pid_last_duty') dutyMap.set(row.controller_id, row.learned_value);
+          if (row.parameter_name === 'pid_current_mode') modeMap.set(row.controller_id, row.learned_value);
+        }
+        for (const cid of uniqueIds) {
+          const duty = dutyMap.get(cid);
+          if (duty !== undefined) {
+            const modeVal = modeMap.get(cid);
             dutyByControllerId.set(cid, {
-              duty: Math.round(det.duty_cycle),
-              mode: det.mode === 'cooling' ? 'cooling' : det.mode === 'heating' ? 'heating' : null,
+              duty: Math.round(duty),
+              mode: modeVal === 1 ? 'heating' : modeVal === 2 ? 'cooling' : null,
             });
           }
         }
