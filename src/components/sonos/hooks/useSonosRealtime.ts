@@ -141,15 +141,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         // Sync local progress from periodic push to prevent ticker drift,
-        // Log bridge position for diagnostics only — do NOT correct ticker from it.
-        // Bridge position is stale by the time it reaches the client via Realtime.
-        // Position correction is handled by the 10s poll against sonos-playback-status.
-        if (typeof incoming.position_ms === 'number' && incoming.position_ms >= 0) {
-          const appPos = localProgressRef.current ?? prev.position_ms ?? 0;
-          const bridgePos = incoming.position_ms;
-          const drift = appPos - bridgePos;
-          tvDebug('sonos', `📡 Bridge pos — App: ${Math.round(appPos / 1000)}s | Bridge: ${Math.round(bridgePos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s (ej korrigerad)`);
-        }
+        // Bridge position is stale — position correction handled by 10s poll against sonos-playback-status
 
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
