@@ -59,7 +59,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT init: "${incoming.track_name}" (seq ${incoming.track_seq ?? '?'})`);
+          tvDebug('sonos', `📡 RT init: "${incoming.track_name}" (seq ${incoming.track_seq ?? '?'}, pos ${Math.round((incoming.position_ms ?? 0) / 1000)}s)`);
           return incoming;
         }
 
@@ -73,7 +73,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
             bgSentRef.current = incoming.bg_image_url;
           }
-          tvDebug('sonos', `📡 RT wake: "${incoming.track_name}"`);
+          tvDebug('sonos', `📡 RT wake: "${incoming.track_name}" (pos ${Math.round((incoming.position_ms ?? 0) / 1000)}s)`);
           return incoming;
         }
 
@@ -119,7 +119,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name);
             bgSentRef.current = effectiveBg;
           }
-          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} (bg: ${effectiveBg ? (preloadedBg ? 'förladdad ✅' : 'ny') : 'väntar'})`);
+          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} pos=${Math.round((incoming.position_ms ?? 0) / 1000)}s (bg: ${effectiveBg ? (preloadedBg ? 'förladdad ✅' : 'ny') : 'väntar'})`);
           return {
             ...incoming,
             bg_image_url: effectiveBg || null,
