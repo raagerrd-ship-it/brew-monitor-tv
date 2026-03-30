@@ -44,7 +44,6 @@ export interface ControllerAdjustmentContext {
   profileStatusMap: Map<string, { profileTarget: number | null; stepIndex: number; hasCooloff: boolean; activeTarget?: number | null; currentStepType?: string; rampDirection?: 'heating' | 'cooling' | null }>
   lastAdjTimestampMap: Map<string, string>
   pillCompSettings: Awaited<ReturnType<typeof loadPillCompSettings>>
-  // stallSettings removed — stall-boost feature removed
   log: (step: string, result: 'pass' | 'fail' | 'info' | 'action', message: string, details?: Record<string, unknown>) => void
   updateBatch?: RaptUpdateBatch
   pwmBursts: PwmBurst[]
@@ -77,8 +76,6 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
       (fc as any).target_temp = adj.newTarget
     }
   }
-
-  // Stall detection removed — gradual_ramp (Smart diacetylvila) handles the same use case
 
   return adjustments
 }
@@ -117,15 +114,10 @@ async function bootstrapProfileTargets(ctx: ControllerAdjustmentContext): Promis
 }
 
 // ─── Processor Pipeline ──────────────────────────────────────
-// Each processor is a function that returns adjustments for controllers
-// it modified. Unmodified controllers are handled by pass-through.
-// To add a new processor: create a function, add it to the array below.
 
 async function runProcessors(ctx: ControllerAdjustmentContext): Promise<AdjustmentResult[]> {
   const adjustments: AdjustmentResult[] = []
 
-  // Register processors here. Each is independently toggleable.
-  // Order matters: later processors see targets set by earlier ones.
   const processors = [
     runPidControl,
   ]
@@ -134,7 +126,6 @@ async function runProcessors(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const adjs = await processor(ctx)
     adjustments.push(...adjs)
 
-    // Sync in-memory between processors so next one sees current targets
     for (const adj of adjs) {
       const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
       if (fc) {
@@ -144,6 +135,149 @@ async function runProcessors(ctx: ControllerAdjustmentContext): Promise<Adjustme
   }
 
   return adjustments
+}
+
+// ─── Unified PWM Execution ──────────────────────────────────
+// Shared logic for both cooling and heating PWM duty cycle execution.
+// Differences are parameterized: ON target, revert direction, suppress logic.
+
+async function executePwmDutyCycle(
+  ctx: ControllerAdjustmentContext,
+  fc: TempController,
+  mode: 'cooling' | 'heating',
+  dutyRaw: number,
+  pidEffectiveTarget: number,
+  actualTemp: number,
+  actualTarget: number,
+  ctrlTarget: number,
+  rampOverrideApplied: boolean,
+  adjustments: AdjustmentResult[],
+): Promise<void> {
+  const { supabase, log } = ctx
+
+  // Check if mode is enabled on hardware
+  const isEnabled = mode === 'cooling' ? fc.cooling_enabled : fc.heating_enabled
+  if (!isEnabled) {
+    log('DUTY_SKIP', 'info', `${fc.name}: ${mode} not enabled, skipping duty cycle`)
+    return
+  }
+
+  // 2-cycle model: 10%-resolution over 10-min (2×5-min) window
+  const dutyPct = Math.round(dutyRaw * 10) * 10
+  const totalBurstMin = dutyPct / 10
+  const phase = Math.floor(Date.now() / 300000) % 2
+  const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
+  const burstSeconds = currentBurstMin * 60
+
+  const raptProbeTemp = fc.current_temp
+  const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
+  const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
+
+  // ON target: force relay past 5°C hysteresis
+  const onTarget = mode === 'cooling' ? -5 : 40
+
+  // Revert target: suppress opposite action by setting hw target away from probe
+  let revertTarget: number
+  if (raptProbeTemp == null) {
+    revertTarget = round1(pidEffectiveTarget)
+    log('REVERT_NO_PROBE', 'fail', `${fc.name}: probe saknas, revert → ${revertTarget}° (neutral)`)
+  } else if (mode === 'cooling') {
+    // Suppress cooling → set hw target ABOVE probe
+    revertTarget = round1(Math.min(raptProbeTemp + 2, maxTemp))
+  } else {
+    // Suppress heating → set hw target BELOW probe
+    revertTarget = round1(Math.max(raptProbeTemp - 2, minTemp))
+  }
+
+  if (dutyPct >= 100) {
+    // 100%: hold extreme target entire cycle (no revert needed)
+    log('DUTY_FULL', 'action', `${fc.name}: ${mode} duty 100% → ${onTarget}°C hela cykeln`, { duty_pct: 100, mode })
+    if (ctx.updateBatch) {
+      ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
+    } else {
+      await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+    }
+    await supabase.from('pending_rapt_retries')
+      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+    // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
+    await supabase.from('rapt_temp_controllers')
+      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+      .eq('controller_id', fc.controller_id)
+    adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
+    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
+  } else if (burstSeconds > 0) {
+    // 10-90%: burst at extreme, schedule revert to suppress target
+    log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
+      duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode,
+    })
+    if (ctx.updateBatch) {
+      ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
+    } else {
+      await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
+    }
+    // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
+    await supabase.from('rapt_temp_controllers')
+      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+      .eq('controller_id', fc.controller_id)
+    // Align to minute boundary so the 1-min cron picks it up precisely
+    const minuteFloor = Math.floor(Date.now() / 60000) * 60000
+    const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
+    await supabase.from('pending_rapt_retries')
+      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+    await supabase.from('pending_rapt_retries').insert({
+      controller_id: fc.controller_id,
+      target_temp: revertTarget,
+      reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
+      execute_at: executeAt,
+    })
+    // Reset P-term during burst (probe changes artificially from extreme target)
+    await supabase.from('controller_learned_compensation')
+      .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+      .eq('controller_id', fc.controller_id)
+      .eq('mode', mode)
+    adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
+    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
+  } else {
+    // 0% or phase B idle
+    if (dutyPct === 0) {
+      log('DUTY_ZERO', 'info', `${fc.name}: ${mode} duty 0% — ingen ${mode === 'cooling' ? 'kylning' : 'uppvärmning'}`)
+
+      // Heating-specific: suppress unwanted heating when actual > target but probe < hw target
+      if (mode === 'heating') {
+        const suppressThreshold = rampOverrideApplied ? 0.05 : 0.3
+        if (raptProbeTemp != null && actualTemp > actualTarget + suppressThreshold && raptProbeTemp < ctrlTarget) {
+          const suppressTarget = round1(Math.max(raptProbeTemp - 2, minTemp))
+          log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(raptProbeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
+          if (ctx.updateBatch) {
+            ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
+          } else {
+            await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, suppressTarget)
+          }
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+          adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
+          return
+        }
+      }
+
+      // Revert if hardware is stuck at a PWM extreme
+      if (ctrlTarget < -4 || ctrlTarget >= 39) {
+        log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
+        if (ctx.updateBatch) {
+          ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
+        } else {
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
+        }
+        await supabase.from('rapt_temp_controllers')
+          .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+          .eq('controller_id', fc.controller_id)
+        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
+      }
+    } else {
+      log('DUTY_PHASE_B', 'info', `${fc.name}: ${mode} PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode })
+    }
+  }
 }
 
 // ─── PID Control (Processor) ─────────────────────────────────
@@ -157,7 +291,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   } = ctx
   const adjustments: AdjustmentResult[] = []
 
-  // PID always runs — dual-sensor is now per controller (dual_sensor_enabled)
   log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
   for (const fc of followedControllersFullData) {
@@ -169,14 +302,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     if (!fc.heating_enabled && !fc.cooling_enabled) continue
 
-
-
-
     const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
-
-    // PID always runs every cycle — no same-data guard.
-    // Even if RAPT telemetry hasn't changed, the PID integral and learned
-    // baselines evolve, so skipping would allow drift.
 
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
@@ -188,6 +314,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const actualTemp = (fc as any).actual_temp != null
       ? parseFloat(String((fc as any).actual_temp))
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
+
     // ── Temperature Interpolation between RAPT syncs ──
     // RAPT reports every 15 min but PID runs every 5 min.
     // Estimate current temp using learned thermal rates when data is stale.
@@ -197,10 +324,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
     // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
-    // NOTE: Previously read from controller_learned_compensation, but that table has
-    // SEPARATE rows per mode (upsert key includes 'mode'), so the "latest" row could
-    // flip between heating/cooling depending on which was persisted last — causing
-    // false mode switches. fermentation_learnings has one row per parameter_name.
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value, sample_count')
       .eq('controller_id', fc.controller_id)
@@ -209,8 +332,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
 
     // ── Temperature interpolation using learned thermal rates ──
-    // When sensor data is stale (>3 min), estimate current temp based on
-    // last known duty and learned thermal rate for the active mode.
     if (staleMinutes > 3) {
       const lastModeVal = pressureMap.get('pid_current_mode')
       const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
@@ -221,13 +342,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const lastDuty = pressureMap.get('pid_last_duty') ?? 0
 
         if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
-          const ratePerMin = thermalRate / 60  // °C/h → °C/min
+          const ratePerMin = thermalRate / 60
           const dutyFraction = Math.min(lastDuty, 100) / 100
           const deltaEst = ratePerMin * staleMinutes * dutyFraction
           const sign = lastMode === 'cooling' ? -1 : 1
 
           interpolatedTemp = actualTemp + sign * deltaEst
-          // Clamp: never estimate past target
           if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
           if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
           interpolatedTemp = round1(interpolatedTemp)
@@ -241,10 +361,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // ── Ramp-rate-limiting: soft D-term alternative ──────────
-    // Prevents PID from seeing abrupt target changes (e.g. 18°→2° cold crash)
-    // by gradually moving the effective target at a max rate.
-    // This turns any step change into a smooth ramp, reducing overshoot.
+    // ── Ramp-rate-limiting: prevents abrupt target changes ──────
+    // Gradually moves the effective target at a max rate.
+    // Protects against step changes (e.g. 18°→2° cold crash).
     const RAMP_RATE_COOLING = 4.0 // °C/hour max target decrease
     const RAMP_RATE_HEATING = 3.0 // °C/hour max target increase
     const CYCLE_HOURS = 5 / 60    // 5-min cycle
@@ -282,20 +401,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
     const lastProbe = pressureMap.get('mode_last_probe') ?? null
     const prevModeValue = pressureMap.get('pid_current_mode')
-    // pid_current_mode: 1 = heating, 2 = cooling
     const prevMode: 'heating' | 'cooling' | null = prevModeValue === 1 ? 'heating' : prevModeValue === 2 ? 'cooling' : null
     const lastDutyPct = pressureMap.get('pid_last_duty') ?? 0
     const lastStepIndex = pressureMap.get('mode_last_step_index') ?? null
 
     // Mode detection: overshoot-aware with stabilisation guard.
     const MODE_SWITCH_CYCLES = 6
-    const STALL_MIN_PROGRESS = 0.05 // °C per cycle — less than this = stabilized
+    const STALL_MIN_PROGRESS = 0.05
 
-    // Determine what mode the current temperature suggests
     let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
     // During active profile ramp, force mode to match ramp direction
-    // Ramp up → only heating allowed, ramp down → only cooling allowed
     let rampOverrideApplied = false
     const profileCtx = ctx.profileStatusMap.get(fc.controller_id)
     if (profileCtx?.rampDirection && 
@@ -309,40 +425,25 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // Check if probe is on the WRONG side of the target and either:
-    // 1. Stabilized (barely moving) — thermal inertia dissipated
-    // 2. Diverging (moving further away from target) — active drift
     const distanceToTarget = Math.abs(actualTemp - actualTarget)
-    // Mode switching only makes sense when BOTH heating and cooling are available
     const canSwitchMode = fc.heating_enabled && fc.cooling_enabled
-    // Single-mode controllers: no mode switching needed, clear pressure
     if (!canSwitchMode && switchPressure > 0) {
       switchPressure = 0
     }
     const onWrongSide = canSwitchMode && prevMode != null && suggestedMode !== prevMode
 
-    // ── Profile context ──────────────────────────────────────
     const profileSwitchStatus = ctx.profileStatusMap.get(fc.controller_id)
     const isProfileRamp = profileSwitchStatus?.currentStepType === 'gradual_ramp' || profileSwitchStatus?.currentStepType === 'ramp'
     const rampMatchesSuggested = profileSwitchStatus?.rampDirection === suggestedMode
     const velocity = lastProbe != null ? Math.abs(actualTemp - lastProbe) : 0
 
-    // Detect profile step change → immediate mode switch
     const currentStepIndex = profileSwitchStatus?.stepIndex ?? null
     const stepChanged = currentStepIndex != null && lastStepIndex != null && currentStepIndex !== lastStepIndex
 
-    // ── Unified mode-switch logic ────────────────────────────
-    // All paths share one switchPressure counter and require 6 cycles of
-    // stability (velocity < 0.05°/cycle). The only differences:
-    //   - Normal: also requires duty === 0% before counter starts
-    //   - Profile ramp matching suggested: skips the duty-zero gate
-    //   - Profile step change: immediate switch (no waiting)
-    //   - Large error (>1°C): immediate switch (emergency)
     const isProfileRampBypass = onWrongSide && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
     if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && stepChanged) {
-      // Profile step just changed — switch immediately
       pidMode = suggestedMode
       switchPressure = 0
       log('MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}, omedelbar)`, {
@@ -350,7 +451,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (onWrongSide && distanceToTarget > 1.0) {
-      // Large error — emergency switch regardless of stability
       pidMode = suggestedMode
       switchPressure = 0
       log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > 1°, omedelbar)`, {
@@ -358,31 +458,26 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (onWrongSide && distanceToTarget > 0.05) {
-      // Wrong side — need to evaluate stability and possibly switch
       const isStable = velocity < STALL_MIN_PROGRESS
       const velocitySigned = lastProbe != null ? actualTemp - lastProbe : 0
       const isDivergingCheck = (suggestedMode === 'cooling' && velocitySigned > 0.02) ||
                                (suggestedMode === 'heating' && velocitySigned < -0.02)
       const isStuckOrDiverging = isStable || isDivergingCheck
 
-      // Duty-zero gate: only for normal (non-profile-ramp) switches
       const needsDutyZero = !isProfileRampBypass
       const dutyBlocked = needsDutyZero && lastDutyPct > 0
 
       if (!isStuckOrDiverging) {
-        // Temp is moving but not diverging — hold, don't count
         pidMode = prevMode!
         if (isProfileRampBypass) {
           log('MODE_PROFILE_HOLD', 'info', `${fc.name}: profil-ramp ${profileSwitchStatus?.rampDirection} men temp ej stabil (velocity=${round1(velocity)}°, Δ${round1(distanceToTarget)}°)`)
         }
       } else if (dutyBlocked) {
-        // Duty not yet zero — wait before counting
         pidMode = prevMode!
         log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%)`, {
           from: prevMode, to: suggestedMode, last_duty: lastDutyPct, pressure: switchPressure,
         })
       } else if (isStable) {
-        // Stable (velocity < 0.05°) — accumulate counter
         switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
@@ -400,7 +495,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         }
       } else {
-        // Diverging — also accumulate counter (conditions already met)
         switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
@@ -418,18 +512,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         }
       }
     } else if (onWrongSide) {
-      // On wrong side but very close (< 0.05°) — hold, start gentle pressure
       pidMode = prevMode ?? suggestedMode
       if (lastDutyPct === 0 && switchPressure === 0) switchPressure = 1
     } else {
-      // Back on correct side / near target — decay pressure
       pidMode = prevMode ?? suggestedMode
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
     }
 
     // Capability guard: never select a mode the hardware cannot execute.
-    // This prevents endless DUTY_SKIP loops and ensures heating-only controllers
-    // can always drop to duty 0 (heater OFF) when above target.
     if (fc.heating_enabled && !fc.cooling_enabled && pidMode !== 'heating') {
       log('MODE_FORCE', 'info', `${fc.name}: cooling ej tillgängligt, tvingar mode=heating`)
       pidMode = 'heating'
@@ -495,16 +585,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Build ramp context for PID rate-aware boost
     let rampContext: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null = null
     if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
-      // Check if there's a ramp rate from the profile status
       const tempBucket = getTempBucket(ctrlTarget)
       const activeCoolingCount = followedControllersFullData.filter(c => c.cooling_enabled).length
       const loadBucket = activeCoolingCount === 0 ? 'load_0' : activeCoolingCount === 1 ? 'load_1' : 'load_2plus'
-      // Estimate required rate from profile target vs current temp
       const distance = actualTemp - actualTarget
       if (distance > 0.5) {
-        // Approximate: need to cover this distance — use a reasonable ramp horizon
-        // If profile provides a specific rate, use that; otherwise estimate from distance
-        const estimatedRate = Math.max(0.5, distance / 4) // assume 4h to close gap minimum
+        const estimatedRate = Math.max(0.5, distance / 4)
         rampContext = { requiredRatePerHour: estimatedRate, tempBucket, loadBucket }
       }
     }
@@ -530,7 +616,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
-      damping: round1(pidResult.dampingFactor),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
@@ -547,7 +632,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Post-PID safety: if PID still has active duty in the current mode,
     // any switch pressure accumulated from stale pid_last_duty data is invalid.
-    // Reset it to prevent false mode switches while the system is actively working.
     if (computedDutyPct > 0 && switchPressure > 0) {
       log('MODE_PRESSURE_RESET', 'info', `${fc.name}: duty ${computedDutyPct}% aktiv, nollställer switch pressure ${switchPressure} → 0`)
       switchPressure = 0
@@ -578,310 +662,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ═══════════════════════════════════════════════════
-    // COOLING: Unified PWM duty cycle execution
-    // PID output is a duty cycle (0–100%). Hardware is controlled
-    // via PWM bursts: -5°C = cooling ON, baseTarget = cooling OFF.
+    // PWM duty cycle execution (unified for cooling & heating)
     // ═══════════════════════════════════════════════════
-    if (pidMode === 'cooling' && pidResult.dutyCycle != null) {
-      if (!fc.cooling_enabled) {
-        log('DUTY_SKIP', 'info', `${fc.name}: cooling not enabled, skipping duty cycle`)
-        continue
-      }
-
-      const dutyRaw = pidResult.dutyCycle
-      // 2-cycle model: 10%-resolution over 10-min (2×5-min) window
-      const dutyPct = Math.round(dutyRaw * 10) * 10
-      const totalBurstMin = dutyPct / 10
-      const phase = Math.floor(Date.now() / 300000) % 2
-      const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-      const burstSeconds = currentBurstMin * 60
-      // Prevent RAPT's internal thermostat from acting after a cooling burst.
-      // We are in COOLING mode here, so after the burst ends we must SUPPRESS
-      // cooling by setting the hw target ABOVE the probe. This prevents the
-      // RAPT relay from continuing to cool between PID cycles.
-      // Use fc.current_temp explicitly — never fall back to actualTemp (pill/fusion).
-      const raptProbeTemp = fc.current_temp
-      const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
-      const coolingMaxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-      let revertTarget: number
-      if (raptProbeTemp == null) {
-        // Cannot calculate safe suppression target without probe data — use neutral target
-        revertTarget = round1(pidEffectiveTarget)
-        log('REVERT_NO_PROBE', 'fail', `${fc.name}: probe saknas, revert → ${revertTarget}° (neutral)`)
-      } else {
-        // COOLING mode: always suppress cooling → set hw target ABOVE probe
-        revertTarget = round1(Math.min(raptProbeTemp + 2, coolingMaxTemp))
-      }
-
-      // Use -5°C to force relay ON — ignore RAPT's configured min_target_temp
-      // since we intentionally overshoot to guarantee the relay activates.
-      const COOLING_ON_TARGET = -5
-      if (dutyPct >= 100) {
-        // 100%: hold -5°C entire cycle (no revert needed)
-        log('DUTY_FULL', 'action', `${fc.name}: duty 100% → ${COOLING_ON_TARGET}°C hela cykeln`, { duty_pct: 100, mode: 'cooling' })
-        if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, COOLING_ON_TARGET, revertTarget)
-        } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, COOLING_ON_TARGET)
-        }
-        await supabase.from('pending_rapt_retries')
-          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-        // CRITICAL: Keep DB target_temp at COOLING_ON_TARGET (matching actual hardware state).
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: COOLING_ON_TARGET, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: COOLING_ON_TARGET })
-        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: COOLING_ON_TARGET, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
-      } else if (burstSeconds > 0) {
-        // 10-90%: burst at -5°C, schedule revert to suppress target
-        log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst at ${COOLING_ON_TARGET}° (revert=${revertTarget}°)`, {
-          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: COOLING_ON_TARGET, off_target: revertTarget, mode: 'cooling',
-        })
-        if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, COOLING_ON_TARGET, revertTarget)
-        } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, COOLING_ON_TARGET)
-        }
-        // CRITICAL: Keep DB target_temp at COOLING_ON_TARGET (matching actual hardware state).
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: COOLING_ON_TARGET, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-        // Align to minute boundary so the 1-min cron picks it up precisely
-        const minuteFloor = Math.floor(Date.now() / 60000) * 60000
-        const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
-        await supabase.from('pending_rapt_retries')
-          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-        await supabase.from('pending_rapt_retries').insert({
-          controller_id: fc.controller_id,
-          target_temp: revertTarget,
-          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty)`,
-          execute_at: executeAt,
-        })
-        // Reset P-term during burst (probe drops artificially from 0°C target)
-        await supabase.from('controller_learned_compensation')
-          .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-          .eq('mode', 'cooling')
-        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: 0 })
-        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: 0, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
-      } else {
-        // 0% or phase B idle
-        if (dutyPct === 0) {
-          log('DUTY_ZERO', 'info', `${fc.name}: duty 0% — ingen kylning`)
-          // Only revert if hardware is stuck at a PWM extreme (0°C from a burst)
-          // Normal target differences (e.g. 15 vs 16) should NOT trigger a send —
-          // that causes a sync loop where RAPT reports old value, we correct, repeat.
-          const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-          if (ctrlTarget < -4 || ctrlTarget >= 39) {
-            log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
-            if (ctx.updateBatch) {
-              ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
-            } else {
-              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
-            }
-            await supabase.from('rapt_temp_controllers')
-              .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
-              .eq('controller_id', fc.controller_id)
-            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
-          }
-        } else {
-          log('DUTY_PHASE_B', 'info', `${fc.name}: PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode: 'cooling' })
-        }
-      }
-      continue
-    }
-
-    // ═══════════════════════════════════════════════════
-    // HEATING: Unified PWM duty cycle execution
-    // PID output is a duty cycle (0–100%). Hardware is controlled
-    // via PWM bursts: maxTemp = heating ON, actualTarget = heating OFF.
-    // ═══════════════════════════════════════════════════
-    if (pidMode === 'heating' && pidResult.dutyCycle != null) {
-      if (!fc.heating_enabled) {
-        log('DUTY_SKIP', 'info', `${fc.name}: heating not enabled, skipping duty cycle`)
-        continue
-      }
-
-      const dutyRaw = pidResult.dutyCycle
-      let dutyPct = Math.round(dutyRaw * 10) * 10
-      const totalBurstMin = dutyPct / 10
-      const phase = Math.floor(Date.now() / 300000) % 2
-      const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-      const burstSeconds = currentBurstMin * 60
-
-      // ── Heating Session Cap (hold-only) ──────────────────────
-      // Prevents thermal inertia buildup from long continuous low-duty heating.
-      // Tracks cumulative active heating minutes; forces a rest period after cap.
-      // Bypassed during ramps where continuous heating is needed.
-      const HEATING_SESSION_CAP_MIN = 10
-      const HEATING_REST_MIN = 30
-      let forcedRest = false
-
-      if (!isProfileRamp && dutyPct > 0 && !ctx.skipLearning) {
-        const sessionParam = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
-        const restParam = await getLearnedParam(supabase, fc.controller_id, 'heating_rest_until', 0)
-        const restUntil = restParam.value // stored as unix timestamp in ms, 0 = no rest
-        const nowMs = Date.now()
-
-        if (restUntil > nowMs) {
-          // Forced rest is active — clamp duty to 0
-          const restRemainMin = Math.round((restUntil - nowMs) / 60000)
-          log('HEATING_REST', 'info', `${fc.name}: vilofas aktiv, ${restRemainMin} min kvar`)
-          dutyPct = 0
-          forcedRest = true
-        } else if (sessionParam.value >= HEATING_SESSION_CAP_MIN) {
-          // Cap hit → start forced rest period
-          const restEnd = nowMs + HEATING_REST_MIN * 60000
-          await supabase.from('fermentation_learnings').upsert({
-            controller_id: fc.controller_id,
-            parameter_name: 'heating_rest_until',
-            learned_value: restEnd,
-            sample_count: (restParam.sampleCount || 0) + 1,
-            last_updated_at: new Date().toISOString(),
-          }, { onConflict: 'controller_id,parameter_name' })
-          await supabase.from('fermentation_learnings').upsert({
-            controller_id: fc.controller_id,
-            parameter_name: 'heating_session_minutes',
-            learned_value: 0,
-            sample_count: 0,
-            last_updated_at: new Date().toISOString(),
-          }, { onConflict: 'controller_id,parameter_name' })
-          log('HEATING_CAP_HIT', 'action', `${fc.name}: ${round1(sessionParam.value)} min heating → ${HEATING_REST_MIN} min vila`)
-          dutyPct = 0
-          forcedRest = true
-        } else {
-          // Accumulate: add this burst's active minutes
-          const newTotal = sessionParam.value + currentBurstMin
-          await supabase.from('fermentation_learnings').upsert({
-            controller_id: fc.controller_id,
-            parameter_name: 'heating_session_minutes',
-            learned_value: newTotal,
-            sample_count: (sessionParam.sampleCount || 0) + 1,
-            last_updated_at: new Date().toISOString(),
-          }, { onConflict: 'controller_id,parameter_name' })
-          log('HEATING_SESSION', 'info', `${fc.name}: session ${round1(newTotal)}/${HEATING_SESSION_CAP_MIN} min`)
-        }
-      }
-
-      // Reset session counter when PID naturally outputs 0% (not during forced rest or ramp)
-      if (!isProfileRamp && dutyPct === 0 && !forcedRest && !ctx.skipLearning) {
-        const sessionCheck = await getLearnedParam(supabase, fc.controller_id, 'heating_session_minutes', 0)
-        if (sessionCheck.value > 0) {
-          await supabase.from('fermentation_learnings').upsert({
-            controller_id: fc.controller_id,
-            parameter_name: 'heating_session_minutes',
-            learned_value: 0,
-            sample_count: 0,
-            last_updated_at: new Date().toISOString(),
-          }, { onConflict: 'controller_id,parameter_name' })
-          log('HEATING_SESSION_RESET', 'info', `${fc.name}: PID 0% naturligt → session nollställd`)
-        }
-      }
-      // For heating, revert to a target BELOW the probe to prevent
-      // RAPT's internal thermostat from continuing to heat after burst.
-      // Same logic as DUTY_ZERO_SUPPRESS — probe - 2°C, clamped to min.
-      // RAPT's thermostat always compares against its own probe sensor.
-      const raptProbeTemp = fc.current_temp
-      const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
-      const revertTarget = raptProbeTemp != null
-        ? round1(Math.max(raptProbeTemp - 2, minTemp))
-        : round1(actualTarget) // fallback: neutral target (no probe data)
-      const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
-      const HEATING_ON_TARGET = 40 // +5° over max to guarantee relay activation past 5°C hysteresis
-      const onTarget = HEATING_ON_TARGET
-
-      if (dutyPct >= 100) {
-        // 100%: hold maxTemp entire cycle
-        log('DUTY_FULL', 'action', `${fc.name}: heating duty 100% → ${onTarget}°C hela cykeln`, { duty_pct: 100, mode: 'heating' })
-        if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
-        } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
-        }
-        await supabase.from('pending_rapt_retries')
-          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-        // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-        // Same principle as DUTY_BURST — prevents DB/hardware desync if PID
-        // drops to 0% duty next cycle: DUTY_ZERO_REVERT checks ctrlTarget >= maxTemp - 0.5.
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
-        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
-      } else if (burstSeconds > 0) {
-        // 10-90%: burst at maxTemp, schedule revert to actualTarget
-        log('DUTY_BURST', 'action', `${fc.name}: heating duty ${dutyPct}% → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
-          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode: 'heating',
-        })
-        if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
-        } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
-        }
-        // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-        // Only PWM OFF will update DB to revertTarget after confirming success.
-        await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-        // Align to minute boundary so the 1-min cron picks it up precisely
-        const minuteFloor2 = Math.floor(Date.now() / 60000) * 60000
-        const executeAt = new Date(minuteFloor2 + burstSeconds * 1000).toISOString()
-        await supabase.from('pending_rapt_retries')
-          .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-        await supabase.from('pending_rapt_retries').insert({
-          controller_id: fc.controller_id,
-          target_temp: revertTarget,
-          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, heating)`,
-          execute_at: executeAt,
-        })
-        await supabase.from('controller_learned_compensation')
-          .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-          .eq('controller_id', fc.controller_id)
-          .eq('mode', 'heating')
-        adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
-        ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
-      } else {
-        // 0% or phase B idle
-        if (dutyPct === 0) {
-          log('DUTY_ZERO', 'info', `${fc.name}: heating duty 0% — ingen uppvärmning`)
-
-          // Heating suppression: if actual_temp is above target but probe is below target,
-          // the hardware's built-in thermostat would heat (probe < hwTarget).
-          // Prevent this by lowering the hardware target below the probe temp.
-          // Use tighter threshold (0.05°) during ramp override to prevent unwanted heating
-          // RAPT's thermostat always compares against its own probe sensor.
-          const raptProbeTemp = fc.current_temp
-          const suppressThreshold = rampOverrideApplied ? 0.05 : 0.3
-          if (raptProbeTemp != null && actualTemp > actualTarget + suppressThreshold && raptProbeTemp < ctrlTarget) {
-            const suppressTarget = round1(Math.max(raptProbeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
-            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(raptProbeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
-            if (ctx.updateBatch) {
-              ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
-            } else {
-              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, suppressTarget)
-            }
-            await supabase.from('rapt_temp_controllers')
-              .update({ target_temp: suppressTarget, updated_at: new Date().toISOString() })
-              .eq('controller_id', fc.controller_id)
-            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: suppressTarget })
-          } else if (ctrlTarget < -4 || ctrlTarget >= 39) {
-            // Only revert if hardware is stuck at a PWM extreme (40°C from a heating burst,
-            // or -5°C from a previous cooling burst after mode switch)
-            log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
-            if (ctx.updateBatch) {
-              ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
-            } else {
-              await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
-            }
-            await supabase.from('rapt_temp_controllers')
-              .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
-              .eq('controller_id', fc.controller_id)
-            adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
-          }
-        } else {
-          log('DUTY_PHASE_B', 'info', `${fc.name}: heating PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode: 'heating' })
-        }
-      }
+    if (pidResult.dutyCycle != null) {
+      await executePwmDutyCycle(
+        ctx, fc, pidMode, pidResult.dutyCycle,
+        pidEffectiveTarget, actualTemp, actualTarget, ctrlTarget,
+        rampOverrideApplied, adjustments,
+      )
       continue
     }
   }
