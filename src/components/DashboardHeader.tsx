@@ -123,7 +123,7 @@ export function DashboardHeader({
               )}
             </div>
 
-            <div className="flex items-center gap-3 flex-shrink-0 self-stretch">
+            <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
               <Clock />
 
               {!isTvMode && <NotificationBell />}
@@ -293,7 +293,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded px-3 gap-4 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: controller.is_glycol_cooler ? '100px' : '180px', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
+                 <div className={`relative flex items-center justify-center rounded px-3 gap-4 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: controller.is_glycol_cooler ? '80px' : '180px', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
@@ -307,9 +307,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    {(() => {
                       const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
                      return (
-                      <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                       <span className="font-semibold tabular-nums whitespace-nowrap" style={{
                         fontSize: '16px',
-                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : controller.is_glycol_cooler ? { color: 'hsl(200 70% 60%)', textShadow: '0 0 8px hsl(200 70% 60% / 0.3)' } : {}),
                       }}>
                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                      </span>
