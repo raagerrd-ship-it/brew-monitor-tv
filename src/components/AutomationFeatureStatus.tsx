@@ -148,6 +148,18 @@ function buildFeatureBlocks(
           isOn: true,
         });
       }
+    } else if (d.step === "DUTY_PHASE_B") {
+      // Phase B — no burst this cycle but PWM is active
+      const det = d.details as Record<string, unknown> | undefined;
+      const nameMatch = d.message.match(/^(.+?):\s*(heating\s+)?PWM\s+(\d+)%/);
+      if (nameMatch) {
+        const dutyVal = det?.duty_pct != null ? Number(det.duty_pct) : parseInt(nameMatch[3]);
+        pwmStatusMap.set(nameMatch[1].trim(), {
+          duty: dutyVal,
+          burstSeconds: 0,
+          isOn: false,
+        });
+      }
     }
   }
 
