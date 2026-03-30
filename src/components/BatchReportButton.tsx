@@ -53,11 +53,8 @@ function BatchReportButtonComponent({
               .order("created_at", { ascending: true })
               .limit(500)
           : Promise.resolve({ data: [] as { created_at: string; reason: string; old_target_temp: number; new_target_temp: number }[] }),
-        supabase
-          .from("stall_boost_outcomes")
-          .select("created_at, boost_degrees, sg_rate_before, sg_rate_after, outcome")
-          .eq("brew_id", brewId)
-          .order("created_at", { ascending: true }),
+        // stall_boost_outcomes query removed — feature removed
+        Promise.resolve({ data: [] as { created_at: string; boost_degrees: number; sg_rate_before: number; sg_rate_after: number | null; outcome: string | null }[] }),
         supabase
           .from("fermentation_step_log")
           .select("created_at, action, step_index, details")
