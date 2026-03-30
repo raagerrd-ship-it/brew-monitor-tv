@@ -426,7 +426,8 @@ export async function calculateCompensatedTarget(
   let hDutyCycle = 0
 
   if (Math.abs(avgError) <= 0.05) {
-    // DEADBAND: hold at integral (learned steady-state duty) — no decay
+    // DEADBAND: gentle decay (0.90/cycle) to prevent residual PWM bursts
+    hIntegral *= 0.90
     hDutyCycle = Math.max(0, hIntegral)
     constraints.push('deadband')
     console.log(`✅ Heating deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${hIntegral.toFixed(3)}, duty=${(hDutyCycle * 100).toFixed(0)}%`)
