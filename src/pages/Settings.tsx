@@ -557,7 +557,7 @@ export default function Settings() {
                 <div className="space-y-3">
                   <AutomationFeatureStatus
                     autoCoolingEnabled={settings.autoCoolingEnabled}
-                    stallDetectionEnabled={settings.stallDetectionEnabled}
+                    stallDetectionEnabled={false}
                     overshootPreventionEnabled={settings.overshootPreventionEnabled}
                     aiAuditEnabled={settings.aiAuditEnabled}
                     availableControllers={settings.availableControllers}
