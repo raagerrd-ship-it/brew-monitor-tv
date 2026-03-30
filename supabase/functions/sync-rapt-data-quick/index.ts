@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
               // for PID-managed controllers. RAPT API telemetry has 3-15 min latency, so hw may still report
               // stale PWM burst values long after PWM OFF has reverted.
               const maxTarget = existingMap.get(controller.id)?.max_target_temp;
-              const isPwmCoolingArtifact = Math.abs(targetTemp) < 0.5;
+              const isPwmCoolingArtifact = targetTemp <= -4;
               const isPwmHeatingArtifact = maxTarget != null && Math.abs(targetTemp - maxTarget) < 0.5;
               const isPwmBurstArtifact = isPidManaged && (isPwmCoolingArtifact || isPwmHeatingArtifact);
 
