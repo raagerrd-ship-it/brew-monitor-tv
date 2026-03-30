@@ -131,18 +131,9 @@ Deno.serve(async (req) => {
 
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
-    const hasExplicitPosition = typeof positionMillis === 'number';
-    const preserveExistingPosition =
-      sameTrack &&
-      playbackState === 'PLAYBACK_STATE_PLAYING' &&
-      existingRow?.playback_state === 'PLAYBACK_STATE_PLAYING' &&
-      typeof existingRow?.position_ms === 'number' &&
-      existingRow.position_ms > 5000 &&
-      (!hasExplicitPosition || positionMillis <= 1000);
-
-    if (preserveExistingPosition) {
-      console.log(`[BridgePush] Preserving existing position ${existingRow?.position_ms}ms for same-track PLAYING event`);
-    }
+    const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
+    // Skip writing position_ms entirely when bridge sends 0 for same track
+    const skipPositionWrite = sameTrack && !hasRealPosition;
 
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
@@ -155,9 +146,7 @@ Deno.serve(async (req) => {
       next_artist_name: nextArtistName || null,
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
-      position_ms: preserveExistingPosition
-        ? existingRow.position_ms
-        : (hasExplicitPosition ? positionMillis : 0),
+      ...(skipPositionWrite ? {} : { position_ms: hasRealPosition ? positionMillis : 0 }),
       track_seq: newTrackSeq,
       // Bridge-provided metadata columns
       volume: volume ?? null,
@@ -200,8 +189,8 @@ Deno.serve(async (req) => {
     }
 
     const phase1Ms = Date.now() - startTime;
-    const writtenPos = metadataPayload.position_ms;
-    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" pos=${positionMillis}→${writtenPos}ms state=${playbackState} bridgeArt=${bridgeHasArt}`);
+    const writtenPos = skipPositionWrite ? 'skipped' : (metadataPayload.position_ms ?? 0);
+    console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms writtenPos=${writtenPos} state=${playbackState} bridgeArt=${bridgeHasArt}`);
 
     // If same track AND background already exists, just a position/state update — done
     const needsBg = !existingRow?.bg_image_url;
