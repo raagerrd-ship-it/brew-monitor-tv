@@ -1591,46 +1591,9 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     </PipelineSection>
   ) : null;
 
-  const stallContent = stallEntries.length > 0 ? (() => {
-    const actionableStall = stallEntries.filter(d =>
-      d.step === 'STALL_ANALYSIS' || d.step === 'STALL_BOOST' ||
-      d.step === 'STALL_LEARN' || d.step === 'STALL_UNBOOST' ||
-      d.step === 'STALL_COOLDOWN' || d.step === 'STALL_ERROR' ||
-      d.step === 'STALL_SKIP'
-    );
-    if (actionableStall.length === 0) return null;
-    return (
-      <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Stall-detektering" color="hsl(38 92% 55%)" borderColor="hsl(38 92% 55% / 0.3)" bgColor="hsl(38 92% 55% / 0.05)">
-        {actionableStall.map((d, i) => {
-          const isBoost = d.step === 'STALL_BOOST' || d.step === 'STALL_UNBOOST';
-          const isError = d.step === 'STALL_ERROR';
-          const isAnalysis = d.step === 'STALL_ANALYSIS';
-          const isSkip = d.step === 'STALL_SKIP';
-          const stallDetected = isAnalysis && d.result === 'action';
-          return (
-            <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
-              <div className="mt-0.5 flex-shrink-0">
-                {isBoost ? <Wrench className="h-3 w-3 text-amber-500" /> :
-                 isError ? <XCircle className="h-3 w-3 text-red-400" /> :
-                 stallDetected ? <AlertTriangle className="h-3 w-3 text-amber-500" /> :
-                 isSkip ? <Info className="h-3 w-3 text-muted-foreground" /> :
-                 <CheckCircle2 className="h-3 w-3 text-green-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className={`font-medium ${isError ? 'text-red-400' : isSkip ? 'text-muted-foreground' : ''}`}>{d.message}</span>
-                {isAnalysis && d.details && (
-                  <span className="text-muted-foreground ml-2">
-                    SG: {r1(d.details.sg_rate_per_day as number)}/dag
-                    {d.details.activity != null && ` · Akt: ${r1(d.details.activity as number)}`}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </PipelineSection>
-    );
-  })() : null;
+  // stallContent removed — stall-boost feature removed
+  const stallContent = null;
+
 
   const coolerContent = coolerEntries.length > 0 ? (
     <PipelineSection icon={<Snowflake className="h-3 w-3" />} title="Glykol-kylare" color="hsl(210 80% 60%)" borderColor="hsl(210 80% 60% / 0.3)" bgColor="hsl(210 80% 60% / 0.05)">
