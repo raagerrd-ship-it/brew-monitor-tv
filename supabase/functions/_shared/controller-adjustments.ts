@@ -631,21 +631,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: COOLING_ON_TARGET })
         ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: COOLING_ON_TARGET, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
       } else if (burstSeconds > 0) {
-        // 10-90%: burst at 0°C, schedule revert to actualTarget
-        log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst (revert=${revertTarget}°)`, {
-          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: 0, off_target: revertTarget, mode: 'cooling',
+        // 10-90%: burst at -5°C, schedule revert to suppress target
+        log('DUTY_BURST', 'action', `${fc.name}: duty ${dutyPct}% → ${burstSeconds}s burst at ${COOLING_ON_TARGET}° (revert=${revertTarget}°)`, {
+          duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: COOLING_ON_TARGET, off_target: revertTarget, mode: 'cooling',
         })
         if (ctx.updateBatch) {
-          ctx.updateBatch.addHardwareOnly(fc.controller_id, 0, revertTarget)
+          ctx.updateBatch.addHardwareOnly(fc.controller_id, COOLING_ON_TARGET, revertTarget)
         } else {
-          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, 0)
+          await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, COOLING_ON_TARGET)
         }
-        // CRITICAL: Keep DB target_temp at 0 (matching actual hardware state).
-        // Only PWM OFF will update DB to revertTarget after confirming the RAPT
-        // command succeeded. This prevents the DB/hardware desync that caused
-        // Controller Blå to be stuck at 0°C when PWM OFF failed silently.
+        // CRITICAL: Keep DB target_temp at COOLING_ON_TARGET (matching actual hardware state).
         await supabase.from('rapt_temp_controllers')
-          .update({ target_temp: 0, updated_at: new Date().toISOString() })
+          .update({ target_temp: COOLING_ON_TARGET, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
         // Align to minute boundary so the 1-min cron picks it up precisely
         const minuteFloor = Math.floor(Date.now() / 60000) * 60000
