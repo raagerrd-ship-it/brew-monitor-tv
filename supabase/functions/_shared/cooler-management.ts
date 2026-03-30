@@ -296,7 +296,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── Log margin history snapshot ───────────────────────────
   const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
-  const actualRate = await measureCoolingRate(supabase, effectiveTarget.controllerId)
+  const actualRate = await measureCoolingRateCached(ctx, effectiveTarget.controllerId)
   await supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
