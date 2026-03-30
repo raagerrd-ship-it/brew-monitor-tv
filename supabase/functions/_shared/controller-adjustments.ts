@@ -598,7 +598,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const phase = Math.floor(Date.now() / 300000) % 2
       const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
       const burstSeconds = currentBurstMin * 60
-      const revertTarget = round1(pidEffectiveTarget)
+      // If probe is below actualTarget, revert to a suppression target
+      // to prevent RAPT's thermostat from heating after a cooling burst.
+      const coolingProbeTemp = fc.current_temp ?? actualTemp
+      const coolingMinTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
+      const revertTarget = coolingProbeTemp < pidEffectiveTarget
+        ? round1(Math.max(coolingProbeTemp - 2, coolingMinTemp))
+        : round1(pidEffectiveTarget)
 
       if (dutyPct >= 100) {
         // 100%: hold 0°C entire cycle (no revert needed)
