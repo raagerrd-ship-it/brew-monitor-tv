@@ -1015,15 +1015,15 @@ async function learnFromCurrentState(
   }
 
   // ── Skip margin/cooling-rate learning during PWM ON phases — targets are temporary ──
-  const { data: activePwmReverts } = await supabase
-    .from('pending_rapt_retries')
-    .select('controller_id')
-    .like('reason', '%PWM OFF%')
-    .limit(1)
-  if (activePwmReverts && activePwmReverts.length > 0) {
+  // Detect PWM burst from hardware target: -5 = cooling ON, 40 = heating ON
+  const anyPwmActive = controllersWithCooling.some(c => {
+    const t = parseFloat(String(c.target_temp ?? '20'))
+    return t <= -4 || t >= 39
+  })
+  if (anyPwmActive) {
     // Still learn warming rate + duty cycle — PWM only affects hardware target, not thermal behavior
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
-    log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (duty cycle uppdateras separat)`)
+    log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
