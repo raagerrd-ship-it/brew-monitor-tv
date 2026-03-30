@@ -251,26 +251,24 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
 
   // Fallback chain: load-specific → generic cooler_margin
+  // Batch all margin-related reads in one Promise.all (was 3-4 separate queries)
   const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
-  const [loadMargin, genericMargin] = await Promise.all([
+  const coolingRateKey = `cooling_rate:${tempBucket}:${loadBucket}`
+  const [loadMargin, genericMargin, minEffective, learnedRate] = await Promise.all([
     getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
     getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0),
+    getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0),
+    getLearnedParam(supabase, coolerController.controller_id, coolingRateKey, -1),
   ])
   const learnedMargin = loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
   const marginSource = loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
 
-  const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
-
   // ── Rate-aware margin boost during ramps ──────────────────
-  // If we know the required cooling rate AND the learned cooling rate for this zone,
-  // predict whether the current margin is sufficient
   let rateBoostFactor = 1.0
   if (isRamp && effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0) {
-    const learnedRate = await getLearnedParam(supabase, coolerController.controller_id, `cooling_rate:${tempBucket}:${loadBucket}`, -1)
     if (learnedRate.sampleCount >= 3 && learnedRate.value > 0.05) {
       const rateRatio = effectiveTarget.requiredRatePerHour / learnedRate.value
       if (rateRatio > 1.1) {
-        // Required rate exceeds learned rate — need more margin
         rateBoostFactor = Math.min(rateRatio, 1.5)
         log('RATE_PREDICT', 'action', `Ramp kräver ${effectiveTarget.requiredRatePerHour.toFixed(2)}°C/h men lärd rate är ${learnedRate.value.toFixed(2)}°C/h — ökar marginal ×${rateBoostFactor.toFixed(2)}`)
       } else {
@@ -315,6 +313,19 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerTemp = parseFloat(String(coolerController.current_temp ?? '0'))
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
+
+  // ── Pre-fetch recent adjustments once (replaces 4 separate DB queries) ──
+  const { data: recentAdjustments } = await supabase
+    .from('auto_cooling_adjustments')
+    .select('created_at, reason, old_target_temp, new_target_temp')
+    .eq('cooler_controller_id', coolerController.controller_id)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  const findRecentAdj = (pattern: string) =>
+    recentAdjustments?.find(a => a.reason.includes(pattern)) ?? null
+  const lastAdjustTime = recentAdjustments?.[0]?.created_at
+    ? new Date(recentAdjustments[0].created_at).getTime() : 0
 
   // Detect if the PREVIOUS cycle was a kick using the DB flag (set when kick is sent)
   const previousWasKick = !!(coolerController as any).hysteresis_kick_active
@@ -366,14 +377,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       }
 
       // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
-      const { data: lastKickAdj } = await supabase
-        .from('auto_cooling_adjustments')
-        .select('created_at')
-        .eq('cooler_controller_id', coolerController.controller_id)
-        .like('reason', '%Hysteres-kick%')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+      const lastKickAdj = findRecentAdj('Hysteres-kick')
       const kickCooldownMs = 15 * 60 * 1000
       const timeSinceLastKick = lastKickAdj
         ? Date.now() - new Date(lastKickAdj.created_at).getTime()
@@ -421,26 +425,37 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // ── Warming rate prediction: keep cooler ready if temp will exceed target soon ──
-    // Check if any tank's learned warming rate predicts it'll need cooling within 15 min
-    let keepCoolerReady = false
+    // Batch-read all warming_rate + steady_state_duty params for all controllers in ONE query
+    const warmingParamNames: string[] = []
+    const controllerBucketMap = new Map<string, string>()
     for (const c of controllersWithCooling) {
       const cBaseTarget = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
       const cTempBucket = getTempBucket(cBaseTarget)
-      const warmingParam = await getLearnedParam(supabase, c.controller_id, `warming_rate:${cTempBucket}`, -1)
+      controllerBucketMap.set(c.controller_id, cTempBucket)
+      warmingParamNames.push(`warming_rate:${cTempBucket}`, `steady_state_duty:${cTempBucket}`)
+    }
+    // Batch-read all warming params for all controllers at once
+    const allWarmingParams = await getLearnedParams(
+      supabase,
+      controllersWithCooling.map(c => c.controller_id),
+      [...new Set(warmingParamNames)],
+      Object.fromEntries([...new Set(warmingParamNames)].map(k => [k, -1])),
+    )
+
+    let keepCoolerReady = false
+    for (const c of controllersWithCooling) {
+      const cTempBucket = controllerBucketMap.get(c.controller_id)!
+      const warmingParam = allWarmingParams.get(`${c.controller_id}:warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
         const probeTemp = parseFloat(String(c.current_temp ?? '0'))
-        const targetTemp = cBaseTarget
+        const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-        const headroom = (targetTemp + hysteresis) - probeTemp // °C before cooling triggers
+        const headroom = (targetTemp + hysteresis) - probeTemp
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-
-          // Use learned duty cycle for smarter prediction:
-          // High duty cycle = controller spends a lot of time cooling = keep cooler ready sooner
-          const dutyParam = await getLearnedParam(supabase, c.controller_id, `steady_state_duty:${cTempBucket}`, -1)
+          const dutyParam = allWarmingParams.get(`${c.controller_id}:steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
           const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
-            ? 20  // high duty cycle → longer lookahead (keep cooler ready earlier)
-            : 15  // default
+            ? 20 : 15
 
           if (minutesUntilCooling < dutyThresholdMinutes) {
             const dutyInfo = dutyParam.sampleCount >= 3 ? ` duty=${Math.round(dutyParam.value * 100)}%` : ''
@@ -460,14 +475,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // Cooldown: only idle once per 30 min to let new utilization data arrive
-    const { data: lastIdleAdj } = await ctx.supabase
-      .from('auto_cooling_adjustments')
-      .select('created_at')
-      .eq('cooler_controller_id', coolerController.controller_id)
-      .like('reason', '%Alla controllers aktiverade 0%%')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const lastIdleAdj = findRecentAdj('Alla controllers aktiverade 0%')
     const idleCooldownMs = 30 * 60 * 1000
     const timeSinceLastIdle = lastIdleAdj
       ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
@@ -540,16 +548,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Manual override cooldown: respect user's cooler changes for 30 min ──
   // If the user manually changed the cooler target recently, don't override it.
   if (!previousWasKick) {
-    const { data: recentManualAdj } = await supabase
-      .from('auto_cooling_adjustments')
-      .select('created_at, reason, old_target_temp, new_target_temp')
-      .eq('cooler_controller_id', coolerController.controller_id)
-      .like('reason', '%Manuell hårdvaruändring%kylare-hanterad%')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const recentManualAdj = findRecentAdj('Manuell hårdvaruändring')
 
-    if (recentManualAdj) {
+    if (recentManualAdj && recentManualAdj.reason.includes('kylare-hanterad')) {
       const manualCooldownMs = 30 * 60 * 1000 // 30 min cooldown
       const timeSinceManual = Date.now() - new Date(recentManualAdj.created_at).getTime()
       if (timeSinceManual < manualCooldownMs) {
@@ -578,13 +579,6 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
   if (!previousWasKick) {
-    const { data: lastAdjust } = await supabase
-      .from('auto_cooling_adjustments')
-      .select('created_at')
-      .eq('cooler_controller_id', coolerController.controller_id)
-      .order('created_at', { ascending: false }).limit(1)
-
-    const lastAdjustTime = lastAdjust?.[0]?.created_at ? new Date(lastAdjust[0].created_at).getTime() : 0
     const timeSinceLastAdjust = Date.now() - lastAdjustTime
 
     if (timeSinceLastAdjust < 5 * 60 * 1000) {
