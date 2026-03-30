@@ -144,8 +144,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerUtilResult = await calculateSingleUtilization(supabase, coolerController)
   const coolerUtil = coolerUtilResult.rolling
 
-  // ── Measure cooler's own cooling rate ──
-  const coolerCoolingRate = await measureCoolingRate(supabase, coolerController.controller_id)
+  // ── Measure cooler's own cooling rate (cached) ──
+  const coolerCoolingRate = await measureCoolingRateCached(ctx, coolerController.controller_id)
 
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}${coolerCoolingRate != null ? ` rate=${coolerCoolingRate.toFixed(2)}°C/h` : ''}`, {
     target_temp: round1(currentCoolerTarget),
@@ -245,21 +245,16 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use context-specific margin (hold vs ramp) when available, fall back to generic cooler_margin
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
-  const activityBucket = await getActivityBucket(supabase, effectiveTarget.controllerId)
   const marginTypePrefix = isRamp ? 'ramp_margin' : 'hold_margin'
 
-  // Fallback chain: activity-specific → load-specific → generic cooler_margin
-  const activityMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}:${activityBucket}`
+  // Simplified fallback chain: load-specific → generic cooler_margin (activityBucket removed)
   const loadMarginKey = `${marginTypePrefix}:${tempBucket}:${loadBucket}`
-  const [activityMargin, loadMargin, genericMargin] = await Promise.all([
-    getLearnedParam(supabase, coolerController.controller_id, activityMarginKey, -1),
+  const [loadMargin, genericMargin] = await Promise.all([
     getLearnedParam(supabase, coolerController.controller_id, loadMarginKey, -1),
     getLearnedParam(supabase, coolerController.controller_id, `cooler_margin:${tempBucket}`, 5.0),
   ])
-  const learnedMargin = activityMargin.sampleCount >= 3 ? activityMargin
-    : loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
-  const marginSource = activityMargin.sampleCount >= 3 ? activityMarginKey
-    : loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
+  const learnedMargin = loadMargin.sampleCount >= 3 ? loadMargin : genericMargin
+  const marginSource = loadMargin.sampleCount >= 3 ? loadMarginKey : `cooler_margin:${tempBucket}`
 
   const minEffective = await getLearnedParam(supabase, coolerController.controller_id, `min_effective_margin:${tempBucket}`, 1.0)
 
@@ -301,7 +296,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // ── Log margin history snapshot ───────────────────────────
   const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
-  const actualRate = await measureCoolingRate(supabase, effectiveTarget.controllerId)
+  const actualRate = await measureCoolingRateCached(ctx, effectiveTarget.controllerId)
   await supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
@@ -1060,8 +1055,8 @@ async function learnFromCurrentState(
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
-  // ── Measure actual cooling rate from history (last 30 min) ──
-  const actualRate = await measureCoolingRate(supabase, lowestController.controller_id)
+  // ── Measure actual cooling rate from history (last 30 min, cached) ──
+  const actualRate = await measureCoolingRateCached(ctx, lowestController.controller_id)
 
   const lowestUtil = utilizations?.find(u => u.controllerId === lowestController.controller_id)
 
@@ -1069,19 +1064,12 @@ async function learnFromCurrentState(
   const activeTankCount = utilizations?.filter(u => u.isActivelyCooling).length ?? 0
   const loadBucket = activeTankCount === 0 ? 'load_0' : activeTankCount === 1 ? 'load_1' : 'load_2plus'
 
-  // ── Determine activity bucket for learning ──
-  const activityBucket = await getActivityBucket(supabase, lowestController.controller_id)
-
-  // ── Learn cooling rate per bucket+load+activity ──
+  // ── Learn cooling rate per bucket+load (activityBucket removed for faster convergence) ──
   if (actualRate !== null && actualRate > 0.05) {
-    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}:${activityBucket}`
-    const rateParamGeneric = `cooling_rate:${tempBucket}:${loadBucket}`
-    const [rateResult] = await Promise.all([
-      updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0),
-      updateLearnedParam(supabase, coolerController.controller_id, rateParamGeneric, actualRate, 0.01, 20.0),
-    ])
+    const rateParam = `cooling_rate:${tempBucket}:${loadBucket}`
+    const rateResult = await updateLearnedParam(supabase, coolerController.controller_id, rateParam, actualRate, 0.01, 20.0)
     if (Math.abs(rateResult.oldValue - rateResult.newValue) > 0.01) {
-      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}:${activityBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
+      log('RATE_LEARN', 'info', `🎓 [${tempBucket}:${loadBucket}] Cooling rate: ${rateResult.oldValue.toFixed(2)}→${rateResult.newValue.toFixed(2)}°C/h`)
     }
   }
 
@@ -1094,8 +1082,7 @@ async function learnFromCurrentState(
   // ── Determine if current state is hold or ramp for separate margin learning ──
   const isRamp = effectiveTarget.isRampingDown || (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0)
   const marginType = isRamp ? 'ramp_margin' : 'hold_margin'
-  const marginParam = `${marginType}:${tempBucket}:${loadBucket}:${activityBucket}`
-  const marginParamGeneric = `${marginType}:${tempBucket}:${loadBucket}`
+  const marginParam = `${marginType}:${tempBucket}:${loadBucket}`
 
   // ── Rate-based learning during active ramps ──
   if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
@@ -1114,11 +1101,8 @@ async function learnFromCurrentState(
       log('MARGIN_LEARN', 'pass', `[${tempBucket}] Rate adequate — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
     }
 
-    // Learn ramp-specific margin (both activity-specific and generic)
-    await Promise.all([
-      updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0),
-      updateLearnedParam(supabase, coolerController.controller_id, marginParamGeneric, currentMargin, 1.0, 15.0),
-    ])
+    // Learn ramp-specific margin
+    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
 
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
     return
@@ -1162,11 +1146,8 @@ async function learnFromCurrentState(
       }
     }
 
-    // Learn hold-specific margin (both activity-specific and generic)
-    await Promise.all([
-      updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0),
-      updateLearnedParam(supabase, coolerController.controller_id, marginParamGeneric, currentMargin, 1.0, 15.0),
-    ])
+    // Learn hold-specific margin
+    await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
 
     // Also learn max effective during hold if we have rate data
     if (actualRate !== null) {
@@ -1193,11 +1174,8 @@ async function learnFromCurrentState(
     log('MARGIN_LEARN', 'action', `[${tempBucket}] Når ej mål — ökar marginal: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
   }
 
-  // Learn hold-specific margin (both activity-specific and generic)
-  await Promise.all([
-    updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0),
-    updateLearnedParam(supabase, coolerController.controller_id, marginParamGeneric, currentMargin, 1.0, 15.0),
-  ])
+  // Learn hold-specific margin
+  await updateLearnedParam(supabase, coolerController.controller_id, marginParam, currentMargin, 1.0, 15.0)
 
   if (actualRate !== null) {
     await learnMinEffectiveMargin(supabase, coolerController.controller_id, tempBucket, currentMargin, actualRate, log, lowestUtil?.utilization)
@@ -1218,7 +1196,7 @@ async function learnWarmingRate(
   for (const c of controllersWithCooling) {
     // Use the controller's own target temp for bucket, not the cooler's
     const controllerBucket = getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20')))
-    const rate = await measureCoolingRate(supabase, c.controller_id)
+    const rate = await measureCoolingRateCached(ctx, c.controller_id)
     // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
     if (rate !== null && rate < -0.05) {
       const warmingRate = Math.abs(rate) // °C/h of passive warming
@@ -1259,34 +1237,16 @@ async function measureCoolingRate(
   return tempDiff / hoursDiff // positive = cooling
 }
 
-// ─── Get activity bucket for a controller ────────────────────
-// Looks up the fermentation activity_score via running session → brew → metrics
-// Returns 'activity_high' (≥40%) or 'activity_low' (<40%)
-
-async function getActivityBucket(
-  supabase: ReturnType<typeof createClient>,
+// ─── Cached wrapper for measureCoolingRate ───────────────────
+async function measureCoolingRateCached(
+  ctx: CoolerContext,
   controllerId: string,
-): Promise<'activity_high' | 'activity_low'> {
-  const { data: session } = await supabase
-    .from('fermentation_sessions')
-    .select('brew_id')
-    .eq('controller_id', controllerId)
-    .eq('status', 'running')
-    .limit(1)
-    .maybeSingle()
-
-  if (!session?.brew_id) return 'activity_low'
-
-  const { data: metrics } = await supabase
-    .from('brew_fermentation_metrics')
-    .select('activity_score')
-    .eq('brew_id', session.brew_id)
-    .limit(1)
-    .maybeSingle()
-
-  if (!metrics) return 'activity_low'
-
-  return parseFloat(String(metrics.activity_score)) >= 40 ? 'activity_high' : 'activity_low'
+): Promise<number | null> {
+  if (!ctx.coolingRateCache) ctx.coolingRateCache = new Map()
+  if (ctx.coolingRateCache.has(controllerId)) return ctx.coolingRateCache.get(controllerId) ?? null
+  const rate = await measureCoolingRate(ctx.supabase, controllerId)
+  ctx.coolingRateCache.set(controllerId, rate)
+  return rate
 }
 
 
