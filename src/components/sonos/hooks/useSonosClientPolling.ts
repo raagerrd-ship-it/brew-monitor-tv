@@ -74,7 +74,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const appPos = localProgressRef.current ?? nowPlayingRef.current?.position_ms ?? nowPlaying.position_ms ?? 0;
         const sonosPos = data.positionMillis ?? 0;
         const diff = appPos - sonosPos;
-        tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
+        tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
 
         if (!shouldSyncPlayback) return;
 

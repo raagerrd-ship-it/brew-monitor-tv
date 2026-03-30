@@ -141,17 +141,17 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         // Sync local progress from periodic push to prevent ticker drift,
-        // Sync position from bridge (now latency-compensated server-side)
+        // Sync position from bridge/DB (latency-compensated server-side)
         if (typeof incoming.position_ms === 'number' && incoming.position_ms >= 0) {
           const appPos = localProgressRef.current ?? prev.position_ms ?? 0;
-          const sonosPos = incoming.position_ms;
-          const drift = appPos - sonosPos;
+          const bridgePos = incoming.position_ms;
+          const drift = appPos - bridgePos;
 
-          tvDebug('sonos', `📊 Pos — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s${Math.abs(drift) > 3000 ? ' → korrigerad' : ''}`);
+          tvDebug('sonos', `📡 Bridge pos — App: ${Math.round(appPos / 1000)}s | Bridge: ${Math.round(bridgePos / 1000)}s | Diff: ${drift >= 0 ? '+' : ''}${(drift / 1000).toFixed(1)}s${Math.abs(drift) > 3000 ? ' → korrigerad' : ''}`);
 
           if (Math.abs(drift) > 3000) {
-            localProgressRef.current = sonosPos;
-            updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, incoming.duration_ms ?? prev.duration_ms);
+            localProgressRef.current = bridgePos;
+            updateProgressDOM(progressBarRef, debugTimeRef, bridgePos, incoming.duration_ms ?? prev.duration_ms);
           }
         }
 
