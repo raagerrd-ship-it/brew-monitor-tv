@@ -135,11 +135,6 @@ Deno.serve(async (req) => {
       // Controller states
       supabase.from('rapt_temp_controllers')
         .select('controller_id, name, current_temp, target_temp, pill_temp, actual_temp, profile_target_temp, dual_sensor_enabled, preferred_sensor, cooling_enabled, heating_enabled, is_glycol_cooler, cooling_hysteresis, min_target_temp, max_target_temp, last_update'),
-      // Recent boost outcomes
-      supabase.from('stall_boost_outcomes')
-        .select('controller_id, boost_degrees, sg_rate_before, sg_rate_after, outcome, created_at')
-        .gte('created_at', twentyFourHoursAgo)
-        .order('created_at', { ascending: false }),
       // Recent adjustments (last 24h)
       supabase.from('auto_cooling_adjustments')
         .select('cooler_controller_id, cooler_controller_name, old_target_temp, new_target_temp, original_target_temp, reason, created_at')
