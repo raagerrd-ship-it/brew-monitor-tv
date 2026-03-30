@@ -515,7 +515,7 @@ Deno.serve(async (req) => {
       followedControllersFullData, profileOwnedControllerIds,
       profileTargetMap, sessionBrewIdMap, cooloffControllerIds,
       profileStatusMap, lastAdjTimestampMap, pillCompSettings,
-      stallSettings, log,
+      log,
       updateBatch,
       pwmBursts,
       baseTargetMap,
