@@ -512,7 +512,7 @@ Deno.serve(async (req) => {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
       followedControllersFullData, profileOwnedControllerIds,
       profileTargetMap, sessionBrewIdMap, cooloffControllerIds,
-      profileStatusMap, lastAdjTimestampMap, pillCompSettings,
+      profileStatusMap, lastAdjTimestampMap,
       log,
       updateBatch,
       pwmBursts,
