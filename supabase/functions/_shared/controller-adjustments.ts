@@ -859,11 +859,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // the hardware's built-in thermostat would heat (probe < hwTarget).
           // Prevent this by lowering the hardware target below the probe temp.
           // Use tighter threshold (0.05°) during ramp override to prevent unwanted heating
-          const probeTemp = fc.current_temp ?? actualTemp
+          // RAPT's thermostat always compares against its own probe sensor.
+          const raptProbeTemp = fc.current_temp
           const suppressThreshold = rampOverrideApplied ? 0.05 : 0.3
-          if (actualTemp > actualTarget + suppressThreshold && probeTemp < ctrlTarget) {
-            const suppressTarget = round1(Math.max(probeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
-            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(probeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
+          if (raptProbeTemp != null && actualTemp > actualTarget + suppressThreshold && raptProbeTemp < ctrlTarget) {
+            const suppressTarget = round1(Math.max(raptProbeTemp - 2, parseFloat(String(fc.min_target_temp ?? '-10'))))
+            log('DUTY_ZERO_SUPPRESS', 'action', `${fc.name}: actual ${round1(actualTemp)}° > mål ${round1(actualTarget)}° men probe ${round1(raptProbeTemp)}° < hw ${ctrlTarget}° → sänker hw till ${suppressTarget}° för att stoppa värme`)
             if (ctx.updateBatch) {
               ctx.updateBatch.add(fc.controller_id, suppressTarget, ctrlTarget)
             } else {

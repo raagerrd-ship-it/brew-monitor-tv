@@ -19,3 +19,8 @@ Alla RAPT-controllers är konfigurerade med **5°C hysteres** (både kylning och
 
 ### Deadband integral decay (2026-03-30)
 - Decay-faktor 0.90 inom dödbandet (±0.05°C) för att eliminera residuala PWM-bursts
+
+### Suppressionslogik: explicit probe-sensor (2026-03-30)
+- Suppressions- och revert-mål baseras **alltid** på `fc.current_temp` (RAPT:s fysiska probe)
+- Aldrig fallback till `actualTemp` (pill/fusion) — om probe saknas → neutral target + loggvarning
+- Variabelnamn `raptProbeTemp` dokumenterar avsikten i koden
