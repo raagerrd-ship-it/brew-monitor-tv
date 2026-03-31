@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { memo, useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect } from "react";
 import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
@@ -7,6 +7,36 @@ import {
 import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
+
+/** Scrolls children horizontally when they overflow, then scrolls back */
+function MarqueeText({ children }: { children: React.ReactNode }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(0);
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const diff = inner.scrollWidth - outer.clientWidth;
+    setOverflow(diff > 2 ? diff : 0);
+  }, [children]);
+
+  return (
+    <div ref={outerRef} className="overflow-hidden text-white" style={{ fontSize: '16px' }}>
+      <div
+        ref={innerRef}
+        className="whitespace-nowrap inline-block"
+        style={overflow > 0 ? {
+          animation: `marquee-scroll ${3 + overflow * 0.02}s ease-in-out 2s infinite`,
+          '--marquee-offset': `-${overflow}px`,
+        } as React.CSSProperties : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 interface SonosWidgetProps {
   isMobile?: boolean;
@@ -141,11 +171,11 @@ export const SonosWidget = memo(function SonosWidget({
         onMouseEnter={e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
       >
-        <div className="truncate text-white" style={{ fontSize: '16px' }}>
+        <MarqueeText>
           {nowPlaying.artist_name && <span ref={artistNameRef} className="font-semibold">{nowPlaying.artist_name}</span>}
           {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-white/50 font-normal"> — </span>}
           <span ref={trackNameRef} className="text-white/70 font-normal">{nowPlaying.track_name}</span>
-        </div>
+        </MarqueeText>
 
         {/* Progress bar — battery-bar style */}
         {nowPlaying.duration_ms && (

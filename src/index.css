@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes marquee-scroll {
+  0%, 15% { transform: translateX(0); }
+  45%, 55% { transform: translateX(var(--marquee-offset, 0)); }
+  85%, 100% { transform: translateX(0); }
+}
+
 @keyframes marquee-seamless {
   0% {
     transform: translateX(0%);
