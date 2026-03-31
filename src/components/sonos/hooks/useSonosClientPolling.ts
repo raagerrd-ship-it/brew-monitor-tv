@@ -87,7 +87,9 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         }
 
         if (!isTrackMismatch) {
-          tvDebug('sonos', `📊 Sonos direkt — App: ${Math.round(appPos / 1000)}s | Sonos: ${Math.round(sonosPos / 1000)}s | Diff: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
+          const appRemaining = duration ? Math.round((duration - appPos) / 1000) : '?';
+          const sonosRemaining = duration ? Math.round((duration - sonosPos) / 1000) : '?';
+          tvDebug('sonos', `📊 Sonos direkt — App: -${appRemaining}s | Sonos: -${sonosRemaining}s | Drift: ${diff >= 0 ? '+' : ''}${(diff / 1000).toFixed(1)}s`);
           localProgressRef.current = sonosPos;
           updateProgressDOM(progressBarRef, debugTimeRef, sonosPos, duration);
         } else {
