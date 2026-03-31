@@ -199,8 +199,8 @@ Deno.serve(async (req) => {
       current_uri: currentURI ?? null,
       next_av_transport_uri: nextAVTransportURI ?? null,
       play_medium: playMedium ?? null,
-      stream_content: streamContent ?? null,
-      radio_show_md: radioShowMd ?? null,
+      stream_content: decodeXmlEntities(streamContent),
+      radio_show_md: decodeXmlEntities(radioShowMd),
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
       // Clear bg on new track to prevent stale bg flash
