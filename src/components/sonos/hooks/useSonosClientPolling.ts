@@ -180,5 +180,5 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
       tvDebug('sonos', `⏸️ Klient-poll stoppad (state: ${nowPlayingLatestRef.current?.playback_state})`);
       clearInterval(interval);
     };
-  }, [stableIsActive]);
+  }, [mountId]);
 }
