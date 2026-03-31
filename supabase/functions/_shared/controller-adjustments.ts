@@ -346,7 +346,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
           const ratePerMin = thermalRate / 60
           const dutyFraction = Math.min(lastDuty, 100) / 100
-          const deltaEst = ratePerMin * staleMinutes * dutyFraction
+          // Cap interpolation to max 0.3°C per stale window to prevent over-prediction
+          // at low temps where cooling slows dramatically (small ΔT to glycol)
+          const rawDelta = ratePerMin * staleMinutes * dutyFraction
+          const deltaEst = Math.min(rawDelta, 0.3)
           const sign = lastMode === 'cooling' ? -1 : 1
 
           interpolatedTemp = actualTemp + sign * deltaEst
