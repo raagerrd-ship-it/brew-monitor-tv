@@ -131,7 +131,6 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               if (result) {
                 setNowPlaying(cur => cur ? {
                   ...cur,
-                  ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
                   ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                   ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
                 } : cur);
