@@ -1,7 +1,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds, storageObjectExistsByPublicUrl } from "../_shared/sonos-storage.ts";
+import { resolveBackground, cleanupUnreferencedBackgrounds, storageObjectExistsByPublicUrl } from "../_shared/sonos-storage.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,7 +14,7 @@ const corsHeaders = {
  * This function is called by cron and handles:
  * 1. Pause → IDLE timeout (5 min stale pause detection)
  * 2. bg_only mode (regenerate background images on demand)
- * 3. Normal mode (generate missing background/widget images)
+ * 3. Normal mode (generate missing background images)
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -74,8 +74,6 @@ Deno.serve(async (req) => {
     }
 
     // --- Server-side pause timeout (5 min) ---
-    // Bridge pushes PAUSED state but may not handle the IDLE transition.
-    // This cron-triggered check ensures stale pauses become IDLE.
     const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
     const playbackState = existingRow.playback_state;
     const msSinceUpdate = existingRow.updated_at
@@ -91,7 +89,6 @@ Deno.serve(async (req) => {
     }
 
     if (playbackState === 'PLAYBACK_STATE_PAUSED' && msSinceUpdate > PAUSE_TIMEOUT_MS) {
-      // Stale pause → write IDLE, clean up images
       await supabase.from('sonos_now_playing').update({
         playback_state: 'PLAYBACK_STATE_IDLE',
         position_ms: 0,
@@ -128,14 +125,12 @@ Deno.serve(async (req) => {
 
     // --- bg_only mode: only regenerate background for existing track ---
     if (bgOnly) {
-      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, null, true, trackName);
-      if (result.bgUrl || result.widgetUrl) {
-        const updateFields: Record<string, any> = { updated_at: new Date().toISOString() };
-        if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
-        if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
+      const result = await resolveBackground(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, true, trackName);
+      if (result.bgUrl) {
+        const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl };
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
-        const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url').eq('id', existingRow.id).single();
-        if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.widget_art_url, row.next_bg_image_url, row.next_widget_art_url]).catch(() => {});
+        const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url').eq('id', existingRow.id).single();
+        if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.next_bg_image_url]).catch(() => {});
       }
       const duration = Date.now() - startTime;
       console.log(`[SonosSync] bg_only: regenerated for "${trackName}" in ${duration}ms`);
@@ -144,39 +139,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // --- Normal mode: generate missing images for current track ---
+    // --- Normal mode: generate missing background for current track ---
     let bgImageUrl = existingRow.bg_image_url || null;
-    let widgetArtUrl = existingRow.widget_art_url || null;
 
-    // Verify cached URLs still exist in storage
-    if (bgImageUrl || widgetArtUrl) {
-      const [bgExists, widgetExists] = await Promise.all([
-        bgImageUrl ? storageObjectExistsByPublicUrl(supabase, bgImageUrl) : Promise.resolve(false),
-        widgetArtUrl ? storageObjectExistsByPublicUrl(supabase, widgetArtUrl) : Promise.resolve(false),
-      ]);
+    // Verify cached URL still exists in storage
+    if (bgImageUrl) {
+      const bgExists = await storageObjectExistsByPublicUrl(supabase, bgImageUrl);
       if (!bgExists) bgImageUrl = null;
-      if (!widgetExists) widgetArtUrl = null;
     }
 
-    const needImages = !bgImageUrl || !widgetArtUrl;
-
-    if (needImages) {
-      const result = await resolveBackgroundAndWidget(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, widgetArtUrl, false, trackName);
+    if (!bgImageUrl) {
+      const result = await resolveBackground(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, false, trackName);
       if (result.bgUrl) bgImageUrl = result.bgUrl;
-      if (result.widgetUrl) widgetArtUrl = result.widgetUrl;
 
-      const updateFields: Record<string, any> = {};
-      if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
-      if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
-      if (Object.keys(updateFields).length > 0) {
-        await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
+      if (result.bgUrl) {
+        await supabase.from('sonos_now_playing').update({ bg_image_url: result.bgUrl }).eq('id', existingRow.id);
       }
 
-      cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, widgetArtUrl, existingRow.next_bg_image_url, existingRow.next_widget_art_url]).catch(() => {});
+      cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, existingRow.next_bg_image_url]).catch(() => {});
     }
 
     const totalMs = Date.now() - startTime;
-    console.log(`[SonosSync] Done in ${totalMs}ms - "${trackName}" (images ${needImages ? 'generated' : 'cached'})`);
+    console.log(`[SonosSync] Done in ${totalMs}ms - "${trackName}" (bg ${bgImageUrl ? 'ok' : 'missing'})`);
 
     return new Response(JSON.stringify({ ok: true, duration_ms: totalMs }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

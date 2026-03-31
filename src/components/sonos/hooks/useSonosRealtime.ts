@@ -107,11 +107,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           // Use preloaded next-track images if they match the incoming track
           const preloadMatch = prev.next_track_name === incoming.track_name;
           const preloadedBg = preloadMatch ? prev.next_bg_image_url : null;
-          const preloadedWidget = preloadMatch ? prev.next_widget_art_url : null;
           const preloadedArt = preloadMatch ? prev.next_album_art_url : null;
 
           const effectiveBg = incoming.bg_image_url || preloadedBg;
-          const effectiveWidget = incoming.widget_art_url || preloadedWidget;
           const effectiveArt = incoming.album_art_url || preloadedArt;
 
           if (effectiveBg && effectiveBg !== prev.bg_image_url) {
@@ -123,9 +121,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           return {
             ...incoming,
             bg_image_url: effectiveBg || null,
-            widget_art_url: effectiveWidget || null,
             album_art_url: effectiveArt || prev.album_art_url,
-            next_widget_art_url: null,
             next_bg_image_url: null,
             next_album_art_url: null,
             next_track_name: null,
@@ -145,15 +141,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
-        const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
         const bgChanged = incoming.bg_image_url && stripQs(incoming.bg_image_url) !== stripQs(prev.bg_image_url);
         // Also skip if we already sent this bg to the AlbumArt context
         const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
         const bgActuallyChanged = bgChanged && !bgAlreadySent;
-        const widgetChanged = incoming.widget_art_url && stripQs(incoming.widget_art_url) !== stripQs(prev.widget_art_url);
 
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
-        if (nextWidgetNew) { const img = new Image(); img.src = incoming.next_widget_art_url!; }
 
         if (bgActuallyChanged) {
           pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
@@ -165,14 +158,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
         }
 
-        const hasChanges = nextBgNew || nextWidgetNew || bgActuallyChanged || widgetChanged
+        const hasChanges = nextBgNew || bgActuallyChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
         if (!hasChanges) {
           // Keep PAUSED heartbeats observable to visibility logic.
-          // Without a new object here, a second paused RT/DB update never
-          // reaches useSonosVisibility because React skips the re-render.
           if (incoming.playback_state === 'PLAYBACK_STATE_PAUSED') {
             return { ...prev };
           }
@@ -184,11 +175,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           ...prev,
           playback_state: incoming.playback_state,
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
-          ...(widgetChanged ? { widget_art_url: incoming.widget_art_url } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
           ...(nextBgNew ? { next_bg_image_url: incoming.next_bg_image_url } : {}),
-          ...(nextWidgetNew ? { next_widget_art_url: incoming.next_widget_art_url } : {}),
           ...(incoming.next_album_art_url ? { next_album_art_url: incoming.next_album_art_url } : {}),
         };
       });
@@ -210,7 +199,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       try {
         const { data } = await supabase
           .from('sonos_now_playing')
-          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, widget_art_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_widget_art_url, track_seq, media_type')
+          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, track_seq, media_type')
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();

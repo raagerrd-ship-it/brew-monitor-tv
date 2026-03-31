@@ -47,11 +47,10 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
       const nextBg = prev.next_bg_image_url;
-      const nextWidget = prev.next_widget_art_url;
       const nextArt = prev.next_album_art_url;
       // Only use preloaded images if they match the incoming track
       const preloadMatchesTrack = prev.next_track_name === data.trackName;
-      const hasPreloaded = preloadMatchesTrack && !!(nextWidget || nextBg);
+      const hasPreloaded = preloadMatchesTrack && !!nextBg;
 
       const prevBg = bgSentRef.current;
 
@@ -132,7 +131,6 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               if (result) {
                 setNowPlaying(cur => cur ? {
                   ...cur,
-                  ...(result.widgetArtUrl ? { widget_art_url: result.widgetArtUrl } : {}),
                   ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
                   ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
                 } : cur);
@@ -151,10 +149,8 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
-        ...(nextWidget ? { widget_art_url: nextWidget } : {}),
         ...(nextBg ? { bg_image_url: nextBg } : {}),
         ...(nextArt ? { album_art_url: nextArt } : {}),
-        next_widget_art_url: null,
         next_bg_image_url: null,
         next_album_art_url: null,
         next_track_name: null,

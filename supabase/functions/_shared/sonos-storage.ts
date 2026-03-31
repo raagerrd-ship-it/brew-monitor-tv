@@ -1,4 +1,4 @@
-import { BgSettings, simpleHash, fetchAndDecodeJpeg, processBackground, processWidgetThumbnail } from "./image-processing.ts";
+import { BgSettings, simpleHash, fetchAndDecodeJpeg, processBackground } from "./image-processing.ts";
 
 // Upload base64 image to storage and return public URL
 async function uploadBackground(
@@ -39,24 +39,6 @@ async function uploadBackground(
     console.error('[SonosSync] Upload failed:', error);
     return null;
   }
-}
-
-// Check if a background file already exists in storage
-async function backgroundExists(supabase: any, fileName: string): Promise<string | null> {
-  const { data } = await supabase.storage
-    .from('sonos-backgrounds')
-    .list('', { search: fileName, limit: 1 });
-
-  const file = data?.find((f: any) => f.name === fileName);
-  if (file) {
-    const { data: urlData } = supabase.storage
-      .from('sonos-backgrounds')
-      .getPublicUrl(fileName);
-    // Use file's updated_at as stable cache-buster so browsers can cache the image
-    const fileTs = new Date(file.updated_at || file.created_at).getTime();
-    return urlData?.publicUrl ? `${urlData.publicUrl}?v=${fileTs}` : null;
-  }
-  return null;
 }
 
 // Extract filename from a storage public URL (e.g. "...sonos-backgrounds/abc.jpg?v=123" → "abc.jpg")
@@ -123,19 +105,18 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
   }
 }
 
-// Resolve background + widget thumbnail: always regenerate (no caching)
-export async function resolveBackgroundAndWidget(
+// Resolve background image: always regenerate (no caching)
+export async function resolveBackground(
   supabase: any,
   artUrl: string | null,
   trackId: string,
   settings: BgSettings,
   targetW: number,
   targetH: number,
-  _cachedWidgetUrl?: string | null,
   _forceRegenerate?: boolean,
   trackName?: string | null,
-): Promise<{ bgUrl: string | null; widgetUrl: string | null }> {
-  if (!artUrl) return { bgUrl: null, widgetUrl: null };
+): Promise<{ bgUrl: string | null }> {
+  if (!artUrl) return { bgUrl: null };
 
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
@@ -145,20 +126,15 @@ export async function resolveBackgroundAndWidget(
         .replace(/[^a-z0-9]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
     : '';
   const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
-  const widgetFileName = `${trackHash}${namePart}-widget-v1.jpg`;
 
   // Always fetch source and regenerate
   const decoded = await fetchAndDecodeJpeg(artUrl);
-  if (!decoded) return { bgUrl: null, widgetUrl: null };
+  if (!decoded) return { bgUrl: null };
 
   console.log(`[SonosSync] Generating BG: ${bgFileName}`);
   const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
-  const widgetBase64 = processWidgetThumbnail(decoded.data, decoded.width, decoded.height);
 
-  const [bgUrl, widgetUrl] = await Promise.all([
-    uploadBackground(supabase, bgBase64, bgFileName),
-    uploadBackground(supabase, widgetBase64, widgetFileName),
-  ]);
+  const bgUrl = await uploadBackground(supabase, bgBase64, bgFileName);
 
-  return { bgUrl, widgetUrl };
+  return { bgUrl };
 }

@@ -4,10 +4,8 @@ export interface NowPlaying {
   album_name?: string | null;
   album_art_url: string | null;
   bg_image_url?: string | null;
-  widget_art_url?: string | null;
   next_track_name?: string | null;
   next_artist_name?: string | null;
-  next_widget_art_url?: string | null;
   next_bg_image_url?: string | null;
   next_album_art_url?: string | null;
   track_seq?: number;
@@ -72,7 +70,7 @@ export async function triggerServerSync(): Promise<void> {
 }
 
 export async function fetchPlaybackStatus(): Promise<{
-  bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+  bgImageUrl?: string; albumArtUrl?: string;
   trackName?: string; artistName?: string; albumName?: string;
   playbackState?: string; positionMillis?: number; durationMillis?: number;
 } | null> {
@@ -101,21 +99,20 @@ export async function fetchPlaybackStatus(): Promise<{
  * Used after triggerServerSync to get bg/widget images without waiting for realtime.
  */
 export async function fetchNowPlayingImages(): Promise<{
-  bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+  bgImageUrl?: string; albumArtUrl?: string;
   trackName?: string;
 } | null> {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     const { data } = await supabase
       .from('sonos_now_playing')
-      .select('bg_image_url, widget_art_url, album_art_url, track_name')
+      .select('bg_image_url, album_art_url, track_name')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
     if (!data) return null;
     return {
       bgImageUrl: data.bg_image_url ?? undefined,
-      widgetArtUrl: data.widget_art_url ?? undefined,
       albumArtUrl: data.album_art_url ?? undefined,
       trackName: data.track_name ?? undefined,
     };
