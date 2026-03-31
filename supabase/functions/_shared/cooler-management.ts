@@ -625,6 +625,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     `${direction} kylare: margin ${effectiveMargin.toFixed(1)}°C [${marginSource}] under ${effectiveTarget.temp.toFixed(1)}°C (${effectiveTarget.source}${rateInfo})`,
     adjustments, effectiveTarget.controllerId, effectiveTarget.controllerName)
 
+  // Learn from current state AFTER adjustment — previously only called on no-op paths
+  await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
+
   return adjustments
 }
 
