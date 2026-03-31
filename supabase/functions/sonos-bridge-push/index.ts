@@ -155,7 +155,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sameTrack = existingRow?.track_name === trackName;
+    const decodedTrackName = decodeXmlEntities(trackName);
+    const sameTrack = existingRow?.track_name === decodedTrackName;
     const newTrackSeq = sameTrack
       ? (existingRow?.track_seq ?? 0)
       : ((existingRow?.track_seq ?? 0) + 1);
