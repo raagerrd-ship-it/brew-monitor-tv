@@ -5,7 +5,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake } from "lucide-react";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
 
@@ -293,28 +293,52 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded px-3 gap-4 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: controller.is_glycol_cooler ? '80px' : '180px', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
-                  onClick={isTvMode ? undefined : () => onControllerClick(controller)}
-                  onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
-                  onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                  title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
-                >
-                   {isControllerStale && (
-                     <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
-                   )}
+                 <div className={`relative flex items-center justify-center rounded px-3 gap-4 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: controller.is_glycol_cooler ? '120px' : '180px', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
+                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
+                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
+                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
+                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
+                 >
+                    {isControllerStale && (
+                      <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
+                    )}
 
-                   {/* Temp first (left) */}
-                   {(() => {
-                      const displayTemp = controller.actual_temp;
-                     return (
-                       <span className="font-semibold tabular-nums whitespace-nowrap" style={{
-                        fontSize: '16px',
-                        ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : controller.is_glycol_cooler ? { color: 'hsl(200 70% 60%)', textShadow: '0 0 8px hsl(200 70% 60% / 0.3)' } : {}),
-                      }}>
-                       {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                     </span>
-                     );
-                   })()}
+                    {/* Temp first (left) */}
+                    {(() => {
+                       const displayTemp = controller.actual_temp;
+                       if (controller.is_glycol_cooler) {
+                         const targetTemp = controller.target_temp;
+                         return (
+                           <div className="flex items-center gap-1.5">
+                             <Snowflake style={{ width: '0.85rem', height: '0.85rem', flexShrink: 0, color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)', filter: isControllerStale ? 'none' : 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                             <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                               fontSize: '16px',
+                               color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
+                               textShadow: isControllerStale ? 'none' : '0 0 8px hsl(200 70% 60% / 0.3)',
+                             }}>
+                               {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                             </span>
+                             {targetTemp !== null && (
+                               <span className="tabular-nums whitespace-nowrap" style={{
+                                 fontSize: '11px',
+                                 color: 'hsl(200 40% 50%)',
+                                 opacity: 0.8,
+                               }}>
+                                 →{targetTemp.toFixed(0)}°
+                               </span>
+                             )}
+                           </div>
+                         );
+                       }
+                      return (
+                        <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                         fontSize: '16px',
+                         ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                       }}>
+                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                      </span>
+                      );
+                    })()}
 
                    {/* Sensor icons (right) — show which sensors are active */}
                    {!isControllerStale && !controller.is_glycol_cooler && (() => {
