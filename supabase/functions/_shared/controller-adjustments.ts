@@ -325,11 +325,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
-    // Read mode + switch-pressure counter + last probe temp from fermentation_learnings
+    // Read mode + switch-pressure counter + thermal-rate learnings from fermentation_learnings
+    const thermalBucket = getTempBucket(actualTemp)
     const { data: pressureRows } = await supabase.from('fermentation_learnings')
       .select('parameter_name, learned_value, sample_count')
       .eq('controller_id', fc.controller_id)
-      .in('parameter_name', ['mode_switch_pressure', 'mode_last_probe', 'pid_current_mode', 'pid_last_duty', 'mode_last_step_index', 'pid_effective_target', 'thermal_rate_heating', 'thermal_rate_cooling'])
+      .in('parameter_name', [
+        'mode_switch_pressure',
+        'mode_last_probe',
+        'pid_current_mode',
+        'pid_last_duty',
+        'mode_last_step_index',
+        'pid_effective_target',
+        'thermal_rate_heating',
+        'thermal_rate_cooling',
+        `thermal_rate_heating:${thermalBucket}`,
+        `thermal_rate_cooling:${thermalBucket}`,
+      ])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
 
@@ -338,9 +350,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const lastModeVal = pressureMap.get('pid_current_mode')
       const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
       if (lastMode) {
-        const rateKey = `thermal_rate_${lastMode}`
-        const thermalRate = pressureMap.get(rateKey) ?? 0
-        const rateSamples = sampleCountMap.get(rateKey) ?? 0
+        const globalRateKey = `thermal_rate_${lastMode}`
+        const bucketRateKey = `${globalRateKey}:${thermalBucket}`
+        const bucketRate = pressureMap.get(bucketRateKey)
+        const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
+        const useBucketRate = bucketRate != null && bucketSamples >= 3
+        const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
+        const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
+        const rateSource = useBucketRate ? thermalBucket : 'global'
         const lastDuty = pressureMap.get('pid_last_duty') ?? 0
 
         if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
@@ -360,7 +377,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           if (Math.abs(interpolatedTemp - actualTemp) >= 0.05) {
             tempInterpolated = true
             log('TEMP_INTERPOLATED', 'info',
-              `${fc.name}: sensor ${actualTemp}° (${staleMinutes.toFixed(0)}min gammal) → est ${interpolatedTemp}° (rate ${thermalRate}°/h, duty ${lastDuty}%)`)
+              `${fc.name}: sensor ${actualTemp}° (${staleMinutes.toFixed(0)}min gammal) → est ${interpolatedTemp}° (rate ${thermalRate}°/h, källa ${rateSource}, duty ${lastDuty}%)`)
           }
         }
       }

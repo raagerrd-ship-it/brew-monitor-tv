@@ -144,7 +144,8 @@ export async function calculateCompensatedTarget(
   }
 
   // Learn thermal rate (side-effect: updates fermentation_learnings for interpolation)
-  await learnThermalRate(supabase, controllerId, mode, skipLearning)
+  const thermalBucket = getTempBucket(actualTemp ?? actualTarget)
+  await learnThermalRate(supabase, controllerId, mode, skipLearning, thermalBucket)
 
   // === Adaptive PI-term ===
   const deltaBucket = 'low'
@@ -427,21 +428,60 @@ const COOLING_FILTER: RateFilter = {
   normalise: Math.abs,
 }
 
+function getThermalRateParamName(mode: 'heating' | 'cooling', tempBucket?: string): string {
+  return tempBucket ? `thermal_rate_${mode}:${tempBucket}` : `thermal_rate_${mode}`
+}
+
 /**
  * Learn and retrieve the hardware thermal rate (°C/hour) for a controller.
+ * When tempBucket is provided, a bucket-specific rate is learned in parallel
+ * and preferred once it has enough samples.
  */
 export async function learnThermalRate(
   supabase: ReturnType<typeof createClient>,
   controllerId: string,
   mode: 'heating' | 'cooling',
   skipLearning?: boolean,
+  tempBucket?: string,
 ): Promise<number | null> {
   const filter = mode === 'heating' ? HEATING_FILTER : COOLING_FILTER
-  const result = await learnRateCore(
-    supabase, controllerId, `thermal_rate_${mode}`, filter,
-    !!skipLearning, `🏎️ Thermal rate ${controllerId} [${mode}]:`,
-  )
-  return result ? result.rate : null
+  const globalParamName = getThermalRateParamName(mode)
+  const globalLogPrefix = `🏎️ Thermal rate ${controllerId} [${mode}]:`
+
+  if (!tempBucket) {
+    const result = await learnRateCore(
+      supabase, controllerId, globalParamName, filter,
+      !!skipLearning, globalLogPrefix,
+    )
+    return result ? result.rate : null
+  }
+
+  const bucketFilter: RateFilter = {
+    accept: (r, temp, target) => getTempBucket(temp) === tempBucket && filter.accept(r, temp, target),
+    normalise: filter.normalise,
+  }
+
+  const [bucketResult, globalResult] = await Promise.all([
+    learnRateCore(
+      supabase,
+      controllerId,
+      getThermalRateParamName(mode, tempBucket),
+      bucketFilter,
+      !!skipLearning,
+      `🏎️ Thermal rate ${controllerId} [${mode}:${tempBucket}]:`,
+    ),
+    learnRateCore(
+      supabase,
+      controllerId,
+      globalParamName,
+      filter,
+      !!skipLearning,
+      globalLogPrefix,
+    ),
+  ])
+
+  if (bucketResult && bucketResult.sampleCount >= 3) return bucketResult.rate
+  return globalResult?.rate ?? bucketResult?.rate ?? null
 }
 
 /**
