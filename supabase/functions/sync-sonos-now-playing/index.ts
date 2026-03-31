@@ -9,10 +9,12 @@ const corsHeaders = {
 };
 
 /**
- * sync-sonos-now-playing — image processing only.
+ * sync-sonos-now-playing — pause timeout + image processing.
  * All metadata is pushed by Cast Away (UPnP bridge) via sonos-bridge-push.
- * This function reads the existing DB row and generates/regenerates
- * background + widget images when missing.
+ * This function is called by cron and handles:
+ * 1. Pause → IDLE timeout (5 min stale pause detection)
+ * 2. bg_only mode (regenerate background images on demand)
+ * 3. Normal mode (generate missing background/widget images)
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,9 +63,59 @@ Deno.serve(async (req) => {
 
     const existingRow = npResult.data;
 
-    if (!existingRow || !existingRow.album_art_url) {
+    if (!existingRow) {
       const duration = Date.now() - startTime;
-      console.log(`[SonosSync] No row or album art → skip in ${duration}ms`);
+      console.log(`[SonosSync] No row → skip in ${duration}ms`);
+      return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- Server-side pause timeout (5 min) ---
+    // Bridge pushes PAUSED state but may not handle the IDLE transition.
+    // This cron-triggered check ensures stale pauses become IDLE.
+    const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
+    const playbackState = existingRow.playback_state;
+    const msSinceUpdate = existingRow.updated_at
+      ? Date.now() - new Date(existingRow.updated_at).getTime()
+      : Infinity;
+
+    if (playbackState === 'PLAYBACK_STATE_IDLE') {
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] Already IDLE → skip in ${duration}ms`);
+      return new Response(JSON.stringify({ ok: true, idle: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (playbackState === 'PLAYBACK_STATE_PAUSED' && msSinceUpdate > PAUSE_TIMEOUT_MS) {
+      // Stale pause → write IDLE, clean up images
+      await supabase.from('sonos_now_playing').update({
+        playback_state: 'PLAYBACK_STATE_IDLE',
+        position_ms: 0,
+      }).eq('id', existingRow.id);
+
+      cleanupUnreferencedBackgrounds(supabase, []).catch(() => {});
+
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] Stale pause (${Math.round(msSinceUpdate / 1000)}s) → IDLE in ${duration}ms`);
+      return new Response(JSON.stringify({ ok: true, idle: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (playbackState === 'PLAYBACK_STATE_PAUSED' && msSinceUpdate <= PAUSE_TIMEOUT_MS) {
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] Still paused (${Math.round(msSinceUpdate / 1000)}s) → skip in ${duration}ms`);
+      return new Response(JSON.stringify({ ok: true, paused: true, duration_ms: duration }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- No album art → nothing to process ---
+    if (!existingRow.album_art_url) {
+      const duration = Date.now() - startTime;
+      console.log(`[SonosSync] No album art → skip in ${duration}ms`);
       return new Response(JSON.stringify({ ok: true, skipped: true, duration_ms: duration }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -80,7 +132,6 @@ Deno.serve(async (req) => {
         if (result.bgUrl) updateFields.bg_image_url = result.bgUrl;
         if (result.widgetUrl) updateFields.widget_art_url = result.widgetUrl;
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
-        // Cleanup
         const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url').eq('id', existingRow.id).single();
         if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.widget_art_url, row.next_bg_image_url, row.next_widget_art_url]).catch(() => {});
       }
@@ -119,7 +170,6 @@ Deno.serve(async (req) => {
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
       }
 
-      // Cleanup unreferenced files (non-blocking)
       cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, widgetArtUrl, existingRow.next_bg_image_url, existingRow.next_widget_art_url]).catch(() => {});
     }
 

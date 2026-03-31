@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
       radioShowMd,
       originalTrackNumber,
       protocolInfo,
+      // Bridge self-registration fields
+      groupId: bridgeGroupId,
+      groupName: bridgeGroupName,
     } = body;
 
     if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
