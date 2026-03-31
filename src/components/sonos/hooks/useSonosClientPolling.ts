@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying, isSeqStale,
@@ -30,8 +30,12 @@ interface UseSonosClientPollingParams {
 }
 
 /**
- * 5s poll for position sync + next track metadata + pause resume detection.
+ * 30s poll for position sync + next track metadata + pause resume detection.
  * Uses monotonic seq-gate to reject stale data.
+ *
+ * The effect starts/stops based on isConnected, showWidget, and whether
+ * there is an active playing track. Track name and playback state changes
+ * are tracked via refs to avoid tearing down the interval on every RT update.
  */
 export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   const {
@@ -42,17 +46,30 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     acceptedSeqRef, swappedFromRef,
   } = params;
 
+  // Derive a stable "should poll" boolean — only changes when we truly
+  // transition between "has active playing track" and "doesn't".
+  const isActive = !!(
+    isConnected && showWidget &&
+    nowPlaying?.track_name &&
+    nowPlaying.playback_state !== 'PLAYBACK_STATE_IDLE' &&
+    nowPlaying.playback_state !== 'PLAYBACK_STATE_PAUSED'
+  );
+
+  // Keep a ref so the poll closure always reads the latest nowPlaying
+  const nowPlayingLatestRef = useRef(nowPlaying);
+  nowPlayingLatestRef.current = nowPlaying;
+
   useEffect(() => {
-    if (!isConnected || !showWidget) return;
-    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
+    if (!isActive) return;
 
-    tvDebug('sonos', `▶️ Klient-poll startad (state: ${nowPlaying.playback_state}, track: "${nowPlaying.track_name}")`);
-
-    const shouldSyncPlayback = PLAYBACK_POLL_INTERVAL > 0;
-    const intervalMs = shouldSyncPlayback ? PLAYBACK_POLL_INTERVAL : 10_000;
+    const np = nowPlayingLatestRef.current;
+    tvDebug('sonos', `▶️ Klient-poll startad (state: ${np?.playback_state}, track: "${np?.track_name}")`);
 
     const poll = async () => {
-      if (shouldSyncPlayback && Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
+      const current = nowPlayingLatestRef.current;
+      if (!current) return;
+
+      if (Date.now() - lastPredictivePollRef.current < PREDICTIVE_COOLDOWN_MS) return;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
@@ -76,8 +93,8 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         const sonosPos = data.positionMillis ?? 0;
         const appPos = localProgressRef.current ?? 0;
         const diff = appPos - sonosPos;
-        const duration = data.durationMillis ?? nowPlaying.duration_ms;
-        const currentTrack = nowPlayingRef.current?.track_name ?? nowPlaying.track_name;
+        const duration = data.durationMillis ?? current.duration_ms;
+        const currentTrack = nowPlayingRef.current?.track_name ?? current.track_name;
         const isStaleSeq = isSeqStale(acceptedSeqRef.current, data.trackSeq);
         const isTrackMismatch = !!(currentTrack && data.trackName && data.trackName !== currentTrack);
 
@@ -96,11 +113,9 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
           tvDebug('sonos', `🔒 Sonos direkt ignorerad: "${data.trackName}" ≠ "${currentTrack}"`);
         }
 
-        if (!shouldSyncPlayback) return;
-
         if (!data.trackName) {
           if (data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0) return;
-          if (data.playbackState !== nowPlaying.playback_state) {
+          if (data.playbackState !== current.playback_state) {
             setNowPlaying(prev => prev ? { ...prev, playback_state: data.playbackState } : prev);
           }
           return;
@@ -109,12 +124,11 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
         // Transient IDLE during skip
         const isTransientIdle = data.playbackState === 'PLAYBACK_STATE_IDLE' && data.positionMillis === 0;
 
-        const current = nowPlayingRef.current;
-        const trackChanged = (current?.track_name ?? nowPlaying.track_name) !== data.trackName;
+        const latest = nowPlayingRef.current;
+        const trackChanged = (latest?.track_name ?? current.track_name) !== data.trackName;
 
         if (trackChanged) {
           if (!isTransientIdle) {
-            // Suppress server sync if we recently did a predictive swap (avoids stale revert)
             const swapped = swappedFromRef.current;
             const recentSwap = swapped && (Date.now() - swapped.ts) < 15_000;
             if (recentSwap) {
@@ -124,7 +138,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
               triggerServerSync();
             }
           }
-        } else if (!trackChanged) {
+        } else {
           // Same track — only sync state + duration
           setNowPlaying(prev => {
             if (!prev) return prev;
@@ -149,10 +163,10 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     };
 
     poll();
-    const interval = setInterval(poll, intervalMs);
+    const interval = setInterval(poll, PLAYBACK_POLL_INTERVAL);
     return () => {
-      tvDebug('sonos', `⏸️ Klient-poll stoppad (state: ${nowPlaying.playback_state})`);
+      tvDebug('sonos', `⏸️ Klient-poll stoppad (state: ${nowPlayingLatestRef.current?.playback_state})`);
       clearInterval(interval);
     };
-  }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.playback_state]);
+  }, [isActive]);
 }
