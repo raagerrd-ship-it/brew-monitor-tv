@@ -207,11 +207,13 @@ Deno.serve(async (req) => {
 
     console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
-    // Accept pre-fetched token from caller (e.g. full-sync-brew-data) to avoid double auth
+    // Accept pre-fetched token and flags from caller (e.g. full-sync-brew-data)
     let passedToken: string | null = null;
+    let discoverNewDevices = false;
     try {
       const body = await req.json();
       passedToken = body?.access_token || null;
+      discoverNewDevices = body?.discover === true;
     } catch { /* no body or invalid JSON — that's fine */ }
 
     // Read sync_settings + auto_cooling_settings once (reused across phases)
