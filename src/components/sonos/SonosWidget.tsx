@@ -78,14 +78,15 @@ export const SonosWidget = memo(function SonosWidget({
     swappedFromRef,
   });
 
-  // Send bg image on init when nowPlaying arrives with bg_image_url
+  // Send bg image on init when nowPlaying arrives with bg_image_url,
+  // but never re-activate background while the widget is intentionally hidden.
   useEffect(() => {
-    if (nowPlaying?.bg_image_url && !bgSentRef.current) {
+    if (!shouldHide && nowPlaying?.bg_image_url && !bgSentRef.current) {
       onAlbumArtChangeRef.current?.(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
       bgSentRef.current = nowPlaying.bg_image_url;
       pushToBgBuffer(validBgBufferRef.current, nowPlaying.bg_image_url);
     }
-  }, [nowPlaying?.bg_image_url]);
+  }, [nowPlaying?.bg_image_url, nowPlaying?.track_name, shouldHide]);
 
   const { shouldHide } = useSonosVisibility({
     isConnected, showWidget, nowPlaying,
@@ -98,6 +99,7 @@ export const SonosWidget = memo(function SonosWidget({
     if (isHidden) {
       onAlbumArtChangeRef.current?.(null);
       bgSentRef.current = null;
+      validBgBufferRef.current = [];
     }
   }, [isHidden]);
 
