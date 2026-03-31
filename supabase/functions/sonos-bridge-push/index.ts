@@ -170,12 +170,12 @@ Deno.serve(async (req) => {
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
       group_id: groupId,
-      track_name: trackName,
-      artist_name: artistName || null,
-      album_name: albumName || null,
+      track_name: decodeXmlEntities(trackName),
+      artist_name: decodeXmlEntities(artistName),
+      album_name: decodeXmlEntities(albumName),
       album_art_url_small: albumArtUri || null,
-      next_track_name: nextTrackName || null,
-      next_artist_name: nextArtistName || null,
+      next_track_name: decodeXmlEntities(nextTrackName),
+      next_artist_name: decodeXmlEntities(nextArtistName),
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
       position_ms: compensatedPosition,
