@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackgroundAndWidget, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
+import { resolveBackground, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
 
 const corsHeaders = {
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, position_ms, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, playback_state, album_art_url')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -189,12 +189,10 @@ Deno.serve(async (req) => {
       radio_show_md: radioShowMd ?? null,
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
-      // Clear images on new track to prevent stale bg flash
+      // Clear bg on new track to prevent stale bg flash
       ...(sameTrack ? {} : {
         bg_image_url: null,
-        widget_art_url: null,
         next_bg_image_url: null,
-        next_widget_art_url: null,
       }),
     };
 
@@ -221,7 +219,7 @@ Deno.serve(async (req) => {
       console.log(`[BridgePush] Same track but missing bg — running Phase 2`);
     }
 
-    // --- Phase 2: Resolve art + generate background/widget ---
+    // --- Phase 2: Resolve art + generate background ---
     // If bridge uploaded art, use it directly; otherwise fall back to resolveAlbumArt
     let currentArtUrl: string | null = null;
     if (bridgeHasArt) {
@@ -236,14 +234,13 @@ Deno.serve(async (req) => {
     if (currentArtUrl) {
       if (!bridgeHasArt) imageUpdate.album_art_url = currentArtUrl;
       const trackId = trackName || '';
-      const result = await resolveBackgroundAndWidget(
-        supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, null, false, trackName
+      const result = await resolveBackground(
+        supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
       );
       if (result.bgUrl) imageUpdate.bg_image_url = result.bgUrl;
-      if (result.widgetUrl) imageUpdate.widget_art_url = result.widgetUrl;
     }
 
-    // Next track images (skip for radio — next track metadata is unreliable)
+    // Next track background (skip for radio — next track metadata is unreliable)
     const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
     if (nextTrackName && !isRadio) {
       try {
@@ -251,17 +248,15 @@ Deno.serve(async (req) => {
         if (bridgeHasNextArt) {
           nextArtUrl = bustCache(nextAlbumArtUri);
         } else {
-          // Resolve art even if nextAlbumArtUri is missing — resolveAlbumArt will fall back to Spotify search
           const nextResolved = await resolveAlbumArt(nextAlbumArtUri || null, undefined, nextTrackName, nextArtistName);
           nextArtUrl = nextResolved.medium;
         }
         if (nextArtUrl) {
           if (!bridgeHasNextArt) imageUpdate.next_album_art_url = nextArtUrl;
-          const nextResult = await resolveBackgroundAndWidget(
-            supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, null, false, nextTrackName
+          const nextResult = await resolveBackground(
+            supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
           );
           if (nextResult.bgUrl) imageUpdate.next_bg_image_url = nextResult.bgUrl;
-          if (nextResult.widgetUrl) imageUpdate.next_widget_art_url = nextResult.widgetUrl;
         }
       } catch (e) {
         console.error(`[BridgePush] Next track images error:`, e);
@@ -274,17 +269,17 @@ Deno.serve(async (req) => {
 
       // Cleanup old backgrounds
       const { data: row } = await supabase.from('sonos_now_playing')
-        .select('bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url')
+        .select('bg_image_url, next_bg_image_url')
         .eq('id', rowId).single();
       if (row) {
         cleanupUnreferencedBackgrounds(supabase, [
-          row.bg_image_url, row.widget_art_url, row.next_bg_image_url, row.next_widget_art_url,
+          row.bg_image_url, row.next_bg_image_url,
         ]).catch(() => {});
       }
     }
 
     const totalMs = Date.now() - startTime;
-    console.log(`[BridgePush] Phase 2 done in ${totalMs}ms — bg: ${!!imageUpdate.bg_image_url}, widget: ${!!imageUpdate.widget_art_url}`);
+    console.log(`[BridgePush] Phase 2 done in ${totalMs}ms — bg: ${!!imageUpdate.bg_image_url}`);
 
     return new Response(JSON.stringify({
       ok: true,
@@ -292,7 +287,6 @@ Deno.serve(async (req) => {
       duration_ms: totalMs,
       phase1_ms: phase1Ms,
       has_bg: !!imageUpdate.bg_image_url,
-      has_widget: !!imageUpdate.widget_art_url,
       bridge_art: bridgeHasArt,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
