@@ -171,10 +171,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           // Without a new object here, a second paused RT/DB update never
           // reaches useSonosVisibility because React skips the re-render.
           if (incoming.playback_state === 'PLAYBACK_STATE_PAUSED') {
-            return {
-              ...prev,
-              updated_at: incoming.updated_at ?? prev.updated_at,
-            };
+            return { ...prev };
           }
 
           return prev;
