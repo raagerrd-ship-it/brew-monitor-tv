@@ -46,6 +46,8 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     if (!isConnected || !showWidget) return;
     if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
 
+    tvDebug('sonos', `▶️ Klient-poll startad (state: ${nowPlaying.playback_state}, track: "${nowPlaying.track_name}")`);
+
     const shouldSyncPlayback = PLAYBACK_POLL_INTERVAL > 0;
     const intervalMs = shouldSyncPlayback ? PLAYBACK_POLL_INTERVAL : 10_000;
 
@@ -146,6 +148,9 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
 
     poll();
     const interval = setInterval(poll, intervalMs);
-    return () => clearInterval(interval);
+    return () => {
+      tvDebug('sonos', `⏸️ Klient-poll stoppad (state: ${nowPlaying.playback_state})`);
+      clearInterval(interval);
+    };
   }, [isConnected, showWidget, nowPlaying?.track_name, nowPlaying?.playback_state]);
 }
