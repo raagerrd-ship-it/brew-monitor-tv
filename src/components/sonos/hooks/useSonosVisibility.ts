@@ -74,7 +74,7 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
       wasPausedRef.current = false;
       setPauseHidden(false);
     }
-  }, [isPaused, isInactive, nowPlaying?.updated_at]);
+  }, [isPaused, isInactive, nowPlaying]);
 
   const shouldHide = isInactive || (wantsToHide && graceExpired) || pauseHidden;
   return { shouldHide };
