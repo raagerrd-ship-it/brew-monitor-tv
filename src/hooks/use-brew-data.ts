@@ -249,6 +249,7 @@ export function useBrewData(): UseBrewDataReturn {
           })),
           controller_current_temp: controller?.current_temp ?? null,
           controller_pill_temp: controller?.pill_temp ?? null,
+          controller_actual_temp: (controller as any)?.actual_temp ?? null,
           controller_target_temp: controller?.target_temp ?? null,
           controller_profile_target_temp: controller?.profile_target_temp ?? null,
         });

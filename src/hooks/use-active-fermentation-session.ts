@@ -28,6 +28,7 @@ export interface SessionWithDetails extends FermentationSession {
 export interface ControllerData {
   current_temp: number | null;
   pill_temp: number | null;
+  actual_temp: number | null;
   target_temp: number | null;
   profile_target_temp: number | null;
   name: string;
@@ -131,6 +132,7 @@ export function useActiveFermentationSession({
       setControllerData({
         current_temp: preloadedSession.controller_current_temp,
         pill_temp: preloadedSession.controller_pill_temp ?? null,
+        actual_temp: preloadedSession.controller_actual_temp ?? null,
         target_temp: preloadedSession.controller_target_temp,
         profile_target_temp: preloadedSession.controller_profile_target_temp ?? null,
         name: '',
@@ -160,6 +162,7 @@ export function useActiveFermentationSession({
           ...prev,
           current_temp: newData.current_temp ?? prev?.current_temp ?? null,
           pill_temp: newData.pill_temp ?? prev?.pill_temp ?? null,
+          actual_temp: newData.actual_temp ?? prev?.actual_temp ?? null,
           target_temp: newData.target_temp ?? prev?.target_temp ?? null,
           profile_target_temp: newData.profile_target_temp ?? prev?.profile_target_temp ?? null,
           name: prev?.name ?? '',
@@ -194,7 +197,7 @@ export function useActiveFermentationSession({
       const [profileRes, stepsRes, controllerRes] = await Promise.all([
         supabase.from('fermentation_profiles').select('*').eq('id', sessions.profile_id).single(),
         supabase.from('fermentation_profile_steps').select('*').eq('profile_id', sessions.profile_id).order('step_order'),
-        supabase.from('rapt_temp_controllers').select('current_temp, pill_temp, target_temp, profile_target_temp, name').eq('controller_id', sessions.controller_id).single(),
+        supabase.from('rapt_temp_controllers').select('current_temp, pill_temp, actual_temp, target_temp, profile_target_temp, name').eq('controller_id', sessions.controller_id).single(),
       ]);
 
       setSession({
