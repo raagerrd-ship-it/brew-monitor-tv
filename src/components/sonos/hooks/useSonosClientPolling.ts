@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying, isSeqStale,
