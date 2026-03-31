@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
       radioShowMd,
       originalTrackNumber,
       protocolInfo,
+      // Bridge self-registration fields
+      groupId: bridgeGroupId,
+      groupName: bridgeGroupName,
     } = body;
 
     if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
@@ -88,7 +91,7 @@ Deno.serve(async (req) => {
     // Fetch settings + existing row in parallel
     const [settingsResult, existingResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
+        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
@@ -99,7 +102,19 @@ Deno.serve(async (req) => {
 
     const settings = settingsResult.data;
     const existingRow = existingResult.data;
-    const groupId = settings?.selected_group_id || 'bridge';
+    const groupId = bridgeGroupId || settings?.selected_group_id || 'bridge';
+
+    // Auto-register group from bridge if settings are missing or outdated
+    if (bridgeGroupId && (!settings?.selected_group_id || settings.selected_group_id !== bridgeGroupId)) {
+      const settingsUpdate: Record<string, any> = { selected_group_id: bridgeGroupId };
+      if (bridgeGroupName) settingsUpdate.selected_group_name = bridgeGroupName;
+      if (settings) {
+        await supabase.from('sonos_settings').update(settingsUpdate).eq('id', (settings as any).id || settings);
+      } else {
+        await supabase.from('sonos_settings').insert({ ...settingsUpdate, show_on_dashboard: true });
+      }
+      console.log(`[BridgePush] Auto-registered group "${bridgeGroupName || bridgeGroupId}"`);
+    }
 
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
