@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     // Fetch settings + existing row in parallel
     const [settingsResult, existingResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
+        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
