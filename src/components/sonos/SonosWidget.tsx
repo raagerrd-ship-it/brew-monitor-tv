@@ -141,11 +141,11 @@ export const SonosWidget = memo(function SonosWidget({
         onMouseEnter={e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
       >
-        <div className="truncate text-white" style={{ fontSize: '16px' }}>
+        <MarqueeText>
           {nowPlaying.artist_name && <span ref={artistNameRef} className="font-semibold">{nowPlaying.artist_name}</span>}
           {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-white/50 font-normal"> — </span>}
           <span ref={trackNameRef} className="text-white/70 font-normal">{nowPlaying.track_name}</span>
-        </div>
+        </MarqueeText>
 
         {/* Progress bar — battery-bar style */}
         {nowPlaying.duration_ms && (
