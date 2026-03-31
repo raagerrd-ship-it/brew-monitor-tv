@@ -109,6 +109,7 @@ export async function fetchNowPlayingImages(): Promise<{
     const { data } = await supabase
       .from('sonos_now_playing')
       .select('bg_image_url, widget_art_url, album_art_url, track_name')
+      .order('updated_at', { ascending: false })
       .limit(1)
       .single();
     if (!data) return null;

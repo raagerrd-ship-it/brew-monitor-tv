@@ -43,12 +43,14 @@ Deno.serve(async (req) => {
     const [settingsResult, npResult] = await Promise.all([
       supabase.from('sonos_settings')
         .select('bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+        .order('created_at', { ascending: true })
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
         .select('*')
+        .order('updated_at', { ascending: false })
         .limit(1)
-        .single(),
+        .maybeSingle(),
     ]);
 
     const settings = settingsResult.data;
