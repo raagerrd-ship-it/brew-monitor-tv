@@ -1,61 +1,71 @@
 
 
-## Audit: `current_temp` → `actual_temp` SSOT cleanup
+## Ta bort alla `current_temp`-fallbacks — `actual_temp` eller `null`
 
 ### Problem
-`current_temp` (raw probe reading) leaks into UI and logic where `actual_temp` (the fused SSOT value) should be used. This causes incorrect temperatures to display and incorrect decisions in places like cooling detection.
+Koden har fortfarande `actual_temp ?? getActualTemp(...)` och `actual_temp ?? current_temp` fallbacks på 6 ställen. Om `actual_temp` är `null` faller den tyst tillbaka till rå probe-data, vilket kan ge felaktig temp utan varning.
 
-### Scope
-The DB column `current_temp` on `rapt_temp_controllers` stays — it stores the raw probe value from RAPT hardware. The rename to `probe_temp` is a separate future task. This plan ensures **no consumer reads `current_temp` directly** except as a diagnostic/raw detail.
+### Princip
+`actual_temp` är SSOT. Är den `null` → visa `null` (dvs "--") så att det syns att data saknas.
 
-### Files to change
+### Filer att ändra
 
-**1. `src/types/brew.ts` — TempController interface**
-- Add `actual_temp: number | null` field
-- Keep `current_temp` but document it as raw probe (internal only)
+**1. `src/hooks/use-controller-dialog.ts` (rad 248)**
+```
+// Före: ctrl.actual_temp ?? ctrl.current_temp
+// Efter: ctrl.actual_temp
+const sensorTemp = ctrl.actual_temp ?? null;
+```
 
-**2. `src/components/RaptControllerDialog.tsx` — local TempController interface**
-- Add `actual_temp: number | null`
-- Remove `(currentController as any).actual_temp` cast on line 59 — use typed field directly
+**2. `src/components/DashboardHeader.tsx` (rad 308)**
+```
+// Före: controller.actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp)
+// Efter: controller.actual_temp
+const displayTemp = controller.actual_temp;
+```
 
-**3. `src/hooks/use-controller-dialog.ts` (lines 248-256)**
-- Change `ctrl.current_temp` → `ctrl.actual_temp ?? ctrl.current_temp` for `isActivelyCooling` / `isActivelyHeating` detection
+**3. `src/components/RaptControllerDialog.tsx` (rad 60)**
+```
+// Före: currentController.actual_temp ?? getActualTemp(...)
+// Efter: currentController.actual_temp
+const actualTemp = currentController.actual_temp;
+```
 
-**4. `src/components/DashboardHeader.tsx` (line 308)**
-- Remove `(controller as any).actual_temp` cast — use typed `controller.actual_temp` directly
+**4. `src/components/RaptControllersManagement.tsx` (rad 60)**
+```
+// Före: (controller as any).actual_temp ?? getActualTemp(...)
+// Efter: controller.actual_temp   (ta bort any-cast också)
+const displayTemp = controller.actual_temp;
+```
 
-**5. `src/components/fermentation/StartFermentationSessionDialog.tsx` (lines 97, 330)**
-- Add `actual_temp` to the select query
-- Display `actual_temp` instead of `current_temp` in controller dropdown
+**5. `src/components/brew-card/TempStat.tsx` (rad 32)**
+```
+// Före: (controller as any)?.actual_temp ?? getActualTemp(...) ?? brew.currentTemp
+// Efter: controller?.actual_temp ?? null
+// brew.currentTemp är pill-temp från brew-readings, separat domän — behåll som sista fallback
+const displayTemp = controller?.actual_temp ?? brew.currentTemp;
+```
 
-**6. `src/components/AutomationFeatureStatus.tsx` (lines 118-120)**
-- Use `actual_temp` instead of `current_temp` for cooler status display
+**6. `src/components/fermentation/ActiveFermentationSession.tsx` (rad 64)**
+```
+// Före: controllerData?.actual_temp ?? getActualTemp(...)
+// Efter: controllerData?.actual_temp ?? null
+const actualTemp = controllerData?.actual_temp ?? null;
+```
 
-**7. `src/hooks/use-settings-data.ts`**
-- Already fetches `actual_temp` — just ensure the mapped interface uses it for display logic
+**7. `src/components/AutomationFeatureStatus.tsx` (rad 118)**
+```
+// Före: (cooler as any).actual_temp ?? cooler.current_temp
+// Efter: cooler.actual_temp   (ta bort any-cast)
+const actualCoolerTemp = cooler.actual_temp;
+```
 
-**8. `src/hooks/use-brew-data.ts` (lines 250, 382, 556-558)**
-- `controller_current_temp` mapping: use `actual_temp` as primary
-- `currentTemp` from `brew_readings.current_temp`: this is brew pill temp, different context — leave as-is (this is the RAPT pill reading stored on the brew, not the controller probe)
+### Ej ändrat
+- `getActualTemp()` i `src/lib/temp-display.ts` — kan markeras deprecated/tas bort i framtiden
+- Backend edge functions — de skriver `actual_temp`, korrekt
+- `brew_readings.current_temp` — annan domän (pill-data på brygg-nivå)
+- Diagnostisk text i `RaptControllerDialog` rad 95 som visar "Probe: X° · Pill: Y°" — det är avsiktligt diagnostiskt, ok
 
-**9. `src/hooks/use-brew-page.ts` (line 106)**
-- Use `actual_temp` instead of `current_temp` for `controller_current_temp`
-
-**10. `src/types/fermentation.ts` — FermentationSessionData**
-- Rename `controller_current_temp` → keep it but populate from `actual_temp`
-
-**11. `src/hooks/use-controllers-management.ts`**
-- Add `actual_temp` to interface and select query
-
-### Not changed (correct usage)
-- `brew_readings.current_temp` — this is the pill/brew temperature, not the controller probe. Different domain.
-- `temp_controller_history.current_temp` — historical data, stays as-is
-- `brew_data_snapshots.controller_temp` — historical, stays
-- Backend `sync-rapt-data-quick` writing `current_temp` from RAPT API — this is step 1 (raw intake), correct
-- Backend `controller-adjustments.ts` — already uses `actual_temp` with fallback, correct
-
-### Result
-- All UI components display `actual_temp` (fused SSOT)
-- Raw `current_temp` only shown as diagnostic detail (e.g. "Probe: X°" subtitle)
-- No more `(x as any).actual_temp` casts — properly typed throughout
+### Resultat
+Om `actual_temp` saknas visas "--" istället för att tyst falla tillbaka till fel sensor.
 
