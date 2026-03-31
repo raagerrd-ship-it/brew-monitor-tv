@@ -20,7 +20,7 @@ function BridgeDiagnostics() {
     try {
       const { data: row } = await supabase
         .from('sonos_now_playing')
-        .select('track_name, artist_name, album_name, playback_state, volume, mute, bass, treble, loudness, crossfade, media_type, track_number, nr_tracks, track_uri, duration_ms, position_ms, track_seq, updated_at, album_art_url, album_art_url_small, bg_image_url, widget_art_url, next_track_name, next_artist_name, next_bg_image_url, next_widget_art_url')
+        .select('track_name, artist_name, album_name, playback_state, volume, mute, bass, treble, loudness, crossfade, media_type, track_number, nr_tracks, track_uri, duration_ms, position_ms, track_seq, updated_at, album_art_url, album_art_url_small, bg_image_url, next_track_name, next_artist_name, next_bg_image_url')
         .limit(1)
         .single();
       setData(row);
