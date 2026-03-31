@@ -47,36 +47,58 @@ Deno.serve(async (req) => {
     let accessToken = providedToken;
 
     if (!accessToken) {
-      // Get RAPT credentials and authenticate
-      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+      // Try DB token cache first (avoids fresh auth for manual UI changes)
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const sbForAuth = createClient(supabaseUrl, supabaseKey);
       
-      if (!RAPT_USERNAME || !RAPT_API_SECRET) {
-        throw new Error('RAPT credentials not configured');
+      try {
+        const { data: cached } = await sbForAuth
+          .from('rapt_token_cache')
+          .select('access_token, expires_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cached?.access_token && cached?.expires_at) {
+          const expiresAt = new Date(cached.expires_at).getTime();
+          if (expiresAt > Date.now() + 2 * 60 * 1000) {
+            accessToken = cached.access_token;
+            console.log('Using cached RAPT token from DB');
+          }
+        }
+      } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
+
+      if (!accessToken) {
+        // Fallback: fresh auth
+        const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+        const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+        
+        if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+          throw new Error('RAPT credentials not configured');
+        }
+
+        const formData = new URLSearchParams();
+        formData.append('client_id', 'rapt-user');
+        formData.append('grant_type', 'password');
+        formData.append('username', RAPT_USERNAME);
+        formData.append('password', RAPT_API_SECRET);
+
+        const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+        const authResponse = await fetch(`${authBaseUrl}/connect/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString(),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!authResponse.ok) {
+          console.error('RAPT auth error:', authResponse.status);
+          throw new Error(`RAPT auth error: ${authResponse.status}`);
+        }
+
+        const authData = await authResponse.json();
+        accessToken = authData.access_token;
       }
-
-      const formData = new URLSearchParams();
-      formData.append('client_id', 'rapt-user');
-      formData.append('grant_type', 'password');
-      formData.append('username', RAPT_USERNAME);
-      formData.append('password', RAPT_API_SECRET);
-
-      const authResponse = await fetch('https://id.rapt.io/connect/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!authResponse.ok) {
-        console.error('RAPT auth error:', authResponse.status);
-        throw new Error(`RAPT auth error: ${authResponse.status}`);
-      }
-
-      const authData = await authResponse.json();
-      accessToken = authData.access_token;
     } else {
       console.log('Using pre-authenticated RAPT token');
     }
@@ -100,24 +122,25 @@ Deno.serve(async (req) => {
     }
 
     // Determine API endpoint based on action
+    const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
     let endpoint = '';
     let queryParams = new URLSearchParams();
 
     switch (action) {
       case 'setTargetTemperature':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetTargetTemperature`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('target', value.toString());
         break;
       
       case 'setPIDEnabled':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPIDEnabled';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetPIDEnabled`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('enabled', value.toString());
         break;
       
       case 'setPID':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPID';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetPID`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('proportionalGain', value.proportionalGain.toString());
         queryParams.append('integralTime', value.integralTime.toString());
@@ -125,7 +148,7 @@ Deno.serve(async (req) => {
         break;
       
       case 'setCoolingHysteresis':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingHysteresis';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetCoolingHysteresis`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('hysteresis', value.toString());
         break;

@@ -207,11 +207,13 @@ Deno.serve(async (req) => {
 
     console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
 
-    // Accept pre-fetched token from caller (e.g. full-sync-brew-data) to avoid double auth
+    // Accept pre-fetched token and flags from caller (e.g. full-sync-brew-data)
     let passedToken: string | null = null;
+    let discoverNewDevices = false;
     try {
       const body = await req.json();
       passedToken = body?.access_token || null;
+      discoverNewDevices = body?.discover === true;
     } catch { /* no body or invalid JSON — that's fine */ }
 
     // Read sync_settings + auto_cooling_settings once (reused across phases)
@@ -278,9 +280,11 @@ Deno.serve(async (req) => {
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
       let fetchedControllers: any[];
+      const shouldFetchPills = selectedPillIds.length > 0 || discoverNewDevices;
+      const shouldFetchControllers = selectedControllerIds.length > 0 || discoverNewDevices;
       [fetchedPills, fetchedControllers] = await Promise.all([
-        selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
-        selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
+        shouldFetchPills ? fetchRaptPills(access_token) : Promise.resolve([]),
+        shouldFetchControllers ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
       tPhase1Fetch = Date.now() - tFetch;
       console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${tPhase1Fetch}ms`);
@@ -485,6 +489,48 @@ Deno.serve(async (req) => {
 
       tPhase1Upsert = Date.now() - tUpsertStart;
       console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
+
+      // ── Phase 1d: Auto-discovery (only when called with discover: true from full-sync) ──
+      if (discoverNewDevices) {
+        const tDiscover = Date.now();
+        const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([
+          supabase.from('selected_rapt_pills').select('pill_id'),
+          supabase.from('selected_rapt_temp_controllers').select('controller_id'),
+        ]);
+
+        const existingPillIdSet = new Set(existingSelectedPills?.map(s => s.pill_id) || []);
+        const existingCtrlIdSet = new Set(existingSelectedControllers?.map(s => s.controller_id) || []);
+
+        const discoveryOps: Promise<any>[] = [];
+
+        // New pills
+        const newPills = fetchedPills.filter((p: any) => !existingPillIdSet.has(p.id));
+        if (newPills.length > 0) {
+          const { data: maxPillOrder } = await supabase.from('selected_rapt_pills')
+            .select('display_order').order('display_order', { ascending: false }).limit(1);
+          let nextPillOrder = (maxPillOrder && maxPillOrder.length > 0) ? maxPillOrder[0].display_order + 1 : 1;
+          discoveryOps.push(supabase.from('selected_rapt_pills').insert(
+            newPills.map((p: any) => ({ pill_id: p.id, is_visible: true, display_order: nextPillOrder++ }))
+          ));
+          console.log(`Auto-added ${newPills.length} new pills to selection`);
+        }
+
+        // fetchedControllers already contains ALL controllers from RAPT API (endpoint returns everything)
+        const newControllers = fetchedControllers.filter((c: any) => !existingCtrlIdSet.has(c.id));
+        if (newControllers.length > 0) {
+          const { data: maxCtrlOrder } = await supabase.from('selected_rapt_temp_controllers')
+            .select('display_order').order('display_order', { ascending: false }).limit(1);
+          let nextCtrlOrder = (maxCtrlOrder && maxCtrlOrder.length > 0) ? maxCtrlOrder[0].display_order + 1 : 1;
+          discoveryOps.push(supabase.from('selected_rapt_temp_controllers').insert(
+            newControllers.map((c: any) => ({ controller_id: c.id, is_visible: true, display_order: nextCtrlOrder++ }))
+          ));
+          console.log(`Auto-added ${newControllers.length} new controllers to selection`);
+        }
+
+        if (discoveryOps.length > 0) await Promise.all(discoveryOps);
+        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms`);
+      }
+
       console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
       console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
     } catch (raptError) {

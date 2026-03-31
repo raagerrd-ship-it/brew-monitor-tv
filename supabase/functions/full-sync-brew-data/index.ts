@@ -339,23 +339,10 @@ Deno.serve(async (req) => {
       console.error('RAPT auth failed (discovery + quick sync will use their own fallback):', e);
     }
 
-    // STEP 2a: RAPT auto-discovery (pass token to avoid double auth)
-    console.log('Running RAPT auto-discovery...')
-    try {
-      const raptResult = await supabase.functions.invoke('sync-rapt-data', { 
-        body: raptToken ? { access_token: raptToken } : {} 
-      })
-      if (raptResult.error) console.error('RAPT auto-discovery error:', raptResult.error)
-      else console.log('RAPT auto-discovery completed')
-    } catch (e) {
-      console.error('RAPT auto-discovery failed:', e)
-    }
+    // STEP 2: Quick sync with discovery (replaces separate sync-rapt-data + sync-rapt-data-quick)
+    // discover: true merges auto-discovery into the same function call — halves RAPT GET requests
 
-    // ──────────────────────────────────────────────────────
-    // STEP 3: Quick sync (pass same token to avoid triple auth)
-    // ──────────────────────────────────────────────────────
-
-    console.log('Running quick sync pass (data + automation)...')
+    console.log('Running quick sync pass with discovery (data + automation)...')
     try {
       // Write a reservation log entry so cron-triggered quick-syncs skip (concurrency guard)
       await supabase.from('auto_cooling_decision_logs').insert({
@@ -367,9 +354,13 @@ Deno.serve(async (req) => {
       });
 
       await supabase.functions.invoke('sync-rapt-data-quick', { 
-        body: raptToken ? { access_token: raptToken, from_full_sync: true } : { from_full_sync: true } 
+        body: { 
+          access_token: raptToken || undefined, 
+          from_full_sync: true,
+          discover: true,
+        } 
       })
-      console.log('Quick sync pass completed')
+      console.log('Quick sync pass with discovery completed')
     } catch (e) {
       console.error('Quick sync pass failed:', e)
     }
