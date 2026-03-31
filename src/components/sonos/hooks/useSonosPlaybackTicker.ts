@@ -127,7 +127,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
 
         // Preload next images into browser cache
         const current = nowPlayingRef?.current;
-        const preloadUrls = [current?.next_widget_art_url, current?.next_bg_image_url].filter(Boolean) as string[];
+        const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
           preloadUrls.forEach(url => { const img = new Image(); img.src = url; });
           tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut`);
