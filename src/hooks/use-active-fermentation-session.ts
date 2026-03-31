@@ -132,6 +132,7 @@ export function useActiveFermentationSession({
       setControllerData({
         current_temp: preloadedSession.controller_current_temp,
         pill_temp: preloadedSession.controller_pill_temp ?? null,
+        actual_temp: (preloadedSession as any).controller_actual_temp ?? null,
         target_temp: preloadedSession.controller_target_temp,
         profile_target_temp: preloadedSession.controller_profile_target_temp ?? null,
         name: '',
