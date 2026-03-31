@@ -88,7 +88,7 @@ export const SonosWidget = memo(function SonosWidget({
   }, [nowPlaying?.bg_image_url]);
 
   const { shouldHide } = useSonosVisibility({
-    isConnected, showWidget, nowPlaying, setNowPlaying,
+    isConnected, showWidget, nowPlaying,
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
   });
 
