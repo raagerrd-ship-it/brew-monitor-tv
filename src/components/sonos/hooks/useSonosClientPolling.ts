@@ -72,7 +72,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
   nowPlayingLatestRef.current = nowPlaying;
 
   useEffect(() => {
-    if (!stableIsActive) return;
+    if (!isActiveRef.current) return;
 
     const np = nowPlayingLatestRef.current;
     tvDebug('sonos', `▶️ Klient-poll startad (state: ${np?.playback_state}, track: "${np?.track_name}")`);
