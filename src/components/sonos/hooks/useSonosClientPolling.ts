@@ -44,7 +44,7 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
 
   useEffect(() => {
     if (!isConnected || !showWidget) return;
-    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE') return;
+    if (!nowPlaying?.track_name || nowPlaying.playback_state === 'PLAYBACK_STATE_IDLE' || nowPlaying.playback_state === 'PLAYBACK_STATE_PAUSED') return;
 
     const shouldSyncPlayback = PLAYBACK_POLL_INTERVAL > 0;
     const intervalMs = shouldSyncPlayback ? PLAYBACK_POLL_INTERVAL : 10_000;
