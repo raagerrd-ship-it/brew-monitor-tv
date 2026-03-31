@@ -12,7 +12,7 @@ import { ControllerTempChart } from './controller-chart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
-import { getActualTemp, getDisplayTarget } from '@/lib/temp-display';
+import { getDisplayTarget } from '@/lib/temp-display';
 
 interface TempController {
   id: string;

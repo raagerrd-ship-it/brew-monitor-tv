@@ -4,7 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getActualTemp, getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
+import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
 
 interface TempStatProps {

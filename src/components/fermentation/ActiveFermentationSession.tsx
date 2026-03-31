@@ -15,7 +15,7 @@ import { StepExecutionDisplay } from "./StepExecutionDisplay";
 import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { formatRemainingTime } from "./sessionStyles";
-import { getActualTemp } from "@/lib/temp-display";
+
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;

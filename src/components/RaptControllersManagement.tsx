@@ -9,7 +9,7 @@ import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flam
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
-import { getActualTemp } from "@/lib/temp-display";
+
 
 
 export function RaptControllersManagement() {
