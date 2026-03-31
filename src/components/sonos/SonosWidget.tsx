@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { memo, useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect } from "react";
 import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
 import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
