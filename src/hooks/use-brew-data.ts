@@ -200,7 +200,7 @@ export function useBrewData(): UseBrewDataReturn {
         ? supabase.from('fermentation_profile_steps').select('*').in('profile_id', profileIds).order('step_order')
         : Promise.resolve({ data: [] }),
       sessionControllerIds.length > 0
-        ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, pill_temp, target_temp, profile_target_temp').in('controller_id', sessionControllerIds)
+        ? supabase.from('rapt_temp_controllers').select('controller_id, current_temp, pill_temp, actual_temp, target_temp, profile_target_temp').in('controller_id', sessionControllerIds)
         : Promise.resolve({ data: [] }),
     ]);
 
