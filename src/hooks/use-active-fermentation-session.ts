@@ -197,7 +197,7 @@ export function useActiveFermentationSession({
       const [profileRes, stepsRes, controllerRes] = await Promise.all([
         supabase.from('fermentation_profiles').select('*').eq('id', sessions.profile_id).single(),
         supabase.from('fermentation_profile_steps').select('*').eq('profile_id', sessions.profile_id).order('step_order'),
-        supabase.from('rapt_temp_controllers').select('current_temp, pill_temp, target_temp, profile_target_temp, name').eq('controller_id', sessions.controller_id).single(),
+        supabase.from('rapt_temp_controllers').select('current_temp, pill_temp, actual_temp, target_temp, profile_target_temp, name').eq('controller_id', sessions.controller_id).single(),
       ]);
 
       setSession({
