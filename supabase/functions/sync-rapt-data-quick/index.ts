@@ -280,9 +280,11 @@ Deno.serve(async (req) => {
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
       let fetchedControllers: any[];
+      const shouldFetchPills = selectedPillIds.length > 0 || discoverNewDevices;
+      const shouldFetchControllers = selectedControllerIds.length > 0 || discoverNewDevices;
       [fetchedPills, fetchedControllers] = await Promise.all([
-        selectedPillIds.length > 0 ? fetchRaptPills(access_token) : Promise.resolve([]),
-        selectedControllerIds.length > 0 ? fetchRaptControllers(access_token) : Promise.resolve([]),
+        shouldFetchPills ? fetchRaptPills(access_token) : Promise.resolve([]),
+        shouldFetchControllers ? fetchRaptControllers(access_token) : Promise.resolve([]),
       ]);
       tPhase1Fetch = Date.now() - tFetch;
       console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${tPhase1Fetch}ms`);
