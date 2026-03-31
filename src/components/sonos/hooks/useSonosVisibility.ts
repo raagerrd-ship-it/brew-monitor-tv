@@ -10,21 +10,18 @@ interface UseSonosVisibilityParams {
   validBgBufferRef: React.MutableRefObject<string[]>;
 }
 
-const PAUSE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
 /**
- * Manages widget visibility with a 5-second grace period for IDLE state.
- * After 5 minutes of PAUSED, transitions to IDLE to stop polling and hide widget.
- * Uses a timestamp-based approach so repeated RT updates don't reset the timer.
- * Keeps widget visible during PAUSED, BUFFERING, TRANSITIONING.
+ * Manages widget visibility.
+ * - Inactive (no connection / no track / TV Audio) → hide immediately.
+ * - IDLE → 5s grace then hide.
+ * - PAUSED on two consecutive checks → hide immediately.
  */
 export function useSonosVisibility(params: UseSonosVisibilityParams) {
   const { isConnected, showWidget, nowPlaying, onAlbumArtChangeRef, bgSentRef, validBgBufferRef } = params;
   const [graceExpired, setGraceExpired] = useState(false);
   const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pauseStartedAtRef = useRef<number | null>(null);
-  const pauseCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pauseExpiredRef = useRef(false);
+  const wasPausedRef = useRef(false);
+  const [pauseHidden, setPauseHidden] = useState(false);
 
   const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
   const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
@@ -58,46 +55,27 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
     setGraceExpired(false);
   }, [isInactive, wantsToHide]);
 
-  // PAUSED timeout (5 min) — sets pauseExpiredRef directly (no state mutation)
+  // PAUSED: if paused on two consecutive nowPlaying updates → hide
   useEffect(() => {
-    if (isPaused) {
-      if (pauseStartedAtRef.current === null) {
-        pauseStartedAtRef.current = Date.now();
-        pauseExpiredRef.current = false;
-        console.log('[Sonos:Visibility] Pause detected, starting 5-min countdown');
-      }
-
-      if (!pauseCheckRef.current) {
-        pauseCheckRef.current = setInterval(() => {
-          if (pauseStartedAtRef.current && !pauseExpiredRef.current) {
-            const elapsed = Date.now() - pauseStartedAtRef.current;
-            if (elapsed >= PAUSE_TIMEOUT_MS) {
-              console.log(`[Sonos:Visibility] Paused for ${Math.round(elapsed / 1000)}s — hiding widget`);
-              pauseExpiredRef.current = true;
-              clearAll();
-              // Force re-render so shouldHide picks up the ref change
-              setGraceExpired(prev => !prev);
-              if (pauseCheckRef.current) { clearInterval(pauseCheckRef.current); pauseCheckRef.current = null; }
-            }
-          }
-        }, 10_000);
-      }
+    if (isInactive) {
+      wasPausedRef.current = false;
+      setPauseHidden(false);
       return;
     }
+    if (isPaused) {
+      if (wasPausedRef.current) {
+        console.log('[Sonos:Visibility] Paused on consecutive updates — hiding widget');
+        setPauseHidden(true);
+        clearAll();
+      } else {
+        wasPausedRef.current = true;
+      }
+    } else {
+      wasPausedRef.current = false;
+      setPauseHidden(false);
+    }
+  }, [isPaused, isInactive, nowPlaying?.updated_at]);
 
-    // Not paused — reset
-    pauseStartedAtRef.current = null;
-    pauseExpiredRef.current = false;
-    if (pauseCheckRef.current) { clearInterval(pauseCheckRef.current); pauseCheckRef.current = null; }
-  }, [isPaused]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (pauseCheckRef.current) { clearInterval(pauseCheckRef.current); pauseCheckRef.current = null; }
-    };
-  }, []);
-
-  const shouldHide = isInactive || (wantsToHide && graceExpired) || (isPaused && pauseExpiredRef.current);
+  const shouldHide = isInactive || (wantsToHide && graceExpired) || pauseHidden;
   return { shouldHide };
 }
