@@ -20,6 +20,7 @@ interface TempController {
   name: string;
   current_temp: number | null;
   pill_temp: number | null;
+  actual_temp: number | null;
   target_temp: number | null;
   last_update: string | null;
   min_target_temp: number | null;
@@ -56,7 +57,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = (currentController as any).actual_temp ?? getActualTemp(currentController.pill_temp, currentController.current_temp);
+  const actualTemp = currentController.actual_temp ?? getActualTemp(currentController.pill_temp, currentController.current_temp);
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (

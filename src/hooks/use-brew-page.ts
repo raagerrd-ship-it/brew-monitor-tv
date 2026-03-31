@@ -103,7 +103,7 @@ export function useBrewPage(brewId: string | undefined) {
             started_at: sessionData.started_at,
             profile_name: profile?.name || 'Okänd profil',
             steps,
-            controller_current_temp: linkedController?.current_temp ?? null,
+            controller_current_temp: (linkedController as any)?.actual_temp ?? linkedController?.current_temp ?? null,
             controller_pill_temp: linkedController?.pill_temp ?? null,
             controller_actual_temp: (linkedController as any)?.actual_temp ?? null,
             controller_target_temp: linkedController?.target_temp ?? null,

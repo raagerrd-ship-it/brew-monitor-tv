@@ -71,8 +71,11 @@ export interface TempController {
   id: string;
   controller_id: string;
   name: string;
+  /** Raw RAPT probe reading — internal only, use actual_temp for display/logic */
   current_temp: number | null;
   pill_temp: number | null;
+  /** Fused SSOT temperature (dual-sensor avg or preferred sensor) */
+  actual_temp: number | null;
   target_temp: number | null;
   profile_target_temp?: number | null;
   last_update: string | null;
