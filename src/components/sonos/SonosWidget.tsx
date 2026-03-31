@@ -104,7 +104,7 @@ export const SonosWidget = memo(function SonosWidget({
   }, [isHidden]);
 
   // --- Image preloading ---
-  const incomingArtUrl = nowPlaying?.widget_art_url ?? nowPlaying?.album_art_url ?? null;
+  const incomingArtUrl = nowPlaying?.album_art_url ?? null;
 
   useEffect(() => {
     if (incomingArtUrl) setImageError(false);
