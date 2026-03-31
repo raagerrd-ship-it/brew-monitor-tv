@@ -487,6 +487,50 @@ Deno.serve(async (req) => {
 
       tPhase1Upsert = Date.now() - tUpsertStart;
       console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
+
+      // ── Phase 1d: Auto-discovery (only when called with discover: true from full-sync) ──
+      if (discoverNewDevices) {
+        const tDiscover = Date.now();
+        const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([
+          supabase.from('selected_rapt_pills').select('pill_id'),
+          supabase.from('selected_rapt_temp_controllers').select('controller_id'),
+        ]);
+
+        const existingPillIdSet = new Set(existingSelectedPills?.map(s => s.pill_id) || []);
+        const existingCtrlIdSet = new Set(existingSelectedControllers?.map(s => s.controller_id) || []);
+
+        const discoveryOps: Promise<any>[] = [];
+
+        // New pills
+        const newPills = fetchedPills.filter((p: any) => !existingPillIdSet.has(p.id));
+        if (newPills.length > 0) {
+          const { data: maxPillOrder } = await supabase.from('selected_rapt_pills')
+            .select('display_order').order('display_order', { ascending: false }).limit(1);
+          let nextPillOrder = (maxPillOrder && maxPillOrder.length > 0) ? maxPillOrder[0].display_order + 1 : 1;
+          discoveryOps.push(supabase.from('selected_rapt_pills').insert(
+            newPills.map((p: any) => ({ pill_id: p.id, is_visible: true, display_order: nextPillOrder++ }))
+          ));
+          console.log(`Auto-added ${newPills.length} new pills to selection`);
+        }
+
+        // New controllers (need to re-fetch all controllers for discovery since fetchedControllers is scoped to selected)
+        // Use the already-fetched RAPT data — fetch all controllers for discovery
+        const allControllers = await fetchRaptControllers(access_token!);
+        const newControllers = allControllers.filter((c: any) => !existingCtrlIdSet.has(c.id));
+        if (newControllers.length > 0) {
+          const { data: maxCtrlOrder } = await supabase.from('selected_rapt_temp_controllers')
+            .select('display_order').order('display_order', { ascending: false }).limit(1);
+          let nextCtrlOrder = (maxCtrlOrder && maxCtrlOrder.length > 0) ? maxCtrlOrder[0].display_order + 1 : 1;
+          discoveryOps.push(supabase.from('selected_rapt_temp_controllers').insert(
+            newControllers.map((c: any) => ({ controller_id: c.id, is_visible: true, display_order: nextCtrlOrder++ }))
+          ));
+          console.log(`Auto-added ${newControllers.length} new controllers to selection`);
+        }
+
+        if (discoveryOps.length > 0) await Promise.all(discoveryOps);
+        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms`);
+      }
+
       console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
       console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
     } catch (raptError) {

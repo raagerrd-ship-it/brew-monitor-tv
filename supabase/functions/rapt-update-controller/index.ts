@@ -47,36 +47,58 @@ Deno.serve(async (req) => {
     let accessToken = providedToken;
 
     if (!accessToken) {
-      // Get RAPT credentials and authenticate
-      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+      // Try DB token cache first (avoids fresh auth for manual UI changes)
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const sbForAuth = createClient(supabaseUrl, supabaseKey);
       
-      if (!RAPT_USERNAME || !RAPT_API_SECRET) {
-        throw new Error('RAPT credentials not configured');
+      try {
+        const { data: cached } = await sbForAuth
+          .from('rapt_token_cache')
+          .select('access_token, expires_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cached?.access_token && cached?.expires_at) {
+          const expiresAt = new Date(cached.expires_at).getTime();
+          if (expiresAt > Date.now() + 2 * 60 * 1000) {
+            accessToken = cached.access_token;
+            console.log('Using cached RAPT token from DB');
+          }
+        }
+      } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
+
+      if (!accessToken) {
+        // Fallback: fresh auth
+        const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
+        const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
+        
+        if (!RAPT_USERNAME || !RAPT_API_SECRET) {
+          throw new Error('RAPT credentials not configured');
+        }
+
+        const formData = new URLSearchParams();
+        formData.append('client_id', 'rapt-user');
+        formData.append('grant_type', 'password');
+        formData.append('username', RAPT_USERNAME);
+        formData.append('password', RAPT_API_SECRET);
+
+        const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
+        const authResponse = await fetch(`${authBaseUrl}/connect/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString(),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!authResponse.ok) {
+          console.error('RAPT auth error:', authResponse.status);
+          throw new Error(`RAPT auth error: ${authResponse.status}`);
+        }
+
+        const authData = await authResponse.json();
+        accessToken = authData.access_token;
       }
-
-      const formData = new URLSearchParams();
-      formData.append('client_id', 'rapt-user');
-      formData.append('grant_type', 'password');
-      formData.append('username', RAPT_USERNAME);
-      formData.append('password', RAPT_API_SECRET);
-
-      const authResponse = await fetch('https://id.rapt.io/connect/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!authResponse.ok) {
-        console.error('RAPT auth error:', authResponse.status);
-        throw new Error(`RAPT auth error: ${authResponse.status}`);
-      }
-
-      const authData = await authResponse.json();
-      accessToken = authData.access_token;
     } else {
       console.log('Using pre-authenticated RAPT token');
     }
