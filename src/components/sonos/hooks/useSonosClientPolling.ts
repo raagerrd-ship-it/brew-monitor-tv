@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 import {
   NowPlaying, isSeqStale,
@@ -46,21 +46,30 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     acceptedSeqRef, swappedFromRef,
   } = params;
 
-  // Derive a stable "should poll" boolean — only changes when we truly
-  // transition between "has active playing track" and "doesn't".
-  const isActive = !!(
+  // Derive "should poll" and debounce via ref so the effect only
+  // re-runs when the value actually changes (prevents spurious restarts
+  // when setNowPlaying triggers a re-render with the same logical state).
+  const rawIsActive = !!(
     isConnected && showWidget &&
     nowPlaying?.track_name &&
     nowPlaying.playback_state !== 'PLAYBACK_STATE_IDLE' &&
     nowPlaying.playback_state !== 'PLAYBACK_STATE_PAUSED'
   );
 
+  const [stableIsActive, setStableIsActive] = useState(rawIsActive);
+  const prevRawRef = useRef(rawIsActive);
+  if (prevRawRef.current !== rawIsActive) {
+    prevRawRef.current = rawIsActive;
+    // Only update state (and thus re-run effect) when the boolean actually flips
+    setStableIsActive(rawIsActive);
+  }
+
   // Keep a ref so the poll closure always reads the latest nowPlaying
   const nowPlayingLatestRef = useRef(nowPlaying);
   nowPlayingLatestRef.current = nowPlaying;
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!stableIsActive) return;
 
     const np = nowPlayingLatestRef.current;
     tvDebug('sonos', `▶️ Klient-poll startad (state: ${np?.playback_state}, track: "${np?.track_name}")`);
@@ -168,5 +177,5 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
       tvDebug('sonos', `⏸️ Klient-poll stoppad (state: ${nowPlayingLatestRef.current?.playback_state})`);
       clearInterval(interval);
     };
-  }, [isActive]);
+  }, [stableIsActive]);
 }
