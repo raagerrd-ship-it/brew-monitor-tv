@@ -70,7 +70,7 @@ export async function triggerServerSync(): Promise<void> {
 }
 
 export async function fetchPlaybackStatus(): Promise<{
-  bgImageUrl?: string; widgetArtUrl?: string; albumArtUrl?: string;
+  bgImageUrl?: string; albumArtUrl?: string;
   trackName?: string; artistName?: string; albumName?: string;
   playbackState?: string; positionMillis?: number; durationMillis?: number;
 } | null> {
