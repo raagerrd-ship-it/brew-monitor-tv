@@ -8,6 +8,36 @@ import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
+/** Scrolls children horizontally when they overflow, then scrolls back */
+function MarqueeText({ children }: { children: React.ReactNode }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(0);
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    const diff = inner.scrollWidth - outer.clientWidth;
+    setOverflow(diff > 2 ? diff : 0);
+  }, [children]);
+
+  return (
+    <div ref={outerRef} className="overflow-hidden text-white" style={{ fontSize: '16px' }}>
+      <div
+        ref={innerRef}
+        className="whitespace-nowrap inline-block"
+        style={overflow > 0 ? {
+          animation: `marquee-scroll ${3 + overflow * 0.02}s ease-in-out 2s infinite`,
+          '--marquee-offset': `-${overflow}px`,
+        } as React.CSSProperties : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 interface SonosWidgetProps {
   isMobile?: boolean;
   variant?: "floating" | "header";
