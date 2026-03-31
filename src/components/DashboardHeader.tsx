@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer } from "lucide-react";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
-import { getActualTemp } from "@/lib/temp-display";
+
 import { useIsMobile } from "@/hooks";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
@@ -305,7 +305,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Temp first (left) */}
                    {(() => {
-                      const displayTemp = controller.actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
+                      const displayTemp = controller.actual_temp;
                      return (
                        <span className="font-semibold tabular-nums whitespace-nowrap" style={{
                         fontSize: '16px',

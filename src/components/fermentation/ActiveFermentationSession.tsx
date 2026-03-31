@@ -15,7 +15,7 @@ import { StepExecutionDisplay } from "./StepExecutionDisplay";
 import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { formatRemainingTime } from "./sessionStyles";
-import { getActualTemp } from "@/lib/temp-display";
+
 
 interface ActiveFermentationSessionProps {
   controllerId?: string;
@@ -61,7 +61,7 @@ export function ActiveFermentationSession({
   if (loading || !session) return null;
 
   // Compute actual temp: use pre-calculated actual_temp from controller, fallback to probe
-  const actualTemp = controllerData?.actual_temp ?? getActualTemp(controllerData?.pill_temp, controllerData?.current_temp);
+  const actualTemp = controllerData?.actual_temp ?? null;
 
   const currentStep = session.steps?.[session.current_step_index];
   const progress = calculateProgress();

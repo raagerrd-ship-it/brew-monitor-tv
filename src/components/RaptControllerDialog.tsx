@@ -12,7 +12,7 @@ import { ControllerTempChart } from './controller-chart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
-import { getActualTemp, getDisplayTarget } from '@/lib/temp-display';
+import { getDisplayTarget } from '@/lib/temp-display';
 
 interface TempController {
   id: string;
@@ -57,7 +57,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = currentController.actual_temp ?? getActualTemp(currentController.pill_temp, currentController.current_temp);
+  const actualTemp = currentController.actual_temp;
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (

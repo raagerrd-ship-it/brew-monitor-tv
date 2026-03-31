@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Wrench, AlertTriangle, Brain, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
-import { getActualTemp, getDisplayTarget } from "@/lib/temp-display";
+import { getDisplayTarget } from "@/lib/temp-display";
 
 function SyncCountdown({ lastSyncTime, intervalSeconds }: { lastSyncTime: string; intervalSeconds: number }) {
   const [text, setText] = useState("");
@@ -70,6 +70,7 @@ interface AvailableController {
   controller_id: string;
   name: string;
   current_temp: number | null;
+  actual_temp: number | null;
   pill_temp?: number | null;
   target_temp: number | null;
   profile_target_temp?: number | null;
@@ -115,7 +116,7 @@ function buildFeatureBlocks(
 
     // Cooler line only
     if (cooler) {
-      const actualCoolerTemp = (cooler as any).actual_temp ?? cooler.current_temp;
+      const actualCoolerTemp = cooler.actual_temp;
       const current = actualCoolerTemp != null ? Number(actualCoolerTemp).toFixed(1) : null;
       const target = cooler.target_temp != null ? Number(cooler.target_temp).toFixed(1) : null;
       const isActivelyCooling = cooler.cooling_enabled && actualCoolerTemp != null && cooler.target_temp != null && Number(actualCoolerTemp) > Number(cooler.target_temp);
