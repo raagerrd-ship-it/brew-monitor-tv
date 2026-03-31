@@ -70,10 +70,9 @@ export async function storageObjectExistsByPublicUrl(supabase: any, publicUrl: s
   }
 }
 
-// Delete ALL files in bucket except those actively referenced by the given URLs.
-// Pass an empty array to delete everything (e.g. on IDLE transition).
+// LRU cleanup: keep the newest MAX_CACHED files + bridge files + explicitly referenced URLs.
+const MAX_CACHED = 200;
 export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUrls: (string | null | undefined)[]) {
-  // Bridge-uploaded files are managed by the bridge — never delete them
   const BRIDGE_FILES = new Set(['bridge-current.jpg', 'bridge-next.jpg']);
 
   try {
@@ -83,22 +82,27 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
         .map(url => fileNameFromUrl(url!))
         .filter(Boolean) as string[]
     );
-    // Always protect bridge files
     for (const bf of BRIDGE_FILES) keepNames.add(bf);
 
     const { data: files } = await supabase.storage
       .from('sonos-backgrounds')
-      .list('', { limit: 100 });
+      .list('', { limit: 500 });
 
-    if (!files || files.length === 0) return;
+    if (!files || files.length <= MAX_CACHED) return;
 
-    const toDelete = files
+    // Sort newest first by updated_at
+    const sorted = [...files].sort((a: any, b: any) =>
+      new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
+    );
+
+    const toDelete = sorted
+      .slice(MAX_CACHED)
       .map((f: any) => f.name)
       .filter((name: string) => !keepNames.has(name));
 
     if (toDelete.length > 0) {
       await supabase.storage.from('sonos-backgrounds').remove(toDelete);
-      console.log(`[SonosSync] Cleanup: deleted ${toDelete.length} unreferenced files, kept ${keepNames.size}`);
+      console.log(`[SonosSync] LRU cleanup: deleted ${toDelete.length} old files, total was ${files.length}`);
     }
   } catch {
     // Non-critical, ignore
