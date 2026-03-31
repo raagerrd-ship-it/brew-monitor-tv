@@ -47,11 +47,10 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       updateProgressDOM(progressBarRef, debugTimeRef, data.positionMillis, prev.duration_ms);
 
       const nextBg = prev.next_bg_image_url;
-      const nextWidget = prev.next_widget_art_url;
       const nextArt = prev.next_album_art_url;
       // Only use preloaded images if they match the incoming track
       const preloadMatchesTrack = prev.next_track_name === data.trackName;
-      const hasPreloaded = preloadMatchesTrack && !!(nextWidget || nextBg);
+      const hasPreloaded = preloadMatchesTrack && !!nextBg;
 
       const prevBg = bgSentRef.current;
 
