@@ -162,6 +162,7 @@ export function useActiveFermentationSession({
           ...prev,
           current_temp: newData.current_temp ?? prev?.current_temp ?? null,
           pill_temp: newData.pill_temp ?? prev?.pill_temp ?? null,
+          actual_temp: newData.actual_temp ?? prev?.actual_temp ?? null,
           target_temp: newData.target_temp ?? prev?.target_temp ?? null,
           profile_target_temp: newData.profile_target_temp ?? prev?.profile_target_temp ?? null,
           name: prev?.name ?? '',
