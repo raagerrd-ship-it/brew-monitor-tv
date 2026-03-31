@@ -24,8 +24,9 @@ Deno.serve(async (req) => {
     const { data: np } = await supabase
       .from('sonos_now_playing')
       .select('*')
+      .order('updated_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!np) {
       return new Response(JSON.stringify({ ok: false, reason: 'not_configured' }), {
