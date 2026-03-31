@@ -142,9 +142,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
         const bgChanged = incoming.bg_image_url && stripQs(incoming.bg_image_url) !== stripQs(prev.bg_image_url);
-        // Also skip if we already sent this bg to the AlbumArt context
+        const hasVisibleBg = !!(prev.bg_image_url || bgSentRef.current);
+        // Same track should only fill a missing bg, not swap in a second variant a few seconds later.
         const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
-        const bgActuallyChanged = bgChanged && !bgAlreadySent;
+        const bgActuallyChanged = bgChanged && !bgAlreadySent && !hasVisibleBg;
 
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
 
