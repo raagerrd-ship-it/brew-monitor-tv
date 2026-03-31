@@ -3,6 +3,19 @@ import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackground, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
 import { resolveAlbumArt } from "../_shared/sonos-art.ts";
 
+/** Decode common XML/HTML entities that UPnP metadata may contain */
+function decodeXmlEntities(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bridge-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -142,7 +155,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sameTrack = existingRow?.track_name === trackName;
+    const decodedTrackName = decodeXmlEntities(trackName);
+    const sameTrack = existingRow?.track_name === decodedTrackName;
     const newTrackSeq = sameTrack
       ? (existingRow?.track_seq ?? 0)
       : ((existingRow?.track_seq ?? 0) + 1);
@@ -157,12 +171,12 @@ Deno.serve(async (req) => {
     // --- Phase 1: Write metadata immediately ---
     const metadataPayload: Record<string, any> = {
       group_id: groupId,
-      track_name: trackName,
-      artist_name: artistName || null,
-      album_name: albumName || null,
+      track_name: decodeXmlEntities(trackName),
+      artist_name: decodeXmlEntities(artistName),
+      album_name: decodeXmlEntities(albumName),
       album_art_url_small: albumArtUri || null,
-      next_track_name: nextTrackName || null,
-      next_artist_name: nextArtistName || null,
+      next_track_name: decodeXmlEntities(nextTrackName),
+      next_artist_name: decodeXmlEntities(nextArtistName),
       playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
       duration_ms: durationMillis || null,
       position_ms: compensatedPosition,
@@ -185,8 +199,8 @@ Deno.serve(async (req) => {
       current_uri: currentURI ?? null,
       next_av_transport_uri: nextAVTransportURI ?? null,
       play_medium: playMedium ?? null,
-      stream_content: streamContent ?? null,
-      radio_show_md: radioShowMd ?? null,
+      stream_content: decodeXmlEntities(streamContent),
+      radio_show_md: decodeXmlEntities(radioShowMd),
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
       // Clear bg on new track to prevent stale bg flash
