@@ -1,73 +1,61 @@
 
 
-## Analys: RAPT API-anrop — nuläge och optimeringsmöjligheter
+## Audit: `current_temp` → `actual_temp` SSOT cleanup
 
-### Nuvarande RAPT API-anrop per cykel (5 min)
+### Problem
+`current_temp` (raw probe reading) leaks into UI and logic where `actual_temp` (the fused SSOT value) should be used. This causes incorrect temperatures to display and incorrect decisions in places like cooling detection.
 
-**Läsanrop (GET):**
-1. `GetHydrometers` — i `sync-rapt-data-quick` (varje 5-min cykel)
-2. `GetTemperatureControllers` — i `sync-rapt-data-quick` (varje 5-min cykel)
-3. `GetTelemetry` — per pill med SG-data (i sync-rapt-data-quick, villkorligt)
+### Scope
+The DB column `current_temp` on `rapt_temp_controllers` stays — it stores the raw probe value from RAPT hardware. The rename to `probe_temp` is a separate future task. This plan ensures **no consumer reads `current_temp` directly** except as a diagnostic/raw detail.
 
-**Skrivkommandon (POST):**
-4. `SetTargetTemperature` — via `RaptUpdateBatch.flush()` (auto-adjust-cooling), batchar alla ändringar i ett enda auth-anrop
-5. `SetTargetTemperature` — via `rapt-update-controller` (manuella UI-ändringar + PWM OFF)
+### Files to change
 
-**Auth (token):**
-- 1× per cykel (cachad i DB, 60 min livslängd, 10 min proaktiv förnyelse)
+**1. `src/types/brew.ts` — TempController interface**
+- Add `actual_temp: number | null` field
+- Keep `current_temp` but document it as raw probe (internal only)
 
-### Redan implementerade optimeringar ✓
-- **Token-cache** — undviker auth varje cykel
-- **Token-passning** — full-sync → sync-rapt-data → sync-rapt-data-quick delar samma token
-- **Batch-flush** — alla PID/cooler-ändringar körs parallellt med en enda auth
-- **Early-exit i rapt-update-controller** — skippar RAPT API om hw target redan matchar (±0.05°C)
-- **Concurrency guard** — förhindrar parallella synkar
-- **Degraded mode** — skippar RAPT vid timeout, kör automation på cachad data
+**2. `src/components/RaptControllerDialog.tsx` — local TempController interface**
+- Add `actual_temp: number | null`
+- Remove `(currentController as any).actual_temp` cast on line 59 — use typed field directly
 
-### Problem: 4 oanvända edge functions
+**3. `src/hooks/use-controller-dialog.ts` (lines 248-256)**
+- Change `ctrl.current_temp` → `ctrl.actual_temp ?? ctrl.current_temp` for `isActivelyCooling` / `isActivelyHeating` detection
 
-Dessa funktioner anropas **aldrig** från klienten eller andra edge functions:
-1. **`rapt-auth`** — standalone auth, ersatt av `getRaptTokenWithMeta()` + DB-cache
-2. **`rapt-pills`** — standalone pills-fetch, ersatt av inlined `fetchRaptPills()` i sync
-3. **`rapt-temp-controllers`** — standalone controllers-fetch, ersatt av inlined `fetchRaptControllers()`
-4. **`rapt-profile-sessions`** — standalone, gör egen auth + `GetTemperatureControllers`
+**4. `src/components/DashboardHeader.tsx` (line 308)**
+- Remove `(controller as any).actual_temp` cast — use typed `controller.actual_temp` directly
 
-Dessa deployeras och tar upp resurser men genererar inga RAPT API-anrop (ingen anropar dem). De är dock dead code som bör städas bort.
+**5. `src/components/fermentation/StartFermentationSessionDialog.tsx` (lines 97, 330)**
+- Add `actual_temp` to the select query
+- Display `actual_temp` instead of `current_temp` in controller dropdown
 
-### Problem: `sync-rapt-data` gör dubbla API-anrop
+**6. `src/components/AutomationFeatureStatus.tsx` (lines 118-120)**
+- Use `actual_temp` instead of `current_temp` for cooler status display
 
-`sync-rapt-data` (auto-discovery, körs var 6:e timme via full-sync) hämtar **både** `GetHydrometers` och `GetTemperatureControllers` — samma data som `sync-rapt-data-quick` hämtar direkt efter. Full-sync kör dem sekventiellt:
-1. `sync-rapt-data` → 2× RAPT GET
-2. `sync-rapt-data-quick` → 2× RAPT GET (samma endpoints)
+**7. `src/hooks/use-settings-data.ts`**
+- Already fetches `actual_temp` — just ensure the mapped interface uses it for display logic
 
-= **4 GET-anrop istället för 2** under full-sync.
+**8. `src/hooks/use-brew-data.ts` (lines 250, 382, 556-558)**
+- `controller_current_temp` mapping: use `actual_temp` as primary
+- `currentTemp` from `brew_readings.current_temp`: this is brew pill temp, different context — leave as-is (this is the RAPT pill reading stored on the brew, not the controller probe)
 
-### Problem: `rapt-update-controller` autentiserar separat
+**9. `src/hooks/use-brew-page.ts` (line 106)**
+- Use `actual_temp` instead of `current_temp` for `controller_current_temp`
 
-`rapt-update-controller` (manuella ändringar) gör sin egen auth mot `id.rapt.io` utan att använda token-cachen. Dock inträffar detta sällan (bara vid manuella UI-ändringar) så det är låg prioritet.
+**10. `src/types/fermentation.ts` — FermentationSessionData**
+- Rename `controller_current_temp` → keep it but populate from `actual_temp`
 
----
+**11. `src/hooks/use-controllers-management.ts`**
+- Add `actual_temp` to interface and select query
 
-## Plan
+### Not changed (correct usage)
+- `brew_readings.current_temp` — this is the pill/brew temperature, not the controller probe. Different domain.
+- `temp_controller_history.current_temp` — historical data, stays as-is
+- `brew_data_snapshots.controller_temp` — historical, stays
+- Backend `sync-rapt-data-quick` writing `current_temp` from RAPT API — this is step 1 (raw intake), correct
+- Backend `controller-adjustments.ts` — already uses `actual_temp` with fallback, correct
 
-### Steg 1: Ta bort 4 oanvända edge functions
-Radera dessa filer — de anropas aldrig:
-- `supabase/functions/rapt-auth/index.ts`
-- `supabase/functions/rapt-pills/index.ts`
-- `supabase/functions/rapt-temp-controllers/index.ts`
-- `supabase/functions/rapt-profile-sessions/index.ts`
-
-### Steg 2: Eliminera dubbla GET under full-sync
-I `full-sync-brew-data/index.ts`: Skicka pill/controller-data från `sync-rapt-data` till `sync-rapt-data-quick` så att quick-sync kan använda den redan hämtade datan istället för att hämta igen.
-
-**Alternativt** (enklare): Slå ihop discovery-logiken från `sync-rapt-data` direkt in i `sync-rapt-data-quick` med en `discover: true`-flagga. Då behöver full-sync bara anropa `sync-rapt-data-quick({ access_token, discover: true })` — 1 funktion, 2 GET istället för 4.
-
-### Steg 3: Låt `rapt-update-controller` använda token-cache
-Lägg till DB token-cache lookup i `rapt-update-controller` (när inget `access_token` skickas med) för att undvika onödig auth vid manuella ändringar.
-
-### Resultat
-- **Borttagning**: 4 dead edge functions → renare deploy
-- **Full-sync**: 4 → 2 GET-anrop (halverat)
-- **Manuella ändringar**: 1 → 0 extra auth-anrop (cachad token)
-- **Normal 5-min cykel**: Oförändrad (redan optimal: 1 auth-check + 2 GET + N batched SET)
+### Result
+- All UI components display `actual_temp` (fused SSOT)
+- Raw `current_temp` only shown as diagnostic detail (e.g. "Probe: X°" subtitle)
+- No more `(x as any).actual_temp` casts — properly typed throughout
 
