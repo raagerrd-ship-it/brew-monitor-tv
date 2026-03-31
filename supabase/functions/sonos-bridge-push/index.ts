@@ -92,12 +92,14 @@ Deno.serve(async (req) => {
     const [settingsResult, existingResult] = await Promise.all([
       supabase.from('sonos_settings')
         .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
+        .order('created_at', { ascending: true })
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
         .select('id, track_name, track_seq, position_ms, bg_image_url, widget_art_url, next_bg_image_url, next_widget_art_url, next_track_name, playback_state, album_art_url')
+        .order('updated_at', { ascending: false })
         .limit(1)
-        .single(),
+        .maybeSingle(),
     ]);
 
     const settings = settingsResult.data;
