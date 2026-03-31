@@ -247,7 +247,7 @@ export function useBrewData(): UseBrewDataReturn {
             min_ramp_hours: s.min_ramp_hours ?? null,
             ramp_curve: s.ramp_curve ?? null,
           })),
-          controller_current_temp: controller?.current_temp ?? null,
+          controller_current_temp: (controller as any)?.actual_temp ?? controller?.current_temp ?? null,
           controller_pill_temp: controller?.pill_temp ?? null,
           controller_actual_temp: (controller as any)?.actual_temp ?? null,
           controller_target_temp: controller?.target_temp ?? null,

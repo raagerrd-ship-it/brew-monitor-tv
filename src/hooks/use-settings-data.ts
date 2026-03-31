@@ -12,6 +12,7 @@ interface AvailableController {
   name: string;
   current_temp: number | null;
   pill_temp: number | null;
+  actual_temp: number | null;
   target_temp: number | null;
   profile_target_temp: number | null;
   cooling_enabled: boolean | null;

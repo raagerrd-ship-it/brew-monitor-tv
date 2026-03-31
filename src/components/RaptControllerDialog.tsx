@@ -57,7 +57,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = (currentController as any).actual_temp ?? getActualTemp(currentController.pill_temp, currentController.current_temp);
+  const actualTemp = currentController.actual_temp ?? getActualTemp(currentController.pill_temp, currentController.current_temp);
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (

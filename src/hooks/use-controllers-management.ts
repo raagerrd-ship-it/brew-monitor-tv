@@ -9,6 +9,7 @@ export interface ControllerData {
   name: string;
   current_temp: number | null;
   pill_temp: number | null;
+  actual_temp: number | null;
   target_temp: number | null;
   profile_target_temp: number | null;
   last_update: string | null;

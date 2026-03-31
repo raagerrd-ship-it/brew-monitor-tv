@@ -327,7 +327,7 @@ export function StartFermentationSessionDialog({
                     ) : (
                       controllers.map((controller) => (
                         <SelectItem key={controller.controller_id} value={controller.controller_id}>
-                          {controller.name} ({controller.current_temp?.toFixed(1) ?? '-'}° → {controller.target_temp?.toFixed(1) ?? '-'}°)
+                          {controller.name} ({(controller as any).actual_temp?.toFixed(1) ?? controller.current_temp?.toFixed(1) ?? '-'}° → {controller.target_temp?.toFixed(1) ?? '-'}°)
                         </SelectItem>
                       ))
                     )}

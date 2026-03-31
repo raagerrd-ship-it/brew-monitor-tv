@@ -245,15 +245,16 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const coolingHyst = ctrl.cooling_hysteresis ?? 0.2;
   const heatingHyst = ctrl.heating_hysteresis ?? 0.2;
 
+  const sensorTemp = ctrl.actual_temp ?? ctrl.current_temp;
   const isActivelyCooling = ctrl.cooling_enabled === true &&
-    ctrl.current_temp != null &&
+    sensorTemp != null &&
     ctrl.target_temp != null &&
-    ctrl.current_temp > (ctrl.target_temp + coolingHyst);
+    sensorTemp > (ctrl.target_temp + coolingHyst);
 
   const isActivelyHeating = ctrl.heating_enabled === true &&
-    ctrl.current_temp != null &&
+    sensorTemp != null &&
     ctrl.target_temp != null &&
-    ctrl.current_temp < (ctrl.target_temp - heatingHyst);
+    sensorTemp < (ctrl.target_temp - heatingHyst);
 
   const toggleDualSensor = useCallback(async () => {
     const newValue = !dualSensorEnabled;

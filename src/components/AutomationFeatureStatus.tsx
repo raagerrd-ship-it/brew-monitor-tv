@@ -115,9 +115,10 @@ function buildFeatureBlocks(
 
     // Cooler line only
     if (cooler) {
-      const current = cooler.current_temp != null ? Number(cooler.current_temp).toFixed(1) : null;
+      const actualCoolerTemp = (cooler as any).actual_temp ?? cooler.current_temp;
+      const current = actualCoolerTemp != null ? Number(actualCoolerTemp).toFixed(1) : null;
       const target = cooler.target_temp != null ? Number(cooler.target_temp).toFixed(1) : null;
-      const isActivelyCooling = cooler.cooling_enabled && cooler.current_temp != null && cooler.target_temp != null && Number(cooler.current_temp) > Number(cooler.target_temp);
+      const isActivelyCooling = cooler.cooling_enabled && actualCoolerTemp != null && cooler.target_temp != null && Number(actualCoolerTemp) > Number(cooler.target_temp);
 
       let status = "";
       if (current && target) status = `${current}° → ${target}°`;
