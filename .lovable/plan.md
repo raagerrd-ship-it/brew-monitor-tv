@@ -1,71 +1,66 @@
 
 
-## Ta bort alla `current_temp`-fallbacks — `actual_temp` eller `null`
+## Plan: Eliminera Sonos Cloud API — 100% UPnP via Cast Away
 
-### Problem
-Koden har fortfarande `actual_temp ?? getActualTemp(...)` och `actual_temp ?? current_temp` fallbacks på 6 ställen. Om `actual_temp` är `null` faller den tyst tillbaka till rå probe-data, vilket kan ge felaktig temp utan varning.
+### Bakgrund
+Cast Away (UPnP-bridge) pushar redan **all data** till `sonos_now_playing` via `sonos-bridge-push`: latency-kompenserad position, metadata, state, volym, next-track. Trots det anropar 3 edge functions fortfarande Sonos Cloud API (`api.ws.sonos.com`), som kräver OAuth-tokens och har ~800ms latens.
 
-### Princip
-`actual_temp` är SSOT. Är den `null` → visa `null` (dvs "--") så att det syns att data saknas.
+### Vad som ändras
 
-### Filer att ändra
+**1. `sonos-playback-status` → ren DB-read (~50ms istf ~800ms)**
 
-**1. `src/hooks/use-controller-dialog.ts` (rad 248)**
-```
-// Före: ctrl.actual_temp ?? ctrl.current_temp
-// Efter: ctrl.actual_temp
-const sensorTemp = ctrl.actual_temp ?? null;
-```
+Nuläge: Hämtar OAuth-token → anropar Sonos Cloud API för position + metadata → hämtar track_seq från DB.
 
-**2. `src/components/DashboardHeader.tsx` (rad 308)**
-```
-// Före: controller.actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp)
-// Efter: controller.actual_temp
-const displayTemp = controller.actual_temp;
+Nytt: En enkel `select` från `sonos_now_playing`. Returnerar exakt samma response-format → **zero klientändringar**.
+
+```text
+Före:  Client → Edge Fn → Sonos Cloud API → response
+Efter: Client → Edge Fn → DB select → response
 ```
 
-**3. `src/components/RaptControllerDialog.tsx` (rad 60)**
-```
-// Före: currentController.actual_temp ?? getActualTemp(...)
-// Efter: currentController.actual_temp
-const actualTemp = currentController.actual_temp;
-```
+**2. `sync-sonos-now-playing` → DB-only + image processing**
 
-**4. `src/components/RaptControllersManagement.tsx` (rad 60)**
-```
-// Före: (controller as any).actual_temp ?? getActualTemp(...)
-// Efter: controller.actual_temp   (ta bort any-cast också)
-const displayTemp = controller.actual_temp;
-```
+Nuläge: Hämtar OAuth-token → anropar Sonos Cloud API för metadata → kör image-processing.
 
-**5. `src/components/brew-card/TempStat.tsx` (rad 32)**
-```
-// Före: (controller as any)?.actual_temp ?? getActualTemp(...) ?? brew.currentTemp
-// Efter: controller?.actual_temp ?? null
-// brew.currentTemp är pill-temp från brew-readings, separat domän — behåll som sista fallback
-const displayTemp = controller?.actual_temp ?? brew.currentTemp;
-```
+Nytt: Läser metadata från `sonos_now_playing` (redan skriven av bridge-push) → kör bara image-processing (`resolveBackgroundAndWidget`) om bg saknas. `bg_only`-mode och pause-timeout-logiken behålls.
 
-**6. `src/components/fermentation/ActiveFermentationSession.tsx` (rad 64)**
-```
-// Före: controllerData?.actual_temp ?? getActualTemp(...)
-// Efter: controllerData?.actual_temp ?? null
-const actualTemp = controllerData?.actual_temp ?? null;
-```
+Två konsumenter: `triggerServerSync()` (image-fallback) och SonosSettings (bg-regenerering). Båda behöver bara image-processing, inte Sonos API.
 
-**7. `src/components/AutomationFeatureStatus.tsx` (rad 118)**
-```
-// Före: (cooler as any).actual_temp ?? cooler.current_temp
-// Efter: cooler.actual_temp   (ta bort any-cast)
-const actualCoolerTemp = cooler.actual_temp;
-```
+**3. `sonos-groups` → kan tas bort**
 
-### Ej ändrat
-- `getActualTemp()` i `src/lib/temp-display.ts` — kan markeras deprecated/tas bort i framtiden
-- Backend edge functions — de skriver `actual_temp`, korrekt
-- `brew_readings.current_temp` — annan domän (pill-data på brygg-nivå)
-- Diagnostisk text i `RaptControllerDialog` rad 95 som visar "Probe: X° · Pill: Y°" — det är avsiktligt diagnostiskt, ok
+Ingen konsument i klienten (`0 matcher`). Edge function anropas aldrig. Tas bort.
+
+**4. `sonos-auth` → behåll `disconnect` + `status`, ta bort OAuth-flöde**
+
+`disconnect` (rensar DB) och `status` (kolla om token finns) behålls för settings-UI. OAuth-flödet (`start` + `callback`) tas bort — bridgen behöver inget OAuth.
+
+**5. Ta bort legacy-filer**
+- `supabase/functions/_shared/sonos-token.ts` — ingen konsument kvar
+- `supabase/functions/_shared/sonos-group-recovery.ts` — ingen konsument kvar
+- `src/pages/SonosCallback.tsx` — OAuth callback-sida, ej längre relevant
+
+### Klientändringar — inga
+- `useSonosClientPolling` anropar `sonos-playback-status` → samma response-format
+- `useSonosPlaybackTicker` anropar `sonos-playback-status` → samma response-format
+- `triggerServerSync()` anropar `sync-sonos-now-playing` → samma funktion, bara utan Cloud API
+- `fetchPlaybackStatus()` i types.ts → samma format
+
+### Sammanfattning
+
+| Fil | Åtgärd |
+|---|---|
+| `sonos-playback-status/index.ts` | Skriv om: DB-read |
+| `sync-sonos-now-playing/index.ts` | Skriv om: ta bort Sonos API, behåll image-processing |
+| `sonos-groups/index.ts` | Ta bort |
+| `sonos-auth/index.ts` | Behåll `disconnect` + `status`, ta bort OAuth (`start`/`callback`) |
+| `_shared/sonos-token.ts` | Ta bort |
+| `_shared/sonos-group-recovery.ts` | Ta bort |
+| `src/pages/SonosCallback.tsx` | Ta bort (+ ta bort route i App.tsx) |
 
 ### Resultat
-Om `actual_temp` saknas visas "--" istället för att tyst falla tillbaka till fel sensor.
+- **0 anrop till Sonos Cloud API**
+- ~50ms poll istf ~800ms
+- Inga OAuth-tokens att refresha
+- Inga Sonos rate limits
+- Bridgen är SSOT — precis som tänkt
 
