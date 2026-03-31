@@ -46,23 +46,26 @@ export function useSonosClientPolling(params: UseSonosClientPollingParams) {
     acceptedSeqRef, swappedFromRef,
   } = params;
 
-  // Derive "should poll" and debounce via ref so the effect only
-  // re-runs when the value actually changes (prevents spurious restarts
+  // Derive "should poll" and use a ref-gate so the effect only
+  // re-runs when the boolean actually flips (prevents spurious restarts
   // when setNowPlaying triggers a re-render with the same logical state).
-  const rawIsActive = !!(
+  const isActive = !!(
     isConnected && showWidget &&
     nowPlaying?.track_name &&
     nowPlaying.playback_state !== 'PLAYBACK_STATE_IDLE' &&
     nowPlaying.playback_state !== 'PLAYBACK_STATE_PAUSED'
   );
 
-  const [stableIsActive, setStableIsActive] = useState(rawIsActive);
-  const prevRawRef = useRef(rawIsActive);
-  if (prevRawRef.current !== rawIsActive) {
-    prevRawRef.current = rawIsActive;
-    // Only update state (and thus re-run effect) when the boolean actually flips
-    setStableIsActive(rawIsActive);
+  // Ref-gated version: effect cleanup only runs when this ref changes
+  const isActiveRef = useRef(isActive);
+  const mountIdRef = useRef(0);
+
+  // Only bump mountId when isActive actually changes value
+  if (isActiveRef.current !== isActive) {
+    isActiveRef.current = isActive;
+    mountIdRef.current += 1;
   }
+  const mountId = mountIdRef.current;
 
   // Keep a ref so the poll closure always reads the latest nowPlaying
   const nowPlayingLatestRef = useRef(nowPlaying);
