@@ -539,7 +539,11 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // This ensures the cooler preemptively positions itself for upcoming demand
   // instead of staying too warm until a tank actually triggers its cooling relay.
   const isSignificantLowering = !isRaising && diff > 1.0
-  if (!isRaising && !isSignificantLowering && !sustainedHighUtil && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
+  // Allow lowering when any tank is at near-full utilization (≥97%) — even small
+  // margin increments should be applied immediately to help relieve tank demand,
+  // rather than waiting for the diff to accumulate past the hysteresis threshold.
+  const anyTankHighUtil = !isRaising && utilizations.some(u => u.utilization != null && u.utilization >= 0.97)
+  if (!isRaising && !isSignificantLowering && !sustainedHighUtil && !anyTankHighUtil && oldRelayOn === newRelayOn && diff < coolerHysteresis && !previousWasKick) {
     log('COOLER_OK', 'pass', `Ändring ${diff.toFixed(1)}°C < hysteres ${coolerHysteresis}°C — relästatus oförändrad (relä ${oldRelayOn ? 'PÅ' : 'AV'}, temp ${round1(coolerTemp)}°, tröskel ${round1(clampedTarget + coolerHysteresis)}°)`)
     await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
     return adjustments
