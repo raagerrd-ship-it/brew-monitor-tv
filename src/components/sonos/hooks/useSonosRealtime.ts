@@ -166,7 +166,19 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
-        if (!hasChanges) return prev;
+        if (!hasChanges) {
+          // Keep PAUSED heartbeats observable to visibility logic.
+          // Without a new object here, a second paused RT/DB update never
+          // reaches useSonosVisibility because React skips the re-render.
+          if (incoming.playback_state === 'PLAYBACK_STATE_PAUSED') {
+            return {
+              ...prev,
+              updated_at: incoming.updated_at ?? prev.updated_at,
+            };
+          }
+
+          return prev;
+        }
 
         return {
           ...prev,
