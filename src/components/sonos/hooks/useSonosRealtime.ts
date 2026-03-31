@@ -147,12 +147,15 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
         const nextWidgetNew = incoming.next_widget_art_url && stripQs(incoming.next_widget_art_url) !== stripQs(prev.next_widget_art_url);
         const bgChanged = incoming.bg_image_url && stripQs(incoming.bg_image_url) !== stripQs(prev.bg_image_url);
+        // Also skip if we already sent this bg to the AlbumArt context
+        const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
+        const bgActuallyChanged = bgChanged && !bgAlreadySent;
         const widgetChanged = incoming.widget_art_url && stripQs(incoming.widget_art_url) !== stripQs(prev.widget_art_url);
 
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
         if (nextWidgetNew) { const img = new Image(); img.src = incoming.next_widget_art_url!; }
 
-        if (bgChanged) {
+        if (bgActuallyChanged) {
           pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
           onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
           bgSentRef.current = incoming.bg_image_url;
@@ -162,7 +165,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
         }
 
-        const hasChanges = nextBgNew || nextWidgetNew || bgChanged || widgetChanged
+        const hasChanges = nextBgNew || nextWidgetNew || bgActuallyChanged || widgetChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
@@ -180,7 +183,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         return {
           ...prev,
           playback_state: incoming.playback_state,
-          ...(bgChanged ? { bg_image_url: incoming.bg_image_url } : {}),
+          ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
           ...(widgetChanged ? { widget_art_url: incoming.widget_art_url } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
