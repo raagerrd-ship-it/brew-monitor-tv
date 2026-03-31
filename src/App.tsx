@@ -82,7 +82,7 @@ function AppContent() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/install" element={<Install />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/sonos-callback" element={<SonosCallback />} />
+                
                 <Route path="/printer-debug" element={<PrinterDebug />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
