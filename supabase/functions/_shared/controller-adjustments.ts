@@ -370,6 +370,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           const sign = lastMode === 'cooling' ? -1 : 1
 
           interpolatedTemp = actualTemp + sign * deltaEst
+          // Clamp: never let EST close more than 50% of the gap to target.
+          // This prevents PID from under-reacting due to over-optimistic EST.
+          const gapToTarget = actualTemp - actualTarget // positive when above target (cooling)
+          if (lastMode === 'cooling' && gapToTarget > 0) {
+            interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+          }
+          if (lastMode === 'heating' && gapToTarget < 0) {
+            interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+          }
+          // Hard clamp: never overshoot past target
           if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
           if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
           interpolatedTemp = round1(interpolatedTemp)
