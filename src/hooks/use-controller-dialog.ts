@@ -245,7 +245,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const coolingHyst = ctrl.cooling_hysteresis ?? 0.2;
   const heatingHyst = ctrl.heating_hysteresis ?? 0.2;
 
-  const sensorTemp = ctrl.actual_temp ?? ctrl.current_temp;
+  const sensorTemp = ctrl.actual_temp ?? null;
   const isActivelyCooling = ctrl.cooling_enabled === true &&
     sensorTemp != null &&
     ctrl.target_temp != null &&

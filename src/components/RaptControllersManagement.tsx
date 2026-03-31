@@ -57,7 +57,7 @@ export function RaptControllersManagement() {
           const isLast = controllerIndex === selectedControllersData.length - 1;
           const isSelected = selectedControllers[controller.controller_id];
           const isCooler = coolerControllerId === controller.controller_id;
-          const displayTemp = (controller as any).actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
+          const displayTemp = controller.actual_temp;
           const isActivelyCooling = controller.cooling_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp > (controller.target_temp + (controller.cooling_hysteresis ?? 0.2));
           const isActivelyHeating = controller.heating_enabled && displayTemp !== null && controller.target_temp !== null && displayTemp < (controller.target_temp - (controller.heating_hysteresis ?? 0.2));
           

@@ -305,7 +305,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Temp first (left) */}
                    {(() => {
-                      const displayTemp = controller.actual_temp ?? getActualTemp(controller.pill_temp, controller.current_temp);
+                      const displayTemp = controller.actual_temp;
                      return (
                        <span className="font-semibold tabular-nums whitespace-nowrap" style={{
                         fontSize: '16px',
