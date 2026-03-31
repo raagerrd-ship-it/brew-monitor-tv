@@ -105,6 +105,7 @@ export function useBrewPage(brewId: string | undefined) {
             steps,
             controller_current_temp: linkedController?.current_temp ?? null,
             controller_pill_temp: linkedController?.pill_temp ?? null,
+            controller_actual_temp: (linkedController as any)?.actual_temp ?? null,
             controller_target_temp: linkedController?.target_temp ?? null,
             controller_profile_target_temp: linkedController?.profile_target_temp ?? null,
           };
