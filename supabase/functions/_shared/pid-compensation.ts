@@ -207,7 +207,7 @@ export async function calculateCompensatedTarget(
   const isCooling = mode === 'cooling'
   const need = isCooling ? -avgError : avgError // positive when action is needed
   const DUTY_P = 0.5
-  const DUTY_I = 0.10
+  const DUTY_I = 0.15
   const DUTY_DECAY = 0.98
   const DUTY_IMAX = 0.95
   const modeLabel = isCooling ? 'Duty' : 'Heating duty'
