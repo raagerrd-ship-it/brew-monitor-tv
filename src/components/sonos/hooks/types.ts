@@ -27,7 +27,7 @@ export function isSeqStale(acceptedSeq: number, incomingSeq: number | undefined)
 }
 
 // Polling disabled — bridge-push drives updates. Set to e.g. 15000 to re-enable as fallback.
-export const PLAYBACK_POLL_INTERVAL = 0;
+export const PLAYBACK_POLL_INTERVAL = 10000;
 export const PLAYBACK_POLL_TIMEOUT = 12000;
 export const PREDICTIVE_THRESHOLD_MS = 12000;
 export const PREDICTIVE_MARGIN_MS = 500;
