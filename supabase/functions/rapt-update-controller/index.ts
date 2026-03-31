@@ -122,24 +122,25 @@ Deno.serve(async (req) => {
     }
 
     // Determine API endpoint based on action
+    const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
     let endpoint = '';
     let queryParams = new URLSearchParams();
 
     switch (action) {
       case 'setTargetTemperature':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetTargetTemperature';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetTargetTemperature`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('target', value.toString());
         break;
       
       case 'setPIDEnabled':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPIDEnabled';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetPIDEnabled`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('enabled', value.toString());
         break;
       
       case 'setPID':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetPID';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetPID`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('proportionalGain', value.proportionalGain.toString());
         queryParams.append('integralTime', value.integralTime.toString());
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
         break;
       
       case 'setCoolingHysteresis':
-        endpoint = 'https://api.rapt.io/api/TemperatureControllers/SetCoolingHysteresis';
+        endpoint = `${apiBaseUrl}/api/TemperatureControllers/SetCoolingHysteresis`;
         queryParams.append('temperatureControllerId', controllerId);
         queryParams.append('hysteresis', value.toString());
         break;
