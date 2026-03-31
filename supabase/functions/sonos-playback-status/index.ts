@@ -33,10 +33,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Compensate position for time elapsed since last bridge push
+    let positionMillis = np.position_ms || 0;
+    if (np.playback_state === 'PLAYBACK_STATE_PLAYING' && np.updated_at) {
+      const elapsedMs = Date.now() - new Date(np.updated_at).getTime();
+      if (elapsedMs > 0 && elapsedMs < 120_000) {
+        positionMillis = positionMillis + elapsedMs;
+        if (np.duration_ms && positionMillis > np.duration_ms) {
+          positionMillis = np.duration_ms;
+        }
+      }
+    }
+
     return new Response(JSON.stringify({
       ok: true,
       playbackState: np.playback_state || 'IDLE',
-      positionMillis: np.position_ms || 0,
+      positionMillis,
       durationMillis: np.duration_ms || null,
       trackName: np.track_name || null,
       artistName: np.artist_name || null,
