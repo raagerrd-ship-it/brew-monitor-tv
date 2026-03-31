@@ -513,10 +513,8 @@ Deno.serve(async (req) => {
           console.log(`Auto-added ${newPills.length} new pills to selection`);
         }
 
-        // New controllers (need to re-fetch all controllers for discovery since fetchedControllers is scoped to selected)
-        // Use the already-fetched RAPT data — fetch all controllers for discovery
-        const allControllers = await fetchRaptControllers(access_token!);
-        const newControllers = allControllers.filter((c: any) => !existingCtrlIdSet.has(c.id));
+        // fetchedControllers already contains ALL controllers from RAPT API (endpoint returns everything)
+        const newControllers = fetchedControllers.filter((c: any) => !existingCtrlIdSet.has(c.id));
         if (newControllers.length > 0) {
           const { data: maxCtrlOrder } = await supabase.from('selected_rapt_temp_controllers')
             .select('display_order').order('display_order', { ascending: false }).limit(1);
