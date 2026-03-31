@@ -109,7 +109,7 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
   }
 }
 
-// Resolve background image: always regenerate (no caching)
+// Resolve background image with cache support
 export async function resolveBackground(
   supabase: any,
   artUrl: string | null,
@@ -131,7 +131,22 @@ export async function resolveBackground(
     : '';
   const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
 
-  // Always fetch source and regenerate
+  // Cache check: skip if forceRegenerate
+  if (!_forceRegenerate) {
+    const { data: existing } = await supabase.storage
+      .from('sonos-backgrounds')
+      .list('', { search: bgFileName, limit: 1 });
+
+    const cached = existing?.find((f: any) => f.name === bgFileName);
+    if (cached) {
+      const { data: urlData } = supabase.storage.from('sonos-backgrounds').getPublicUrl(bgFileName);
+      const ts = new Date(cached.updated_at || cached.created_at).getTime();
+      console.log(`[SonosSync] Cache hit: ${bgFileName}`);
+      return { bgUrl: `${urlData.publicUrl}?v=${ts}` };
+    }
+  }
+
+  // Cache miss — fetch, process, upload
   const decoded = await fetchAndDecodeJpeg(artUrl);
   if (!decoded) return { bgUrl: null };
 
