@@ -70,6 +70,7 @@ interface AvailableController {
   controller_id: string;
   name: string;
   current_temp: number | null;
+  actual_temp: number | null;
   pill_temp?: number | null;
   target_temp: number | null;
   profile_target_temp?: number | null;
