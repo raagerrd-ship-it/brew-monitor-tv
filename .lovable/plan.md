@@ -1,51 +1,40 @@
 
 
-## Visa cache-status + genererings/laddtid i TV-loggen, ta bort "Laddar bakgrund"-meddelandet
+# Sonos-optimeringar: tre förbättringar
 
-### Översikt
-Propagera `cached`-flagga och `bg_generation_ms` från edge functions till klienten via `sonos_now_playing`. Visa i preload-loggen och vid låtbyten. Ta bort den redundanta "⏳ Laddar bakgrund"-loggen i `use-album-art-background.ts`.
+## 1. Preload-label race condition — utöka polling-fönster
 
-### Ändringar
+**Problem**: `getPreloadLabel` pollar max 6×150ms = 900ms. Om Realtime-uppdateringen med `next_bg_cached` tar längre tid loggas "redo" istället för "[Sparad]" eller "[Genererad X ms]".
 
-**1. DB-migration** — Lägg till 4 kolumner på `sonos_now_playing`:
-```sql
-ALTER TABLE sonos_now_playing
-  ADD COLUMN bg_cached boolean DEFAULT null,
-  ADD COLUMN next_bg_cached boolean DEFAULT null,
-  ADD COLUMN bg_generation_ms integer DEFAULT null,
-  ADD COLUMN next_bg_generation_ms integer DEFAULT null;
-```
+**Fix**: Öka till 10 försök á 300ms (3s totalt). Preloaden triggas ~11s innan låtbyte, så 3s fönster är väl inom marginal.
 
-**2. `supabase/functions/_shared/sonos-storage.ts`** — Ändra `resolveBackground` returtyp:
-- Returnera `{ bgUrl, cached, generationMs }` istället för `{ bgUrl }`
-- Cache hit: `cached: true`, `generationMs: 0`
-- Nygenerad: `cached: false`, `generationMs` = tid för fetch+process+upload
+**Fil**: `src/components/sonos/hooks/useSonosPlaybackTicker.ts`
+- Ändra `attempts >= 6` → `attempts >= 10`
+- Ändra `window.setTimeout(logReady, 150)` → `window.setTimeout(logReady, 300)`
 
-**3. `supabase/functions/sonos-bridge-push/index.ts`** — Spara cache-data:
-- Läs `result.cached`, `result.generationMs` från `resolveBackground`
-- Sätt `bg_cached`, `bg_generation_ms`, `next_bg_cached`, `next_bg_generation_ms` i `imageUpdate`
+---
 
-**4. `supabase/functions/sync-sonos-now-playing/index.ts`** — Samma:
-- Spara `bg_cached` och `bg_generation_ms` vid bg-generering
+## 2. Visibility-hookens dependency array — minska onödiga utvärderingar
 
-**5. `src/components/sonos/hooks/useSonosPlaybackTicker.ts`** — Preload-loggen (rad 133):
-- Läs `current?.bg_cached` / `current?.next_bg_cached` och `next_bg_generation_ms`
-- Ändra loggen till: `🖼️ Preload 1 bild(er) 11.6s innan slut (sparad)` eller `(genererad 850ms)`
+**Problem**: Paus-effekten har `nowPlaying` i sin dependency array, vilket orsakar omvärderingar vid varje position/metadata-uppdatering — inte bara vid paus-state-ändringar.
 
-**6. `src/components/sonos/hooks/useSonosRealtime.ts`** — RT-loggar:
-- Vid track change (rad 120): inkludera `(sparad)` / `(genererad Xms)` från `incoming.bg_cached` och `incoming.bg_generation_ms`
-- Vid next-preload (rad 159): visa cache-status
+**Fix**: Byt `nowPlaying` mot ett mer specifikt beroende som bara ändras vid relevanta state-ändringar. Använd en `updateCounter`-ref som bara bumps vid paus-state-ändring.
 
-**7. `src/components/sonos/hooks/useSonosTrackChange.ts`** — Track change-logg:
-- Vid `hasPreloaded` (tvDebug rad): visa cache-status
+**Fil**: `src/components/sonos/hooks/useSonosVisibility.ts`
+- Ersätt `nowPlaying` i dep-arrayen med `nowPlaying?.playback_state` och `nowPlaying?.track_name` — det är dessa som avgör om paus-logiken ska omvärderas.
 
-**8. `src/hooks/use-album-art-background.ts`** — Ta bort `⏳ Laddar bakgrund`-loggen:
-- Ta bort `tvDebug('bg', '⏳ Laddar bakgrund för...')` på rad 28
-- Behåll `✅`/`❌`/`⏭️`-loggarna (de visar browser-preload-status, inte server-generering)
+---
 
-### Tekniska detaljer
-- `bg_cached`/`next_bg_cached`: nullable boolean, `null` = okänt (gamla rader)
-- `bg_generation_ms`/`next_bg_generation_ms`: nullable integer, millisekunder
-- Klienten läser fälten direkt via realtime payload (inga typändringar behövs manuellt)
-- `resolveBackground` mäter tid med `Date.now()` före/efter fetch+process+upload
+## 3. Watchdog-throttle — minska onödig nätverkstrafik
+
+**Problem**: Watchdogen triggar `triggerServerSync` + `fetchNowPlayingImages` var ~10:e sekund (`next % 10000 < 1000`) när ingen bakgrund finns. Detta kan ge onödig belastning.
+
+**Fix**: Lägg till en `lastWatchdogRef` som trackar senaste watchdog-anropet och kräver minst 30s mellanrum.
+
+**Fil**: `src/components/sonos/hooks/useSonosPlaybackTicker.ts`
+- Ny ref `lastWatchdogRef` i interface + parameter
+- Kontrollera `Date.now() - lastWatchdogRef.current > 30_000` innan watchdog-fetch
+- Uppdatera `lastWatchdogRef.current = Date.now()` efter anrop
+
+Alternativt: hantera ref:en lokalt inuti effekten (enklare, ingen interface-ändring).
 
