@@ -55,12 +55,8 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const prevBg = bgSentRef.current;
 
       if (hasPreloaded) {
-        const cacheTag = prev.next_bg_cached === true
-          ? '🗂️ sparad'
-          : prev.next_bg_cached === false
-            ? `🎨 genererad ${prev.next_bg_generation_ms ?? '?'}ms`
-            : '';
-        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${cacheTag || 'förladdad'}`.trim());
+        const artist = data.artistName ? `${data.artistName} - ` : '';
+        tvDebug('sonos', `🎵 → "${artist}${data.trackName}" ✅`);
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
           onAlbumArtChangeRef.current?.(nextBg, data.trackName);
