@@ -263,8 +263,11 @@ export async function calculateCompensatedTarget(
       // Reduce floor by 10% each over-actuation cycle (EMA toward current integral)
       // This allows ~5 cycles to bring a 0.5 floor down to ~0.3
       const reducedFloor = Math.max(0, integral * 0.3 + ssFloor * 0.7)
-      // Quantize to 10% steps to match hardware PWM resolution
-      const quantizedFloor = Math.round(reducedFloor * 10) / 10
+      // Quantize DOWN to 10% steps to match hardware PWM resolution.
+      // CRITICAL: Must use Math.floor, not Math.round — otherwise a floor
+      // of e.g. 0.18 produces reducedFloor ~0.164 which rounds UP to 0.2,
+      // making erosion impossible (0.2 > 0.18 → no change).
+      const quantizedFloor = Math.floor(reducedFloor * 10) / 10
       if (quantizedFloor < ssFloor) {
         await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 0.5)
         console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (over-actuated)`)
