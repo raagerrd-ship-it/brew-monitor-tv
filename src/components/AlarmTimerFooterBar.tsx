@@ -70,7 +70,7 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, re
       {/* Right: label + cancel */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-sm font-medium truncate max-w-[160px]" style={{ color: 'hsl(40 10% 80%)' }}>
-          {entry.type === 'alarm' ? `${entry.label} ${formatEndTime(entry.endsAt)}` : entry.label}
+          {formatRightLabel(entry)}
         </span>
         <button
           onClick={onCancel}
