@@ -152,18 +152,17 @@ export function LearnedDutyCycle() {
                 return (
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
                     <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
-                    <td className={`py-1.5 text-right font-mono ${color}`}>{quantized}%</td>
                     <td className="py-1.5 text-right">
-                      <div className="flex items-center justify-end gap-0.5">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
-                          <div
-                            key={s}
-                            className={`h-2.5 w-1 rounded-[1px] ${s <= totalBurstMin ? (quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : "bg-emerald-400") : "bg-muted-foreground/20"}`}
-                          />
-                        ))}
-                        <span className="ml-1 font-mono text-muted-foreground text-[10px]">
-                          {totalBurstMin > 0 ? `${totalBurstMin}m` : "—"}
-                        </span>
+                      <div className="flex items-center justify-end gap-1">
+                        <span className={`font-mono ${color}`}>{rawPct}%</span>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
+                            <div
+                              key={s}
+                              className={`h-2.5 w-1 rounded-[1px] ${s <= totalBurstMin ? (quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : "bg-emerald-400") : "bg-muted-foreground/20"}`}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </td>
                     <td className="py-1.5 text-right text-muted-foreground font-mono text-[10px]">
