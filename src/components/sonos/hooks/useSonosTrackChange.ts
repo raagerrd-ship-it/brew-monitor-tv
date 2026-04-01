@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, triggerServerSync, fetchNowPlayingImages, pushToBgBuffer, updateProgressDOM } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosTrackChangeParams {
@@ -150,12 +150,14 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
-        ...(nextBg ? { bg_image_url: nextBg } : {}),
+        ...(nextBg ? { bg_image_url: nextBg, bg_cached: prev.next_bg_cached ?? null, bg_generation_ms: prev.next_bg_generation_ms ?? null } : {}),
         ...(nextArt ? { album_art_url: nextArt } : {}),
         next_bg_image_url: null,
         next_album_art_url: null,
         next_track_name: null,
         next_artist_name: null,
+        next_bg_cached: null,
+        next_bg_generation_ms: null,
       };
     });
   }, [setNowPlaying, localProgressRef, bgSentRef, validBgBufferRef, onAlbumArtChangeRef, progressBarRef, debugTimeRef, trackNameRef, artistNameRef]);
