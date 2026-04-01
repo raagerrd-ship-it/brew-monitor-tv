@@ -227,18 +227,43 @@ export async function calculateCompensatedTarget(
 
   let dutyCycle = 0
 
+  // ── Steady-state duty floor ──────────────────────────────
+  // Use the learned steady-state duty as a floor for the integral
+  // in deadband/overcooled states. Without this, the integral decays
+  // to 0 causing oscillation: temp rises → burst → temp drops → repeat.
+  const ssBucket = getTempBucket(actualTarget)
+  const ssParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
+  const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
+
   if (Math.abs(avgError) <= 0.05) {
-    // DEADBAND: gentle decay (0.90/cycle) to prevent residual PWM bursts
-    integral *= 0.90
+    // DEADBAND: decay toward steady-state floor instead of zero
+    if (ssFloor > 0 && integral > ssFloor) {
+      // Decay toward floor: move 10% closer per cycle
+      integral = integral * 0.90 + ssFloor * 0.10
+    } else if (ssFloor > 0) {
+      // Below floor — hold at floor (the learned equilibrium duty)
+      integral = ssFloor
+    } else {
+      // No learned floor yet — original decay behavior
+      integral *= 0.90
+    }
     dutyCycle = Math.max(0, integral)
     constraints.push('deadband')
-    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.05) {
-    // OVER-ACTUATED: stop, fast-decay integral
-    integral *= 0.85
-    dutyCycle = 0
+    // OVER-ACTUATED: decay toward floor instead of zero
+    if (ssFloor > 0 && integral > ssFloor) {
+      integral = integral * 0.85 + ssFloor * 0.15
+    } else if (ssFloor > 0 && integral < ssFloor) {
+      // Below floor but overcooled — reduce slightly below floor
+      // to allow temp to recover, but don't drop to zero
+      integral = ssFloor * 0.85
+    } else {
+      integral *= 0.85
+    }
+    dutyCycle = Math.max(0, integral)
     constraints.push(isCooling ? 'overcooled' : 'overheated')
-    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0%`)
+    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else {
     // NEEDS ACTION — proportional + integral
     //
