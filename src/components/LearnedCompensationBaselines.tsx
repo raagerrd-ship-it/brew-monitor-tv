@@ -202,10 +202,9 @@ export function LearnedCompensationBaselines() {
             <thead>
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 <th className="text-left font-medium pb-1 w-[14%]"></th>
-                <th className="text-left font-medium pb-1 w-[18%]">Delta</th>
-                <th className="text-left font-medium pb-1 w-[16%]">Steg</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Duty/Korr</th>
-                <th className="text-right font-medium pb-1 w-[18%]">Konv.</th>
+                <th className="text-left font-medium pb-1 w-[20%]">Delta</th>
+                <th className="text-left font-medium pb-1 w-[18%]">Steg</th>
+                <th className="text-right font-medium pb-1 w-[34%]">Duty/Korr</th>
                 <th className="text-right font-medium pb-1 w-[14%]"></th>
               </tr>
             </thead>
@@ -263,14 +262,6 @@ export function LearnedCompensationBaselines() {
                           </div>
                         );
                       })()}
-                    </td>
-                    <td className="py-1.5 text-right text-muted-foreground">
-                      <span>{item.convergence_count}</span>
-                      {item.last_converged_at && (
-                        <span className="text-muted-foreground/60 ml-1">
-                          {formatRecency(item.last_converged_at)}
-                        </span>
-                      )}
                     </td>
                     <td className="py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <AlertDialog>
