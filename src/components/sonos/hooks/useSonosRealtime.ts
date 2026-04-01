@@ -117,7 +117,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name);
             bgSentRef.current = effectiveBg;
           }
-          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} pos=${Math.round((incoming.position_ms ?? 0) / 1000)}s (bg: ${effectiveBg ? (preloadedBg ? 'förladdad ✅' : 'ny') : 'väntar'})`);
+          const bgCacheTag = incoming.bg_cached === true
+            ? '🗂️ sparad'
+            : incoming.bg_cached === false
+              ? `🎨 genererad ${incoming.bg_generation_ms ?? '?'}ms`
+              : '';
+          tvDebug('sonos', `📡 RT låtbyte: "${incoming.track_name}" seq=${incomingSeq} pos=${Math.round((incoming.position_ms ?? 0) / 1000)}s (bg: ${effectiveBg ? (preloadedBg ? 'förladdad ✅' : bgCacheTag || 'ny') : 'väntar'})`);
           return {
             ...incoming,
             bg_image_url: effectiveBg || null,
@@ -156,7 +161,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         if (nextBgNew) {
-          tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
+          const nextCacheTag = incoming.next_bg_cached === true
+            ? '(🗂️ sparad)'
+            : incoming.next_bg_cached === false
+              ? `(🎨 genererad ${incoming.next_bg_generation_ms ?? '?'}ms)`
+              : '';
+          tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)} ${nextCacheTag}`.trim());
         }
 
         const hasChanges = nextBgNew || bgActuallyChanged

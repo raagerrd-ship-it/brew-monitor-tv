@@ -251,7 +251,11 @@ Deno.serve(async (req) => {
       const result = await resolveBackground(
         supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
       );
-      if (result.bgUrl) imageUpdate.bg_image_url = result.bgUrl;
+      if (result.bgUrl) {
+        imageUpdate.bg_image_url = result.bgUrl;
+        imageUpdate.bg_cached = result.cached;
+        imageUpdate.bg_generation_ms = result.generationMs;
+      }
     }
 
     // Next track background (skip for radio — next track metadata is unreliable)
@@ -270,7 +274,11 @@ Deno.serve(async (req) => {
           const nextResult = await resolveBackground(
             supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
           );
-          if (nextResult.bgUrl) imageUpdate.next_bg_image_url = nextResult.bgUrl;
+          if (nextResult.bgUrl) {
+            imageUpdate.next_bg_image_url = nextResult.bgUrl;
+            imageUpdate.next_bg_cached = nextResult.cached;
+            imageUpdate.next_bg_generation_ms = nextResult.generationMs;
+          }
         }
       } catch (e) {
         console.error(`[BridgePush] Next track images error:`, e);

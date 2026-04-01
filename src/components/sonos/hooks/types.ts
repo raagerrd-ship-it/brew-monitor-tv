@@ -13,6 +13,10 @@ export interface NowPlaying {
   position_ms: number | null;
   playback_state: string;
   media_type?: string | null;
+  bg_cached?: boolean | null;
+  next_bg_cached?: boolean | null;
+  bg_generation_ms?: number | null;
+  next_bg_generation_ms?: number | null;
 }
 
 

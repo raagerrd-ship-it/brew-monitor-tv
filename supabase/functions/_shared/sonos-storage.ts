@@ -119,9 +119,10 @@ export async function resolveBackground(
   targetH: number,
   _forceRegenerate?: boolean,
   trackName?: string | null,
-): Promise<{ bgUrl: string | null }> {
-  if (!artUrl) return { bgUrl: null };
+): Promise<{ bgUrl: string | null, cached: boolean, generationMs: number }> {
+  if (!artUrl) return { bgUrl: null, cached: false, generationMs: 0 };
 
+  const t0 = Date.now();
   const trackHash = simpleHash(trackId || artUrl);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
   const namePart = trackName
@@ -141,19 +142,22 @@ export async function resolveBackground(
     if (cached) {
       const { data: urlData } = supabase.storage.from('sonos-backgrounds').getPublicUrl(bgFileName);
       const ts = new Date(cached.updated_at || cached.created_at).getTime();
-      console.log(`[SonosSync] Cache hit: ${bgFileName}`);
-      return { bgUrl: `${urlData.publicUrl}?v=${ts}` };
+      const elapsed = Date.now() - t0;
+      console.log(`[SonosSync] Cache hit: ${bgFileName} (${elapsed}ms)`);
+      return { bgUrl: `${urlData.publicUrl}?v=${ts}`, cached: true, generationMs: elapsed };
     }
   }
 
   // Cache miss — fetch, process, upload
   const decoded = await fetchAndDecodeJpeg(artUrl);
-  if (!decoded) return { bgUrl: null };
+  if (!decoded) return { bgUrl: null, cached: false, generationMs: Date.now() - t0 };
 
   console.log(`[SonosSync] Generating BG: ${bgFileName}`);
   const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
 
   const bgUrl = await uploadBackground(supabase, bgBase64, bgFileName);
+  const elapsed = Date.now() - t0;
+  console.log(`[SonosSync] Generated BG in ${elapsed}ms: ${bgFileName}`);
 
-  return { bgUrl };
+  return { bgUrl, cached: false, generationMs: elapsed };
 }

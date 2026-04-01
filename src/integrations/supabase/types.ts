@@ -1374,6 +1374,8 @@ export type Database = {
           album_name: string | null
           artist_name: string | null
           bass: number | null
+          bg_cached: boolean | null
+          bg_generation_ms: number | null
           bg_image_url: string | null
           crossfade: boolean | null
           current_uri: string | null
@@ -1386,6 +1388,8 @@ export type Database = {
           next_album_art_url: string | null
           next_artist_name: string | null
           next_av_transport_uri: string | null
+          next_bg_cached: boolean | null
+          next_bg_generation_ms: number | null
           next_bg_image_url: string | null
           next_track_name: string | null
           next_widget_art_url: string | null
@@ -1412,6 +1416,8 @@ export type Database = {
           album_name?: string | null
           artist_name?: string | null
           bass?: number | null
+          bg_cached?: boolean | null
+          bg_generation_ms?: number | null
           bg_image_url?: string | null
           crossfade?: boolean | null
           current_uri?: string | null
@@ -1424,6 +1430,8 @@ export type Database = {
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_av_transport_uri?: string | null
+          next_bg_cached?: boolean | null
+          next_bg_generation_ms?: number | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null
@@ -1450,6 +1458,8 @@ export type Database = {
           album_name?: string | null
           artist_name?: string | null
           bass?: number | null
+          bg_cached?: boolean | null
+          bg_generation_ms?: number | null
           bg_image_url?: string | null
           crossfade?: boolean | null
           current_uri?: string | null
@@ -1462,6 +1472,8 @@ export type Database = {
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_av_transport_uri?: string | null
+          next_bg_cached?: boolean | null
+          next_bg_generation_ms?: number | null
           next_bg_image_url?: string | null
           next_track_name?: string | null
           next_widget_art_url?: string | null

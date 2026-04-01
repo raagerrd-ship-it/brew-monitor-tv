@@ -35,7 +35,6 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
     if (url === preloadingUrlRef.current) return;
     const flowId = `bg-swap-${++bgSwapCounter}`;
     preloadingUrlRef.current = url;
-    tvDebug('bg', `⏳ Laddar bakgrund för ${label}...`, flowId);
     const img = new Image();
     img.onload = () => {
       if (preloadingUrlRef.current !== url) {
