@@ -231,6 +231,10 @@ export async function calculateCompensatedTarget(
   // Use the learned steady-state duty as a floor for the integral
   // in deadband/overcooled states. Without this, the integral decays
   // to 0 causing oscillation: temp rises → burst → temp drops → repeat.
+  //
+  // IMPORTANT: Hardware PWM quantizes to 10% steps, so the floor must
+  // be stored/compared in that resolution to avoid stuck states where
+  // a floor of e.g. 0.08 maps to 10% but the system only needs 0%.
   const ssBucket = getTempBucket(actualTarget)
   const ssParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
@@ -251,13 +255,26 @@ export async function calculateCompensatedTarget(
     constraints.push('deadband')
     console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.05) {
-    // OVER-ACTUATED: decay toward floor instead of zero
+    // OVER-ACTUATED: the floor may be too high, causing oscillation.
+    // Actively erode the learned floor downward so the system can recover.
+    // Without this, a too-high floor creates a deadlock: high floor →
+    // overheating → never reaches deadband → floor never decreases.
+    if (ssFloor > 0) {
+      // Reduce floor by 10% each over-actuation cycle (EMA toward current integral)
+      // This allows ~5 cycles to bring a 0.5 floor down to ~0.3
+      const reducedFloor = Math.max(0, integral * 0.3 + ssFloor * 0.7)
+      // Quantize to 10% steps to match hardware PWM resolution
+      const quantizedFloor = Math.round(reducedFloor * 10) / 10
+      if (quantizedFloor < ssFloor) {
+        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 0.5)
+        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (over-actuated)`)
+      }
+    }
     if (ssFloor > 0 && integral > ssFloor) {
       integral = integral * 0.85 + ssFloor * 0.15
     } else if (ssFloor > 0 && integral < ssFloor) {
-      // Below floor but overcooled — reduce slightly below floor
-      // to allow temp to recover, but don't drop to zero
-      integral = ssFloor * 0.85
+      // Below floor but over-actuated — drop below floor to recover
+      integral = Math.min(integral, ssFloor * 0.7)
     } else {
       integral *= 0.85
     }
