@@ -649,9 +649,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       await supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' })
 
       // Learn steady-state duty cycle when PID is in deadband (system at equilibrium)
+      // Quantize to 10% steps to match hardware PWM resolution — prevents
+      // the floor from stabilizing at values that map to different PWM steps.
       if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && pidResult.iCorrection != null) {
         const dutyBucket = getTempBucket(actualTarget)
-        await updateLearnedParam(supabase, fc.controller_id, `steady_state_duty:${dutyBucket}`, pidResult.iCorrection, 0, 1.0)
+        const quantizedDuty = Math.round(pidResult.iCorrection * 10) / 10
+        await updateLearnedParam(supabase, fc.controller_id, `steady_state_duty:${dutyBucket}`, quantizedDuty, 0, 1.0)
       }
     }
 
