@@ -373,15 +373,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           // Clamp: never let EST close more than 50% of the gap to target.
           // This prevents PID from under-reacting due to over-optimistic EST.
           const gapToTarget = actualTemp - actualTarget // positive when above target (cooling)
-          if (lastMode === 'cooling' && gapToTarget > 0) {
-            interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+
+          // IMPORTANT: Only apply EST clamps when the system is on the CORRECT side
+          // of the target for the current mode. When over-actuated (e.g. heating but
+          // above target), clamping EST to target masks the error (err=0 → deadband),
+          // preventing mode switch and creating a feedback deadlock.
+          const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
+                                   (lastMode === 'heating' && gapToTarget < 0)
+
+          if (isOnCorrectSide) {
+            // 50% gap rule: don't let EST close more than half the gap
+            if (lastMode === 'cooling') {
+              interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+            } else {
+              interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+            }
+            // Hard clamp: never overshoot past target
+            if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
+            if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
           }
-          if (lastMode === 'heating' && gapToTarget < 0) {
-            interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
-          }
-          // Hard clamp: never overshoot past target
-          if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
-          if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
+          // When on wrong side (over-actuated), skip clamps — let PID see the real
+          // over-target error so it can decay duty to 0 and allow mode switch.
+
           interpolatedTemp = round1(interpolatedTemp)
 
           if (Math.abs(interpolatedTemp - actualTemp) >= 0.05) {
