@@ -188,8 +188,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
-          ...(nextBgNew ? { next_bg_image_url: incoming.next_bg_image_url } : {}),
+          ...(nextBgNew ? { next_bg_image_url: incoming.next_bg_image_url, next_bg_cached: incoming.next_bg_cached, next_bg_generation_ms: incoming.next_bg_generation_ms } : {}),
           ...(incoming.next_album_art_url ? { next_album_art_url: incoming.next_album_art_url } : {}),
+          ...(bgActuallyChanged ? { bg_cached: incoming.bg_cached, bg_generation_ms: incoming.bg_generation_ms } : {}),
         };
       });
 
