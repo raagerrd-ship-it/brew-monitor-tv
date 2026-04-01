@@ -263,14 +263,6 @@ export function LearnedCompensationBaselines() {
                         );
                       })()}
                     </td>
-                    <td className="py-1.5 text-right text-muted-foreground">
-                      <span>{item.convergence_count}</span>
-                      {item.last_converged_at && (
-                        <span className="text-muted-foreground/60 ml-1">
-                          {formatRecency(item.last_converged_at)}
-                        </span>
-                      )}
-                    </td>
                     <td className="py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
