@@ -34,8 +34,8 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, re
         boxShadow: '0 -4px 16px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
       }}
     >
-      {/* Left: end time / countdown */}
-      <div className="flex items-center gap-2 flex-shrink-0 min-w-[100px]">
+      {/* Left: countdown */}
+      <div className="flex items-center flex-shrink-0">
         <span className="font-bold tabular-nums text-base" style={{ color: 'hsl(38 90% 70%)' }}>
           {formatCountdown(remainingMs)}
         </span>
