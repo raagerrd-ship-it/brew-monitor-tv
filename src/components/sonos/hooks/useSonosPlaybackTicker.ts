@@ -197,7 +197,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
 
       // Watchdog: no background sent
-      if (isPlaying && bgSentRef.current === null && next % 10000 < 1000) {
+      if (isPlaying && bgSentRef.current === null && next % 10000 < 1000 && Date.now() - lastWatchdogTs > 30_000) {
+        lastWatchdogTs = Date.now();
         tvDebug('sonos', `🔍 Ingen bakgrund — försöker hämta`);
         (async () => {
           try {
