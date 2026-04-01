@@ -130,10 +130,10 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
           preloadUrls.forEach(url => { const img = new Image(); img.src = url; });
-          const cacheTag = current?.next_bg_cached === true
+          const cacheTag = (current as any)?.next_bg_cached === true
             ? '(🗂️ sparad)'
-            : current?.next_bg_cached === false
-              ? `(🎨 genererad ${current?.next_bg_generation_ms ?? '?'}ms)`
+            : (current as any)?.next_bg_cached === false
+              ? `(🎨 genererad ${(current as any)?.next_bg_generation_ms ?? '?'}ms)`
               : '';
           tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut ${cacheTag}`.trim());
         }
