@@ -142,12 +142,12 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               let attempts = 0;
               const logReady = () => {
                 const label = getPreloadLabel();
-                if (label || attempts >= 6) {
+                if (label || attempts >= 10) {
                   tvDebug('sonos', `🖼️ Preload klar: ${label || 'redo'}`);
                   return;
                 }
                 attempts += 1;
-                window.setTimeout(logReady, 150);
+                window.setTimeout(logReady, 300);
               };
               logReady();
             };
