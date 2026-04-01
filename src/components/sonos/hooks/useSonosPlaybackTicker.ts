@@ -56,6 +56,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
     let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastWatchdogTs = 0;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
