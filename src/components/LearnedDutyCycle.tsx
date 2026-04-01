@@ -138,9 +138,8 @@ export function LearnedDutyCycle() {
             <thead>
               <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 <th className="text-left font-medium pb-1 w-[25%]">Zon</th>
-                <th className="text-right font-medium pb-1 w-[15%]">Duty</th>
-                <th className="text-right font-medium pb-1 w-[20%]">Burst</th>
-                <th className="text-right font-medium pb-1 w-[20%]">W/K °C/h</th>
+                <th className="text-right font-medium pb-1 w-[30%]">Duty</th>
+                <th className="text-right font-medium pb-1 w-[25%]">W/K °C/h</th>
                 <th className="text-right font-medium pb-1 w-[20%]">Senast</th>
               </tr>
             </thead>
