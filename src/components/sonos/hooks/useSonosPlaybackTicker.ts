@@ -129,16 +129,16 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const current = nowPlayingRef?.current;
         const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
-          const cacheLabel = current?.next_bg_cached === true
-            ? 'Sparad'
-            : current?.next_bg_cached === false
-              ? `Genererad ${current?.next_bg_generation_ms ?? '?'} ms`
-              : null;
-
           preloadUrls.forEach(url => {
             const img = new Image();
             img.onload = () => {
-              tvDebug('sonos', `🖼️ Preload klar: ${cacheLabel ? `[${cacheLabel}]` : 'redo'}`);
+              const snap = nowPlayingRef?.current;
+              const label = snap?.next_bg_cached === true
+                ? '[Sparad]'
+                : snap?.next_bg_cached === false
+                  ? `[Genererad ${snap?.next_bg_generation_ms ?? '?'} ms]`
+                  : null;
+              tvDebug('sonos', `🖼️ Preload klar: ${label || 'redo'}`);
             };
             img.onerror = () => {
               tvDebug('sonos', '🖼️ Preload misslyckades');
