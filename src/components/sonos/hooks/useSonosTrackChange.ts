@@ -60,7 +60,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
           : prev.next_bg_cached === false
             ? `🎨 genererad ${prev.next_bg_generation_ms ?? '?'}ms`
             : '';
-        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${extractFileName(nextBg)} ${cacheTag}`.trim());
+        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${cacheTag || 'förladdad'}`.trim());
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
           onAlbumArtChangeRef.current?.(nextBg, data.trackName);
