@@ -129,16 +129,27 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const current = nowPlayingRef?.current;
         const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
+          const getPreloadLabel = () => {
+            const snap = nowPlayingRef?.current;
+            if (snap?.next_bg_cached === true) return '[Sparad]';
+            if (snap?.next_bg_cached === false) return `[Genererad ${snap?.next_bg_generation_ms ?? '?'} ms]`;
+            return null;
+          };
+
           preloadUrls.forEach(url => {
             const img = new Image();
             img.onload = () => {
-              const snap = nowPlayingRef?.current;
-              const label = snap?.next_bg_cached === true
-                ? '[Sparad]'
-                : snap?.next_bg_cached === false
-                  ? `[Genererad ${snap?.next_bg_generation_ms ?? '?'} ms]`
-                  : null;
-              tvDebug('sonos', `🖼️ Preload klar: ${label || 'redo'}`);
+              let attempts = 0;
+              const logReady = () => {
+                const label = getPreloadLabel();
+                if (label || attempts >= 6) {
+                  tvDebug('sonos', `🖼️ Preload klar: ${label || 'redo'}`);
+                  return;
+                }
+                attempts += 1;
+                window.setTimeout(logReady, 150);
+              };
+              logReady();
             };
             img.onerror = () => {
               tvDebug('sonos', '🖼️ Preload misslyckades');

@@ -29,7 +29,7 @@ export function useSonosInit(params: UseSonosInitParams) {
             .maybeSingle(),
           supabase
             .from('sonos_now_playing')
-            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, track_seq')
+            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, track_seq, media_type, bg_cached, next_bg_cached, bg_generation_ms, next_bg_generation_ms')
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
