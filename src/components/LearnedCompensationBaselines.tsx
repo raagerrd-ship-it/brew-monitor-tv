@@ -162,7 +162,10 @@ export function LearnedCompensationBaselines() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">PID-baselines</span>
+          <div>
+            <span className="text-sm font-medium">PID-integral (nuläge)</span>
+            <p className="text-[10px] text-muted-foreground/60">Aktuellt integralvärde per stegtyp och delta — ändras varje cykel</p>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>

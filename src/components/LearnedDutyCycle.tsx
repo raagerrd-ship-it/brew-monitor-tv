@@ -124,7 +124,10 @@ export function LearnedDutyCycle() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Gauge className="h-4 w-4 text-emerald-400" />
-          <span className="text-sm font-medium">Steady-state duty cycle</span>
+          <div>
+            <span className="text-sm font-medium">Duty-golv (inlärt)</span>
+            <p className="text-[10px] text-muted-foreground/60">Minimum duty per temperaturzon — integralen sjunker aldrig under detta</p>
+          </div>
         </div>
         <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={loadData}>
           <RefreshCw className="h-3 w-3" />
