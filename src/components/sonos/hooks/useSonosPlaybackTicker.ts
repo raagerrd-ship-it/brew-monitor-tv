@@ -56,6 +56,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     const duration = nowPlaying.duration_ms;
     const trackName = nowPlaying.track_name;
     let predictiveTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastWatchdogTs = 0;
 
     const pollForNewTrack = async (retriesLeft: number) => {
       try {
@@ -142,12 +143,12 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
               let attempts = 0;
               const logReady = () => {
                 const label = getPreloadLabel();
-                if (label || attempts >= 6) {
+                if (label || attempts >= 10) {
                   tvDebug('sonos', `🖼️ Preload klar: ${label || 'redo'}`);
                   return;
                 }
                 attempts += 1;
-                window.setTimeout(logReady, 150);
+                window.setTimeout(logReady, 300);
               };
               logReady();
             };
@@ -196,7 +197,8 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
 
       // Watchdog: no background sent
-      if (isPlaying && bgSentRef.current === null && next % 10000 < 1000) {
+      if (isPlaying && bgSentRef.current === null && next % 10000 < 1000 && Date.now() - lastWatchdogTs > 30_000) {
+        lastWatchdogTs = Date.now();
         tvDebug('sonos', `🔍 Ingen bakgrund — försöker hämta`);
         (async () => {
           try {
