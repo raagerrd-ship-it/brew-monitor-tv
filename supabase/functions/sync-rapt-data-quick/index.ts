@@ -1393,14 +1393,14 @@ Deno.serve(async (req) => {
               console.log(`📴 ${ctrl.name} went offline (${check.ageMinutes}min stale) — outage opened`);
             } else if (!check.stale && hasOpenOutage) {
               // Controller came back — resolve outage
-              const outageId = openOutageMap.get(ctrl.controller_id);
-              const durationSeconds = check.ageMinutes != null ? (30 * 60) : 0; // approximate
+              const outage = openOutageMap.get(ctrl.controller_id)!;
+              const durationSeconds = Math.round((now.getTime() - new Date(outage.outage_start).getTime()) / 1000);
               await supabase.from('controller_outage_log').update({
                 resolved: true,
                 outage_end: now.toISOString(),
                 duration_seconds: durationSeconds,
-              }).eq('id', outageId);
-              console.log(`✅ ${ctrl.name} back online — outage resolved`);
+              }).eq('id', outage.id);
+              console.log(`✅ ${ctrl.name} back online after ${Math.round(durationSeconds / 60)}min — outage resolved`);
             }
           }
         } catch (err) {
