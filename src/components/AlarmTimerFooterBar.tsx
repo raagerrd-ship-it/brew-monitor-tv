@@ -36,9 +36,6 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, re
     >
       {/* Left: end time / countdown */}
       <div className="flex items-center gap-2 flex-shrink-0 min-w-[100px]">
-        <span className="text-xs font-medium" style={{ color: 'hsl(40 10% 60%)' }}>
-          {formatEndTime(entry.endsAt)}
-        </span>
         <span className="font-bold tabular-nums text-base" style={{ color: 'hsl(38 90% 70%)' }}>
           {formatCountdown(remainingMs)}
         </span>
@@ -66,8 +63,8 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, re
 
       {/* Right: label + cancel */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-sm font-medium truncate max-w-[120px]" style={{ color: 'hsl(40 10% 80%)' }}>
-          {entry.label}
+        <span className="text-sm font-medium truncate max-w-[160px]" style={{ color: 'hsl(40 10% 80%)' }}>
+          {entry.label} {formatEndTime(entry.endsAt)}
         </span>
         <button
           onClick={onCancel}
