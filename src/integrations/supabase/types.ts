@@ -1367,6 +1367,51 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_timer: {
+        Row: {
+          alert_duration_sec: number | null
+          alert_text: string | null
+          created_at: string
+          ends_at: string | null
+          fired: boolean
+          id: string
+          is_active: boolean
+          label: string | null
+          started_at: string | null
+          total_ms: number | null
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          alert_duration_sec?: number | null
+          alert_text?: string | null
+          created_at?: string
+          ends_at?: string | null
+          fired?: boolean
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          started_at?: string | null
+          total_ms?: number | null
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alert_duration_sec?: number | null
+          alert_text?: string | null
+          created_at?: string
+          ends_at?: string | null
+          fired?: boolean
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          started_at?: string | null
+          total_ms?: number | null
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sonos_now_playing: {
         Row: {
           album_art_url: string | null

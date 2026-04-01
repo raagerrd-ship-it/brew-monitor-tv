@@ -3,6 +3,7 @@ import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { AlarmTimerFooterBar } from '@/components/AlarmTimerFooterBar';
 import { AlertTriangle, Timer, AlarmClock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export type AlarmTimerType = 'timer' | 'alarm';
 
@@ -47,57 +48,165 @@ export function useAlarmTimer() {
 
 const FOOTER_HEIGHT = 48;
 
+/** Convert DB row to local entry */
+function rowToEntry(row: any): AlarmTimerEntry | null {
+  if (!row?.is_active || !row.type || !row.ends_at) return null;
+  const endsAt = new Date(row.ends_at).getTime();
+  return {
+    id: row.id,
+    type: row.type as AlarmTimerType,
+    endsAt,
+    startedAt: row.started_at ? new Date(row.started_at).getTime() : Date.now(),
+    totalMs: row.total_ms ?? 0,
+    label: row.label ?? '',
+    alertText: row.alert_text ?? '',
+    alertDurationSec: row.alert_duration_sec ?? 10,
+    fired: row.fired ?? false,
+  };
+}
+
+async function upsertTimer(data: {
+  type: string;
+  ends_at: string;
+  started_at: string;
+  total_ms: number;
+  label: string;
+  alert_text: string;
+  alert_duration_sec: number;
+  is_active: boolean;
+  fired: boolean;
+}) {
+  // Get existing row id
+  const { data: existing } = await supabase
+    .from('shared_timer')
+    .select('id')
+    .limit(1)
+    .single();
+
+  if (existing) {
+    await supabase
+      .from('shared_timer')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', existing.id);
+  } else {
+    await supabase
+      .from('shared_timer')
+      .insert(data);
+  }
+}
+
 export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   const [entry, setEntry] = useState<AlarmTimerEntry | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
   const { showAlert } = useDashboardAlert();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const firedLocallyRef = useRef<string | null>(null);
 
-  const cancel = useCallback(() => {
+  const cancel = useCallback(async () => {
     setEntry(null);
     setRemainingMs(0);
+    firedLocallyRef.current = null;
+    // Clear in DB
+    const { data: existing } = await supabase
+      .from('shared_timer')
+      .select('id')
+      .limit(1)
+      .single();
+    if (existing) {
+      await supabase
+        .from('shared_timer')
+        .update({ is_active: false, fired: false, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    }
   }, []);
 
-  const startTimer = useCallback((minutes: number, alertText: string, alertDurationSec: number, label?: string) => {
+  const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec: number, label?: string) => {
     const now = Date.now();
     const totalMs = minutes * 60 * 1000;
-    setEntry({
-      id: `timer-${now}`,
+    const endsAt = new Date(now + totalMs);
+
+    await upsertTimer({
       type: 'timer',
-      endsAt: now + totalMs,
-      startedAt: now,
-      totalMs,
+      ends_at: endsAt.toISOString(),
+      started_at: new Date(now).toISOString(),
+      total_ms: totalMs,
       label: label || `Timer ${minutes} min`,
-      alertText,
-      alertDurationSec,
+      alert_text: alertText,
+      alert_duration_sec: alertDurationSec,
+      is_active: true,
       fired: false,
     });
-    setRemainingMs(totalMs);
   }, []);
 
-  const setAlarm = useCallback((targetTime: string, alertText: string, alertDurationSec: number, label?: string) => {
+  const setAlarm = useCallback(async (targetTime: string, alertText: string, alertDurationSec: number, label?: string) => {
     const now = new Date();
     const [hours, minutes] = targetTime.split(':').map(Number);
     const target = new Date(now);
     target.setHours(hours, minutes, 0, 0);
-    // If the time has already passed today, set it for tomorrow
     if (target.getTime() <= now.getTime()) {
       target.setDate(target.getDate() + 1);
     }
     const totalMs = target.getTime() - now.getTime();
-    setEntry({
-      id: `alarm-${Date.now()}`,
+
+    await upsertTimer({
       type: 'alarm',
-      endsAt: target.getTime(),
-      startedAt: now.getTime(),
-      totalMs,
+      ends_at: target.toISOString(),
+      started_at: now.toISOString(),
+      total_ms: totalMs,
       label: label || `Alarm ${targetTime}`,
-      alertText,
-      alertDurationSec,
+      alert_text: alertText,
+      alert_duration_sec: alertDurationSec,
+      is_active: true,
       fired: false,
     });
-    setRemainingMs(totalMs);
+  }, []);
+
+  // Load initial state from DB
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('shared_timer')
+        .select('*')
+        .limit(1)
+        .single();
+      if (data) {
+        const e = rowToEntry(data);
+        if (e && !e.fired) {
+          setEntry(e);
+          setRemainingMs(Math.max(0, e.endsAt - Date.now()));
+        }
+      }
+    })();
+  }, []);
+
+  // Subscribe to realtime changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('shared-timer')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shared_timer' },
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+
+          if (!row.is_active) {
+            setEntry(null);
+            setRemainingMs(0);
+            return;
+          }
+
+          const e = rowToEntry(row);
+          if (e) {
+            setEntry(e);
+            setRemainingMs(Math.max(0, e.endsAt - Date.now()));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // Tick every second
@@ -111,6 +220,15 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       if (left <= 0) {
         setRemainingMs(0);
         setEntry(prev => prev ? { ...prev, fired: true } : null);
+        // Mark as fired in DB (only once per entry)
+        if (firedLocallyRef.current !== entry.id) {
+          firedLocallyRef.current = entry.id;
+          supabase
+            .from('shared_timer')
+            .update({ fired: true, updated_at: new Date().toISOString() })
+            .eq('id', entry.id)
+            .then(() => {});
+        }
       } else {
         setRemainingMs(left);
       }
@@ -154,9 +272,21 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       ),
     });
     // Auto-clear the entry after alert dismisses
-    const clearTimer = setTimeout(() => {
+    const clearTimer = setTimeout(async () => {
       setEntry(null);
       setRemainingMs(0);
+      // Clear in DB
+      const { data: existing } = await supabase
+        .from('shared_timer')
+        .select('id')
+        .limit(1)
+        .single();
+      if (existing) {
+        await supabase
+          .from('shared_timer')
+          .update({ is_active: false, fired: false, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      }
     }, entry.alertDurationSec * 1000 + 500);
     return () => clearTimeout(clearTimer);
   }, [entry?.fired]);
