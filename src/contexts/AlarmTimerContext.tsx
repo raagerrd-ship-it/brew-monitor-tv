@@ -70,11 +70,11 @@ async function upsertTimer(data: {
   fired: boolean;
 }) {
   // Try update first (singleton pattern — no need to know the id)
-  const { count } = await supabase
+  const { data: updated } = await supabase
     .from('shared_timer')
     .update({ ...data, updated_at: new Date().toISOString() })
     .not('id', 'is', null)
-    .select('id', { count: 'exact', head: true });
+    .select('id');
 
   // If no rows updated, insert
   if (!count || count === 0) {
