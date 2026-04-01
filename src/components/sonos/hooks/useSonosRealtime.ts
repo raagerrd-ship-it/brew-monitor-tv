@@ -156,7 +156,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         }
 
         if (nextBgNew) {
-          tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)}`);
+          const nextCacheTag = (incoming as any).next_bg_cached === true
+            ? '(🗂️ sparad)'
+            : (incoming as any).next_bg_cached === false
+              ? `(🎨 genererad ${(incoming as any).next_bg_generation_ms ?? '?'}ms)`
+              : '';
+          tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)} ${nextCacheTag}`.trim());
         }
 
         const hasChanges = nextBgNew || bgActuallyChanged

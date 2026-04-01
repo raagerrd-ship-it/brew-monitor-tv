@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       if (result.bgUrl) bgImageUrl = result.bgUrl;
 
       if (result.bgUrl) {
-        await supabase.from('sonos_now_playing').update({ bg_image_url: result.bgUrl }).eq('id', existingRow.id);
+        await supabase.from('sonos_now_playing').update({ bg_image_url: result.bgUrl, bg_cached: result.cached, bg_generation_ms: result.generationMs }).eq('id', existingRow.id);
       }
 
       cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, existingRow.next_bg_image_url]).catch(() => {});
