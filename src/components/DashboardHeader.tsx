@@ -126,6 +126,14 @@ export function DashboardHeader({
             <div className="flex items-center gap-4 flex-shrink-0 self-stretch">
               <Clock />
 
+              {!isTvMode && (
+                <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
+                  <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-50 hover:opacity-90'}`}>
+                    <Timer className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
+                  </Button>
+                </div>
+              )}
+
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
