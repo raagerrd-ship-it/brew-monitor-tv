@@ -129,12 +129,23 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const current = nowPlayingRef?.current;
         const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
-          preloadUrls.forEach(url => { const img = new Image(); img.src = url; });
-          const cacheTag = (current as any)?.next_bg_cached === true
+          const cacheTag = current?.next_bg_cached === true
             ? '(🗂️ sparad)'
-            : (current as any)?.next_bg_cached === false
-              ? `(🎨 genererad ${(current as any)?.next_bg_generation_ms ?? '?'}ms)`
+            : current?.next_bg_cached === false
+              ? `(🎨 genererad ${current?.next_bg_generation_ms ?? '?'}ms)`
               : '';
+
+          preloadUrls.forEach(url => {
+            const img = new Image();
+            img.onload = () => {
+              tvDebug('sonos', `🖼️ Preload klar: ${cacheTag || 'redo'}`.trim());
+            };
+            img.onerror = () => {
+              tvDebug('sonos', '🖼️ Preload misslyckades');
+            };
+            img.src = url;
+          });
+
           tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut ${cacheTag}`.trim());
         }
 
