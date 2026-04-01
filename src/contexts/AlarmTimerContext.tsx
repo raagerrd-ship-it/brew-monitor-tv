@@ -10,19 +10,12 @@ export type AlarmTimerType = 'timer' | 'alarm';
 export interface AlarmTimerEntry {
   id: string;
   type: AlarmTimerType;
-  /** When the alarm/timer fires (epoch ms) */
   endsAt: number;
-  /** When it was started (epoch ms) */
   startedAt: number;
-  /** Total duration in ms (for progress calculation) */
   totalMs: number;
-  /** Label shown in footer bar */
   label: string;
-  /** Text displayed in the alert overlay */
   alertText: string;
-  /** How many seconds the alert stays visible */
   alertDurationSec: number;
-  /** Whether it has already fired */
   fired: boolean;
 }
 
@@ -76,23 +69,25 @@ async function upsertTimer(data: {
   is_active: boolean;
   fired: boolean;
 }) {
-  // Get existing row id
-  const { data: existing } = await supabase
+  // Try update first (singleton pattern — no need to know the id)
+  const { count } = await supabase
     .from('shared_timer')
-    .select('id')
-    .limit(1)
-    .single();
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .not('id', 'is', null)
+    .select('id', { count: 'exact', head: true });
 
-  if (existing) {
-    await supabase
-      .from('shared_timer')
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', existing.id);
-  } else {
-    await supabase
-      .from('shared_timer')
-      .insert(data);
+  // If no rows updated, insert
+  if (!count || count === 0) {
+    await supabase.from('shared_timer').insert(data);
   }
+}
+
+/** Clear timer in DB (singleton — update all rows) */
+async function clearTimerInDb() {
+  await supabase
+    .from('shared_timer')
+    .update({ is_active: false, fired: false, updated_at: new Date().toISOString() })
+    .not('id', 'is', null);
 }
 
 export function AlarmTimerProvider({ children }: { children: ReactNode }) {
@@ -107,18 +102,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     setEntry(null);
     setRemainingMs(0);
     firedLocallyRef.current = null;
-    // Clear in DB
-    const { data: existing } = await supabase
-      .from('shared_timer')
-      .select('id')
-      .limit(1)
-      .single();
-    if (existing) {
-      await supabase
-        .from('shared_timer')
-        .update({ is_active: false, fired: false, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-    }
+    await clearTimerInDb();
   }, []);
 
   const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec: number, label?: string) => {
@@ -220,13 +204,15 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       if (left <= 0) {
         setRemainingMs(0);
         setEntry(prev => prev ? { ...prev, fired: true } : null);
-        // Mark as fired in DB (only once per entry)
+        // Conditional update — only one client wins the race
         if (firedLocallyRef.current !== entry.id) {
           firedLocallyRef.current = entry.id;
           supabase
             .from('shared_timer')
             .update({ fired: true, updated_at: new Date().toISOString() })
             .eq('id', entry.id)
+            .eq('fired', false)
+            .eq('is_active', true)
             .then(() => {});
         }
       } else {
@@ -275,33 +261,22 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     const clearTimer = setTimeout(async () => {
       setEntry(null);
       setRemainingMs(0);
-      // Clear in DB
-      const { data: existing } = await supabase
-        .from('shared_timer')
-        .select('id')
-        .limit(1)
-        .single();
-      if (existing) {
-        await supabase
-          .from('shared_timer')
-          .update({ is_active: false, fired: false, updated_at: new Date().toISOString() })
-          .eq('id', existing.id);
-      }
+      await clearTimerInDb();
     }, entry.alertDurationSec * 1000 + 500);
     return () => clearTimeout(clearTimer);
   }, [entry?.fired]);
 
-  // Manage footer slot
+  // Manage footer slot — only update on entry change, not every second
   useEffect(() => {
     if (entry && !entry.fired) {
       setFooterSlot(
-        <AlarmTimerFooterBar entry={entry} remainingMs={remainingMs} onCancel={cancel} />,
+        <AlarmTimerFooterBar entry={entry} onCancel={cancel} />,
         FOOTER_HEIGHT,
       );
     } else {
       clearFooterSlot();
     }
-  }, [entry?.id, entry?.fired, remainingMs, cancel, setFooterSlot, clearFooterSlot]);
+  }, [entry?.id, entry?.fired, cancel, setFooterSlot, clearFooterSlot]);
 
   // Cleanup footer on unmount
   useEffect(() => () => clearFooterSlot(), [clearFooterSlot]);
