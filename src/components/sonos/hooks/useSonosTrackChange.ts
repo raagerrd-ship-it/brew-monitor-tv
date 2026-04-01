@@ -55,7 +55,12 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       const prevBg = bgSentRef.current;
 
       if (hasPreloaded) {
-        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${extractFileName(nextBg)}`);
+        const cacheTag = prev.next_bg_cached === true
+          ? '🗂️ sparad'
+          : prev.next_bg_cached === false
+            ? `🎨 genererad ${prev.next_bg_generation_ms ?? '?'}ms`
+            : '';
+        tvDebug('sonos', `🎵 → "${data.trackName}" ✅ ${extractFileName(nextBg)} ${cacheTag}`.trim());
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
           onAlbumArtChangeRef.current?.(nextBg, data.trackName);
