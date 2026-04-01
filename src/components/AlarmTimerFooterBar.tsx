@@ -21,6 +21,12 @@ function formatEndTime(epoch: number): string {
   return new Date(epoch).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatRightLabel(entry: AlarmTimerEntry): string {
+  if (entry.type !== 'alarm') return entry.label;
+  const endTime = formatEndTime(entry.endsAt);
+  return entry.label.includes(endTime) ? entry.label : `${entry.label} ${endTime}`;
+}
+
 export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, remainingMs, onCancel }: Props) {
   const progress = entry.totalMs > 0 ? Math.max(0, Math.min(100, ((entry.totalMs - remainingMs) / entry.totalMs) * 100)) : 0;
 
