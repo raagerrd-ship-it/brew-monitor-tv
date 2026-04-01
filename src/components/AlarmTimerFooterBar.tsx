@@ -1,10 +1,9 @@
-import { memo } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { AlarmTimerEntry } from '@/contexts/AlarmTimerContext';
 
 interface Props {
   entry: AlarmTimerEntry;
-  remainingMs: number;
   onCancel: () => void;
 }
 
@@ -27,7 +26,17 @@ function formatRightLabel(entry: AlarmTimerEntry): string {
   return entry.label.includes(endTime) ? entry.label : `${entry.label} ${endTime}`;
 }
 
-export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, remainingMs, onCancel }: Props) {
+export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, onCancel }: Props) {
+  const [remainingMs, setRemainingMs] = useState(() => Math.max(0, entry.endsAt - Date.now()));
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const tick = () => setRemainingMs(Math.max(0, entry.endsAt - Date.now()));
+    tick();
+    tickRef.current = setInterval(tick, 1000);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, [entry.endsAt]);
+
   const progress = entry.totalMs > 0 ? Math.max(0, Math.min(100, ((entry.totalMs - remainingMs) / entry.totalMs) * 100)) : 0;
 
   return (
