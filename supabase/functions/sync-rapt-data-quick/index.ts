@@ -1357,9 +1357,9 @@ Deno.serve(async (req) => {
           // Get open (unresolved) outages
           const { data: openOutages } = await supabase
             .from('controller_outage_log')
-            .select('id, controller_id')
+            .select('id, controller_id, outage_start')
             .eq('resolved', false);
-          const openOutageMap = new Map((openOutages ?? []).map((o: any) => [o.controller_id, o.id]));
+          const openOutageMap = new Map((openOutages ?? []).map((o: any) => [o.controller_id, { id: o.id, outage_start: o.outage_start }]));
 
           for (const ctrl of controllerUpdatesForHistory) {
             if (ctrl.is_glycol_cooler) continue;
