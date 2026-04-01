@@ -1346,6 +1346,67 @@ Deno.serve(async (req) => {
       if (syncSettingsRow?.id && !raptFailed) {
         await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettingsRow.id);
       }
+
+      // ── Per-controller outage tracking ──
+      // Detect individual controllers going stale/offline independently of global RAPT outages
+      if (!raptFailed && controllerUpdatesForHistory.length > 0) {
+        try {
+          const { isSensorDataStale } = await import('../_shared/temp-utils.ts');
+          const { insertNotification } = await import('../_shared/notifications.ts');
+
+          // Get open (unresolved) outages
+          const { data: openOutages } = await supabase
+            .from('controller_outage_log')
+            .select('id, controller_id, outage_start')
+            .eq('resolved', false);
+          const openOutageMap = new Map((openOutages ?? []).map((o: any) => [o.controller_id, { id: o.id, outage_start: o.outage_start }]));
+
+          for (const ctrl of controllerUpdatesForHistory) {
+            if (ctrl.is_glycol_cooler) continue;
+            const check = isSensorDataStale(ctrl.last_update);
+            const hasOpenOutage = openOutageMap.has(ctrl.controller_id);
+
+            if (check.stale && !hasOpenOutage) {
+              // Controller just went stale — open outage
+              await supabase.from('controller_outage_log').insert({
+                controller_id: ctrl.controller_id,
+                controller_name: ctrl.name,
+                outage_start: ctrl.last_update || now.toISOString(),
+              });
+              // Send sensor_offline notification (deduplicated per controller, 1h cooldown)
+              const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+              const { data: recentOffline } = await supabase
+                .from('pending_notifications')
+                .select('id')
+                .eq('type', 'sensor_offline')
+                .eq('controller_id', ctrl.controller_id)
+                .gte('created_at', oneHourAgo)
+                .limit(1);
+              if (!recentOffline?.length) {
+                await insertNotification(supabase, {
+                  type: 'sensor_offline',
+                  title: `${ctrl.name}: Offline`,
+                  body: `Ingen sensordata på ${check.ageMinutes ?? '?'} minuter. Automatisk styrning pausad för denna enhet.`,
+                  controller_id: ctrl.controller_id,
+                });
+              }
+              console.log(`📴 ${ctrl.name} went offline (${check.ageMinutes}min stale) — outage opened`);
+            } else if (!check.stale && hasOpenOutage) {
+              // Controller came back — resolve outage
+              const outage = openOutageMap.get(ctrl.controller_id)!;
+              const durationSeconds = Math.round((now.getTime() - new Date(outage.outage_start).getTime()) / 1000);
+              await supabase.from('controller_outage_log').update({
+                resolved: true,
+                outage_end: now.toISOString(),
+                duration_seconds: durationSeconds,
+              }).eq('id', outage.id);
+              console.log(`✅ ${ctrl.name} back online after ${Math.round(durationSeconds / 60)}min — outage resolved`);
+            }
+          }
+        } catch (err) {
+          console.error('Per-controller outage tracking error:', err);
+        }
+      }
     };
 
     const snapshotTask = async () => {

@@ -611,6 +611,39 @@ export type Database = {
         }
         Relationships: []
       }
+      controller_outage_log: {
+        Row: {
+          controller_id: string
+          controller_name: string
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          outage_end: string | null
+          outage_start: string
+          resolved: boolean
+        }
+        Insert: {
+          controller_id: string
+          controller_name: string
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          outage_end?: string | null
+          outage_start: string
+          resolved?: boolean
+        }
+        Update: {
+          controller_id?: string
+          controller_name?: string
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          outage_end?: string | null
+          outage_start?: string
+          resolved?: boolean
+        }
+        Relationships: []
+      }
       cooler_margin_history: {
         Row: {
           controller_id: string
