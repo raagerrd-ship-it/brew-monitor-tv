@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
     if (bgOnly) {
       const result = await resolveBackground(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, true, trackName);
       if (result.bgUrl) {
-        const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl };
+        const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl, bg_cached: result.cached, bg_generation_ms: result.generationMs };
         await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
         const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url').eq('id', existingRow.id).single();
         if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.next_bg_image_url]).catch(() => {});
