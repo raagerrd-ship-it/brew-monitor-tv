@@ -77,7 +77,7 @@ async function upsertTimer(data: {
     .select('id');
 
   // If no rows updated, insert
-  if (!count || count === 0) {
+  if (!updated || updated.length === 0) {
     await supabase.from('shared_timer').insert(data);
   }
 }
