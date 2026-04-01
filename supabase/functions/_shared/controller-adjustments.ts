@@ -565,7 +565,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // NOTE: fermentation_learnings upsert deferred until after PID calculation
     // to merge all writes into a single batch (mode, pressure, duty, effective_target)
     const profileStatus = profileStatusMap.get(fc.controller_id)
-    const stepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
+    const rawStepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
+    // Normalize wait-type steps to 'hold' for PID baseline sharing — they behave identically (hold temp, wait for condition)
+    const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement'].includes(rawStepType) ? 'hold' : rawStepType
 
     // Calculate cooling utilization for this controller and share with cooler
     let coolingUtil: number | null = null
