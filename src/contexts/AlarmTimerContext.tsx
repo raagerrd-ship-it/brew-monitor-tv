@@ -154,7 +154,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       ends_at: target.toISOString(),
       started_at: now.toISOString(),
       total_ms: totalMs,
-      label: label || `Alarm ${targetTime}`,
+      label: label || 'Alarm',
       alert_text: alertText,
       alert_duration_sec: alertDurationSec,
       is_active: true,
