@@ -129,16 +129,16 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         const current = nowPlayingRef?.current;
         const preloadUrls = [current?.next_bg_image_url].filter(Boolean) as string[];
         if (preloadUrls.length > 0) {
-          const cacheTag = current?.next_bg_cached === true
-            ? '(🗂️ sparad)'
+          const cacheLabel = current?.next_bg_cached === true
+            ? 'Sparad'
             : current?.next_bg_cached === false
-              ? `(🎨 genererad ${current?.next_bg_generation_ms ?? '?'}ms)`
-              : '';
+              ? `Genererad ${current?.next_bg_generation_ms ?? '?'} ms`
+              : null;
 
           preloadUrls.forEach(url => {
             const img = new Image();
             img.onload = () => {
-              tvDebug('sonos', `🖼️ Preload klar: ${cacheTag || 'redo'}`.trim());
+              tvDebug('sonos', `🖼️ Preload klar: ${cacheLabel ? `[${cacheLabel}]` : 'redo'}`);
             };
             img.onerror = () => {
               tvDebug('sonos', '🖼️ Preload misslyckades');
@@ -146,7 +146,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             img.src = url;
           });
 
-          tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut ${cacheTag}`.trim());
+          tvDebug('sonos', `🖼️ Preload ${preloadUrls.length} bild(er) ${(remaining / 1000).toFixed(1)}s innan slut`);
         }
 
         const delay = Math.max(remaining - offsetMs, 100);
