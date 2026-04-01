@@ -150,7 +150,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         }
 
         const delay = Math.max(remaining - offsetMs, 100);
-        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s`);
+        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s | ${(remaining / 1000).toFixed(1)}s innan låtbyte`);
 
         predictiveTimer = setTimeout(() => {
           const snap = nowPlayingRef?.current;
