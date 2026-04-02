@@ -94,12 +94,9 @@ Deno.serve(async (req) => {
       groupName: bridgeGroupName,
     } = body;
 
-    if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
-      return new Response(JSON.stringify({ ok: false, reason: 'no_track_name' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Treat null trackName (e.g. TV/SPDIF input) as IDLE
+    const isNonMusicInput = !trackName && playbackState !== 'PLAYBACK_STATE_IDLE';
+    const effectiveState = isNonMusicInput ? 'PLAYBACK_STATE_IDLE' : playbackState;
 
     // Fetch settings + existing row in parallel
     const [settingsResult, existingResult] = await Promise.all([
