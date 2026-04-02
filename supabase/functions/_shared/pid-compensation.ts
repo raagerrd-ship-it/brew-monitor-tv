@@ -269,7 +269,7 @@ export async function calculateCompensatedTarget(
       // making erosion impossible (0.2 > 0.18 → no change).
       const quantizedFloor = Math.floor(reducedFloor * 10) / 10
       if (quantizedFloor < ssFloor) {
-        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 0.5)
+        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
         console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (over-actuated)`)
       }
     }
