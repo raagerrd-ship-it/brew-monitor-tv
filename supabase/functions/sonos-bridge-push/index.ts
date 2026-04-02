@@ -94,12 +94,9 @@ Deno.serve(async (req) => {
       groupName: bridgeGroupName,
     } = body;
 
-    if (!trackName && playbackState !== 'PLAYBACK_STATE_IDLE') {
-      return new Response(JSON.stringify({ ok: false, reason: 'no_track_name' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Treat null trackName (e.g. TV/SPDIF input) as IDLE
+    const isNonMusicInput = !trackName && playbackState !== 'PLAYBACK_STATE_IDLE';
+    const effectiveState = isNonMusicInput ? 'PLAYBACK_STATE_IDLE' : playbackState;
 
     // Fetch settings + existing row in parallel
     const [settingsResult, existingResult] = await Promise.all([
@@ -141,7 +138,7 @@ Deno.serve(async (req) => {
     };
 
     // Handle IDLE
-    if (playbackState === 'PLAYBACK_STATE_IDLE') {
+    if (effectiveState === 'PLAYBACK_STATE_IDLE') {
       if (existingRow) {
         await supabase.from('sonos_now_playing').update({
           playback_state: 'PLAYBACK_STATE_IDLE',
@@ -149,8 +146,8 @@ Deno.serve(async (req) => {
         }).eq('id', existingRow.id);
       }
       const duration = Date.now() - startTime;
-      console.log(`[BridgePush] IDLE in ${duration}ms`);
-      return new Response(JSON.stringify({ ok: true, idle: true, duration_ms: duration }), {
+      console.log(`[BridgePush] IDLE in ${duration}ms${isNonMusicInput ? ' (non-music input)' : ''}`);
+      return new Response(JSON.stringify({ ok: true, idle: true, non_music: isNonMusicInput, duration_ms: duration }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -163,7 +160,7 @@ Deno.serve(async (req) => {
 
     // --- Stale-position detection: bridge reports PLAYING but position is frozen ---
     // Track consecutive pushes where position doesn't change. If ≥2 in a row → force PAUSED.
-    let effectivePlaybackState = playbackState || 'PLAYBACK_STATE_PLAYING';
+    let effectivePlaybackState = effectiveState || 'PLAYBACK_STATE_PLAYING';
     let newStaleCount = 0;
     const positionFrozen = (
       sameTrack &&
