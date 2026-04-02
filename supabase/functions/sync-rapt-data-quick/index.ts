@@ -422,8 +422,8 @@ Deno.serve(async (req) => {
                 .limit(10);
 
               const isAutomationLatency = recentAdjs?.some(adj =>
-                Math.abs(targetTemp - adj.old_target_temp) < 0.15 ||
-                Math.abs(targetTemp - adj.new_target_temp) < 0.15
+                Math.abs(targetTemp - adj.old_target_temp) < 0.25 ||
+                Math.abs(targetTemp - adj.new_target_temp) < 0.25
               ) ?? false;
 
               // PWM burst marker: 0°C (cooling) and max_target_temp (heating) are never legitimate manual targets
