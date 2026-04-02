@@ -1,25 +1,31 @@
 
 
-# Fix: Golv-erosion fastnar i EMA-loop (Blå controller)
+# Fix: Falska "manuella hårdvaruändring"-loggar för Blå
 
-## Problemet
-Erosionskoden i `pid-compensation.ts` beräknar redan ett utjämnat nytt golvvärde (`integral * 0.3 + ssFloor * 0.7`), kvantiserar det nedåt till 10%-steg med `Math.floor`, och skickar sedan resultatet till `updateLearnedParam` med `alpha=0.5`. Men `updateLearnedParam` applicerar **ytterligare en EMA** ovanpå, vilket gör att steget (t.ex. 0.41 → 0.40) halveras till 0.405 och avrundas tillbaka till 0.41. Golvet kan aldrig sjunka.
+## Problem
+RAPT-hårdvaran rapporterar ibland targets som avviker ~0.2°C från vad PID skickade (t.ex. PID skickar 6.3°C, RAPT rapporterar 6.1°C). Automation-latens-filtret har 0.15°C tolerans, vilket är för snävt. Resultatet: falska "manuell ändring"-loggar var ~90 min.
 
 ## Lösning
-Ändra `alphaOverride` från `0.5` till `1.0` i erosionsanropet. Erosionen har redan sin egen utjämning (70/30 blend), så den behöver inte ytterligare EMA-smoothing vid sparning. Med `alpha=1.0` skrivs det beräknade värdet direkt.
+Öka toleransen i `isAutomationLatency`-jämförelsen från **0.15** till **0.25°C**. Detta täcker RAPT-hårdvarans avrundningsfel utan att missa verkliga manuella ändringar (som typiskt är ≥0.5°C steg).
 
 ## Ändring
 
-**Fil: `supabase/functions/_shared/pid-compensation.ts`** (rad 272)
+**Fil: `supabase/functions/sync-rapt-data-quick/index.ts`** (rad 424-426)
 
 Ändra:
 ```typescript
-await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 0.5)
+const isAutomationLatency = recentAdjs?.some(adj =>
+  Math.abs(targetTemp - adj.old_target_temp) < 0.15 ||
+  Math.abs(targetTemp - adj.new_target_temp) < 0.15
+) ?? false;
 ```
 Till:
 ```typescript
-await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
+const isAutomationLatency = recentAdjs?.some(adj =>
+  Math.abs(targetTemp - adj.old_target_temp) < 0.25 ||
+  Math.abs(targetTemp - adj.new_target_temp) < 0.25
+) ?? false;
 ```
 
-En ändring, en rad. Golvet kommer nu kunna sjunka med ett 10%-steg per overcooled-cykel (t.ex. 0.41 → 0.40 → 0.30 efter fler cykler om behovet kvarstår).
+En ändring, en rad per jämförelse. Eliminerar brusiga false-positive-loggar utan risk att missa verkliga manuella justeringar.
 
