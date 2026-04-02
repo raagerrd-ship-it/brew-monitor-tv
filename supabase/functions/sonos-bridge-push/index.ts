@@ -162,20 +162,22 @@ Deno.serve(async (req) => {
       : ((existingRow?.track_seq ?? 0) + 1);
 
     // --- Stale-position detection: bridge reports PLAYING but position is frozen ---
+    // Track consecutive pushes where position doesn't change. If ≥2 in a row → force PAUSED.
     let effectivePlaybackState = playbackState || 'PLAYBACK_STATE_PLAYING';
-    if (
+    let newStaleCount = 0;
+    const positionFrozen = (
       sameTrack &&
       effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
       existingRow?.position_ms != null &&
       typeof positionMillis === 'number' &&
       Math.abs(positionMillis - existingRow.position_ms) < 1000 &&
-      existingRow.playback_state === 'PLAYBACK_STATE_PLAYING' &&
-      existingRow.updated_at
-    ) {
-      const msSinceUpdate = Date.now() - new Date(existingRow.updated_at).getTime();
-      if (msSinceUpdate > 45_000) {
+      existingRow.playback_state === 'PLAYBACK_STATE_PLAYING'
+    );
+    if (positionFrozen) {
+      newStaleCount = (existingRow.position_stale_count ?? 0) + 1;
+      if (newStaleCount >= 2) {
         effectivePlaybackState = 'PLAYBACK_STATE_PAUSED';
-        console.log(`[BridgePush] Stale position detected: ${positionMillis}ms unchanged for ${Math.round(msSinceUpdate / 1000)}s → forcing PAUSED`);
+        console.log(`[BridgePush] Stale position detected: ${positionMillis}ms frozen for ${newStaleCount} consecutive pushes → forcing PAUSED`);
       }
     }
 
