@@ -1443,6 +1443,7 @@ export type Database = {
           play_medium: string | null
           playback_state: string
           position_ms: number | null
+          position_stale_count: number
           protocol_info: string | null
           radio_show_md: string | null
           stream_content: string | null
@@ -1485,6 +1486,7 @@ export type Database = {
           play_medium?: string | null
           playback_state?: string
           position_ms?: number | null
+          position_stale_count?: number
           protocol_info?: string | null
           radio_show_md?: string | null
           stream_content?: string | null
@@ -1527,6 +1529,7 @@ export type Database = {
           play_medium?: string | null
           playback_state?: string
           position_ms?: number | null
+          position_stale_count?: number
           protocol_info?: string | null
           radio_show_md?: string | null
           stream_content?: string | null
