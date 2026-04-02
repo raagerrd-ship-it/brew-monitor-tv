@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
       effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
       existingRow?.position_ms != null &&
       typeof positionMillis === 'number' &&
-      Math.abs(positionMillis - existingRow.position_ms) < 1000 &&
+      Math.abs(positionMillis - existingRow.position_ms) < 2000 &&
       existingRow.playback_state === 'PLAYBACK_STATE_PLAYING'
     );
     if (positionFrozen) {
