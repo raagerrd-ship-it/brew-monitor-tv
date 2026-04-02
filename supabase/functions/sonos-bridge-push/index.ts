@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url, updated_at')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
