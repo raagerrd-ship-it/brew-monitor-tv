@@ -239,8 +239,11 @@ export async function calculateCompensatedTarget(
   const ssParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
 
-  if (Math.abs(avgError) <= 0.05) {
+  if (Math.abs(avgError) <= 0.10) {
     // DEADBAND: decay toward steady-state floor instead of zero
+    // Widened from 0.05 to 0.10 to prevent integral windup from natural
+    // dual-sensor noise (~0.1-0.2°C). At 0.05 deadband, a persistent 0.1°
+    // error drives integral to 0.75 equilibrium — far above optimal ~0.3.
     if (ssFloor > 0 && integral > ssFloor) {
       // Decay toward floor: move 10% closer per cycle
       integral = integral * 0.90 + ssFloor * 0.10
@@ -254,7 +257,7 @@ export async function calculateCompensatedTarget(
     dutyCycle = Math.max(0, integral)
     constraints.push('deadband')
     console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-  } else if (need < -0.05) {
+  } else if (need < -0.10) {
     // OVER-ACTUATED: the floor may be too high, causing oscillation.
     // Actively erode the learned floor downward so the system can recover.
     // Without this, a too-high floor creates a deadlock: high floor →
