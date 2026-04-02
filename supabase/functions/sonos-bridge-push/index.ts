@@ -201,6 +201,7 @@ Deno.serve(async (req) => {
       duration_ms: durationMillis || null,
       position_ms: compensatedPosition,
       track_seq: newTrackSeq,
+      position_stale_count: newStaleCount,
       // Bridge-provided metadata columns
       volume: volume ?? null,
       mute: mute ?? null,
