@@ -257,6 +257,19 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
         </div>
       ),
     });
+
+    // Send push notification (fire-and-forget, only the client that set fired=true)
+    if (firedLocallyRef.current === entry.id) {
+      const typeLabel = entry.type === 'timer' ? '⏱️ Timer' : '⏰ Alarm';
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          title: `${typeLabel}: ${entry.label}`,
+          body: entry.alertText,
+          data: { type: 'alarm-timer', timerId: entry.id },
+        },
+      }).catch(err => console.warn('Push notification failed:', err));
+    }
+
     // Auto-clear the entry after alert dismisses
     const clearTimer = setTimeout(async () => {
       setEntry(null);
