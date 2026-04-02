@@ -116,6 +116,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
             pushToBgBuffer(validBgBufferRef.current, effectiveBg);
             onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name);
             bgSentRef.current = effectiveBg;
+          } else if (!effectiveBg) {
+            // No bg yet for new track — clear sent ref so subsequent same-track
+            // RT update with bg_image_url can apply it
+            bgSentRef.current = null;
           }
           const bgCacheTag = incoming.bg_cached === true
             ? '🗂️ sparad'
