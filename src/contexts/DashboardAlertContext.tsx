@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface DashboardAlert {
   /** Unique key to prevent duplicate alerts */
@@ -9,6 +10,10 @@ export interface DashboardAlert {
   autoDismissMs: number | null;
   /** Optional custom background for the overlay. Defaults to dark radial gradient */
   overlayBackground?: string;
+  /** If set, a push notification is sent automatically when the alert fires */
+  pushTitle?: string;
+  /** Body text for the push notification */
+  pushBody?: string;
 }
 
 interface DashboardAlertContextType {
@@ -29,9 +34,22 @@ export function useDashboardAlert() {
 
 export function DashboardAlertProvider({ children }: { children: ReactNode }) {
   const [alert, setAlert] = useState<DashboardAlert | null>(null);
+  const sentPushIds = useRef(new Set<string>());
 
   const showAlert = useCallback((newAlert: DashboardAlert) => {
     setAlert(newAlert);
+
+    // Send push notification if configured (once per alert id)
+    if (newAlert.pushTitle && newAlert.pushBody && !sentPushIds.current.has(newAlert.id)) {
+      sentPushIds.current.add(newAlert.id);
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          title: newAlert.pushTitle,
+          body: newAlert.pushBody,
+          data: { alertId: newAlert.id },
+        },
+      }).catch(err => console.warn('Push notification failed:', err));
+    }
   }, []);
 
   const dismissAlert = useCallback((id?: string) => {

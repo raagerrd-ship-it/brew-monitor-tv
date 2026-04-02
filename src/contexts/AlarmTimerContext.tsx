@@ -228,10 +228,13 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!entry?.fired) return;
     const Icon = entry.type === 'timer' ? Timer : AlarmClock;
+    const typeLabel = entry.type === 'timer' ? '⏱️ Timer' : '⏰ Alarm';
     showAlert({
       id: `alarm-timer-alert-${entry.id}`,
       autoDismissMs: entry.alertDurationSec * 1000,
       overlayBackground: 'radial-gradient(ellipse at center, hsl(38 90% 30% / 0.4) 0%, hsl(0 0% 0% / 0.85) 100%)',
+      pushTitle: `${typeLabel}: ${entry.label}`,
+      pushBody: entry.alertText,
       content: (
         <div
           className="flex flex-col items-center px-12 py-8 rounded-2xl max-w-[90vw]"
@@ -257,18 +260,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
         </div>
       ),
     });
-
-    // Send push notification (fire-and-forget, only the client that set fired=true)
-    if (firedLocallyRef.current === entry.id) {
-      const typeLabel = entry.type === 'timer' ? '⏱️ Timer' : '⏰ Alarm';
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          title: `${typeLabel}: ${entry.label}`,
-          body: entry.alertText,
-          data: { type: 'alarm-timer', timerId: entry.id },
-        },
-      }).catch(err => console.warn('Push notification failed:', err));
-    }
 
     // Auto-clear the entry after alert dismisses
     const clearTimer = setTimeout(async () => {
