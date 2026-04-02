@@ -161,6 +161,24 @@ Deno.serve(async (req) => {
       ? (existingRow?.track_seq ?? 0)
       : ((existingRow?.track_seq ?? 0) + 1);
 
+    // --- Stale-position detection: bridge reports PLAYING but position is frozen ---
+    let effectivePlaybackState = playbackState || 'PLAYBACK_STATE_PLAYING';
+    if (
+      sameTrack &&
+      effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
+      existingRow?.position_ms != null &&
+      typeof positionMillis === 'number' &&
+      Math.abs(positionMillis - existingRow.position_ms) < 1000 &&
+      existingRow.playback_state === 'PLAYBACK_STATE_PLAYING' &&
+      existingRow.updated_at
+    ) {
+      const msSinceUpdate = Date.now() - new Date(existingRow.updated_at).getTime();
+      if (msSinceUpdate > 45_000) {
+        effectivePlaybackState = 'PLAYBACK_STATE_PAUSED';
+        console.log(`[BridgePush] Stale position detected: ${positionMillis}ms unchanged for ${Math.round(msSinceUpdate / 1000)}s → forcing PAUSED`);
+      }
+    }
+
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
@@ -177,7 +195,7 @@ Deno.serve(async (req) => {
       album_art_url_small: albumArtUri || null,
       next_track_name: decodeXmlEntities(nextTrackName),
       next_artist_name: decodeXmlEntities(nextArtistName),
-      playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
+      playback_state: effectivePlaybackState,
       duration_ms: durationMillis || null,
       position_ms: compensatedPosition,
       track_seq: newTrackSeq,
