@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_now_playing ADD COLUMN IF NOT EXISTS position_stale_count integer NOT NULL DEFAULT 0;

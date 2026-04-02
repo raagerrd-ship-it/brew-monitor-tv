@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -161,6 +161,26 @@ Deno.serve(async (req) => {
       ? (existingRow?.track_seq ?? 0)
       : ((existingRow?.track_seq ?? 0) + 1);
 
+    // --- Stale-position detection: bridge reports PLAYING but position is frozen ---
+    // Track consecutive pushes where position doesn't change. If ≥2 in a row → force PAUSED.
+    let effectivePlaybackState = playbackState || 'PLAYBACK_STATE_PLAYING';
+    let newStaleCount = 0;
+    const positionFrozen = (
+      sameTrack &&
+      effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
+      existingRow?.position_ms != null &&
+      typeof positionMillis === 'number' &&
+      Math.abs(positionMillis - existingRow.position_ms) < 2000 &&
+      existingRow.playback_state === 'PLAYBACK_STATE_PLAYING'
+    );
+    if (positionFrozen) {
+      newStaleCount = (existingRow.position_stale_count ?? 0) + 1;
+      if (newStaleCount >= 2) {
+        effectivePlaybackState = 'PLAYBACK_STATE_PAUSED';
+        console.log(`[BridgePush] Stale position detected: ${positionMillis}ms frozen for ${newStaleCount} consecutive pushes → forcing PAUSED`);
+      }
+    }
+
     const bridgeHasArt = isStorageUrl(albumArtUri);
     const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
@@ -177,10 +197,11 @@ Deno.serve(async (req) => {
       album_art_url_small: albumArtUri || null,
       next_track_name: decodeXmlEntities(nextTrackName),
       next_artist_name: decodeXmlEntities(nextArtistName),
-      playback_state: playbackState || 'PLAYBACK_STATE_PLAYING',
+      playback_state: effectivePlaybackState,
       duration_ms: durationMillis || null,
       position_ms: compensatedPosition,
       track_seq: newTrackSeq,
+      position_stale_count: newStaleCount,
       // Bridge-provided metadata columns
       volume: volume ?? null,
       mute: mute ?? null,
