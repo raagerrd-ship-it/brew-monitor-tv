@@ -1,0 +1,1 @@
+ALTER TABLE public.sync_settings DROP COLUMN IF EXISTS brewfather_enabled;

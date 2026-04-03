@@ -64,10 +64,9 @@ export default function Settings() {
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
     if (!settings.apiSettings) return null;
-    const brewfatherMissing = !settings.apiSettings.brewfather.configured;
     const raptMissing = !settings.apiSettings.rapt.configured;
-    if (brewfatherMissing || raptMissing) {
-      return { type: 'warning' as const, count: (brewfatherMissing ? 1 : 0) + (raptMissing ? 1 : 0) };
+    if (raptMissing) {
+      return { type: 'warning' as const, count: 1 };
     }
     return null;
   }, [settings.apiSettings]);
@@ -161,94 +160,6 @@ export default function Settings() {
             {/* ═══════════════ DATAKÄLLOR ═══════════════ */}
             <SettingsSection icon={Cpu} title="Datakällor" description="Anslutna API:er och integrationer">
               <div className="space-y-3">
-                {/* Brewfather */}
-                <Collapsible>
-                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                            <Beer className="h-4 w-4 text-primary" />
-                          </div>
-                        </div>
-                        <span className="text-sm font-semibold">Brewfather</span>
-                        {settings.brewfatherEnabled ? (
-                          settings.apiSettings?.brewfather?.configured ? (
-                            <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
-                              <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
-                              <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
-                            </Badge>
-                          )
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground px-1.5 py-0">
-                            Avstängd
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-4 space-y-3">
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/40">
-                        <div className="flex items-center gap-2">
-                          <Beer className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs">Aktivera Brewfather</span>
-                        </div>
-                        <Switch checked={settings.brewfatherEnabled} onCheckedChange={(checked) => settings.handleAutoSettingChange('brewfather_enabled', !!checked)} />
-                      </div>
-                      {settings.apiSettings?.brewfather && (
-                        <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">User ID:</span>
-                            <span className="font-mono">{settings.apiSettings.brewfather.userId}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">API-nyckel:</span>
-                            <span className="font-mono">{settings.apiSettings.brewfather.apiKey}</span>
-                          </div>
-                        </div>
-                      )}
-                      {settings.brewfatherEnabled && <>
-                      <SettingsDivider />
-                      <div className="space-y-3">
-                        <span className="text-xs font-medium text-muted-foreground">Automatisk hantering</span>
-                        <div className="grid gap-2 grid-cols-2">
-                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                            <Checkbox id="auto-activate-fermenting" checked={settings.autoActivateFermenting}
-                              onCheckedChange={(checked) => settings.handleAutoSettingChange('auto_activate_fermenting', !!checked)} />
-                            <label htmlFor="auto-activate-fermenting" className="text-[11px] cursor-pointer">Visa nya jäsande</label>
-                          </div>
-                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                            <Checkbox id="auto-hide-completed" checked={settings.autoHideCompleted}
-                              onCheckedChange={(checked) => settings.handleAutoSettingChange('auto_hide_completed', !!checked)} />
-                            <label htmlFor="auto-hide-completed" className="text-[11px] cursor-pointer">Dölj klara</label>
-                          </div>
-                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                            <Checkbox id="auto-hide-conditioning" checked={settings.autoHideConditioning}
-                              onCheckedChange={(checked) => settings.handleAutoSettingChange('auto_hide_conditioning', !!checked)} />
-                            <label htmlFor="auto-hide-conditioning" className="text-[11px] cursor-pointer">Dölj konditionerade</label>
-                          </div>
-                          <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/40 border border-border/40">
-                            <Checkbox id="auto-hide-archived" checked={settings.autoHideArchived}
-                              onCheckedChange={(checked) => settings.handleAutoSettingChange('auto_hide_archived', !!checked)} />
-                            <label htmlFor="auto-hide-archived" className="text-[11px] cursor-pointer">Dölj arkiverade</label>
-                          </div>
-                        </div>
-                      </div>
-                      <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                        onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina Brewfather API-nycklar i backend-inställningarna." })}>
-                        <Pencil className="h-3 w-3" /> Ändra API-uppgifter
-                      </button>
-                      </>}
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
-
                 {/* RAPT */}
                 <Collapsible>
                   <div className="rounded-lg border bg-card/30 border-border/40 p-3">
@@ -391,7 +302,7 @@ export default function Settings() {
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">RAPT + Brewfather mätvärden + automation</p>
+                      <p className="text-[10px] text-muted-foreground">RAPT mätvärden + automation</p>
                     </div>
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>

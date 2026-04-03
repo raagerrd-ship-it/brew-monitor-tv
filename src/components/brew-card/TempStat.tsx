@@ -23,7 +23,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
 
   // Pill temp: prefer controller's pill_temp (synced with RAPT, always fresh when controller is online)
-  // Fall back to brew.currentTemp from Brewfather pill if available
+  // Fall back to brew.currentTemp from pill if available
   const pillTemp = controller?.pill_temp ?? ((pill && !isPillStale) ? brew.currentTemp : null);
   const probeTemp = controller?.current_temp ?? null;
   // SSOT: use controller's dual_sensor_enabled flag for dual-sensor fusion

@@ -104,28 +104,7 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
   return res.json();
 }
 
-// ── Inlined Brewfather readings fetch — returns SG-corrected values ──
-async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boolean): Promise<any[]> {
-  const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
-  const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
-  if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
-
-  const res = await fetch(
-    `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}/readings`,
-    {
-      headers: { 'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}` },
-      signal: AbortSignal.timeout(15000),
-    }
-  );
-  if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
-  const readings = await res.json();
-  if (sgCorrectionEnabled) {
-    for (const r of readings) {
-      if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
-    }
-  }
-  return readings;
-}
+// (Brewfather integration removed — RAPT-only)
 
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 // Applies standard correction + pill-specific residual at source.
@@ -205,7 +184,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('Starting unified quick sync (RAPT + Brewfather readings)...');
+    console.log('Starting unified quick sync (RAPT + custom brews)...');
 
     // Accept pre-fetched token and flags from caller (e.g. full-sync-brew-data)
     let passedToken: string | null = null;
@@ -219,11 +198,10 @@ Deno.serve(async (req) => {
     // Read sync_settings + auto_cooling_settings once (reused across phases)
     const [{ data: syncSettingsRow }, { data: autoCoolingRow }] = await Promise.all([
       supabase.from('sync_settings')
-        .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single(),
+        .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single(),
       supabase.from('auto_cooling_settings')
         .select('sg_temp_correction_enabled, cooler_controller_id, enabled').limit(1).maybeSingle(),
     ]);
-    const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
     const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
 
     // Update timestamp (fire-and-forget, no await needed for main flow)
@@ -240,7 +218,7 @@ Deno.serve(async (req) => {
     // ──────────────────────────────────────────────────────
     // PHASE 1: RAPT device sync (pills + controllers)
     // Non-fatal: if RAPT auth/API fails, continue with
-    // Brewfather, custom brews, automation and history.
+    // custom brews, automation and history.
     // ──────────────────────────────────────────────────────
 
     let access_token: string | null = null;
@@ -540,98 +518,13 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // PHASE 2: Brewfather readings (quick) + automation
-    //          Run in parallel with custom brews
+    // PHASE 2: Custom brews + automation
     // ──────────────────────────────────────────────────────
-
-    // Fetch visible Brewfather brews (skip if Brewfather disabled)
-    const { data: selectedBrews } = brewfatherEnabled
-      ? await supabase.from('selected_brews')
-          .select('batch_id').eq('is_visible', true).not('batch_id', 'like', 'custom\\_%')
-      : { data: [] as any[] };
 
     let brewsUpdated = 0;
 
-    const brewfatherSync = async () => {
-      if (!selectedBrews || selectedBrews.length === 0) return;
-
-      // Fetch readings (inlined) + existing data in parallel
-      // Single batch query for all existing brews (replaces N individual queries)
-      const batchIds = selectedBrews.map(b => b.batch_id);
-      const [readingsResults, { data: existingBrewsArray }] = await Promise.all([
-        Promise.all(selectedBrews.map(brew =>
-          fetchBrewfatherReadings(brew.batch_id, sgTempCorrectionEnabled)
-            .then(data => ({ batchId: brew.batch_id, data, error: null }))
-            .catch(err => ({ batchId: brew.batch_id, data: [], error: err }))
-        )),
-        supabase.from('brew_readings')
-          .select('id, batch_id, original_gravity, final_gravity, style, name, status, batch_number, sg_data, current_sg, current_temp, attenuation, abv, last_update, battery, linked_controller_id, linked_pill_id')
-          .in('batch_id', batchIds)
-      ]);
-
-      const existingBrewsMap = new Map((existingBrewsArray || []).map((b: any) => [b.batch_id, b]));
-
-      const brewUpdates = readingsResults.map(result => {
-        if (result.error) { console.error(`Readings error for ${result.batchId}:`, result.error); return null; }
-        const readings = result.data || [];
-        const existingBrew = existingBrewsMap.get(result.batchId);
-
-        // SG values are already temp-corrected at fetch time
-        const sgData = readings.filter((r: any) => r.sg && r.temp)
-          .map((r: any) => ({ date: new Date(r.time).toISOString(), value: r.sg, temp: r.temp }))
-          .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        const readingsWithSG = readings.filter((r: any) => r.sg)
-          .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
-        const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null;
-        const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050;
-        const rawTemp = latestReading?.temp || 20;
-        const battery = latestReading?.battery ? Math.round(latestReading.battery) : null;
-        const og = existingBrew?.original_gravity || 1.050;
-
-        // SSOT: prefer controller actual_temp over raw pill/probe temp
-        const linkedCtrl = existingBrew?.linked_controller_id ? dbCtrlMap.get(existingBrew.linked_controller_id) : null;
-        const currentTemp = linkedCtrl?.actual_temp ?? rawTemp;
-
-        const attenuation = ((og - currentSG) / (og - 1.000)) * 100;
-        const abv = ((og - currentSG) * 131.25) || 0;
-
-        const newData: any = {
-          batch_id: result.batchId,
-          current_sg: currentSG, current_temp: currentTemp,
-          attenuation: Math.round(attenuation), abv: parseFloat(abv.toFixed(1)),
-          last_update: latestReading ? new Date(latestReading.time).toISOString() : null,
-          battery, sg_data: sgData.length > 0 ? sgData : existingBrew?.sg_data || [],
-          ...(existingBrew && {
-            name: existingBrew.name, style: existingBrew.style, status: existingBrew.status,
-            batch_number: existingBrew.batch_number, original_gravity: existingBrew.original_gravity,
-            final_gravity: existingBrew.final_gravity
-          })
-        };
-
-        if (existingBrew) {
-          const hasChanged = existingBrew.current_sg !== newData.current_sg ||
-            existingBrew.current_temp !== newData.current_temp ||
-            existingBrew.last_update !== newData.last_update ||
-            JSON.stringify(existingBrew.sg_data) !== JSON.stringify(newData.sg_data);
-          if (!hasChanged) return null;
-        }
-        return newData;
-      }).filter(Boolean);
-
-      if (brewUpdates.length > 0) {
-        const { error: upsertError } = await supabase.from('brew_readings')
-          .upsert(brewUpdates, { onConflict: 'batch_id' });
-        if (upsertError) throw upsertError;
-        brewsUpdated = brewUpdates.length;
-        console.log(`Brewfather quick sync: ${brewsUpdated} brews updated`);
-
-        // Snapshots are created in snapshotTask (Phase 2c) by reading from DB
-      }
-    };
-
-    // PHASE 2a: Sync all data sources in parallel (RAPT already done in Phase 1)
-    // Both Brewfather and custom brews read pill/controller data from DB (written in Phase 1)
+    // PHASE 2a: Sync custom brews (RAPT already done in Phase 1)
+    // Custom brews read pill/controller data from DB (written in Phase 1)
 
     let customBrewsUpdated = 0;
 
@@ -895,13 +788,11 @@ Deno.serve(async (req) => {
     };
 
     const tPhase2a = Date.now();
-    const [bfResult, customBrewResult] = await Promise.allSettled([
-      brewfatherSync(),
+    const [customBrewResult] = await Promise.allSettled([
       customBrewSync(),
     ]);
-    console.log(`⏱️ Phase 2a (Brewfather+custom): ${Date.now() - tPhase2a}ms`);
+    console.log(`⏱️ Phase 2a (custom brews): ${Date.now() - tPhase2a}ms`);
 
-    if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
 
     // ──────────────────────────────────────────────────────────

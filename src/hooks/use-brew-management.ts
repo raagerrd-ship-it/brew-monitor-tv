@@ -5,17 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import type { PillData, TempController } from '@/types/brew';
 import type { CustomBrewData, CustomBrewPrefill } from '@/components/CustomBrewDialog';
 
-interface BrewfatherBatch {
-  _id: string;
-  name: string;
-  batchNo: number;
-  brewDate?: string;
-  recipe?: {
-    name: string;
-    style?: { name: string };
-  };
-  status: string;
-}
 
 interface SelectedBrew {
   batch_id: string;
@@ -25,7 +14,6 @@ interface SelectedBrew {
 
 export function useBrewManagement() {
   const navigate = useNavigate();
-  const [batches, setBatches] = useState<BrewfatherBatch[]>([]);
   const [customBrews, setCustomBrews] = useState<CustomBrewData[]>([]);
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
@@ -72,8 +60,7 @@ export function useBrewManagement() {
     try {
       setLoading(true);
 
-      const [batchesResponse, selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
-        supabase.functions.invoke('brewfather-batches', { body: { limit: 10 } }),
+      const [selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.from('selected_brews').select('batch_id').eq('is_visible', true),
         supabase.from('brew_readings')
           .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation')
@@ -83,10 +70,9 @@ export function useBrewManagement() {
           .select('id, controller_id, name, current_temp, pill_temp, actual_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, cooling_hysteresis, heating_hysteresis, cooling_run_time, cooling_starts, heating_run_time, heating_starts')
       ]);
 
-      if (batchesResponse.error) throw batchesResponse.error;
       if (selectedResponse.error) throw selectedResponse.error;
 
-      setBatches(batchesResponse.data || []);
+      setCustomBrews(customBrewsResponse.data || []);
       setCustomBrews(customBrewsResponse.data || []);
       setPills(pillsResponse.data || []);
       setControllers(controllersResponse.data || []);
@@ -235,7 +221,6 @@ export function useBrewManagement() {
   }, []);
 
   return {
-    batches,
     customBrews,
     selectedBrews,
     pills,

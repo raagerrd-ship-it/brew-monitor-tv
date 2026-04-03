@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function BrewManagement() {
   const {
-    batches, customBrews, selectedBrews, pills, controllers,
+    customBrews, selectedBrews, pills, controllers,
     loading, saving, showCustomBrewDialog, editingBrew, prefillData,
     timerRecipeName, timerBeerStyle, timerBrewMatch,
     isSelected, toggleBrew, deleteCustomBrew, saveSelection,
@@ -129,37 +129,6 @@ export function BrewManagement() {
         </div>
       )}
 
-      {/* Brewfather batches section */}
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-muted-foreground">Brewfather (10 senaste)</h3>
-        <div className="grid gap-4">
-          {batches.map((batch) => (
-            <Card key={batch._id} className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <Checkbox
-                    checked={isSelected(batch._id)}
-                    onCheckedChange={() => toggleBrew(batch._id)}
-                  />
-                  <div>
-                    <h3 className="font-semibold">
-                      {batch.recipe?.name || batch.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Batch #{batch.batchNo} - {batch.status}
-                    </p>
-                    {batch.recipe?.style?.name && (
-                      <p className="text-xs text-muted-foreground">
-                        {batch.recipe.style.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
 
       <div className="flex flex-col gap-4 pt-4 border-t">
         <div className="flex justify-between items-center">

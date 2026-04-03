@@ -24,7 +24,6 @@ interface AvailableController {
 }
 
 interface ApiSettings {
-  brewfather: { userId: string; apiKey: string; configured: boolean };
   rapt: { username: string; apiSecret: string; configured: boolean };
 }
 
@@ -58,7 +57,7 @@ export function useSettingsData() {
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
-  const [brewfatherEnabled, setBrewfatherEnabled] = useState(true);
+  
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
@@ -151,7 +150,7 @@ export function useSettingsData() {
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
-        setBrewfatherEnabled((data as any).brewfather_enabled ?? true);
+        
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
@@ -389,18 +388,8 @@ export function useSettingsData() {
       case 'auto_hide_conditioning': setAutoHideConditioning(value); break;
       case 'auto_hide_archived': setAutoHideArchived(value); break;
       case 'auto_activate_fermenting': setAutoActivateFermenting(value); break;
-      case 'brewfather_enabled': setBrewfatherEnabled(value); break;
     }
     await updateSyncSetting(field, value);
-
-    // When Brewfather is disabled, hide all non-custom brews from dashboard
-    if (field === 'brewfather_enabled' && !value) {
-      await supabase.from('selected_brews')
-        .update({ is_visible: false })
-        .not('batch_id', 'like', 'custom\\_%');
-    }
-    // When re-enabled, let next full sync auto-activate fermenting brews
-
   }, [updateSyncSetting]);
 
   const handleSplashDelayChange = useCallback(async (value: string) => {
@@ -413,7 +402,7 @@ export function useSettingsData() {
     try {
       const { error } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
       if (error) throw error;
-      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + Brewfather)" });
+      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + custom)" });
       await loadSettings();
     } catch {
       toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
@@ -425,16 +414,12 @@ export function useSettingsData() {
   const handleFullSync = useCallback(async () => {
     setSyncing(true);
     const steps = [
-      { id: 'brewfather-data', label: 'Brewfather batchar', completed: false, inProgress: false },
       { id: 'rapt-data', label: 'RAPT enheter (full)', completed: false, inProgress: false },
       { id: 'ai-audit', label: 'AI-optimering', completed: false, inProgress: false },
     ];
     setSyncSteps(steps);
     try {
       const syncPromise = supabase.functions.invoke('full-sync-brew-data', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, inProgress: true } : s));
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, completed: true, inProgress: false } : s));
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
       await new Promise(resolve => setTimeout(resolve, 3000));
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
@@ -544,7 +529,7 @@ export function useSettingsData() {
     syncSteps,
     apiSettings,
     settingsId,
-    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting, brewfatherEnabled,
+    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
     // Auto-cooling
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
