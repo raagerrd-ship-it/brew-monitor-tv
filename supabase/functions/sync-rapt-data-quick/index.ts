@@ -1172,25 +1172,53 @@ Deno.serve(async (req) => {
       // Use in-memory controllerUpdatesForHistory from Phase 1c — no extra DB query needed.
       if (controllerUpdatesForHistory.length === 0) return;
 
+      // ── Throttle: only record history every ~15 minutes ──
+      const controllerIds = controllerUpdatesForHistory.map(c => c.controller_id);
+      const { data: lastRecords } = await supabase
+        .from('temp_controller_history')
+        .select('controller_id, recorded_at')
+        .in('controller_id', controllerIds)
+        .order('recorded_at', { ascending: false })
+        .limit(controllerIds.length);
+
+      const lastRecordedMap = new Map<string, number>();
+      for (const r of lastRecords ?? []) {
+        if (!lastRecordedMap.has(r.controller_id)) {
+          lastRecordedMap.set(r.controller_id, new Date(r.recorded_at).getTime());
+        }
+      }
+
+      const HISTORY_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+      const now = Date.now();
+      const controllersToRecord = controllerUpdatesForHistory.filter(c => {
+        const lastAt = lastRecordedMap.get(c.controller_id);
+        return !lastAt || (now - lastAt) >= HISTORY_INTERVAL_MS;
+      });
+
+      if (controllersToRecord.length === 0) {
+        console.log(`Temp history throttled — all controllers recorded <15min ago`);
+        return;
+      }
+
       // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
       // AND the latest duty_pct from fermentation_learnings
-      const controllerIds = controllerUpdatesForHistory.map(c => c.controller_id);
+      const recordIds = controllersToRecord.map(c => c.controller_id);
       const [{ data: postAutoValues }, { data: dutyRows }] = await Promise.all([
         supabase
           .from('rapt_temp_controllers')
           .select('controller_id, target_temp, profile_target_temp')
-          .in('controller_id', controllerIds),
+          .in('controller_id', recordIds),
         supabase
           .from('fermentation_learnings')
           .select('controller_id, learned_value')
           .eq('parameter_name', 'pid_last_duty')
-          .in('controller_id', controllerIds),
+          .in('controller_id', recordIds),
       ]);
       const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
       const dutyMap = new Map((dutyRows || []).map((d: any) => [d.controller_id, parseFloat(String(d.learned_value))]));
 
       // Insert temp history + delta history in parallel
-      const historyRecords = controllerUpdatesForHistory.map(c => {
+      const historyRecords = controllersToRecord.map(c => {
         const post = postAutoMap.get(c.controller_id);
         const dutyPct = dutyMap.get(c.controller_id);
         return {
@@ -1204,7 +1232,7 @@ Deno.serve(async (req) => {
         };
       });
 
-      const deltaRecords = controllerUpdatesForHistory
+      const deltaRecords = controllersToRecord
         .filter(c => c.pill_temp !== null && c.current_temp !== null)
         .map(c => ({
           controller_id: c.controller_id,
@@ -1224,7 +1252,7 @@ Deno.serve(async (req) => {
       for (const r of results) {
         if (r.status === 'rejected') console.error('History insert error:', r.reason);
       }
-      console.log(`Recorded temp history for ${controllerUpdatesForHistory.length} controllers`);
+      console.log(`Recorded temp history for ${controllersToRecord.length}/${controllerUpdatesForHistory.length} controllers (15min throttle)`);
     };
 
     const outageTask = async () => {
