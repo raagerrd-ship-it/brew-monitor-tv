@@ -304,6 +304,26 @@ export async function calculateCompensatedTarget(
       integral = integral * DUTY_DECAY + need * DUTY_I
       integral = Math.max(0, Math.min(DUTY_IMAX, integral))
 
+      // ── Braking zone: converge integral toward ssFloor near target ──
+      // When approaching target (need < 0.5°C), start blending the integral
+      // toward ssFloor so the system arrives at target with ~steady-state duty
+      // instead of a bloated integral that causes overshoot.
+      //
+      // proximity: 1.0 at 0.5°C away, 0.0 at deadband edge (0.10°C)
+      // At proximity=1: normal I accumulation (no braking)
+      // At proximity=0: I fully converged to ssFloor
+      const BRAKE_ZONE = 0.50 // start braking at 0.5°C from target
+      if (need < BRAKE_ZONE && ssFloor > 0) {
+        const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
+        // Blend: keep (proximity) fraction of accumulated I, rest → ssFloor
+        const blendedI = integral * proximity + ssFloor * (1 - proximity)
+        if (blendedI < integral) {
+          constraints.push(`brake=${(proximity * 100).toFixed(0)}%`)
+          console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
+          integral = blendedI
+        }
+      }
+
       // ── Settling guard (cooling only) ──────────────────────────
       // When integral is near-zero AND there's meaningful need,
       // cap the P-term to prevent aggressive first bursts.
@@ -348,7 +368,7 @@ export async function calculateCompensatedTarget(
     }
 
     dutyCycle = Math.max(0, Math.min(1.0, raw))
-    console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
+    console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
 
   await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
