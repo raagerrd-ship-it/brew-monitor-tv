@@ -319,9 +319,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          return (
                            <div className="flex items-center gap-1.5">
                              <Snowflake style={{ width: '0.85rem', height: '0.85rem', flexShrink: 0, color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)', filter: isControllerStale ? 'none' : 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
-                             <span className="font-semibold tabular-nums whitespace-nowrap" style={{
-                               fontSize: '16px',
-                               color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
+                              <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                                fontSize: isMobile ? '14px' : '16px',
+                                color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
                                textShadow: isControllerStale ? 'none' : '0 0 8px hsl(200 70% 60% / 0.3)',
                              }}>
                                {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
