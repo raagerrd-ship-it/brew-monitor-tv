@@ -427,11 +427,11 @@ async function learnRateCore(
     }
   }
 
-  // 2. Fetch recent history
+  // 2. Fetch recent history (prefer actual_temp SSOT, fall back to current_temp)
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { data: history } = await supabase
     .from('temp_controller_history')
-    .select('current_temp, target_temp, cooling_enabled, recorded_at')
+    .select('current_temp, actual_temp, target_temp, cooling_enabled, recorded_at')
     .eq('controller_id', controllerId)
     .gte('recorded_at', sixHoursAgo)
     .order('recorded_at', { ascending: true })
@@ -441,19 +441,21 @@ async function learnRateCore(
     return existing ? { rate: parseFloat(String(existing.learned_value)), sampleCount: existing.sample_count } : null
   }
 
-  // 3. Compute rates with parametric filter
+  // 3. Compute rates with parametric filter — use actual_temp (SSOT) with current_temp fallback
   const norm = filter.normalise ?? ((r) => r)
   const rates: number[] = []
   for (let i = 1; i < history.length; i++) {
     const prev = history[i - 1]
     const curr = history[i]
-    const tempDiff = parseFloat(String(curr.current_temp)) - parseFloat(String(prev.current_temp))
+    const currTemp = parseFloat(String((curr as any).actual_temp ?? curr.current_temp))
+    const prevTemp = parseFloat(String((prev as any).actual_temp ?? prev.current_temp))
+    const tempDiff = currTemp - prevTemp
     const timeDiffHours = (new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()) / (1000 * 60 * 60)
 
     if (timeDiffHours < 0.01 || timeDiffHours > 0.5) continue
 
     const ratePerHour = tempDiff / timeDiffHours
-    const temp = parseFloat(String(curr.current_temp))
+    const temp = currTemp
     const target = parseFloat(String(curr.target_temp))
 
     if (filter.accept(ratePerHour, temp, target)) {

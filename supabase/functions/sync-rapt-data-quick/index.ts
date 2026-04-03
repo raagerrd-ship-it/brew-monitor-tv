@@ -1295,6 +1295,7 @@ Deno.serve(async (req) => {
           cooling_enabled: c.cooling_enabled || false,
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
           duty_pct: dutyPct != null && Number.isFinite(dutyPct) ? dutyPct : null,
+          actual_temp: c.actual_temp ?? null,
         };
       });
 
