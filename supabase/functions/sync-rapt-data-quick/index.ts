@@ -104,7 +104,7 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
   return res.json();
 }
 
-// (Brewfather integration removed — RAPT-only)
+
 
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 // Applies standard correction + pill-specific residual at source.
