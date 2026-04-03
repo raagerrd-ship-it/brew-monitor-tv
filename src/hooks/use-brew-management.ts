@@ -221,7 +221,6 @@ export function useBrewManagement() {
   }, []);
 
   return {
-    batches,
     customBrews,
     selectedBrews,
     pills,
