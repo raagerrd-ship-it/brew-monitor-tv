@@ -1576,9 +1576,11 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
     return { name, pressure: pressure ?? 0, mode: mode ?? '?' };
   }).filter(m => m.name);
 
-  const otherContent = (otherEntries.length > 0 || modeSwitchInfo.length > 0) ? (
+  const visibleModeSwitchInfo = modeSwitchInfo.filter(m => m.pressure > 0);
+
+  const otherContent = (otherEntries.length > 0 || visibleModeSwitchInfo.length > 0) ? (
     <PipelineSection icon={<AlertTriangle className="h-3 w-3" />} title="Övrigt" color="muted-foreground">
-      {modeSwitchInfo.map((m, i) => (
+      {visibleModeSwitchInfo.map((m, i) => (
         <div key={`ms-${i}`} className="flex items-center gap-2 text-[11px]">
           <Info className="h-3 w-3 text-blue-500 flex-shrink-0" />
           <span className="text-foreground">
