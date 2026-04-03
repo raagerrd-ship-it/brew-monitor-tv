@@ -1349,10 +1349,12 @@ Deno.serve(async (req) => {
       if (count > 0) console.log(`Created ${count} brew snapshot(s) (post-automation)`);
     };
 
+    const tPhase3b = Date.now();
     const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
     if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
+    const tPhase3bEnd = Date.now();
 
     // 3c: Dynamic sync frequency + consolidated decision log
     try {
@@ -1480,6 +1482,7 @@ Deno.serve(async (req) => {
           '2b_auto_ms': Math.round(tPhase3 - tPhase2b),
           '3_execute_ms': Math.round(totalMs - (tPhase3 - syncStartTime)),
           '3a_flush_ms': Math.round(tPhase3aEnd - tPhase3a),
+          '3b_hist_ms': Math.round(tPhase3bEnd - tPhase3b),
           total_ms: totalMs,
         }
       });
