@@ -341,66 +341,115 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         'thermal_rate_cooling',
         `thermal_rate_heating:${thermalBucket}`,
         `thermal_rate_cooling:${thermalBucket}`,
+        'est_prev_actual_temp',
+        'est_prev_actual_temp_at',
+        'est_observed_rate',
+        'est_last_prediction',
       ])
     const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
     const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
 
-    // ── Temperature interpolation using learned thermal rates ──
+    // ── Learn observed actual_temp rate between syncs ──
+    // Track how actual_temp (the fusion) really changes, not the probe rate
+    const prevActualTemp = pressureMap.get('est_prev_actual_temp')
+    const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
+    let observedRate = pressureMap.get('est_observed_rate') ?? 0
+    const observedRateSamples = sampleCountMap.get('est_observed_rate') ?? 0
+
+    // When we have fresh sensor data (not stale), learn the rate
+    if (staleMinutes <= 3 && prevActualTemp != null && prevActualTempAt != null) {
+      const prevTs = prevActualTempAt // stored as epoch seconds
+      const timeDiffHours = (lastUpdateMs - prevTs * 1000) / (1000 * 60 * 60)
+      if (timeDiffHours > 0.03 && timeDiffHours < 1.0) {
+        const rawObservedRate = (actualTemp - prevActualTemp) / timeDiffHours
+        // Only learn meaningful rates (> 0.1°/h)
+        if (Math.abs(rawObservedRate) > 0.1) {
+          // EMA with alpha=0.3 for responsiveness
+          const alpha = observedRateSamples >= 3 ? 0.3 : 0.5
+          observedRate = observedRate !== 0
+            ? observedRate * (1 - alpha) + rawObservedRate * alpha
+            : rawObservedRate
+          log('EST_RATE_LEARNED', 'info',
+            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, ${timeDiffHours.toFixed(1)}h mellan synk)`)
+        }
+      }
+
+      // Accuracy check: compare last prediction to actual
+      const lastPrediction = pressureMap.get('est_last_prediction')
+      if (lastPrediction != null) {
+        const predictionError = actualTemp - lastPrediction
+        log('EST_ACCURACY', 'info',
+          `${fc.name}: prediktion var ${Number(lastPrediction).toFixed(2)}°, verkligt ${Number(actualTemp).toFixed(2)}°, fel ${predictionError > 0 ? '+' : ''}${predictionError.toFixed(3)}°`)
+      }
+    }
+
+    // ── Temperature interpolation using observed fusion rate ──
     if (staleMinutes > 3) {
       const lastModeVal = pressureMap.get('pid_current_mode')
       const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
       if (lastMode) {
-        const globalRateKey = `thermal_rate_${lastMode}`
-        const bucketRateKey = `${globalRateKey}:${thermalBucket}`
-        const bucketRate = pressureMap.get(bucketRateKey)
-        const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
-        const useBucketRate = bucketRate != null && bucketSamples >= 3
-        const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
-        const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
-        const rateSource = useBucketRate ? thermalBucket : 'global'
+        // Prefer observed actual_temp rate (direct measurement of fusion drift)
+        // Fall back to probe-based thermal_rate × duty only if no observed data
+        const hasObservedRate = observedRateSamples >= 2 && Math.abs(observedRate) > 0.05
+        let effectiveRatePerHour: number
+        let rateSource: string
         const lastDuty = pressureMap.get('pid_last_duty') ?? 0
 
-        if (thermalRate > 0 && rateSamples >= 3 && lastDuty > 0) {
-          const ratePerMin = thermalRate / 60
+        if (hasObservedRate) {
+          // Observed rate already includes the effect of duty cycle —
+          // it's the actual measured drift of actual_temp
+          effectiveRatePerHour = Math.abs(observedRate)
+          rateSource = 'observed'
+        } else {
+          // Fallback: probe-based thermal rate × duty fraction
+          const globalRateKey = `thermal_rate_${lastMode}`
+          const bucketRateKey = `${globalRateKey}:${thermalBucket}`
+          const bucketRate = pressureMap.get(bucketRateKey)
+          const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
+          const useBucketRate = bucketRate != null && bucketSamples >= 3
+          const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
+          const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
+          rateSource = useBucketRate ? `${thermalBucket}(fallback)` : 'global(fallback)'
           const dutyFraction = Math.min(lastDuty, 100) / 100
-          // Cap interpolation to max 0.3°C per stale window to prevent over-prediction
-          // at low temps where cooling slows dramatically (small ΔT to glycol)
-          const rawDelta = ratePerMin * staleMinutes * dutyFraction
+          effectiveRatePerHour = thermalRate * dutyFraction
+
+          if (thermalRate <= 0 || rateSamples < 3 || lastDuty <= 0) {
+            effectiveRatePerHour = 0
+          }
+        }
+
+        if (effectiveRatePerHour > 0) {
+          const ratePerMin = effectiveRatePerHour / 60
+          // Cap interpolation to max 0.3°C per stale window
+          const rawDelta = ratePerMin * staleMinutes
           const deltaEst = Math.min(rawDelta, 0.3)
           const sign = lastMode === 'cooling' ? -1 : 1
 
           interpolatedTemp = actualTemp + sign * deltaEst
           // Clamp: never let EST close more than 50% of the gap to target.
-          // This prevents PID from under-reacting due to over-optimistic EST.
-          const gapToTarget = actualTemp - actualTarget // positive when above target (cooling)
+          const gapToTarget = actualTemp - actualTarget
 
-          // IMPORTANT: Only apply EST clamps when the system is on the CORRECT side
-          // of the target for the current mode. When over-actuated (e.g. heating but
-          // above target), clamping EST to target masks the error (err=0 → deadband),
-          // preventing mode switch and creating a feedback deadlock.
+          // Only apply EST clamps when on the CORRECT side of the target
           const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
                                    (lastMode === 'heating' && gapToTarget < 0)
 
           if (isOnCorrectSide) {
-            // 50% gap rule: don't let EST close more than half the gap
             if (lastMode === 'cooling') {
               interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
             } else {
               interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
             }
-            // Hard clamp: never overshoot past target
             if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
             if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
           }
-          // When on wrong side (over-actuated), skip clamps — let PID see the real
-          // over-target error so it can decay duty to 0 and allow mode switch.
 
-          interpolatedTemp = round1(interpolatedTemp)
+          // Use 2-decimal precision (not round1) to preserve interpolation accuracy
+          interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
 
-          if (Math.abs(interpolatedTemp - actualTemp) >= 0.05) {
+          if (Math.abs(interpolatedTemp - actualTemp) >= 0.02) {
             tempInterpolated = true
             log('TEMP_INTERPOLATED', 'info',
-              `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${thermalRate}°/h, källa ${rateSource}, duty ${lastDuty}%)`)
+              `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, duty ${lastDuty}%)`)
           }
         }
       }
