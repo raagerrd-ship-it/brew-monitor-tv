@@ -1,0 +1,1 @@
+UPDATE temp_controller_history SET actual_temp = current_temp WHERE actual_temp IS NULL;
