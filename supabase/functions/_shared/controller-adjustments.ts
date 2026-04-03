@@ -779,16 +779,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
-      await supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' })
-
-      // Learn steady-state duty cycle when PID is in deadband (system at equilibrium)
-      // Quantize to 10% steps to match hardware PWM resolution — prevents
-      // the floor from stabilizing at values that map to different PWM steps.
+      // Merge steady-state duty into the same upsert batch (was a separate updateLearnedParam call)
       if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && pidResult.iCorrection != null) {
         const dutyBucket = getTempBucket(actualTarget)
         const quantizedDuty = Math.round(pidResult.iCorrection * 10) / 10
-        await updateLearnedParam(supabase, fc.controller_id, `steady_state_duty:${dutyBucket}`, quantizedDuty, 0, 1.0)
+        rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: quantizedDuty, sample_count: 1, last_updated_at: now })
       }
+      // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
+      await Promise.all([
+        pidResult.persistPromise,
+        supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' }),
+      ])
+    } else if (pidResult.persistPromise) {
+      // Even when skipLearning, PID state must be persisted
+      await pidResult.persistPromise
     }
 
     // ═══════════════════════════════════════════════════
