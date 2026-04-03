@@ -213,25 +213,27 @@ async function executePwmDutyCycle(
       await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
     }
     // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-    await supabase.from('rapt_temp_controllers')
-      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
     // Align to minute boundary so the 1-min cron picks it up precisely
     const minuteFloor = Math.floor(Date.now() / 60000) * 60000
     const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
-    await supabase.from('pending_rapt_retries')
-      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-    await supabase.from('pending_rapt_retries').insert({
-      controller_id: fc.controller_id,
-      target_temp: revertTarget,
-      reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
-      execute_at: executeAt,
-    })
-    // Reset P-term during burst (probe changes artificially from extreme target)
-    await supabase.from('controller_learned_compensation')
-      .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
-      .eq('mode', mode)
+    await Promise.all([
+      supabase.from('rapt_temp_controllers')
+        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id),
+      supabase.from('pending_rapt_retries')
+        .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+        .then(() => supabase.from('pending_rapt_retries').insert({
+          controller_id: fc.controller_id,
+          target_temp: revertTarget,
+          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
+          execute_at: executeAt,
+        })),
+      // Reset P-term during burst (probe changes artificially from extreme target)
+      supabase.from('controller_learned_compensation')
+        .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+        .eq('mode', mode),
+    ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
   } else {
