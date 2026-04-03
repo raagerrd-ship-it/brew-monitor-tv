@@ -1470,8 +1470,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                     ) : null;
                   })()}
                 </td>
-                <td className="py-1 px-1.5 text-right whitespace-nowrap" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
-                  {r1(actualTempVal)}°
+                <td className="py-1 px-1.5 text-right whitespace-nowrap font-mono" style={{ color: dualSensors ? 'hsl(38 92% 50%)' : undefined }}>
+                  {actualTempVal != null ? `${Number(actualTempVal).toFixed(2)}°` : '—'}
                 </td>
                 <td className="py-1 px-1.5 text-right font-medium whitespace-nowrap" style={{ color: 'hsl(280 60% 60%)' }}>
                   {actualTargetVal != null ? `${r1(actualTargetVal)}°` : '—'}
