@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
     // ──────────────────────────────────────────────────────
     // PHASE 1: RAPT device sync (pills + controllers)
     // Non-fatal: if RAPT auth/API fails, continue with
-    // Brewfather, custom brews, automation and history.
+    // custom brews, automation and history.
     // ──────────────────────────────────────────────────────
 
     let access_token: string | null = null;
