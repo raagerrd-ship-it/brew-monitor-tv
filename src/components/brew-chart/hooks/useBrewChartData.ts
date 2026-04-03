@@ -103,20 +103,23 @@ export function useBrewChartData({
     let basePoints;
 
     if (snapshotRows.length > 0) {
+      const r1 = (v: number | null) => v != null ? Math.round(v * 10) / 10 : null;
       basePoints = snapshotRows.map((row) => {
         // SSOT: actual_temp is the main line, pill & controller always secondary
-        const actualTemp = row.actual_temp ?? row.pill_temp ?? row.controller_temp ?? null;
-        const hasBoth = row.controller_temp != null && row.pill_temp != null;
+        const actualTemp = r1(row.actual_temp ?? row.pill_temp ?? row.controller_temp ?? null);
+        const pillTemp = r1(row.pill_temp);
+        const controllerTemp = r1(row.controller_temp);
+        const hasBoth = controllerTemp != null && pillTemp != null;
         const tempSpan = hasBoth
-          ? Math.abs(row.pill_temp - row.controller_temp!)
+          ? Math.abs(pillTemp! - controllerTemp!)
           : null;
         return {
           date: row.recorded_at,
           value: row.sg,
           temp: actualTemp,
-          pillTemp: row.pill_temp,
-          controllerTemp: row.controller_temp,
-          targetTemp: row.profile_target_temp,
+          pillTemp,
+          controllerTemp,
+          targetTemp: r1(row.profile_target_temp),
           avgTemp: actualTemp,
           tempSpan,
         };
