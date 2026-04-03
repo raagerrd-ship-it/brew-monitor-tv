@@ -1094,7 +1094,7 @@ async function learnFromCurrentState(
     return t < lt ? c : lowest
   })
 
-  const probeTemp = parseFloat(String(lowestController.current_temp ?? '999'))
+  const probeTemp = parseFloat(String((lowestController as any).actual_temp ?? lowestController.current_temp ?? '999'))
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
