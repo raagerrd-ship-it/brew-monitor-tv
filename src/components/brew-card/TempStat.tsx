@@ -317,10 +317,14 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
+  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp.toFixed(2).split('.');
+  const displayTempMain = `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
+  const displayTempMuted = displayTempDecimals[1] ?? '0';
+
   return (
     <StatCard
       label={label}
-      value={<span className="tabular-nums">{displayTemp.toFixed(1)}<span className="text-muted-foreground/40">{displayTemp.toFixed(2).slice(-1)}°</span></span>}
+      value={<span className="tabular-nums">{displayTempMain}<span className="text-muted-foreground/40">{displayTempMuted}°</span></span>}
       
       className="gap-0.5 !py-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
