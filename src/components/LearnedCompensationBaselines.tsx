@@ -25,7 +25,6 @@ interface LearnedEntry {
   latest_avg_error: number;
   accumulated_integral: number;
   controller_name: string;
-  total_duty: number; // P+I from fermentation_learnings
 }
 
 const BUCKET_LABELS: Record<string, string> = {
@@ -79,26 +78,17 @@ export function LearnedCompensationBaselines() {
       }
 
       const controllerIds = [...new Set(learned.map((l) => l.controller_id))];
-      const [{ data: controllers }, { data: dutyRows }] = await Promise.all([
-        supabase
-          .from("rapt_temp_controllers")
-          .select("controller_id, name")
-          .in("controller_id", controllerIds),
-        supabase
-          .from("fermentation_learnings")
-          .select("controller_id, learned_value")
-          .in("controller_id", controllerIds)
-          .eq("parameter_name", "pid_last_duty"),
-      ]);
+      const { data: controllers } = await supabase
+        .from("rapt_temp_controllers")
+        .select("controller_id, name")
+        .in("controller_id", controllerIds);
 
       const nameMap = new Map(controllers?.map((c) => [c.controller_id, c.name]) ?? []);
-      const dutyMap = new Map(dutyRows?.map((d) => [d.controller_id, d.learned_value]) ?? []);
 
       setEntries(
         learned.map((l) => ({
           ...l,
           controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
-          total_duty: (dutyMap.get(l.controller_id) ?? Math.round(l.accumulated_integral * 100)) / 100,
         }))
       );
     } catch (e) {
@@ -261,8 +251,9 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
-                        const dutyPct = Math.round(item.total_duty * 100);
-                        const quantized = Math.round(item.total_duty * 10) * 10;
+                        const totalDuty = Math.min(1, Math.max(0, item.latest_p_correction + item.accumulated_integral));
+                        const dutyPct = Math.round(totalDuty * 100);
+                        const quantized = Math.round(totalDuty * 10) * 10;
                         const barColor = quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
                         const textColor = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : corrColor;
                         return (
