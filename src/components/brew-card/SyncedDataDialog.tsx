@@ -221,7 +221,7 @@ export function SyncedDataDialog({
                         {hasAvgTemp && (
                           <td className={`py-1.5 text-right font-mono ${displayActual != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
                             {displayActual != null
-                              ? `${displayActual.toFixed(1)}°`
+                              ? `${displayActual.toFixed(2)}°`
                               : "-"}
                           </td>
                         )}
