@@ -158,8 +158,6 @@ export type Database = {
       auto_cooling_settings: {
         Row: {
           ai_audit_enabled: boolean
-          auto_boost_degrees: number
-          auto_boost_enabled: boolean
           check_interval_minutes: number
           cooler_controller_id: string | null
           created_at: string
@@ -168,9 +166,6 @@ export type Database = {
           id: string
           last_check_at: string | null
           max_diff_from_lowest: number
-          overshoot_delta_threshold: number
-          overshoot_pill_threshold: number
-          overshoot_prevention_enabled: boolean
           pill_compensation_damping: number
           pill_compensation_emergency_threshold: number
           pill_compensation_enabled: boolean
@@ -178,21 +173,11 @@ export type Database = {
           pill_compensation_min_scale: number
           pill_compensation_rate_limit: number
           sg_temp_correction_enabled: boolean
-          smart_relay_cooling_only_below: number
-          smart_relay_enabled: boolean
-          smart_relay_heating_only_above: number
-          smart_relay_min_hysteresis: number
-          smart_relay_tighten_after_minutes: number
-          stall_max_attenuation: number
-          stall_min_attenuation: number
-          stall_rate_threshold: number
           temp_reduction_degrees: number
           updated_at: string
         }
         Insert: {
           ai_audit_enabled?: boolean
-          auto_boost_degrees?: number
-          auto_boost_enabled?: boolean
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
@@ -201,9 +186,6 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
-          overshoot_delta_threshold?: number
-          overshoot_pill_threshold?: number
-          overshoot_prevention_enabled?: boolean
           pill_compensation_damping?: number
           pill_compensation_emergency_threshold?: number
           pill_compensation_enabled?: boolean
@@ -211,21 +193,11 @@ export type Database = {
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           sg_temp_correction_enabled?: boolean
-          smart_relay_cooling_only_below?: number
-          smart_relay_enabled?: boolean
-          smart_relay_heating_only_above?: number
-          smart_relay_min_hysteresis?: number
-          smart_relay_tighten_after_minutes?: number
-          stall_max_attenuation?: number
-          stall_min_attenuation?: number
-          stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
         }
         Update: {
           ai_audit_enabled?: boolean
-          auto_boost_degrees?: number
-          auto_boost_enabled?: boolean
           check_interval_minutes?: number
           cooler_controller_id?: string | null
           created_at?: string
@@ -234,9 +206,6 @@ export type Database = {
           id?: string
           last_check_at?: string | null
           max_diff_from_lowest?: number
-          overshoot_delta_threshold?: number
-          overshoot_pill_threshold?: number
-          overshoot_prevention_enabled?: boolean
           pill_compensation_damping?: number
           pill_compensation_emergency_threshold?: number
           pill_compensation_enabled?: boolean
@@ -244,14 +213,6 @@ export type Database = {
           pill_compensation_min_scale?: number
           pill_compensation_rate_limit?: number
           sg_temp_correction_enabled?: boolean
-          smart_relay_cooling_only_below?: number
-          smart_relay_enabled?: boolean
-          smart_relay_heating_only_above?: number
-          smart_relay_min_hysteresis?: number
-          smart_relay_tighten_after_minutes?: number
-          stall_max_attenuation?: number
-          stall_min_attenuation?: number
-          stall_rate_threshold?: number
           temp_reduction_degrees?: number
           updated_at?: string
         }
@@ -1176,16 +1137,8 @@ export type Database = {
           min_target_temp: number | null
           name: string
           pill_temp: number | null
-          pre_kick_cooling_hysteresis: number | null
-          pre_smart_cooling_enabled: boolean | null
-          pre_smart_cooling_hysteresis: number | null
-          pre_smart_heating_enabled: boolean | null
-          pre_smart_heating_hysteresis: number | null
           preferred_sensor: string
           profile_target_temp: number | null
-          pwm_stable_count: number
-          smart_relay_active: boolean
-          smart_relay_off_target_since: string | null
           target_temp: number | null
           updated_at: string
         }
@@ -1213,16 +1166,8 @@ export type Database = {
           min_target_temp?: number | null
           name: string
           pill_temp?: number | null
-          pre_kick_cooling_hysteresis?: number | null
-          pre_smart_cooling_enabled?: boolean | null
-          pre_smart_cooling_hysteresis?: number | null
-          pre_smart_heating_enabled?: boolean | null
-          pre_smart_heating_hysteresis?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
-          pwm_stable_count?: number
-          smart_relay_active?: boolean
-          smart_relay_off_target_since?: string | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -1250,16 +1195,8 @@ export type Database = {
           min_target_temp?: number | null
           name?: string
           pill_temp?: number | null
-          pre_kick_cooling_hysteresis?: number | null
-          pre_smart_cooling_enabled?: boolean | null
-          pre_smart_cooling_hysteresis?: number | null
-          pre_smart_heating_enabled?: boolean | null
-          pre_smart_heating_hysteresis?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
-          pwm_stable_count?: number
-          smart_relay_active?: boolean
-          smart_relay_off_target_since?: string | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -1628,50 +1565,6 @@ export type Database = {
         }
         Relationships: []
       }
-      stall_boost_outcomes: {
-        Row: {
-          boost_degrees: number
-          brew_id: string | null
-          controller_id: string
-          created_at: string
-          evaluated_at: string | null
-          id: string
-          outcome: string | null
-          sg_rate_after: number | null
-          sg_rate_before: number
-        }
-        Insert: {
-          boost_degrees: number
-          brew_id?: string | null
-          controller_id: string
-          created_at?: string
-          evaluated_at?: string | null
-          id?: string
-          outcome?: string | null
-          sg_rate_after?: number | null
-          sg_rate_before: number
-        }
-        Update: {
-          boost_degrees?: number
-          brew_id?: string | null
-          controller_id?: string
-          created_at?: string
-          evaluated_at?: string | null
-          id?: string
-          outcome?: string | null
-          sg_rate_after?: number | null
-          sg_rate_before?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stall_boost_outcomes_brew_id_fkey"
-            columns: ["brew_id"]
-            isOneToOne: false
-            referencedRelation: "brew_readings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sync_settings: {
         Row: {
           auto_activate_fermenting: boolean | null
@@ -1686,14 +1579,10 @@ export type Database = {
           id: string
           last_full_sync_at: string | null
           last_rapt_quick_sync_at: string | null
-          last_rapt_sync_at: string | null
           last_successful_rapt_sync_at: string | null
-          last_sync_time: string | null
-          rapt_full_sync_interval: number
           rapt_sync_interval: number
           show_fps_counter: boolean
           splash_delay_ms: number
-          sync_interval: number
           updated_at: string
         }
         Insert: {
@@ -1709,14 +1598,10 @@ export type Database = {
           id?: string
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
-          last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
-          last_sync_time?: string | null
-          rapt_full_sync_interval?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
-          sync_interval?: number
           updated_at?: string
         }
         Update: {
@@ -1732,14 +1617,10 @@ export type Database = {
           id?: string
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
-          last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
-          last_sync_time?: string | null
-          rapt_full_sync_interval?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
-          sync_interval?: number
           updated_at?: string
         }
         Relationships: []

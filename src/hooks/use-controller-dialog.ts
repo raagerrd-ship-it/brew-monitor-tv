@@ -122,17 +122,11 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     const fetchLastSync = async () => {
       const { data } = await supabase
         .from('sync_settings')
-        .select('last_rapt_sync_at, last_rapt_quick_sync_at')
+        .select('last_rapt_quick_sync_at')
         .single();
 
-      if (data) {
-        const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean) as string[];
-        if (times.length > 0) {
-          const mostRecent = times.reduce((latest, current) =>
-            new Date(current) > new Date(latest) ? current : latest
-          );
-          setLastSync(mostRecent);
-        }
+      if (data?.last_rapt_quick_sync_at) {
+        setLastSync(data.last_rapt_quick_sync_at);
       }
     };
 
@@ -178,13 +172,9 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           },
           (payload) => {
             if (payload.new) {
-              const data = payload.new as { last_rapt_sync_at: string | null; last_rapt_quick_sync_at: string | null };
-              const times = [data.last_rapt_sync_at, data.last_rapt_quick_sync_at].filter(Boolean) as string[];
-              if (times.length > 0) {
-                const mostRecent = times.reduce((latest, current) =>
-                  new Date(current) > new Date(latest) ? current : latest
-                );
-                setLastSync(mostRecent);
+              const data = payload.new as { last_rapt_quick_sync_at: string | null };
+              if (data.last_rapt_quick_sync_at) {
+                setLastSync(data.last_rapt_quick_sync_at);
               }
             }
           }

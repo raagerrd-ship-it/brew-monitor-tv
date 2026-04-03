@@ -210,7 +210,6 @@ Deno.serve(async (req) => {
       .from('sync_settings')
       .update({ 
         last_rapt_quick_sync_at: nowIso,
-        last_sync_time: nowIso
       })
       .not('id', 'is', null)
       .then(({ error }) => { if (error) console.error('sync_settings update error:', error); });
@@ -314,7 +313,7 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count, dual_sensor_enabled')
+          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, dual_sensor_enabled')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
@@ -356,7 +355,6 @@ Deno.serve(async (req) => {
             profile_target_temp: existingMap.get(controller.id)?.profile_target_temp ?? null,
             min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
             max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
-            pwm_stable_count: existingMap.get(controller.id)?.pwm_stable_count ?? 0,
             dual_sensor_enabled: existingMap.get(controller.id)?.dual_sensor_enabled ?? false,
             updated_at: new Date().toISOString()
           };
