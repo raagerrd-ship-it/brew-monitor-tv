@@ -485,7 +485,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // Cooldown: only idle once per 30 min to let new utilization data arrive
-    const lastIdleAdj = findRecentAdj('Alla controllers aktiverade 0%')
+    const lastIdleAdj = await findRecentAdj('Alla controllers aktiverade 0%')
     const idleCooldownMs = 30 * 60 * 1000
     const timeSinceLastIdle = lastIdleAdj
       ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
