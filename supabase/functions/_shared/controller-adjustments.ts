@@ -787,10 +787,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
       // Merge steady-state duty into the same upsert batch (was a separate updateLearnedParam call)
+      // IMPORTANT: Increment sample_count so ssFloor reaches the activation threshold (≥5)
       if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && pidResult.iCorrection != null) {
         const dutyBucket = getTempBucket(actualTarget)
         const quantizedDuty = Math.round(pidResult.iCorrection * 10) / 10
-        rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: quantizedDuty, sample_count: 1, last_updated_at: now })
+        // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
+        const { data: existingSs } = await supabase
+          .from('fermentation_learnings')
+          .select('sample_count')
+          .eq('controller_id', fc.controller_id)
+          .eq('parameter_name', `steady_state_duty:${dutyBucket}`)
+          .maybeSingle()
+        const ssCount = (existingSs?.sample_count ?? 0) + 1
+        rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: quantizedDuty, sample_count: ssCount, last_updated_at: now })
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
       await Promise.all([
