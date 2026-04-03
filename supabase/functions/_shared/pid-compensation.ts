@@ -69,6 +69,7 @@ export async function calculateCompensatedTarget(
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   pillRate?: number | null,
+  isInterpolated?: boolean,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
 
@@ -192,7 +193,11 @@ export async function calculateCompensatedTarget(
       const BRAKE_ZONE = 0.50
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
       const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
-      if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing) {
+      // CRITICAL: Never brake on interpolated data — only on confirmed sensor readings.
+      // Interpolation predicts cooling effect, which creates false "error decreasing"
+      // signals that prematurely reduce duty cycle before the hardware has actually
+      // moved the temperature.
+      if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing && !isInterpolated) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
         const blendedI = integral * proximity + ssFloor * (1 - proximity)
         if (blendedI < integral) {
@@ -200,9 +205,12 @@ export async function calculateCompensatedTarget(
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
-      } else if (need < BRAKE_ZONE && ssFloor > 0 && !errorDecreasing) {
+      } else if (need < BRAKE_ZONE && ssFloor > 0 && !errorDecreasing && !isInterpolated) {
         constraints.push('brake-skip')
         console.log(`⏩ ${modeLabel} brake skipped ${controllerName}: error growing (prev=${Math.abs(prevAvgError).toFixed(2)}° → now=${need.toFixed(2)}°), letting I build`)
+      } else if (need < BRAKE_ZONE && ssFloor > 0 && isInterpolated) {
+        constraints.push('brake-interp-skip')
+        console.log(`⏩ ${modeLabel} brake skipped (interpolated) ${controllerName}: need=${need.toFixed(2)}° — väntar på bekräftad sensordata`)
       }
 
       // ── Settling guard (cooling only) ──
