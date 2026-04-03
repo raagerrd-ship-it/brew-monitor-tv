@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       totalMarginHistoryDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history + ${totalAdjustmentsDeleted} adjustments + ${totalMarginHistoryDeleted} margin history older than 30 days`;
+    const msg = `Deleted ${totalControllerDeleted} controller history (>7d) + ${totalDeltaDeleted} delta history (>7d) + ${totalAdjustmentsDeleted} adjustments (>30d) + ${totalMarginHistoryDeleted} margin history (>30d)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
