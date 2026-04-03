@@ -1068,6 +1068,15 @@ async function learnFromCurrentState(
   const getBaseTarget = (c: TempController): number =>
     ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
 
+  // ── Guard: block margin tightening if any tank's beer temp (actual_temp) is above target ──
+  // With dual sensors, probe can be cold (glycol jacket) while beer is still warm.
+  // Low probe utilization does NOT mean cooling is sufficient in this case.
+  const anyBeerAboveTarget = controllersWithCooling.some(c => {
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+    const baseTarget = getBaseTarget(c)
+    return beerTemp > baseTarget + 0.15 // small tolerance for measurement noise
+  })
+
   const lowestController = controllersWithCooling.reduce((lowest, c) => {
     const t = getBaseTarget(c)
     const lt = getBaseTarget(lowest)
