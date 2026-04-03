@@ -68,16 +68,9 @@ export async function runControllerAdjustments(ctx: ControllerAdjustmentContext)
   await bootstrapProfileTargets(ctx)
 
   // ── Step 2: Run processors (each is independently toggleable) ─
+  // Note: in-memory target sync happens inside runProcessors after each processor
   const processorAdjs = await runProcessors(ctx)
   adjustments.push(...processorAdjs)
-
-  // Sync in-memory data so downstream sees current targets
-  for (const adj of processorAdjs) {
-    const fc = ctx.followedControllersFullData.find(c => c.name === adj.cooler)
-    if (fc) {
-      (fc as any).target_temp = adj.newTarget
-    }
-  }
 
   return adjustments
 }
