@@ -10,12 +10,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const brewfatherUserId = Deno.env.get('BREWFATHER_USER_ID');
-    const brewfatherApiKey = Deno.env.get('BREWFATHER_API_KEY');
     const raptUsername = Deno.env.get('RAPT_USERNAME');
     const raptApiSecret = Deno.env.get('RAPT_API_SECRET');
 
-    // Helper function to mask secrets, showing only last 4 characters
     const maskSecret = (secret: string | undefined): string => {
       if (!secret) return 'Ej konfigurerad';
       if (secret.length <= 4) return '****';
@@ -23,11 +20,6 @@ Deno.serve(async (req) => {
     };
 
     const settings = {
-      brewfather: {
-        userId: brewfatherUserId ? maskSecret(brewfatherUserId) : 'Ej konfigurerad',
-        apiKey: brewfatherApiKey ? maskSecret(brewfatherApiKey) : 'Ej konfigurerad',
-        configured: !!(brewfatherUserId && brewfatherApiKey)
-      },
       rapt: {
         username: raptUsername || 'Ej konfigurerad',
         apiSecret: raptApiSecret ? maskSecret(raptApiSecret) : 'Ej konfigurerad',
