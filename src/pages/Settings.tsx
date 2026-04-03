@@ -302,7 +302,7 @@ export default function Settings() {
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">RAPT + Brewfather mätvärden + automation</p>
+                      <p className="text-[10px] text-muted-foreground">RAPT mätvärden + automation</p>
                     </div>
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
