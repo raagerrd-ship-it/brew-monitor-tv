@@ -750,12 +750,13 @@ Deno.serve(async (req) => {
           
           // Dedup: skip if this timestamp already exists
           if (existingDates.has(newPointDate)) {
-            // Still update controller probe temp if available
+            // Still update with SSOT actual_temp if available
             if (brew.linked_controller_id) {
               const ctrl = dbCtrlMap.get(brew.linked_controller_id);
-              if (ctrl?.current_temp != null) {
+              const ssotTemp = ctrl?.actual_temp ?? ctrl?.current_temp;
+              if (ssotTemp != null) {
                 await supabase.from('brew_readings')
-                  .update({ current_temp: ctrl.current_temp, updated_at: new Date().toISOString() })
+                  .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
                   .eq('id', brew.id);
               }
             }
