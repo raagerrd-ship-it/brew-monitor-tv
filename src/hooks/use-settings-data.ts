@@ -533,7 +533,7 @@ export function useSettingsData() {
     syncSteps,
     apiSettings,
     settingsId,
-    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting, brewfatherEnabled,
+    autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
     // Auto-cooling
     autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
     coolerControllerId, followedControllerIds, deltaAlertThreshold,
