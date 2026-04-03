@@ -604,6 +604,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
                   { label: '2b Auto', ms: d['2b_auto_ms'], failed: false },
                   { label: '3 Exec', ms: d['3_execute_ms'], failed: false },
                   ...(d['3a_flush_ms'] != null ? [{ label: '3a Flush', ms: d['3a_flush_ms'], failed: false }] : []),
+                  ...(d['3b_hist_ms'] != null ? [{ label: '3b Hist', ms: d['3b_hist_ms'], failed: false }] : []),
                 ] : [
                   { label: '1 Fetch', ms: d['1_fetch_ms'], failed: !!failedIn },
                   { label: '2 Process', ms: d['2_process_ms'], failed: false },
