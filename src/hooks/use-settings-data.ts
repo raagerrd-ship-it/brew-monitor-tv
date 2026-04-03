@@ -388,18 +388,8 @@ export function useSettingsData() {
       case 'auto_hide_conditioning': setAutoHideConditioning(value); break;
       case 'auto_hide_archived': setAutoHideArchived(value); break;
       case 'auto_activate_fermenting': setAutoActivateFermenting(value); break;
-      case 'brewfather_enabled': setBrewfatherEnabled(value); break;
     }
     await updateSyncSetting(field, value);
-
-    // When Brewfather is disabled, hide all non-custom brews from dashboard
-    if (field === 'brewfather_enabled' && !value) {
-      await supabase.from('selected_brews')
-        .update({ is_visible: false })
-        .not('batch_id', 'like', 'custom\\_%');
-    }
-    // When re-enabled, let next full sync auto-activate fermenting brews
-
   }, [updateSyncSetting]);
 
   const handleSplashDelayChange = useCallback(async (value: string) => {
