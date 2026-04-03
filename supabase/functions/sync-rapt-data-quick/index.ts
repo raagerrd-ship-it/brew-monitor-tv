@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
 
     console.log('Starting unified quick sync (RAPT + custom brews)...');
 
-    // Accept pre-fetched token and flags from caller (e.g. full-sync-brew-data)
+    // Accept pre-fetched token and flags from caller (e.g. manual discovery button)
     let passedToken: string | null = null;
     let discoverNewDevices = false;
     try {
