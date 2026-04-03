@@ -298,7 +298,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Log margin history snapshot ───────────────────────────
   const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
   const actualRate = await measureCoolingRateCached(ctx, effectiveTarget.controllerId)
-  await supabase.from('cooler_margin_history').insert({
+  // Fire-and-forget: margin history is purely diagnostic, no need to await
+  supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
     margin_value: Math.round(effectiveMargin * 100) / 100,
@@ -306,7 +307,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
     cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
     sample_count: learnedMargin.sampleCount,
-  })
+  }).then(null, (err: unknown) => console.warn('cooler_margin_history insert failed:', err))
 
   // ── Hysteresis kick: force relay ON if cooler is in dead band ──
   const coolerHysteresis = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
@@ -314,18 +315,27 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
-  // ── Pre-fetch recent adjustments once (replaces 4 separate DB queries) ──
-  const { data: recentAdjustments } = await supabase
-    .from('auto_cooling_adjustments')
-    .select('created_at, reason, old_target_temp, new_target_temp')
-    .eq('cooler_controller_id', coolerController.controller_id)
-    .order('created_at', { ascending: false })
-    .limit(20)
-
-  const findRecentAdj = (pattern: string) =>
-    recentAdjustments?.find(a => a.reason.includes(pattern)) ?? null
-  const lastAdjustTime = recentAdjustments?.[0]?.created_at
-    ? new Date(recentAdjustments[0].created_at).getTime() : 0
+  // ── Lazy-fetch recent adjustments (only when needed for decisions) ──
+  let _recentAdjustments: any[] | null = null
+  const ensureRecentAdjustments = async () => {
+    if (_recentAdjustments !== null) return _recentAdjustments
+    const { data } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at, reason, old_target_temp, new_target_temp')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    _recentAdjustments = data ?? []
+    return _recentAdjustments
+  }
+  const findRecentAdj = async (pattern: string) => {
+    const adjs = await ensureRecentAdjustments()
+    return adjs.find((a: any) => a.reason.includes(pattern)) ?? null
+  }
+  const getLastAdjustTime = async () => {
+    const adjs = await ensureRecentAdjustments()
+    return adjs[0]?.created_at ? new Date(adjs[0].created_at).getTime() : 0
+  }
 
   // Detect if the PREVIOUS cycle was a kick using the DB flag (set when kick is sent)
   const previousWasKick = !!(coolerController as any).hysteresis_kick_active
