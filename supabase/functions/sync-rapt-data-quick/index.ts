@@ -1482,6 +1482,7 @@ Deno.serve(async (req) => {
           '2b_auto_ms': Math.round(tPhase3 - tPhase2b),
           '3_execute_ms': Math.round(totalMs - (tPhase3 - syncStartTime)),
           '3a_flush_ms': Math.round(tPhase3aEnd - tPhase3a),
+          '3b_hist_ms': Math.round(tPhase3bEnd - tPhase3b),
           total_ms: totalMs,
         }
       });
