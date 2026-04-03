@@ -383,77 +383,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // ── Temperature interpolation using observed fusion rate ──
-    if (staleMinutes > 3) {
-      const lastModeVal = pressureMap.get('pid_current_mode')
-      const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
-      if (lastMode) {
-        // Prefer observed actual_temp rate (direct measurement of fusion drift)
-        // Fall back to probe-based thermal_rate × duty only if no observed data
-        const hasObservedRate = observedRateSamples >= 2 && Math.abs(observedRate) > 0.05
-        let effectiveRatePerHour: number
-        let rateSource: string
-        const lastDuty = pressureMap.get('pid_last_duty') ?? 0
-
-        if (hasObservedRate) {
-          // Observed rate already includes the effect of duty cycle —
-          // it's the actual measured drift of actual_temp
-          effectiveRatePerHour = Math.abs(observedRate)
-          rateSource = 'observed'
-        } else {
-          // Fallback: probe-based thermal rate × duty fraction
-          const globalRateKey = `thermal_rate_${lastMode}`
-          const bucketRateKey = `${globalRateKey}:${thermalBucket}`
-          const bucketRate = pressureMap.get(bucketRateKey)
-          const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
-          const useBucketRate = bucketRate != null && bucketSamples >= 3
-          const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
-          const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
-          rateSource = useBucketRate ? `${thermalBucket}(fallback)` : 'global(fallback)'
-          const dutyFraction = Math.min(lastDuty, 100) / 100
-          effectiveRatePerHour = thermalRate * dutyFraction
-
-          if (thermalRate <= 0 || rateSamples < 3 || lastDuty <= 0) {
-            effectiveRatePerHour = 0
-          }
-        }
-
-        if (effectiveRatePerHour > 0) {
-          const ratePerMin = effectiveRatePerHour / 60
-          // Cap interpolation to max 0.3°C per stale window
-          const rawDelta = ratePerMin * staleMinutes
-          const deltaEst = Math.min(rawDelta, 0.3)
-          const sign = lastMode === 'cooling' ? -1 : 1
-
-          interpolatedTemp = actualTemp + sign * deltaEst
-          // Clamp: never let EST close more than 50% of the gap to target.
-          const gapToTarget = actualTemp - actualTarget
-
-          // Only apply EST clamps when on the CORRECT side of the target
-          const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
-                                   (lastMode === 'heating' && gapToTarget < 0)
-
-          if (isOnCorrectSide) {
-            if (lastMode === 'cooling') {
-              interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
-            } else {
-              interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
-            }
-            if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
-            if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
-          }
-
-          // Use 2-decimal precision (not round1) to preserve interpolation accuracy
-          interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
-
-          if (Math.abs(interpolatedTemp - actualTemp) >= 0.02) {
-            tempInterpolated = true
-            log('TEMP_INTERPOLATED', 'info',
-              `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, duty ${lastDuty}%)`)
-          }
-        }
-      }
-    }
+    // ── Temperature interpolation is deferred to AFTER PID ──
+    // This ensures the interpolation uses the freshly computed duty cycle
+    // (same value shown in logs and sent to RAPT hardware).
+    // PID uses raw actualTemp; its isStaleData guard holds the integral when data is stale.
 
     // ── Ramp-rate-limiting: prevents abrupt target changes ──────
     // Gradually moves the effective target at a max rate.
