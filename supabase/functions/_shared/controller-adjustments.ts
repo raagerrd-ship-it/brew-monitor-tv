@@ -623,6 +623,70 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Persist last duty cycle for mode-switch guard
     const computedDutyPct = pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : 0
 
+    // ── Post-PID Temperature Interpolation ──────────────────────
+    // Now that we have the freshly computed duty, interpolate temp
+    // using the SAME duty that will be sent to RAPT hardware.
+    if (staleMinutes > 3) {
+      const lastModeVal = pressureMap.get('pid_current_mode')
+      const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
+      if (lastMode) {
+        const hasObservedRate = observedRateSamples >= 2 && Math.abs(observedRate) > 0.05
+        let effectiveRatePerHour: number
+        let rateSource: string
+
+        if (hasObservedRate) {
+          effectiveRatePerHour = Math.abs(observedRate)
+          rateSource = 'observed'
+        } else {
+          const globalRateKey = `thermal_rate_${lastMode}`
+          const bucketRateKey = `${globalRateKey}:${thermalBucket}`
+          const bucketRate = pressureMap.get(bucketRateKey)
+          const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
+          const useBucketRate = bucketRate != null && bucketSamples >= 3
+          const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
+          const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
+          rateSource = useBucketRate ? `${thermalBucket}(fallback)` : 'global(fallback)'
+          const dutyFraction = Math.min(computedDutyPct, 100) / 100
+          effectiveRatePerHour = thermalRate * dutyFraction
+
+          if (thermalRate <= 0 || rateSamples < 3 || computedDutyPct <= 0) {
+            effectiveRatePerHour = 0
+          }
+        }
+
+        if (effectiveRatePerHour > 0) {
+          const ratePerMin = effectiveRatePerHour / 60
+          const rawDelta = ratePerMin * staleMinutes
+          const deltaEst = Math.min(rawDelta, 0.3)
+          const sign = lastMode === 'cooling' ? -1 : 1
+
+          interpolatedTemp = actualTemp + sign * deltaEst
+          const gapToTarget = actualTemp - actualTarget
+
+          const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
+                                   (lastMode === 'heating' && gapToTarget < 0)
+
+          if (isOnCorrectSide) {
+            if (lastMode === 'cooling') {
+              interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+            } else {
+              interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+            }
+            if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
+            if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
+          }
+
+          interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
+
+          if (Math.abs(interpolatedTemp - actualTemp) >= 0.02) {
+            tempInterpolated = true
+            log('TEMP_INTERPOLATED', 'info',
+              `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, duty ${computedDutyPct}%)`)
+          }
+        }
+      }
+    }
+
     // Post-PID safety: if PID still has active duty in the current mode,
     // any switch pressure accumulated from stale pid_last_duty data is invalid.
     if (computedDutyPct > 0 && switchPressure > 0) {
