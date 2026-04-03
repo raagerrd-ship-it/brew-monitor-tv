@@ -252,7 +252,8 @@ Deno.serve(async (req) => {
             }
             
             if (ctrlFull) {
-              const fallbackTemp = ctrlFull.current_temp;
+              // SSOT: prefer actual_temp over raw probe temp
+              const fallbackTemp = ctrlFull.actual_temp ?? ctrlFull.current_temp;
               const brewUpdate = fallbackTemp != null ? supabase
                 .from('brew_readings')
                 .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
