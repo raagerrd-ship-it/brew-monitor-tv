@@ -46,9 +46,13 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   wait_for_sg: "SG-mål",
   wait_for_temp: "T-mål",
   wait_for_acknowledgement: "Vänta",
-  standalone: "Fri",
   unknown: "–",
   profile: "Profil",
+};
+
+const MODE_LABELS: Record<string, string> = {
+  cooling: "Kyl",
+  heating: "Värm",
 };
 
 export function LearnedCompensationBaselines() {
