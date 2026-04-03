@@ -177,8 +177,8 @@ export function LearnedCompensationBaselines() {
         <div className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
           <div>
-            <span className="text-sm font-medium">PID-integral (nuläge)</span>
-            <p className="text-[10px] text-muted-foreground/60">Aktuellt integralvärde per stegtyp och delta — ändras varje cykel</p>
+            <span className="text-sm font-medium">PID-duty (nuläge)</span>
+            <p className="text-[10px] text-muted-foreground/60">Aktuell duty cycle (P+I) per stegtyp — ändras varje cykel</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
