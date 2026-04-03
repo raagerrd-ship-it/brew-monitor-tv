@@ -7,7 +7,7 @@ schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
-[functions.full-sync-brew-data]
+[functions.ai-consultation]
 verify_jwt = false
 
 [functions.get-public-rapt-data]
