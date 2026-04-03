@@ -1173,13 +1173,13 @@ async function learnFromCurrentState(
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
       }
     } else if (util >= 0.7 && util < 0.99) {
-      if (currentMargin > 2.5) {
+      if (currentMargin > 2.5 && !anyBeerAboveTarget) {
         const nudge = currentMargin * 0.98
         const result = batch.update(`cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
         batch.update(marginParam, nudge, 1.0, 15.0)
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — nudging tighter: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
       } else {
-        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal`)
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal${anyBeerAboveTarget ? ' (öl ovanför mål)' : ''}`)
         batch.update(marginParam, currentMargin, 1.0, 15.0)
       }
     } else {
@@ -1196,10 +1196,12 @@ async function learnFromCurrentState(
   const atTarget = probeTemp <= targetTemp + hysteresis
   const overshot = probeTemp < targetTemp - 1.0
 
-  if (atTarget && !overshot && currentMargin > 1.0) {
+  if (atTarget && !overshot && currentMargin > 1.0 && !anyBeerAboveTarget) {
     const tighterMargin = currentMargin * 0.97
     const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+  } else if (atTarget && !overshot && anyBeerAboveTarget) {
+    log('MARGIN_LEARN', 'info', `[${tempBucket}] Probe at target men öl ovanför mål — blockerar åtstramning (margin ${currentMargin.toFixed(1)}°C)`)
   } else if (overshot) {
     const reducedMargin = currentMargin * 0.75
     const result = batch.update(`cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
