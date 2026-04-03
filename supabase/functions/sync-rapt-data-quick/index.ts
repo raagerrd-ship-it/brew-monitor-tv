@@ -518,15 +518,8 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // PHASE 2: Brewfather readings (quick) + automation
-    //          Run in parallel with custom brews
+    // PHASE 2: Custom brews + automation
     // ──────────────────────────────────────────────────────
-
-    // Fetch visible Brewfather brews (skip if Brewfather disabled)
-    const { data: selectedBrews } = brewfatherEnabled
-      ? await supabase.from('selected_brews')
-          .select('batch_id').eq('is_visible', true).not('batch_id', 'like', 'custom\\_%')
-      : { data: [] as any[] };
 
     let brewsUpdated = 0;
 
