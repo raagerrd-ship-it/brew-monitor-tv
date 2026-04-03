@@ -421,9 +421,6 @@ export function useSettingsData() {
     try {
       const syncPromise = supabase.functions.invoke('full-sync-brew-data', { body: {} });
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setSyncSteps(prev => prev.map(s => s.id === 'brewfather-data' ? { ...s, completed: true, inProgress: false } : s));
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
       await new Promise(resolve => setTimeout(resolve, 3000));
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
       setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, inProgress: true } : s));
