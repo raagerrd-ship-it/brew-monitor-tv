@@ -1755,6 +1755,7 @@ export type Database = {
       }
       temp_controller_history: {
         Row: {
+          actual_temp: number | null
           controller_id: string
           cooling_enabled: boolean
           created_at: string
@@ -1766,6 +1767,7 @@ export type Database = {
           target_temp: number
         }
         Insert: {
+          actual_temp?: number | null
           controller_id: string
           cooling_enabled: boolean
           created_at?: string
@@ -1777,6 +1779,7 @@ export type Database = {
           target_temp: number
         }
         Update: {
+          actual_temp?: number | null
           controller_id?: string
           cooling_enabled?: boolean
           created_at?: string
@@ -1884,6 +1887,7 @@ export type Database = {
           p_start_time: string
         }
         Returns: {
+          actual_temp: number
           cooling_enabled: boolean
           cooling_ratio: number
           current_temp: number
