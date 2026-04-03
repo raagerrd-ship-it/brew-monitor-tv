@@ -612,9 +612,20 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
   // ── Block raising cooler during active downward ramps ─────
+  // ── Block raising cooler when beer is above target (dual-sensor guard) ──
   if (clampedTarget > currentCoolerTarget) {
     if (effectiveTarget.isRampingDown) {
       log('RAMP_BLOCK', 'info', 'Blockerar höjning — aktiv nedåtramp pågår')
+      return adjustments
+    }
+    const anyBeerAbove = controllersWithCooling.some(c => {
+      const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+      const bt = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
+      return beerTemp > bt + 0.15
+    })
+    if (anyBeerAbove) {
+      log('BEER_TEMP_BLOCK', 'info', `Blockerar höjning av kylare (${round1(currentCoolerTarget)}° → ${round1(clampedTarget)}°) — öl fortfarande ovanför mål`)
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
   }
