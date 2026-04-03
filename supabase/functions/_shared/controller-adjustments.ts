@@ -660,11 +660,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Normalize wait-type steps to 'hold' for PID baseline sharing — they behave identically (hold temp, wait for condition)
     const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement'].includes(rawStepType) ? 'hold' : rawStepType
 
-    // === Stale-data detection (moved from PID — uses fc.last_update directly) ===
-    // Data is stale if no new sensor reading has arrived since we last stored PID state.
-    // prevActualTempAt is already defined above (from pressureMap)
-    const isStaleData = prevActualTempAt != null && prevActualTempAt > 0 &&
+    // === Stale-data detection ===
+    // Data is stale if no new sensor reading AND no valid interpolation.
+    // When we have a valid interpolation, PID can act on the estimated temp.
+    const rawStaleData = prevActualTempAt != null && prevActualTempAt > 0 &&
       lastUpdateMs <= prevActualTempAt * 1000
+    const isStaleData = rawStaleData && !tempInterpolated
 
     // === Pill rate (for ramp boost — computed from temp_delta_history in caller) ===
     // Uses the already-fetched pressureMap rates when available. Falls back to
