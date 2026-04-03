@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0'
 
-// ── RAPT auth with DB token cache (same strategy as quick-sync) ──
+// ── RAPT auth with DB token cache ──
 async function getRaptTokenCached(supabase: any): Promise<string> {
   try {
     const { data: cached } = await supabase
@@ -13,7 +13,7 @@ async function getRaptTokenCached(supabase: any): Promise<string> {
     if (cached?.access_token && cached?.expires_at) {
       const expiresAt = new Date(cached.expires_at).getTime();
       if (expiresAt > Date.now() + 10 * 60 * 1000) {
-        console.log('🔑 [full-sync] Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
+        console.log('🔑 [ai-consultation] Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
         return cached.access_token;
       }
     }
@@ -46,12 +46,12 @@ async function getRaptTokenCached(supabase: any): Promise<string> {
         const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
         await supabase.from('rapt_token_cache')
           .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' });
-        console.log('🔑 [full-sync] Fresh RAPT token cached');
+        console.log('🔑 [ai-consultation] Fresh RAPT token cached');
       }
       return data.access_token;
     } catch (e) {
       lastError = e as Error;
-      if (attempt === 0) console.log(`🔑 [full-sync] Auth attempt 1 failed, retrying...`);
+      if (attempt === 0) console.log(`🔑 [ai-consultation] Auth attempt 1 failed, retrying...`);
     }
   }
   throw lastError!;
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('Starting FULL sync (RAPT discovery + quick sync + AI audit)...')
+    console.log('Starting AI consultation (quick sync + AI audit)...')
 
     // Update timestamps
     const { data: syncSettings } = await supabase.from('sync_settings')
@@ -90,42 +90,40 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 1: Get RAPT token ONCE, then run discovery + quick sync
+    // STEP 1: Get RAPT token ONCE, then run quick sync
     // ──────────────────────────────────────────────────────
 
     let raptToken: string | null = null;
     try {
       raptToken = await getRaptTokenCached(supabase);
     } catch (e) {
-      console.error('RAPT auth failed (discovery + quick sync will use their own fallback):', e);
+      console.error('RAPT auth failed:', e);
     }
 
-    // discover: true merges auto-discovery into the same function call — halves RAPT GET requests
-    console.log('Running quick sync pass with discovery (data + automation)...')
+    console.log('Running quick sync pass (fresh data for AI)...')
     try {
       // Write a reservation log entry so cron-triggered quick-syncs skip (concurrency guard)
       await supabase.from('auto_cooling_decision_logs').insert({
         duration_ms: 0,
         decision_count: 0,
-        decisions: [{ type: 'FULL_SYNC_RESERVATION', message: 'Reserved by full-sync to prevent cron overlap' }],
+        decisions: [{ type: 'AI_CONSULTATION_RESERVATION', message: 'Reserved by ai-consultation to prevent cron overlap' }],
         adjustment_made: false,
-        final_result: 'full-sync reservation',
+        final_result: 'ai-consultation reservation',
       });
 
       await supabase.functions.invoke('sync-rapt-data-quick', { 
         body: { 
           access_token: raptToken || undefined, 
           from_full_sync: true,
-          discover: true,
         } 
       })
-      console.log('Quick sync pass with discovery completed')
+      console.log('Quick sync pass completed')
     } catch (e) {
       console.error('Quick sync pass failed:', e)
     }
 
     // ──────────────────────────────────────────────────────
-    // STEP 2: AI audit (with idle detection)
+    // STEP 2: AI audit
     // ──────────────────────────────────────────────────────
 
     const { data: autoCoolingSettings } = await supabase
@@ -145,14 +143,14 @@ Deno.serve(async (req) => {
       console.log('AI audit disabled, skipping')
     }
 
-    console.log('FULL sync completed')
+    console.log('AI consultation completed')
 
     return new Response(
-      JSON.stringify({ message: 'Full sync completed' }),
+      JSON.stringify({ message: 'AI consultation completed' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error in full-sync-brew-data:', error)
+    console.error('Error in ai-consultation:', error)
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

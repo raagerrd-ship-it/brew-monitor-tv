@@ -186,7 +186,7 @@ export function useBrewManagement() {
         if (insertError) throw insertError;
       }
 
-      const { error: syncError } = await supabase.functions.invoke('full-sync-brew-data', { body: {} });
+      const { error: syncError } = await supabase.functions.invoke('ai-consultation', { body: {} });
       if (syncError) {
         console.error('Error during full sync:', syncError);
         toast({ title: "Varning", description: "Val sparade men synkroniseringen misslyckades", variant: "destructive" });

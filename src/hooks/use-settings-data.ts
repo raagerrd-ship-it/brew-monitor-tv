@@ -419,7 +419,7 @@ export function useSettingsData() {
     ];
     setSyncSteps(steps);
     try {
-      const syncPromise = supabase.functions.invoke('full-sync-brew-data', { body: {} });
+      const syncPromise = supabase.functions.invoke('ai-consultation', { body: {} });
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
       await new Promise(resolve => setTimeout(resolve, 3000));
       setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
