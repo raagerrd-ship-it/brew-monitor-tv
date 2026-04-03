@@ -657,8 +657,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // to merge all writes into a single batch (mode, pressure, duty, effective_target)
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const rawStepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
-    // Normalize wait-type steps to 'hold' for PID baseline sharing — they behave identically (hold temp, wait for condition)
-    const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement'].includes(rawStepType) ? 'hold' : rawStepType
+    // Normalize wait-type steps AND standalone to 'hold' for PID baseline sharing —
+    // they all behave identically (hold temp). This prevents integral reset when a
+    // profile ends and step_type changes from 'hold' to 'standalone'.
+    const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement', 'standalone'].includes(rawStepType) ? 'hold' : rawStepType
 
     // === Stale-data detection ===
     // Data is stale if no new sensor reading AND no valid interpolation.
