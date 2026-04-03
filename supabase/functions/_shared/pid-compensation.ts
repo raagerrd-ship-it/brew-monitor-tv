@@ -6,12 +6,13 @@ async function persistPidState(
   supabase: ReturnType<typeof createClient>,
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
+  dutyCycle: number,
   extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string },
 ): Promise<void> {
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
     latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-    latest_d_damping: 1.0, // D-term removed — always 1.0
+    latest_d_damping: dutyCycle, // Repurposed: stores total duty cycle (P+I clamped)
     latest_avg_error: avgError,
     accumulated_integral: iCorrection,
     updated_at: new Date().toISOString(),
@@ -241,7 +242,7 @@ export async function calculateCompensatedTarget(
 
   // Defer persist — caller can batch this with other DB writes
   const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
-    pCorrection, integral, avgError)
+    pCorrection, integral, avgError, dutyCycle)
 
   return {
     ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
