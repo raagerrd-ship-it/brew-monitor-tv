@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
 
     console.log('Starting unified quick sync (RAPT + custom brews)...');
 
-    // Accept pre-fetched token and flags from caller (e.g. full-sync-brew-data)
+    // Accept pre-fetched token and flags from caller (e.g. manual discovery button)
     let passedToken: string | null = null;
     let discoverNewDevices = false;
     try {
@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
       tPhase1Upsert = Date.now() - tUpsertStart;
       console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
 
-      // ── Phase 1d: Auto-discovery (only when called with discover: true from full-sync) ──
+      // ── Phase 1d: Auto-discovery (only when called with discover: true from manual button) ──
       if (discoverNewDevices) {
         const tDiscover = Date.now();
         const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([

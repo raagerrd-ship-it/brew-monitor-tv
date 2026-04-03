@@ -1685,11 +1685,9 @@ export type Database = {
           full_sync_interval: number | null
           id: string
           last_full_sync_at: string | null
-          last_rapt_full_sync_at: string | null
           last_rapt_quick_sync_at: string | null
           last_rapt_sync_at: string | null
           last_successful_rapt_sync_at: string | null
-          last_sync_at: string | null
           last_sync_time: string | null
           rapt_full_sync_interval: number
           rapt_sync_interval: number
@@ -1710,11 +1708,9 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
-          last_rapt_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
-          last_sync_at?: string | null
           last_sync_time?: string | null
           rapt_full_sync_interval?: number
           rapt_sync_interval?: number
@@ -1735,11 +1731,9 @@ export type Database = {
           full_sync_interval?: number | null
           id?: string
           last_full_sync_at?: string | null
-          last_rapt_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_rapt_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
-          last_sync_at?: string | null
           last_sync_time?: string | null
           rapt_full_sync_interval?: number
           rapt_sync_interval?: number
@@ -1893,11 +1887,11 @@ export type Database = {
           target_temp: number
         }[]
       }
+      trigger_ai_consultation: { Args: never; Returns: undefined }
       trigger_auto_cooling_adjustment: { Args: never; Returns: undefined }
       trigger_custom_brew_sync: { Args: never; Returns: undefined }
       trigger_execute_pwm_off: { Args: never; Returns: undefined }
       trigger_external_timer_sync: { Args: never; Returns: undefined }
-      trigger_full_brew_sync: { Args: never; Returns: undefined }
       trigger_rapt_quick_sync: { Args: never; Returns: undefined }
       trigger_sonos_now_playing_sync: { Args: never; Returns: undefined }
     }
