@@ -152,34 +152,36 @@ export function LearnedThermalProfile() {
         return (
           <div key={type} className="space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground">{meta.label}</span>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                  <th className="text-left font-medium pb-1">Zon</th>
-                  {type !== "warming_rate" && <th className="text-left font-medium pb-1">Last</th>}
-                  <th className="text-right font-medium pb-1">Värde</th>
-                  <th className="text-right font-medium pb-1">Prov</th>
-                  <th className="text-right font-medium pb-1">Senast</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30">
-                {items.map((item, i) => (
-                  <tr key={`${item.controller_id}-${item.param_type}-${item.bucket}-${item.load}-${i}`}>
-                    <td className="py-1.5">
-                      {item.bucket === "all" ? "Alla" : BUCKET_LABELS[item.bucket] ?? item.bucket}
-                    </td>
-                    {type !== "warming_rate" && (
-                      <td className="py-1.5">{LOAD_LABELS[item.load] ?? (item.load || "–")}</td>
-                    )}
-                    <td className={`py-1.5 text-right font-mono ${meta.color}`}>
-                      {item.value.toFixed(2)}{meta.unit}
-                    </td>
-                    <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
-                    <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
+            <div className="rounded-md border border-border/40 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/40 bg-muted/30">
+                    <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Zon</th>
+                    {type !== "warming_rate" && <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Last</th>}
+                    <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Värde</th>
+                    <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Prov</th>
+                    <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Senast</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map((item, i) => (
+                    <tr key={`${item.controller_id}-${item.param_type}-${item.bucket}-${item.load}-${i}`} className={i < items.length - 1 ? "border-b border-border/20" : ""}>
+                      <td className="px-3 py-2">
+                        {item.bucket === "all" ? "Alla" : BUCKET_LABELS[item.bucket] ?? item.bucket}
+                      </td>
+                      {type !== "warming_rate" && (
+                        <td className="px-3 py-2">{LOAD_LABELS[item.load] ?? (item.load || "–")}</td>
+                      )}
+                      <td className={`px-3 py-2 text-right font-mono ${meta.color}`}>
+                        {item.value.toFixed(2)}{meta.unit}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{item.sample_count}</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
       })}
