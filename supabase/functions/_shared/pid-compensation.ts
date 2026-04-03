@@ -235,7 +235,8 @@ export async function calculateCompensatedTarget(
     console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
 
-  await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
+  // Defer persist — caller can batch this with other DB writes
+  const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError)
 
   return {
@@ -244,6 +245,7 @@ export async function calculateCompensatedTarget(
     pillRate: pillRate ?? null, probeRate: null, etaMinutes: null,
     errorCorrection: 0, pCorrection, iCorrection: integral,
     learnedBaseline, deltaBucket, convergenceCount, constraints,
+    persistPromise,
   }
 }
 
