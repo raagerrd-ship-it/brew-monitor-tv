@@ -64,10 +64,9 @@ export default function Settings() {
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
     if (!settings.apiSettings) return null;
-    const brewfatherMissing = !settings.apiSettings.brewfather.configured;
     const raptMissing = !settings.apiSettings.rapt.configured;
-    if (brewfatherMissing || raptMissing) {
-      return { type: 'warning' as const, count: (brewfatherMissing ? 1 : 0) + (raptMissing ? 1 : 0) };
+    if (raptMissing) {
+      return { type: 'warning' as const, count: 1 };
     }
     return null;
   }, [settings.apiSettings]);
