@@ -715,11 +715,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // === PID Calculation (uses raw actualTemp — interpolation runs after) ===
+    // === PID Calculation (uses interpolated temp when available) ===
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
-      actualTemp, isStaleData, coolingUtil, rampContext, pillRate,
+      pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate,
     )
 
     // Log PID status
