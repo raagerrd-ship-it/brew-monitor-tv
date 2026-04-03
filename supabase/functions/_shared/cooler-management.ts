@@ -1303,7 +1303,7 @@ async function batchMeasureCoolingRates(
 
   const { data } = await supabase
     .from('temp_controller_history')
-    .select('controller_id, current_temp, recorded_at')
+    .select('controller_id, actual_temp, current_temp, recorded_at')
     .in('controller_id', controllerIds)
     .gte('recorded_at', thirtyMinAgo)
     .order('recorded_at', { ascending: true })
