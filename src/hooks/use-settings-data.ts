@@ -150,7 +150,7 @@ export function useSettingsData() {
         setAutoHideConditioning(data.auto_hide_conditioning ?? true);
         setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
-        setBrewfatherEnabled((data as any).brewfather_enabled ?? true);
+        
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setLastFullSync(data.last_full_sync_at);
