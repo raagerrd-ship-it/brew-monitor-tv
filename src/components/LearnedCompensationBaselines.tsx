@@ -46,9 +46,13 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   wait_for_sg: "SG-mål",
   wait_for_temp: "T-mål",
   wait_for_acknowledgement: "Vänta",
-  standalone: "Fri",
   unknown: "–",
   profile: "Profil",
+};
+
+const MODE_LABELS: Record<string, string> = {
+  cooling: "Kyl",
+  heating: "Värm",
 };
 
 export function LearnedCompensationBaselines() {
@@ -243,6 +247,7 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-muted-foreground">
                       {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
+                      <span className={`ml-1 ${isHeating ? "text-orange-400/70" : "text-cyan-400/70"}`}>· {MODE_LABELS[item.mode] ?? item.mode}</span>
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
