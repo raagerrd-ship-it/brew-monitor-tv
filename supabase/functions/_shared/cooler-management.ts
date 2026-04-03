@@ -827,7 +827,7 @@ async function calculateCoolingUtilizations(
     const pwmDutyFraction = pwmDuty / 100
     const hwUtil = utilResult.rolling
     const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
-    const isAboveThreshold = probeTemp > targetTemp + hysteresis
+    const isAboveThreshold = beerTemp > targetTemp + hysteresis
     const isHighUtil = effectiveUtil != null && effectiveUtil >= 0.30
     const isActivelyCooling = isAboveThreshold || isHighUtil
 
