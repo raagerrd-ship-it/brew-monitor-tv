@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, pwm_stable_count, dual_sensor_enabled')
+          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, dual_sensor_enabled')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
