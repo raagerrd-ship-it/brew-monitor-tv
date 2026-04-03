@@ -247,6 +247,7 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-muted-foreground">
                       {STEP_TYPE_LABELS[item.step_type] ?? item.step_type}
+                      <span className={`ml-1 ${isHeating ? "text-orange-400/70" : "text-cyan-400/70"}`}>· {MODE_LABELS[item.mode] ?? item.mode}</span>
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
