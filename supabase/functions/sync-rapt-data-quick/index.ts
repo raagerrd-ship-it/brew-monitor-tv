@@ -773,10 +773,14 @@ Deno.serve(async (req) => {
           const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
           const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
 
+          // SSOT: prefer controller actual_temp over pill temp
+          const linkedCtrlForTemp = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
+          const ssotTemp = linkedCtrlForTemp?.actual_temp ?? latestData.temp;
+
           const { error: updateError } = await supabase
             .from('brew_readings')
             .update({
-              sg_data: mergedSgData, current_sg: currentSg, current_temp: latestData.temp,
+              sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTemp,
               attenuation: Math.max(0, Math.min(100, attenuation)),
               abv: Math.max(0, abv), battery: pillBattery,
               last_update: latestData.date, updated_at: new Date().toISOString()
