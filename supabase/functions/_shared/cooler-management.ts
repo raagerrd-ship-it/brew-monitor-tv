@@ -1329,7 +1329,7 @@ async function batchMeasureCoolingRates(
     }
     const first = rows[0]
     const last = rows[rows.length - 1]
-    const tempDiff = parseFloat(String(first.actual_temp ?? first.current_temp)) - parseFloat(String(last.actual_temp ?? last.current_temp))
+    const tempDiff = parseFloat(String(first.actual_temp)) - parseFloat(String(last.actual_temp))
     const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
     result.set(id, hoursDiff < 0.05 ? null : tempDiff / hoursDiff)
   }

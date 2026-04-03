@@ -34,7 +34,7 @@ function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
  * Falls back to probe → pill if actual_temp is not available.
  */
 function getResolvedTemp(controller: TempController): number | null {
-  return controller.actual_temp ?? controller.current_temp ?? controller.pill_temp ?? null
+  return controller.actual_temp ?? null
 }
 
 export function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
