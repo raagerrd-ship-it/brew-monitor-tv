@@ -198,8 +198,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     })
   }
 
-  // ── Find followed controllers with cooling enabled ────────
-  const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true)
+  // ── controllersWithCooling already computed above for batch rate pre-load ──
 
   if (controllersWithCooling.length === 0) {
     log('COOLING_CAPABILITY', 'fail', 'No followed controller has cooling enabled')
