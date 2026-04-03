@@ -557,6 +557,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Normalize wait-type steps to 'hold' for PID baseline sharing — they behave identically (hold temp, wait for condition)
     const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement'].includes(rawStepType) ? 'hold' : rawStepType
 
+    // === Stale-data detection (moved from PID — uses fc.last_update directly) ===
+    // Data is stale if no new sensor reading has arrived since we last stored PID state.
+    const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
+    const isStaleData = prevActualTempAt != null && prevActualTempAt > 0 &&
+      lastUpdateMs <= prevActualTempAt * 1000
+
+    // === Pill rate (for ramp boost — computed from temp_delta_history in caller) ===
+    // Uses the already-fetched pressureMap rates when available. Falls back to
+    // a quick delta_history query only when actually needed for ramp context.
+    let pillRate: number | null = null
+
     // Calculate cooling utilization for this controller and share with cooler
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
@@ -579,13 +590,32 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const estimatedRate = Math.max(0.5, distance / 4)
         rampContext = { requiredRatePerHour: estimatedRate, tempBucket, loadBucket }
       }
+
+      // Only fetch pill rate when ramp context needs it
+      if (rampContext) {
+        const { data: deltaHistory } = await supabase
+          .from('temp_delta_history')
+          .select('pill_temp, recorded_at')
+          .eq('controller_id', fc.controller_id)
+          .order('recorded_at', { ascending: false })
+          .limit(8)
+        if (deltaHistory && deltaHistory.length >= 3) {
+          const newest = deltaHistory[0]
+          const oldest = deltaHistory[deltaHistory.length - 1]
+          const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
+          const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+          if (timeDiffHours > 0.05) {
+            pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
+          }
+        }
+      }
     }
 
     // === PID Calculation (uses raw actualTemp — interpolation runs after) ===
     const pidResult = await calculateCompensatedTarget(
-      supabase, fc.controller_id, pidEffectiveTarget, actualTarget, ctrlTarget,
-      fc.name || fc.controller_id, { enabled: true }, pidMode, stepType,
-      actualTemp, undefined, coolingUtil, rampContext, false, ctx.skipLearning,
+      supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
+      fc.name || fc.controller_id, pidMode, stepType,
+      actualTemp, isStaleData, coolingUtil, rampContext, pillRate,
     )
 
     // Log PID status
