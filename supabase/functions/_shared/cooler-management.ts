@@ -467,10 +467,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const cTempBucket = controllerBucketMap.get(c.controller_id)!
       const warmingParam = allWarmingParams.get(`${c.controller_id}:warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
-        const probeTemp = parseFloat(String(c.current_temp ?? '0'))
+        const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
         const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
-        const headroom = (targetTemp + hysteresis) - probeTemp
+        const headroom = (targetTemp + hysteresis) - beerTemp
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
           const dutyParam = allWarmingParams.get(`${c.controller_id}:steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
@@ -809,7 +809,7 @@ async function calculateCoolingUtilizations(
   const results: CoolingUtilization[] = []
 
   for (const c of controllersWithCooling) {
-    const probeTemp = parseFloat(String(c.current_temp ?? c.pill_temp ?? '999'))
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
 
@@ -827,7 +827,7 @@ async function calculateCoolingUtilizations(
     const pwmDutyFraction = pwmDuty / 100
     const hwUtil = utilResult.rolling
     const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
-    const isAboveThreshold = probeTemp > targetTemp + hysteresis
+    const isAboveThreshold = beerTemp > targetTemp + hysteresis
     const isHighUtil = effectiveUtil != null && effectiveUtil >= 0.30
     const isActivelyCooling = isAboveThreshold || isHighUtil
 
@@ -840,7 +840,7 @@ async function calculateCoolingUtilizations(
       oldestUtilization: utilResult.oldest,
       ancientUtilization: utilResult.ancient,
       isActivelyCooling,
-      probeTemp,
+      probeTemp: beerTemp,
       targetTemp,
       hysteresis,
       prevTimestampMs: utilResult.prevTimestampMs,
@@ -1094,7 +1094,7 @@ async function learnFromCurrentState(
     return t < lt ? c : lowest
   })
 
-  const probeTemp = parseFloat(String(lowestController.current_temp ?? '999'))
+  const probeTemp = parseFloat(String((lowestController as any).actual_temp ?? lowestController.current_temp ?? '999'))
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
@@ -1303,7 +1303,7 @@ async function batchMeasureCoolingRates(
 
   const { data } = await supabase
     .from('temp_controller_history')
-    .select('controller_id, current_temp, recorded_at')
+    .select('controller_id, actual_temp, current_temp, recorded_at')
     .in('controller_id', controllerIds)
     .gte('recorded_at', thirtyMinAgo)
     .order('recorded_at', { ascending: true })
@@ -1329,7 +1329,7 @@ async function batchMeasureCoolingRates(
     }
     const first = rows[0]
     const last = rows[rows.length - 1]
-    const tempDiff = parseFloat(String(first.current_temp)) - parseFloat(String(last.current_temp))
+    const tempDiff = parseFloat(String(first.actual_temp ?? first.current_temp)) - parseFloat(String(last.actual_temp ?? last.current_temp))
     const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
     result.set(id, hoursDiff < 0.05 ? null : tempDiff / hoursDiff)
   }
