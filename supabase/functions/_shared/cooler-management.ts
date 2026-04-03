@@ -562,7 +562,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Manual override cooldown: respect user's cooler changes for 30 min ──
   // If the user manually changed the cooler target recently, don't override it.
   if (!previousWasKick) {
-    const recentManualAdj = findRecentAdj('Manuell hårdvaruändring')
+    const recentManualAdj = await findRecentAdj('Manuell hårdvaruändring')
 
     if (recentManualAdj && recentManualAdj.reason.includes('kylare-hanterad')) {
       const manualCooldownMs = 30 * 60 * 1000 // 30 min cooldown
