@@ -25,7 +25,6 @@ interface LearnedEntry {
   latest_avg_error: number;
   accumulated_integral: number;
   controller_name: string;
-  total_duty: number; // P+I from fermentation_learnings
 }
 
 const BUCKET_LABELS: Record<string, string> = {
