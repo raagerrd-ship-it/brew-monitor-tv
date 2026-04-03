@@ -387,7 +387,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       }
 
       // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
-      const lastKickAdj = findRecentAdj('Hysteres-kick')
+      const lastKickAdj = await findRecentAdj('Hysteres-kick')
       const kickCooldownMs = 15 * 60 * 1000
       const timeSinceLastKick = lastKickAdj
         ? Date.now() - new Date(lastKickAdj.created_at).getTime()
