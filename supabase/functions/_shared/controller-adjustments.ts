@@ -288,14 +288,68 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
   log('PID_CONTROL', 'info', `PID control check (dual sensors: per-controller)`)
 
-  for (const fc of followedControllersFullData) {
-    const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
+  // ── Pre-filter active controllers ──────────────────────────
+  const activeControllers = followedControllersFullData.filter(fc =>
+    !cooloffControllerIds.has(fc.controller_id) &&
+    (fc.heating_enabled || fc.cooling_enabled)
+  )
 
-    if (cooloffControllerIds.has(fc.controller_id)) {
-      log('PID_SKIP', 'info', `${fc.name}: 30min cooloff active, skipping PID`)
-      continue
+  if (activeControllers.length === 0) return adjustments
+
+  // ── Parallel pre-fetch: fermentation_learnings + utilization ──
+  // Batch-fetch ALL PID state params for all active controllers in ONE query.
+  // This replaces N sequential queries (one per controller) with a single query.
+  const activeControllerIds = activeControllers.map(fc => fc.controller_id)
+
+  // Collect all possible parameter names (including all temp bucket variants)
+  const TEMP_BUCKETS = ['cold', 'cool', 'warm', 'hot']
+  const BASE_PARAMS = [
+    'mode_switch_pressure', 'mode_last_probe', 'pid_current_mode',
+    'pid_last_duty', 'mode_last_step_index', 'pid_effective_target',
+    'thermal_rate_heating', 'thermal_rate_cooling',
+    'est_prev_actual_temp', 'est_prev_actual_temp_at',
+    'est_observed_rate', 'est_last_prediction',
+  ]
+  const bucketParams = TEMP_BUCKETS.flatMap(b => [`thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`])
+  const allParamNames = [...BASE_PARAMS, ...bucketParams]
+
+  // Fire both queries in parallel
+  const [{ data: allLearnings }, utilResults] = await Promise.all([
+    // 1. Single batch query for all fermentation_learnings
+    supabase.from('fermentation_learnings')
+      .select('controller_id, parameter_name, learned_value, sample_count')
+      .in('controller_id', activeControllerIds)
+      .in('parameter_name', allParamNames),
+    // 2. Parallel utilization pre-fetch for all cooling controllers
+    Promise.all(
+      activeControllers
+        .filter(fc => fc.cooling_enabled)
+        .map(async fc => {
+          const result = await calculateSingleUtilization(supabase, fc, { skipShift: true })
+          return { controllerId: fc.controller_id, result }
+        })
+    ),
+  ])
+
+  // Build per-controller lookup maps
+  const learningsByController = new Map<string, Map<string, number>>()
+  const samplesByController = new Map<string, Map<string, number>>()
+  for (const row of (allLearnings ?? [])) {
+    if (!learningsByController.has(row.controller_id)) {
+      learningsByController.set(row.controller_id, new Map())
+      samplesByController.set(row.controller_id, new Map())
     }
-    if (!fc.heating_enabled && !fc.cooling_enabled) continue
+    learningsByController.get(row.controller_id)!.set(row.parameter_name, parseFloat(String(row.learned_value)))
+    samplesByController.get(row.controller_id)!.set(row.parameter_name, row.sample_count)
+  }
+
+  // Pre-populate shared utilizations
+  for (const { controllerId, result } of utilResults) {
+    ctx.sharedUtilizations.set(controllerId, result)
+  }
+
+  for (const fc of activeControllers) {
+    const isProfileOwned = profileOwnedControllerIds.has(fc.controller_id)
 
     const ctrlTarget = parseFloat(String(fc.target_temp ?? '20'))
 
@@ -311,36 +365,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
 
     // ── Temperature Interpolation between RAPT syncs ──
-    // RAPT reports every 15 min but PID runs every 5 min.
-    // Estimate current temp using learned thermal rates when data is stale.
     let interpolatedTemp = actualTemp
     let tempInterpolated = false
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
 
-    // Read mode + switch-pressure counter + thermal-rate learnings from fermentation_learnings
-    const thermalBucket = getTempBucket(actualTemp)
-    const { data: pressureRows } = await supabase.from('fermentation_learnings')
-      .select('parameter_name, learned_value, sample_count')
-      .eq('controller_id', fc.controller_id)
-      .in('parameter_name', [
-        'mode_switch_pressure',
-        'mode_last_probe',
-        'pid_current_mode',
-        'pid_last_duty',
-        'mode_last_step_index',
-        'pid_effective_target',
-        'thermal_rate_heating',
-        'thermal_rate_cooling',
-        `thermal_rate_heating:${thermalBucket}`,
-        `thermal_rate_cooling:${thermalBucket}`,
-        'est_prev_actual_temp',
-        'est_prev_actual_temp_at',
-        'est_observed_rate',
-        'est_last_prediction',
-      ])
-    const pressureMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.learned_value]))
-    const sampleCountMap = new Map((pressureRows ?? []).map(r => [r.parameter_name, r.sample_count]))
+    // Use pre-fetched learnings (from batch query above)
+    const pressureMap = learningsByController.get(fc.controller_id) ?? new Map()
+    const sampleCountMap = samplesByController.get(fc.controller_id) ?? new Map()
 
     // ── Learn observed actual_temp rate between syncs ──
     // Track how actual_temp (the fusion) really changes, not the probe rate
