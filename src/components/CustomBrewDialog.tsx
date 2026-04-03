@@ -127,7 +127,7 @@ export function CustomBrewDialog({
   } | null>(null);
   const { toast } = useToast();
 
-  // Use Swedish status values to match Brewfather sync
+  // Swedish status values
   const statusOptions = [
     { value: "Planering", label: "Planering" },
     { value: "Bryggning", label: "Bryggning" },
