@@ -840,7 +840,7 @@ async function calculateCoolingUtilizations(
       oldestUtilization: utilResult.oldest,
       ancientUtilization: utilResult.ancient,
       isActivelyCooling,
-      probeTemp,
+      probeTemp: beerTemp,
       targetTemp,
       hysteresis,
       prevTimestampMs: utilResult.prevTimestampMs,
