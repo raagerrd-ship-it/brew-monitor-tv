@@ -467,7 +467,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const cTempBucket = controllerBucketMap.get(c.controller_id)!
       const warmingParam = allWarmingParams.get(`${c.controller_id}:warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
-        const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+        const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
         const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
         const headroom = (targetTemp + hysteresis) - beerTemp
