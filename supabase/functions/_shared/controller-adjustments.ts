@@ -369,6 +369,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let tempInterpolated = false
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
+    const thermalBucket = getTempBucket(actualTemp)
 
     // Use pre-fetched learnings (from batch query above)
     const pressureMap = learningsByController.get(fc.controller_id) ?? new Map()
