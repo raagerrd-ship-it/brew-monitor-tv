@@ -99,11 +99,68 @@ Deno.serve(async (req) => {
       totalDecisionLogsDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history (>7d) + ${totalDeltaDeleted} delta history (>7d) + ${totalAdjustmentsDeleted} adjustments (>30d) + ${totalMarginHistoryDeleted} margin history (>30d) + ${totalDecisionLogsDeleted} decision logs (>24h)`;
+    // ai_audit_log (keep 30 days)
+    let totalAiAuditDeleted = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("ai_audit_log")
+        .select("id")
+        .lt("created_at", cutoff30d)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      const ids = data.map((r: any) => r.id);
+      await supabase.from("ai_audit_log").delete().in("id", ids);
+      totalAiAuditDeleted += ids.length;
+    }
+
+    // rapt_outage_log (keep 30 days)
+    let totalOutageDeleted = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("rapt_outage_log")
+        .select("id")
+        .lt("created_at", cutoff30d)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      const ids = data.map((r: any) => r.id);
+      await supabase.from("rapt_outage_log").delete().in("id", ids);
+      totalOutageDeleted += ids.length;
+    }
+
+    // fermentation_step_log (keep 30 days, only for completed sessions)
+    let totalStepLogDeleted = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("fermentation_step_log")
+        .select("id, session_id")
+        .lt("created_at", cutoff30d)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      // Get active session IDs to exclude
+      const sessionIds = [...new Set(data.map((r: any) => r.session_id))];
+      const { data: activeSessions } = await supabase
+        .from("fermentation_sessions")
+        .select("id")
+        .in("id", sessionIds)
+        .in("status", ["running", "paused"]);
+      const activeIds = new Set((activeSessions || []).map((s: any) => s.id));
+      const toDelete = data.filter((r: any) => !activeIds.has(r.session_id)).map((r: any) => r.id);
+      if (toDelete.length === 0) break;
+      await supabase.from("fermentation_step_log").delete().in("id", toDelete);
+      totalStepLogDeleted += toDelete.length;
+    }
+
+    const msg = `Deleted: ${totalControllerDeleted} controller history (>7d), ${totalDeltaDeleted} delta history (>7d), ${totalAdjustmentsDeleted} adjustments (>30d), ${totalMarginHistoryDeleted} margin history (>30d), ${totalDecisionLogsDeleted} decision logs (>24h), ${totalAiAuditDeleted} ai audit (>30d), ${totalOutageDeleted} outage logs (>30d), ${totalStepLogDeleted} step logs (>30d completed)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted, decisionLogsDeleted: totalDecisionLogsDeleted }),
+      JSON.stringify({
+        success: true, message: msg,
+        controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted,
+        adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted,
+        decisionLogsDeleted: totalDecisionLogsDeleted, aiAuditDeleted: totalAiAuditDeleted,
+        outageDeleted: totalOutageDeleted, stepLogDeleted: totalStepLogDeleted,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
