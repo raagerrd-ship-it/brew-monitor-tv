@@ -1678,7 +1678,6 @@ export type Database = {
           auto_hide_archived: boolean | null
           auto_hide_completed: boolean | null
           auto_hide_conditioning: boolean | null
-          brewfather_enabled: boolean
           chart_smooth_lines: boolean
           chart_time_range: string
           created_at: string
@@ -1704,7 +1703,6 @@ export type Database = {
           auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
-          brewfather_enabled?: boolean
           chart_smooth_lines?: boolean
           chart_time_range?: string
           created_at?: string
@@ -1730,7 +1728,6 @@ export type Database = {
           auto_hide_archived?: boolean | null
           auto_hide_completed?: boolean | null
           auto_hide_conditioning?: boolean | null
-          brewfather_enabled?: boolean
           chart_smooth_lines?: boolean
           chart_time_range?: string
           created_at?: string
