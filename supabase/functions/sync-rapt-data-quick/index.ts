@@ -1547,7 +1547,14 @@ Deno.serve(async (req) => {
     console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
 
     return new Response(
-      JSON.stringify({ success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult }),
+      JSON.stringify({
+        success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult,
+        ...(discoverNewDevices ? {
+          discovery_summary: discoveredPills + discoveredControllers > 0
+            ? `Hittade ${discoveredPills} nya pill(s) och ${discoveredControllers} nya controller(s)`
+            : `Inga nya enheter hittades (${pillsUpdated} pills, ${controllersUpdated} controllers synkade)`
+        } : {}),
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
