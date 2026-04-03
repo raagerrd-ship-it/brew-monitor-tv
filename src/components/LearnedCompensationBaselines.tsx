@@ -78,26 +78,17 @@ export function LearnedCompensationBaselines() {
       }
 
       const controllerIds = [...new Set(learned.map((l) => l.controller_id))];
-      const [{ data: controllers }, { data: dutyRows }] = await Promise.all([
-        supabase
-          .from("rapt_temp_controllers")
-          .select("controller_id, name")
-          .in("controller_id", controllerIds),
-        supabase
-          .from("fermentation_learnings")
-          .select("controller_id, learned_value")
-          .in("controller_id", controllerIds)
-          .eq("parameter_name", "pid_last_duty"),
-      ]);
+      const { data: controllers } = await supabase
+        .from("rapt_temp_controllers")
+        .select("controller_id, name")
+        .in("controller_id", controllerIds);
 
       const nameMap = new Map(controllers?.map((c) => [c.controller_id, c.name]) ?? []);
-      const dutyMap = new Map(dutyRows?.map((d) => [d.controller_id, d.learned_value]) ?? []);
 
       setEntries(
         learned.map((l) => ({
           ...l,
           controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
-          total_duty: (dutyMap.get(l.controller_id) ?? Math.round(l.accumulated_integral * 100)) / 100,
         }))
       );
     } catch (e) {
