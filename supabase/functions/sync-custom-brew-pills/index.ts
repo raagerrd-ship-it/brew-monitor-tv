@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
             } else {
               const { data } = await supabase
                 .from('rapt_temp_controllers')
-                .select('current_temp, pill_temp, target_temp, profile_target_temp')
+                .select('current_temp, actual_temp, pill_temp, target_temp, profile_target_temp')
                 .eq('controller_id', brew.linked_controller_id)
                 .maybeSingle();
               ctrlFull = data;
