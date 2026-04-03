@@ -1252,40 +1252,63 @@ async function learnWarmingRate(
   }
 }
 
-// ─── Measure actual probe cooling rate ───────────────────────
+// ─── Batch-fetch cooling rates for multiple controllers ─────
 
-async function measureCoolingRate(
+async function batchMeasureCoolingRates(
   supabase: ReturnType<typeof createClient>,
-  controllerId: string,
-): Promise<number | null> {
+  controllerIds: string[],
+): Promise<Map<string, number | null>> {
+  const result = new Map<string, number | null>()
+  if (controllerIds.length === 0) return result
+
   const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
 
   const { data } = await supabase
     .from('temp_controller_history')
-    .select('current_temp, recorded_at')
-    .eq('controller_id', controllerId)
+    .select('controller_id, current_temp, recorded_at')
+    .in('controller_id', controllerIds)
     .gte('recorded_at', thirtyMinAgo)
     .order('recorded_at', { ascending: true })
 
-  if (!data || data.length < 2) return null
+  if (!data || data.length === 0) {
+    for (const id of controllerIds) result.set(id, null)
+    return result
+  }
 
-  const first = data[0]
-  const last = data[data.length - 1]
-  const tempDiff = parseFloat(String(first.current_temp)) - parseFloat(String(last.current_temp))
-  const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
+  // Group by controller_id
+  const grouped = new Map<string, typeof data>()
+  for (const row of data) {
+    const list = grouped.get(row.controller_id) || []
+    list.push(row)
+    grouped.set(row.controller_id, list)
+  }
 
-  if (hoursDiff < 0.05) return null // less than 3 min of data
-  return tempDiff / hoursDiff // positive = cooling
+  for (const id of controllerIds) {
+    const rows = grouped.get(id)
+    if (!rows || rows.length < 2) {
+      result.set(id, null)
+      continue
+    }
+    const first = rows[0]
+    const last = rows[rows.length - 1]
+    const tempDiff = parseFloat(String(first.current_temp)) - parseFloat(String(last.current_temp))
+    const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
+    result.set(id, hoursDiff < 0.05 ? null : tempDiff / hoursDiff)
+  }
+
+  return result
 }
 
-// ─── Cached wrapper for measureCoolingRate ───────────────────
+// ─── Cached wrapper for cooling rate (uses batch-preloaded cache) ──
 async function measureCoolingRateCached(
   ctx: CoolerContext,
   controllerId: string,
 ): Promise<number | null> {
   if (!ctx.coolingRateCache) ctx.coolingRateCache = new Map()
   if (ctx.coolingRateCache.has(controllerId)) return ctx.coolingRateCache.get(controllerId) ?? null
-  const rate = await measureCoolingRate(ctx.supabase, controllerId)
+  // Fallback: single query (should rarely happen if preloadCoolingRates was called)
+  const rates = await batchMeasureCoolingRates(ctx.supabase, [controllerId])
+  const rate = rates.get(controllerId) ?? null
   ctx.coolingRateCache.set(controllerId, rate)
   return rate
 }
