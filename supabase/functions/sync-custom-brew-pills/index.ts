@@ -245,14 +245,15 @@ Deno.serve(async (req) => {
             } else {
               const { data } = await supabase
                 .from('rapt_temp_controllers')
-                .select('current_temp, pill_temp, target_temp, profile_target_temp')
+                .select('current_temp, actual_temp, pill_temp, target_temp, profile_target_temp')
                 .eq('controller_id', brew.linked_controller_id)
                 .maybeSingle();
               ctrlFull = data;
             }
             
             if (ctrlFull) {
-              const fallbackTemp = ctrlFull.current_temp;
+              // SSOT: prefer actual_temp over raw probe temp
+              const fallbackTemp = ctrlFull.actual_temp ?? ctrlFull.current_temp;
               const brewUpdate = fallbackTemp != null ? supabase
                 .from('brew_readings')
                 .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
@@ -346,13 +347,16 @@ Deno.serve(async (req) => {
           sg_data_length: mergedSgData.length
         });
 
-        // Update brew_readings
+        // Update brew_readings — SSOT: prefer controller actual_temp
+        const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
+        const ssotTemp = ctrlForBrew?.actual_temp ?? latestData.temp;
+
         const { error: updateError } = await supabase
           .from('brew_readings')
           .update({
             sg_data: mergedSgData,
             current_sg: currentSg,
-            current_temp: latestData.temp,
+            current_temp: ssotTemp,
             original_gravity: og, // Update OG if changed
             attenuation: Math.max(0, Math.min(100, attenuation)),
             abv: Math.max(0, abv),

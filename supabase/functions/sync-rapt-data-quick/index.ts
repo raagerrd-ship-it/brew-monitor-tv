@@ -585,9 +585,13 @@ Deno.serve(async (req) => {
           .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
         const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null;
         const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050;
-        const currentTemp = latestReading?.temp || 20;
+        const rawTemp = latestReading?.temp || 20;
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null;
         const og = existingBrew?.original_gravity || 1.050;
+
+        // SSOT: prefer controller actual_temp over raw pill/probe temp
+        const linkedCtrl = existingBrew?.linked_controller_id ? dbCtrlMap.get(existingBrew.linked_controller_id) : null;
+        const currentTemp = linkedCtrl?.actual_temp ?? rawTemp;
 
         const attenuation = ((og - currentSG) / (og - 1.000)) * 100;
         const abv = ((og - currentSG) * 131.25) || 0;
@@ -746,12 +750,13 @@ Deno.serve(async (req) => {
           
           // Dedup: skip if this timestamp already exists
           if (existingDates.has(newPointDate)) {
-            // Still update controller probe temp if available
+            // Still update with SSOT actual_temp if available
             if (brew.linked_controller_id) {
               const ctrl = dbCtrlMap.get(brew.linked_controller_id);
-              if (ctrl?.current_temp != null) {
+              const ssotTemp = ctrl?.actual_temp ?? ctrl?.current_temp;
+              if (ssotTemp != null) {
                 await supabase.from('brew_readings')
-                  .update({ current_temp: ctrl.current_temp, updated_at: new Date().toISOString() })
+                  .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
                   .eq('id', brew.id);
               }
             }
@@ -768,10 +773,14 @@ Deno.serve(async (req) => {
           const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
           const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
 
+          // SSOT: prefer controller actual_temp over pill temp
+          const linkedCtrlForTemp = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
+          const ssotTemp = linkedCtrlForTemp?.actual_temp ?? latestData.temp;
+
           const { error: updateError } = await supabase
             .from('brew_readings')
             .update({
-              sg_data: mergedSgData, current_sg: currentSg, current_temp: latestData.temp,
+              sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTemp,
               attenuation: Math.max(0, Math.min(100, attenuation)),
               abv: Math.max(0, abv), battery: pillBattery,
               last_update: latestData.date, updated_at: new Date().toISOString()
@@ -817,11 +826,12 @@ Deno.serve(async (req) => {
             if (!telemetryData || telemetryData.length === 0) {
               if (brew.linked_controller_id) {
                 const ctrlFull = dbCtrlMap.get(brew.linked_controller_id);
-                if (ctrlFull?.current_temp != null) {
+                const ssotTemp = ctrlFull?.actual_temp ?? ctrlFull?.current_temp;
+                if (ssotTemp != null) {
                   await supabase.from('brew_readings')
-                    .update({ current_temp: ctrlFull.current_temp, updated_at: new Date().toISOString() })
+                    .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
                     .eq('id', brew.id);
-                  console.log(`Updated ${brew.name} with controller probe temp: ${ctrlFull.current_temp}°C`);
+                  console.log(`Updated ${brew.name} with SSOT actual_temp: ${ssotTemp}°C`);
                   customBrewsUpdated++;
                 }
               }
@@ -854,10 +864,14 @@ Deno.serve(async (req) => {
             const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
             const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
 
+            // SSOT: prefer controller actual_temp
+            const linkedCtrlInit = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
+            const ssotTempInit = linkedCtrlInit?.actual_temp ?? latestData.temp;
+
             const { error: updateError } = await supabase
               .from('brew_readings')
               .update({
-                sg_data: mergedSgData, current_sg: currentSg, current_temp: latestData.temp,
+                sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTempInit,
                 original_gravity: og, attenuation: Math.max(0, Math.min(100, attenuation)),
                 abv: Math.max(0, abv), battery: latestTelemetry.battery,
                 last_update: latestData.date, updated_at: new Date().toISOString()
