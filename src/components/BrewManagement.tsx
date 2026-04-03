@@ -25,7 +25,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function BrewManagement() {
   const {
-    batches, customBrews, selectedBrews, pills, controllers,
+    customBrews, selectedBrews, pills, controllers,
     loading, saving, showCustomBrewDialog, editingBrew, prefillData,
     timerRecipeName, timerBeerStyle, timerBrewMatch,
     isSelected, toggleBrew, deleteCustomBrew, saveSelection,
