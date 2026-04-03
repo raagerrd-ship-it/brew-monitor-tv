@@ -612,9 +612,20 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
   // ── Block raising cooler during active downward ramps ─────
+  // ── Block raising cooler when beer is above target (dual-sensor guard) ──
   if (clampedTarget > currentCoolerTarget) {
     if (effectiveTarget.isRampingDown) {
       log('RAMP_BLOCK', 'info', 'Blockerar höjning — aktiv nedåtramp pågår')
+      return adjustments
+    }
+    const anyBeerAbove = controllersWithCooling.some(c => {
+      const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+      const bt = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
+      return beerTemp > bt + 0.15
+    })
+    if (anyBeerAbove) {
+      log('BEER_TEMP_BLOCK', 'info', `Blockerar höjning av kylare (${round1(currentCoolerTarget)}° → ${round1(clampedTarget)}°) — öl fortfarande ovanför mål`)
+      await learnFromCurrentState(ctx, coolerController, controllersWithCooling, effectiveTarget, tempBucket, utilizations)
       return adjustments
     }
   }
@@ -1068,6 +1079,15 @@ async function learnFromCurrentState(
   const getBaseTarget = (c: TempController): number =>
     ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
 
+  // ── Guard: block margin tightening if any tank's beer temp (actual_temp) is above target ──
+  // With dual sensors, probe can be cold (glycol jacket) while beer is still warm.
+  // Low probe utilization does NOT mean cooling is sufficient in this case.
+  const anyBeerAboveTarget = controllersWithCooling.some(c => {
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+    const baseTarget = getBaseTarget(c)
+    return beerTemp > baseTarget + 0.15 // small tolerance for measurement noise
+  })
+
   const lowestController = controllersWithCooling.reduce((lowest, c) => {
     const t = getBaseTarget(c)
     const lt = getBaseTarget(lowest)
@@ -1152,19 +1172,25 @@ async function learnFromCurrentState(
       const holdResult = batch.update(marginParam, scaledMargin, 1.0, 15.0)
       log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: cooler_margin ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C, ${marginParam} ${holdResult.oldValue.toFixed(2)}→${holdResult.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue, hold_old: holdResult.oldValue, hold_new: holdResult.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
-      const tighterMargin = currentMargin * 0.93
-      const alphaOverride = util < 0.5 ? 0.3 : undefined
-      const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
-      batch.update(marginParam, tighterMargin, 1.0, 15.0, alphaOverride)
-      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
+      // ── Block tightening if beer is above target (dual-sensor blind spot) ──
+      if (anyBeerAboveTarget) {
+        log('MARGIN_LEARN', 'info', `🎓 [${tempBucket}] Low util (${Math.round(util * 100)}%) men öl ovanför mål — blockerar åtstramning (margin ${currentMargin.toFixed(1)}°C behålls)`)
+        batch.update(marginParam, currentMargin, 1.0, 15.0)
+      } else {
+        const tighterMargin = currentMargin * 0.93
+        const alphaOverride = util < 0.5 ? 0.3 : undefined
+        const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
+        batch.update(marginParam, tighterMargin, 1.0, 15.0, alphaOverride)
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
+      }
     } else if (util >= 0.7 && util < 0.99) {
-      if (currentMargin > 2.5) {
+      if (currentMargin > 2.5 && !anyBeerAboveTarget) {
         const nudge = currentMargin * 0.98
         const result = batch.update(`cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
         batch.update(marginParam, nudge, 1.0, 15.0)
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — nudging tighter: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue })
       } else {
-        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal`)
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Good utilization (${Math.round(util * 100)}%) — margin ${currentMargin.toFixed(1)}°C is optimal${anyBeerAboveTarget ? ' (öl ovanför mål)' : ''}`)
         batch.update(marginParam, currentMargin, 1.0, 15.0)
       }
     } else {
@@ -1181,10 +1207,12 @@ async function learnFromCurrentState(
   const atTarget = probeTemp <= targetTemp + hysteresis
   const overshot = probeTemp < targetTemp - 1.0
 
-  if (atTarget && !overshot && currentMargin > 1.0) {
+  if (atTarget && !overshot && currentMargin > 1.0 && !anyBeerAboveTarget) {
     const tighterMargin = currentMargin * 0.97
     const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0)
     log('MARGIN_LEARN', 'pass', `[${tempBucket}] Margin adequate: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C`, { old_value: result.oldValue, new_value: result.newValue })
+  } else if (atTarget && !overshot && anyBeerAboveTarget) {
+    log('MARGIN_LEARN', 'info', `[${tempBucket}] Probe at target men öl ovanför mål — blockerar åtstramning (margin ${currentMargin.toFixed(1)}°C)`)
   } else if (overshot) {
     const reducedMargin = currentMargin * 0.75
     const result = batch.update(`cooler_margin:${tempBucket}`, reducedMargin, 2.0, 15.0)
