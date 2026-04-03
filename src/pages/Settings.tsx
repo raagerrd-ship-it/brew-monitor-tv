@@ -64,7 +64,7 @@ export default function Settings() {
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
     if (!settings.apiSettings) return null;
-    const raptMissing = !settings.apiSettings.rapt.configured;
+    const raptMissing = !settings.apiSettings?.rapt?.configured;
     if (raptMissing) {
       return { type: 'warning' as const, count: 1 };
     }
