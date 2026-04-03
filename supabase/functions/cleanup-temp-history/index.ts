@@ -7,9 +7,9 @@ const corsHeaders = {
 };
 
 /**
- * Deletes old rows from temp_controller_history, temp_delta_history,
- * and auto_cooling_adjustments (all older than 30 days).
- * Designed to run daily via cron.
+ * Deletes old rows from temp_controller_history (7 days),
+ * temp_delta_history (7 days), auto_cooling_adjustments (30 days),
+ * and cooler_margin_history (30 days).
  * Designed to run daily via cron.
  */
 Deno.serve(async (req) => {
@@ -23,7 +23,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // Delete in batches to avoid timeouts on large tables
     let totalControllerDeleted = 0;
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("temp_controller_history")
         .select("id")
-        .lt("recorded_at", cutoff)
+        .lt("recorded_at", cutoff7d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("temp_delta_history")
         .select("id")
-        .lt("recorded_at", cutoff)
+        .lt("recorded_at", cutoff7d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("auto_cooling_adjustments")
         .select("id")
-        .lt("created_at", cutoff)
+        .lt("created_at", cutoff30d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
@@ -75,7 +76,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("cooler_margin_history")
         .select("id")
-        .lt("recorded_at", cutoff)
+        .lt("recorded_at", cutoff30d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
@@ -83,7 +84,7 @@ Deno.serve(async (req) => {
       totalMarginHistoryDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history + ${totalDeltaDeleted} delta history + ${totalAdjustmentsDeleted} adjustments + ${totalMarginHistoryDeleted} margin history older than 30 days`;
+    const msg = `Deleted ${totalControllerDeleted} controller history (>7d) + ${totalDeltaDeleted} delta history (>7d) + ${totalAdjustmentsDeleted} adjustments (>30d) + ${totalMarginHistoryDeleted} margin history (>30d)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
