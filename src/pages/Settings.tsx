@@ -516,6 +516,7 @@ export default function Settings() {
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
+            <DeviceDiscoveryButton />
             <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
               <RaptControllersManagement />
             </SettingsSection>
