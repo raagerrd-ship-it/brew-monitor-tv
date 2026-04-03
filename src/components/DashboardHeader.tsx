@@ -293,7 +293,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <Fragment key={controller.id}>
-                {index > 0 && <div className="h-5 mx-2 w-px flex-shrink-0 rounded-full" style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
+                {index > 0 && <div className={`h-5 ${isMobile ? 'mx-1' : 'mx-2'} w-px flex-shrink-0 rounded-full`} style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
@@ -301,7 +301,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                    return (
-                 <div className={`relative flex items-center justify-center rounded px-3 gap-4 ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: controller.is_glycol_cooler ? '120px' : '180px', paddingTop: '4px', paddingBottom: linkedPill ? '10px' : '4px' }}
+                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-1.5 gap-2' : 'px-3 gap-4'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: isMobile ? (controller.is_glycol_cooler ? '100px' : '140px') : (controller.is_glycol_cooler ? '120px' : '180px'), paddingTop: isMobile ? '2px' : '4px', paddingBottom: linkedPill ? (isMobile ? '8px' : '10px') : (isMobile ? '2px' : '4px') }}
                    onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                    onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
                    onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
@@ -319,9 +319,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          return (
                            <div className="flex items-center gap-1.5">
                              <Snowflake style={{ width: '0.85rem', height: '0.85rem', flexShrink: 0, color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)', filter: isControllerStale ? 'none' : 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
-                             <span className="font-semibold tabular-nums whitespace-nowrap" style={{
-                               fontSize: '16px',
-                               color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
+                              <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                                fontSize: isMobile ? '14px' : '16px',
+                                color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
                                textShadow: isControllerStale ? 'none' : '0 0 8px hsl(200 70% 60% / 0.3)',
                              }}>
                                {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
@@ -339,8 +339,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          );
                        }
                       return (
-                        <span className="font-semibold tabular-nums whitespace-nowrap" style={{
-                         fontSize: '16px',
+                         <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                          fontSize: isMobile ? '14px' : '16px',
                          ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
                        }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
