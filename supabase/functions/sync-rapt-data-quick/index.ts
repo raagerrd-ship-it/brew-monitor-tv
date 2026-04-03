@@ -210,7 +210,6 @@ Deno.serve(async (req) => {
       .from('sync_settings')
       .update({ 
         last_rapt_quick_sync_at: nowIso,
-        last_sync_time: nowIso
       })
       .not('id', 'is', null)
       .then(({ error }) => { if (error) console.error('sync_settings update error:', error); });
