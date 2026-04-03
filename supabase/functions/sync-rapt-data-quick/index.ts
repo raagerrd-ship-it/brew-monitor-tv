@@ -227,6 +227,8 @@ Deno.serve(async (req) => {
     
     let pillsUpdated = 0;
     let controllersUpdated = 0;
+    let discoveredPills = 0;
+    let discoveredControllers = 0;
     let raptFailed = false;
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
