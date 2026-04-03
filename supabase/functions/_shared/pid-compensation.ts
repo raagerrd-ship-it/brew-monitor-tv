@@ -76,18 +76,19 @@ export async function calculateCompensatedTarget(
   // === Adaptive PI-term ===
   const deltaBucket = 'low'
 
-  let learnedRow: any = null;
-  {
-    const { data } = await supabase
+  // ── Parallel pre-fetch: PID state + steady-state duty floor ──
+  const ssBucket = getTempBucket(actualTarget)
+  const [{ data: learnedRow }, ssParam] = await Promise.all([
+    supabase
       .from('controller_learned_compensation')
       .select('learned_pi_correction, convergence_count, accumulated_integral, style_key, updated_at')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
       .eq('step_type', stepType)
-      .maybeSingle();
-    learnedRow = data;
-  }
+      .maybeSingle(),
+    getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0),
+  ])
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
@@ -125,8 +126,7 @@ export async function calculateCompensatedTarget(
   // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
   let integral = persistedIntegral
   if (isCooling && integral > 1.0) {
-    const cBucket = getTempBucket(actualTarget)
-    const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
+    const seed = ssParam // Already fetched above
     integral = seed.sampleCount >= 3 ? seed.value : 0
     console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
   } else if (!isCooling && Math.abs(integral) > 1.0) {
@@ -137,8 +137,6 @@ export async function calculateCompensatedTarget(
   let dutyCycle = 0
 
   // ── Steady-state duty floor ──────────────────────────────
-  const ssBucket = getTempBucket(actualTarget)
-  const ssParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
 
   if (Math.abs(avgError) <= 0.10) {
