@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("auto_cooling_adjustments")
         .select("id")
-        .lt("created_at", cutoff)
+        .lt("created_at", cutoff30d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
