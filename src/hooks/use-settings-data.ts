@@ -57,7 +57,7 @@ export function useSettingsData() {
   const [autoHideConditioning, setAutoHideConditioning] = useState(true);
   const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
-  const [brewfatherEnabled, setBrewfatherEnabled] = useState(true);
+  
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
