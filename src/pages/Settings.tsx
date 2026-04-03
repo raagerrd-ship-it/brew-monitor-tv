@@ -95,7 +95,7 @@ function DeviceDiscoveryButton() {
   );
 }
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  export default function Settings() {
   const isMobile = useIsMobile();
   const settings = useSettingsData();
 
