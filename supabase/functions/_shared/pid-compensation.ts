@@ -313,8 +313,8 @@ async function learnRateCore(
   for (let i = 1; i < history.length; i++) {
     const prev = history[i - 1]
     const curr = history[i]
-    const currTemp = parseFloat(String((curr as any).actual_temp ?? curr.current_temp))
-    const prevTemp = parseFloat(String((prev as any).actual_temp ?? prev.current_temp))
+    const currTemp = parseFloat(String((curr as any).actual_temp))
+    const prevTemp = parseFloat(String((prev as any).actual_temp))
     const tempDiff = currTemp - prevTemp
     const timeDiffHours = (new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime()) / (1000 * 60 * 60)
 

@@ -467,7 +467,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const cTempBucket = controllerBucketMap.get(c.controller_id)!
       const warmingParam = allWarmingParams.get(`${c.controller_id}:warming_rate:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
       if (warmingParam.sampleCount >= 3 && warmingParam.value > 0.1) {
-        const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+        const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
         const targetTemp = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
         const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
         const headroom = (targetTemp + hysteresis) - beerTemp
@@ -619,7 +619,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       return adjustments
     }
     const anyBeerAbove = controllersWithCooling.some(c => {
-      const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+      const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
       const bt = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
       return beerTemp > bt + 0.15
     })
@@ -809,7 +809,7 @@ async function calculateCoolingUtilizations(
   const results: CoolingUtilization[] = []
 
   for (const c of controllersWithCooling) {
-    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '999'))
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
 
@@ -1083,7 +1083,7 @@ async function learnFromCurrentState(
   // With dual sensors, probe can be cold (glycol jacket) while beer is still warm.
   // Low probe utilization does NOT mean cooling is sufficient in this case.
   const anyBeerAboveTarget = controllersWithCooling.some(c => {
-    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
     const baseTarget = getBaseTarget(c)
     return beerTemp > baseTarget + 0.15 // small tolerance for measurement noise
   })
@@ -1094,7 +1094,7 @@ async function learnFromCurrentState(
     return t < lt ? c : lowest
   })
 
-  const probeTemp = parseFloat(String((lowestController as any).actual_temp ?? lowestController.current_temp ?? '999'))
+  const probeTemp = parseFloat(String((lowestController as any).actual_temp ?? '999'))
   const targetTemp = getBaseTarget(lowestController)
   const hysteresis = parseFloat(String(lowestController.cooling_hysteresis ?? '0.2'))
 
@@ -1329,7 +1329,7 @@ async function batchMeasureCoolingRates(
     }
     const first = rows[0]
     const last = rows[rows.length - 1]
-    const tempDiff = parseFloat(String(first.actual_temp ?? first.current_temp)) - parseFloat(String(last.actual_temp ?? last.current_temp))
+    const tempDiff = parseFloat(String(first.actual_temp)) - parseFloat(String(last.actual_temp))
     const hoursDiff = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000 * 60 * 60)
     result.set(id, hoursDiff < 0.05 ? null : tempDiff / hoursDiff)
   }
