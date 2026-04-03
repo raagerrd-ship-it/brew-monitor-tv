@@ -592,7 +592,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === Stale-data detection (moved from PID — uses fc.last_update directly) ===
     // Data is stale if no new sensor reading has arrived since we last stored PID state.
-    const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
+    // prevActualTempAt is already defined above (from pressureMap)
     const isStaleData = prevActualTempAt != null && prevActualTempAt > 0 &&
       lastUpdateMs <= prevActualTempAt * 1000
 
