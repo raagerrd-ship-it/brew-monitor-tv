@@ -5,17 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import type { PillData, TempController } from '@/types/brew';
 import type { CustomBrewData, CustomBrewPrefill } from '@/components/CustomBrewDialog';
 
-interface BrewfatherBatch {
-  _id: string;
-  name: string;
-  batchNo: number;
-  brewDate?: string;
-  recipe?: {
-    name: string;
-    style?: { name: string };
-  };
-  status: string;
-}
 
 interface SelectedBrew {
   batch_id: string;
