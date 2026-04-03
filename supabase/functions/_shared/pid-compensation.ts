@@ -191,7 +191,7 @@ export async function calculateCompensatedTarget(
       // If error is growing, the system needs to ramp up, not slow down.
       const BRAKE_ZONE = 0.50
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
-      const errorDecreasing = need <= prevNeed + 0.02 // small tolerance for sensor noise
+      const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
       if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
         const blendedI = integral * proximity + ssFloor * (1 - proximity)
