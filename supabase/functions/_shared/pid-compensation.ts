@@ -239,9 +239,7 @@ export async function calculateCompensatedTarget(
 
   return {
     ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
-    compensation, avgDelta, dampingFactor: 1.0,
-    pillRate: pillRate ?? null, probeRate: null, etaMinutes: null,
-    errorCorrection: 0, pCorrection, iCorrection: integral,
+    pillRate: pillRate ?? null, pCorrection, iCorrection: integral,
     learnedBaseline, deltaBucket, convergenceCount, constraints,
     persistPromise,
   }
