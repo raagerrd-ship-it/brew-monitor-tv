@@ -80,7 +80,7 @@ export async function calculateCompensatedTarget(
   const [{ data: learnedRow }, ssParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
-      .select('learned_pi_correction, convergence_count, accumulated_integral, style_key, updated_at')
+      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
