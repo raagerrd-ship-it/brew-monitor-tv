@@ -601,8 +601,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name} [${pidMode}]`, {
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
-      actual_temp: round1(actualTemp),
-      interpolated_temp: tempInterpolated ? round1(interpolatedTemp) : undefined,
+      actual_temp: Math.round(actualTemp * 100) / 100,
+      interpolated_temp: tempInterpolated ? Math.round(interpolatedTemp * 100) / 100 : undefined,
       dual_sensors: dualEnabled,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
