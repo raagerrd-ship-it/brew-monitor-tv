@@ -14,8 +14,7 @@ interface SelectedBrew {
 
 export function useBrewManagement() {
   const navigate = useNavigate();
-  const [batches, setBatches] = useState<BrewfatherBatch[]>([]);
-  const [customBrews, setCustomBrews] = useState<CustomBrewData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
