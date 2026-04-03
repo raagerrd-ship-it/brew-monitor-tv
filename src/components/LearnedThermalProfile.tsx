@@ -153,11 +153,18 @@ export function LearnedThermalProfile() {
           <div key={type} className="space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground">{meta.label}</span>
             <div className="rounded-md border border-border/40 overflow-hidden">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs table-fixed">
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-border/40 bg-muted/30">
                     <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Zon</th>
-                    {type !== "warming_rate" && <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Last</th>}
+                    <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Last</th>
                     <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Värde</th>
                     <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Prov</th>
                     <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Senast</th>
@@ -169,9 +176,7 @@ export function LearnedThermalProfile() {
                       <td className="px-3 py-2">
                         {item.bucket === "all" ? "Alla" : BUCKET_LABELS[item.bucket] ?? item.bucket}
                       </td>
-                      {type !== "warming_rate" && (
-                        <td className="px-3 py-2">{LOAD_LABELS[item.load] ?? (item.load || "–")}</td>
-                      )}
+                      <td className="px-3 py-2">{LOAD_LABELS[item.load] ?? (item.load || "–")}</td>
                       <td className={`px-3 py-2 text-right font-mono ${meta.color}`}>
                         {item.value.toFixed(2)}{meta.unit}
                       </td>
