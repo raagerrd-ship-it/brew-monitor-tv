@@ -347,13 +347,16 @@ Deno.serve(async (req) => {
           sg_data_length: mergedSgData.length
         });
 
-        // Update brew_readings
+        // Update brew_readings — SSOT: prefer controller actual_temp
+        const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
+        const ssotTemp = ctrlForBrew?.actual_temp ?? latestData.temp;
+
         const { error: updateError } = await supabase
           .from('brew_readings')
           .update({
             sg_data: mergedSgData,
             current_sg: currentSg,
-            current_temp: latestData.temp,
+            current_temp: ssotTemp,
             original_gravity: og, // Update OG if changed
             attenuation: Math.max(0, Math.min(100, attenuation)),
             abv: Math.max(0, abv),
