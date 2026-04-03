@@ -470,7 +470,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
           interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
 
-          if (Math.abs(interpolatedTemp - actualTemp) >= 0.02) {
+          if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
             tempInterpolated = true
             log('TEMP_INTERPOLATED', 'info',
               `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, prevDuty ${prevDutyPct}%)`)
