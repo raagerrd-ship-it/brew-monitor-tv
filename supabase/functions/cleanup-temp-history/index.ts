@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("temp_delta_history")
         .select("id")
-        .lt("recorded_at", cutoff)
+        .lt("recorded_at", cutoff7d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
