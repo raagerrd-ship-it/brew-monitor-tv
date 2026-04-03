@@ -22,7 +22,8 @@ export async function createBrewSnapshot(
     const { pill_temp, controller_temp } = data;
     // SSOT: use pre-calculated actual_temp from controller.
     // Fallback (pill → probe) matches single-sensor priority — never average without dual_sensor.
-    const resolvedActualTemp = data.actual_temp ?? pill_temp ?? controller_temp ?? null;
+    const raw = data.actual_temp ?? pill_temp ?? controller_temp ?? null;
+    const resolvedActualTemp = raw != null ? Math.round(raw * 100) / 100 : null;
 
     const { error } = await supabase
       .from('brew_data_snapshots')
