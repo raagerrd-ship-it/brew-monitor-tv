@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
       tPhase1Upsert = Date.now() - tUpsertStart;
       console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
 
-      // ── Phase 1d: Auto-discovery (only when called with discover: true from full-sync) ──
+      // ── Phase 1d: Auto-discovery (only when called with discover: true from manual button) ──
       if (discoverNewDevices) {
         const tDiscover = Date.now();
         const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([

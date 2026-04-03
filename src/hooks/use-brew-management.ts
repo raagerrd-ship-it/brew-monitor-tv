@@ -186,9 +186,9 @@ export function useBrewManagement() {
         if (insertError) throw insertError;
       }
 
-      const { error: syncError } = await supabase.functions.invoke('ai-consultation', { body: {} });
+      const { error: syncError } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
       if (syncError) {
-        console.error('Error during full sync:', syncError);
+        console.error('Error during sync:', syncError);
         toast({ title: "Varning", description: "Val sparade men synkroniseringen misslyckades", variant: "destructive" });
       } else {
         toast({ title: "Sparat!", description: "Dina val har sparats och synkroniserats" });

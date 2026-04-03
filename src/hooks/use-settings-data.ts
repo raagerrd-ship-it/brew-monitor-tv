@@ -414,23 +414,18 @@ export function useSettingsData() {
   const handleFullSync = useCallback(async () => {
     setSyncing(true);
     const steps = [
-      { id: 'rapt-data', label: 'RAPT enheter (full)', completed: false, inProgress: false },
-      { id: 'ai-audit', label: 'AI-optimering', completed: false, inProgress: false },
+      { id: 'ai-audit', label: 'AI-konsultation', completed: false, inProgress: false },
     ];
     setSyncSteps(steps);
     try {
-      const syncPromise = supabase.functions.invoke('ai-consultation', { body: {} });
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, inProgress: true } : s));
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setSyncSteps(prev => prev.map(s => s.id === 'rapt-data' ? { ...s, completed: true, inProgress: false } : s));
       setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, inProgress: true } : s));
-      const { error } = await syncPromise;
+      const { error } = await supabase.functions.invoke('ai-consultation', { body: {} });
       if (error) throw error;
       setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, completed: true, inProgress: false } : s));
-      toast({ title: "Synkronisering klar", description: "Full synk har genomförts (alla datakällor + AI)" });
+      toast({ title: "AI-konsultation klar", description: "AI-optimering har genomförts" });
       await loadSettings();
     } catch {
-      toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
+      toast({ title: "Fel", description: "Kunde inte genomföra AI-konsultation", variant: "destructive" });
     } finally {
       setSyncing(false);
     }
