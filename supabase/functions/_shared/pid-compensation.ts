@@ -187,8 +187,12 @@ export async function calculateCompensatedTarget(
       integral = Math.max(0, Math.min(DUTY_IMAX, integral))
 
       // ── Braking zone ──
+      // Only brake when error is DECREASING (approaching setpoint).
+      // If error is growing, the system needs to ramp up, not slow down.
       const BRAKE_ZONE = 0.50
-      if (need < BRAKE_ZONE && ssFloor > 0) {
+      const prevNeed = isCooling ? (actualTarget - (actualTarget - prevAvgError)) : (prevAvgError - actualTarget + actualTarget)
+      const errorDecreasing = need <= Math.abs(prevAvgError) + 0.02 // small tolerance for noise
+      if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
         const blendedI = integral * proximity + ssFloor * (1 - proximity)
         if (blendedI < integral) {
@@ -196,6 +200,9 @@ export async function calculateCompensatedTarget(
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
+      } else if (need < BRAKE_ZONE && ssFloor > 0 && !errorDecreasing) {
+        constraints.push('brake-skip')
+        console.log(`⏩ ${modeLabel} brake skipped ${controllerName}: error growing (prev=${Math.abs(prevAvgError).toFixed(2)}° → now=${need.toFixed(2)}°), letting I build`)
       }
 
       // ── Settling guard (cooling only) ──
