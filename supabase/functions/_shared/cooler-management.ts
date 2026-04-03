@@ -593,7 +593,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
   if (!previousWasKick) {
-    const timeSinceLastAdjust = Date.now() - lastAdjustTime
+    const timeSinceLastAdjust = Date.now() - await getLastAdjustTime()
 
     if (timeSinceLastAdjust < 5 * 60 * 1000) {
       log('RATE_LIMIT', 'info', `Väntar ${Math.ceil((5 * 60 * 1000 - timeSinceLastAdjust) / 60000)}min till nästa justering`)
