@@ -402,7 +402,7 @@ export function useSettingsData() {
     try {
       const { error } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
       if (error) throw error;
-      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + Brewfather)" });
+      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + custom)" });
       await loadSettings();
     } catch {
       toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
