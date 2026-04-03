@@ -356,7 +356,6 @@ Deno.serve(async (req) => {
             min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
             max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
             dual_sensor_enabled: existingMap.get(controller.id)?.dual_sensor_enabled ?? false,
-            dual_sensor_enabled: existingMap.get(controller.id)?.dual_sensor_enabled ?? false,
             updated_at: new Date().toISOString()
           };
 
