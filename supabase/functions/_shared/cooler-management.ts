@@ -142,11 +142,22 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerMinTemp = parseFloat(String(coolerController.min_target_temp ?? '-5'))
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
 
+  // ── Batch pre-load cooling rates for ALL controllers (1 query instead of N) ──
+  const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true)
+  const allRateIds = [coolerController.controller_id, ...controllersWithCooling.map(c => c.controller_id)]
+  const uniqueRateIds = [...new Set(allRateIds)]
+  if (!ctx.coolingRateCache) ctx.coolingRateCache = new Map()
+  const uncachedIds = uniqueRateIds.filter(id => !ctx.coolingRateCache!.has(id))
+  if (uncachedIds.length > 0) {
+    const batchRates = await batchMeasureCoolingRates(supabase, uncachedIds)
+    for (const [id, rate] of batchRates) ctx.coolingRateCache!.set(id, rate)
+  }
+
   // ── Calculate cooler's own utilization (rolling 30-min avg) ──
   const coolerUtilResult = await calculateSingleUtilization(supabase, coolerController)
   const coolerUtil = coolerUtilResult.rolling
 
-  // ── Measure cooler's own cooling rate (cached) ──
+  // ── Measure cooler's own cooling rate (cached — already batch-loaded above) ──
   const coolerCoolingRate = await measureCoolingRateCached(ctx, coolerController.controller_id)
 
   log('COOLER_STATUS', 'pass', `Cooler: ${coolerController.name}${coolerUtil != null ? ` util=${Math.round(coolerUtil * 100)}%` : ''}${coolerCoolingRate != null ? ` rate=${coolerCoolingRate.toFixed(2)}°C/h` : ''}`, {
