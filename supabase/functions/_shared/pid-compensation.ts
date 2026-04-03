@@ -80,7 +80,7 @@ export async function calculateCompensatedTarget(
   const [{ data: learnedRow }, ssParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
-      .select('learned_pi_correction, convergence_count, accumulated_integral, style_key, updated_at')
+      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
@@ -92,6 +92,7 @@ export async function calculateCompensatedTarget(
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
   const persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
+  const prevAvgError = learnedRow ? parseFloat(String(learnedRow.latest_avg_error ?? '0')) : 0
 
   if (isStaleData) {
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: hoppar över I-ackumulering`)
@@ -186,8 +187,12 @@ export async function calculateCompensatedTarget(
       integral = Math.max(0, Math.min(DUTY_IMAX, integral))
 
       // ── Braking zone ──
+      // Only brake when error is DECREASING (approaching setpoint).
+      // If error is growing, the system needs to ramp up, not slow down.
       const BRAKE_ZONE = 0.50
-      if (need < BRAKE_ZONE && ssFloor > 0) {
+      const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
+      const errorDecreasing = need <= prevNeed + 0.02 // small tolerance for sensor noise
+      if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
         const blendedI = integral * proximity + ssFloor * (1 - proximity)
         if (blendedI < integral) {
@@ -195,6 +200,9 @@ export async function calculateCompensatedTarget(
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
+      } else if (need < BRAKE_ZONE && ssFloor > 0 && !errorDecreasing) {
+        constraints.push('brake-skip')
+        console.log(`⏩ ${modeLabel} brake skipped ${controllerName}: error growing (prev=${Math.abs(prevAvgError).toFixed(2)}° → now=${need.toFixed(2)}°), letting I build`)
       }
 
       // ── Settling guard (cooling only) ──
