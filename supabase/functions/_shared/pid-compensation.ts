@@ -92,6 +92,7 @@ export async function calculateCompensatedTarget(
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
   const persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
+  const prevAvgError = learnedRow ? parseFloat(String((learnedRow as any).latest_avg_error ?? '0')) : 0
 
   if (isStaleData) {
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: hoppar över I-ackumulering`)
