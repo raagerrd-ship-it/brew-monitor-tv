@@ -348,7 +348,11 @@ export function useActiveFermentationSession({
           action: 'acknowledged', details: { message: 'Torrhumla kvitterad - profil slutförd' },
         });
         toast({ title: "Kvitterad", description: "Steget kvitterat - profilen slutförd" });
-        loadSession();
+        if (preloadedSession && compact) {
+          setSession(prev => prev ? { ...prev, status: 'completed', completed_at: new Date().toISOString() } : null);
+        } else {
+          loadSession();
+        }
       }
     } else {
       const newStepStartedAt = new Date().toISOString();
