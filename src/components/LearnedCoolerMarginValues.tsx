@@ -148,32 +148,34 @@ export function LearnedCoolerMarginValues() {
       {Object.entries(grouped).map(([name, items]) => (
         <div key={name} className="space-y-1">
           <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                <th className="text-left font-medium pb-1">Zon</th>
-                <th className="text-right font-medium pb-1">Marginal</th>
-                {hasAnyMinEff && <th className="text-right font-medium pb-1">Min</th>}
-                <th className="text-right font-medium pb-1">Prov</th>
-                <th className="text-right font-medium pb-1">Senast</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30">
-              {items.map((item) => (
-                <tr key={`${item.controller_id}-${item.bucket}`}>
-                  <td className="py-1.5">{formatBucketLabel(item.bucket)}</td>
-                  <td className="py-1.5 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
-                  {hasAnyMinEff && (
-                    <td className="py-1.5 text-right font-mono text-green-400">
-                      {item.min_effective != null ? `${item.min_effective.toFixed(1)}°C` : "–"}
-                    </td>
-                  )}
-                  <td className="py-1.5 text-right text-muted-foreground">{item.sample_count}</td>
-                  <td className="py-1.5 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
+          <div className="rounded-md border border-border/40 overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border/40 bg-muted/30">
+                  <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Zon</th>
+                  <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Marginal</th>
+                  {hasAnyMinEff && <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Min</th>}
+                  <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Prov</th>
+                  <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Senast</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={`${item.controller_id}-${item.bucket}`} className={idx < items.length - 1 ? "border-b border-border/20" : ""}>
+                    <td className="px-3 py-2">{formatBucketLabel(item.bucket)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
+                    {hasAnyMinEff && (
+                      <td className="px-3 py-2 text-right font-mono text-green-400">
+                        {item.min_effective != null ? `${item.min_effective.toFixed(1)}°C` : "–"}
+                      </td>
+                    )}
+                    <td className="px-3 py-2 text-right text-muted-foreground">{item.sample_count}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRecency(item.last_updated_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
     </div>
