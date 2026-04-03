@@ -7,10 +7,12 @@ const corsHeaders = {
 };
 
 /**
- * Deletes old rows from temp_controller_history (7 days),
- * temp_delta_history (7 days), auto_cooling_adjustments (30 days),
- * and cooler_margin_history (30 days).
- * Designed to run daily via cron.
+ * Retention cleanup — runs daily via cron.
+ * 24h: auto_cooling_decision_logs
+ * 7d:  temp_controller_history, temp_delta_history
+ * 30d: auto_cooling_adjustments, cooler_margin_history,
+ *      ai_audit_log, rapt_outage_log,
+ *      fermentation_step_log (only completed sessions)
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
