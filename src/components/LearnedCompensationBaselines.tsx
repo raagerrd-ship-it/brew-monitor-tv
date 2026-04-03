@@ -261,19 +261,18 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
-                        const rawPct = Math.round(item.accumulated_integral * 100);
-                        const quantized = Math.round(item.accumulated_integral * 10) * 10;
-                        const totalBurstMin = quantized / 10;
-                        const barColor = quantized > 60 ? (isHeating ? "bg-red-400" : "bg-red-400") : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
+                        const dutyPct = Math.round(item.total_duty * 100);
+                        const quantized = Math.round(item.total_duty * 10) * 10;
+                        const barColor = quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
                         const textColor = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : corrColor;
                         return (
                           <div className="flex items-center justify-end gap-1">
-                            <span className={`font-mono ${textColor}`}>{rawPct}%</span>
+                            <span className={`font-mono ${textColor}`}>{dutyPct}%</span>
                             <div className="flex items-center gap-0.5">
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
                                 <div
                                   key={s}
-                                  className={`h-2.5 w-1 rounded-[1px] ${s <= totalBurstMin ? barColor : "bg-muted-foreground/20"}`}
+                                  className={`h-2.5 w-1 rounded-[1px] ${s <= quantized / 10 ? barColor : "bg-muted-foreground/20"}`}
                                 />
                               ))}
                             </div>
