@@ -227,6 +227,8 @@ Deno.serve(async (req) => {
     
     let pillsUpdated = 0;
     let controllersUpdated = 0;
+    let discoveredPills = 0;
+    let discoveredControllers = 0;
     let raptFailed = false;
     let raptFailedPhase = '';
     let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
@@ -506,7 +508,9 @@ Deno.serve(async (req) => {
         }
 
         if (discoveryOps.length > 0) await Promise.all(discoveryOps);
-        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms`);
+        discoveredPills = newPills.length;
+        discoveredControllers = newControllers.length;
+        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms — found ${discoveredPills} pills, ${discoveredControllers} controllers`);
       }
 
       console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
@@ -1543,7 +1547,14 @@ Deno.serve(async (req) => {
     console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
 
     return new Response(
-      JSON.stringify({ success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult }),
+      JSON.stringify({
+        success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult,
+        ...(discoverNewDevices ? {
+          discovery_summary: discoveredPills + discoveredControllers > 0
+            ? `Hittade ${discoveredPills} nya pill(s) och ${discoveredControllers} nya controller(s)`
+            : `Inga nya enheter hittades (${pillsUpdated} pills, ${controllersUpdated} controllers synkade)`
+        } : {}),
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
