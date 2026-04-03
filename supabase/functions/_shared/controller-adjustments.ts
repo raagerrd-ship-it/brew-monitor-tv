@@ -192,12 +192,14 @@ async function executePwmDutyCycle(
     } else {
       await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
     }
-    await supabase.from('pending_rapt_retries')
-      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
     // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-    await supabase.from('rapt_temp_controllers')
-      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
+    await Promise.all([
+      supabase.from('pending_rapt_retries')
+        .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%'),
+      supabase.from('rapt_temp_controllers')
+        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id),
+    ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
   } else if (burstSeconds > 0) {
