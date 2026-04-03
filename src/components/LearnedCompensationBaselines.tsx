@@ -25,6 +25,7 @@ interface LearnedEntry {
   latest_avg_error: number;
   accumulated_integral: number;
   controller_name: string;
+  total_duty: number; // P+I from fermentation_learnings
 }
 
 const BUCKET_LABELS: Record<string, string> = {
@@ -78,17 +79,26 @@ export function LearnedCompensationBaselines() {
       }
 
       const controllerIds = [...new Set(learned.map((l) => l.controller_id))];
-      const { data: controllers } = await supabase
-        .from("rapt_temp_controllers")
-        .select("controller_id, name")
-        .in("controller_id", controllerIds);
+      const [{ data: controllers }, { data: dutyRows }] = await Promise.all([
+        supabase
+          .from("rapt_temp_controllers")
+          .select("controller_id, name")
+          .in("controller_id", controllerIds),
+        supabase
+          .from("fermentation_learnings")
+          .select("controller_id, learned_value")
+          .in("controller_id", controllerIds)
+          .eq("parameter_name", "pid_last_duty"),
+      ]);
 
       const nameMap = new Map(controllers?.map((c) => [c.controller_id, c.name]) ?? []);
+      const dutyMap = new Map(dutyRows?.map((d) => [d.controller_id, d.learned_value]) ?? []);
 
       setEntries(
         learned.map((l) => ({
           ...l,
           controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
+          total_duty: (dutyMap.get(l.controller_id) ?? Math.round(l.accumulated_integral * 100)) / 100,
         }))
       );
     } catch (e) {
@@ -167,8 +177,8 @@ export function LearnedCompensationBaselines() {
         <div className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
           <div>
-            <span className="text-sm font-medium">PID-integral (nuläge)</span>
-            <p className="text-[10px] text-muted-foreground/60">Aktuellt integralvärde per stegtyp och delta — ändras varje cykel</p>
+            <span className="text-sm font-medium">PID-duty (nuläge)</span>
+            <p className="text-[10px] text-muted-foreground/60">Aktuell duty cycle (P+I) per stegtyp — ändras varje cykel</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -251,19 +261,18 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
-                        const rawPct = Math.round(item.accumulated_integral * 100);
-                        const quantized = Math.round(item.accumulated_integral * 10) * 10;
-                        const totalBurstMin = quantized / 10;
-                        const barColor = quantized > 60 ? (isHeating ? "bg-red-400" : "bg-red-400") : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
+                        const dutyPct = Math.round(item.total_duty * 100);
+                        const quantized = Math.round(item.total_duty * 10) * 10;
+                        const barColor = quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
                         const textColor = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : corrColor;
                         return (
                           <div className="flex items-center justify-end gap-1">
-                            <span className={`font-mono ${textColor}`}>{rawPct}%</span>
+                            <span className={`font-mono ${textColor}`}>{dutyPct}%</span>
                             <div className="flex items-center gap-0.5">
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
                                 <div
                                   key={s}
-                                  className={`h-2.5 w-1 rounded-[1px] ${s <= totalBurstMin ? barColor : "bg-muted-foreground/20"}`}
+                                  className={`h-2.5 w-1 rounded-[1px] ${s <= quantized / 10 ? barColor : "bg-muted-foreground/20"}`}
                                 />
                               ))}
                             </div>
@@ -311,15 +320,9 @@ export function LearnedCompensationBaselines() {
             if (!isExpanded || !hasDetails) return null;
             return (
               <div key={`detail-${item.id}`} className="ml-4 mb-1 flex items-center gap-3 text-[10px] text-muted-foreground/70 font-mono bg-muted/10 rounded px-2 py-1">
-                {(() => (
-                  <>
-                    <span>P={Math.round(item.latest_p_correction * 100)}%</span>
-                    <span>I={Math.round(item.latest_i_correction * 100)}%</span>
-                    <span>D={item.latest_d_damping.toFixed(2)}</span>
-                    <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
-                    <span className="text-muted-foreground/40">duty={Math.round(item.accumulated_integral * 100)}%</span>
-                  </>
-                ))()}
+                <span>P={Math.round(item.latest_p_correction * 100)}%</span>
+                <span>I={Math.round(item.accumulated_integral * 100)}%</span>
+                <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
               </div>
             );
           })}
