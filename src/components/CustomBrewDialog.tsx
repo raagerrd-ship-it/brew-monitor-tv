@@ -589,7 +589,7 @@ export function CustomBrewDialog({
           <DialogDescription>
             {isEditMode
               ? "Ändra uppgifter för din bryggning"
-              : "Lägg till en bryggning utan Brewfather"}
+              : "Lägg till en egen bryggning"}
           </DialogDescription>
         </DialogHeader>
 
