@@ -84,11 +84,26 @@ Deno.serve(async (req) => {
       totalMarginHistoryDeleted += ids.length;
     }
 
-    const msg = `Deleted ${totalControllerDeleted} controller history (>7d) + ${totalDeltaDeleted} delta history (>7d) + ${totalAdjustmentsDeleted} adjustments (>30d) + ${totalMarginHistoryDeleted} margin history (>30d)`;
+    // auto_cooling_decision_logs (keep 24 hours)
+    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    let totalDecisionLogsDeleted = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("auto_cooling_decision_logs")
+        .select("id")
+        .lt("created_at", cutoff24h)
+        .limit(1000);
+      if (!data || data.length === 0) break;
+      const ids = data.map((r: any) => r.id);
+      await supabase.from("auto_cooling_decision_logs").delete().in("id", ids);
+      totalDecisionLogsDeleted += ids.length;
+    }
+
+    const msg = `Deleted ${totalControllerDeleted} controller history (>7d) + ${totalDeltaDeleted} delta history (>7d) + ${totalAdjustmentsDeleted} adjustments (>30d) + ${totalMarginHistoryDeleted} margin history (>30d) + ${totalDecisionLogsDeleted} decision logs (>24h)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted }),
+      JSON.stringify({ success: true, message: msg, controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted, adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted, decisionLogsDeleted: totalDecisionLogsDeleted }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
