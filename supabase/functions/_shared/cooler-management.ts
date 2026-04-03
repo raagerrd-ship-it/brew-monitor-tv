@@ -1203,21 +1203,52 @@ async function learnWarmingRate(
 ): Promise<void> {
   const { supabase, log } = ctx
 
-  for (const c of controllersWithCooling) {
-    // Use the controller's own target temp for bucket, not the cooler's
-    const controllerBucket = getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20')))
-    const rate = await measureCoolingRateCached(ctx, c.controller_id)
-    // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
-    if (rate !== null && rate < -0.05) {
-      const warmingRate = Math.abs(rate) // °C/h of passive warming
-      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${controllerBucket}`, warmingRate, 0.01, 10.0)
-      if (Math.abs(result.oldValue - result.newValue) > 0.01) {
-        log('WARMING_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
-      }
+  // Pre-fetch cooling rates for all controllers in parallel
+  const rateResults = await Promise.all(
+    controllersWithCooling.map(async c => ({
+      controller: c,
+      rate: await measureCoolingRateCached(ctx, c.controller_id),
+      bucket: getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))),
+    }))
+  )
 
-      // Steady-state duty cycle learning removed — the PID integral now
-      // directly accumulates the steady-state duty via the unified duty-cycle model.
+  // Collect warming candidates and batch-read their current params
+  const warmingCandidates = rateResults.filter(r => r.rate !== null && r.rate < -0.05)
+  if (warmingCandidates.length === 0) return
+
+  // Batch-read all warming_rate params in a single query
+  const paramNames = warmingCandidates.map(c => `warming_rate:${c.bucket}`)
+  const controllerIds = warmingCandidates.map(c => c.controller.controller_id)
+  const allParams = await getLearnedParams(supabase, controllerIds, [...new Set(paramNames)],
+    Object.fromEntries([...new Set(paramNames)].map(k => [k, 0])))
+
+  // Compute EMA updates in memory, then flush as a single upsert
+  const now = new Date().toISOString()
+  const upsertRows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = []
+
+  for (const { controller: c, rate, bucket } of warmingCandidates) {
+    const warmingRate = Math.abs(rate!)
+    const paramKey = `${c.controller_id}:warming_rate:${bucket}`
+    const existing = allParams.get(paramKey) ?? { value: warmingRate, sampleCount: 0 }
+    const alpha = existing.sampleCount < 5 ? 0.5 : 0.2
+    const newValue = Math.max(0.01, Math.min(10.0, existing.value * (1 - alpha) + warmingRate * alpha))
+    const rounded = Math.round(newValue * 100) / 100
+
+    if (Math.abs(existing.value - rounded) > 0.01) {
+      log('WARMING_LEARN', 'info', `🎓 [${bucket}] ${c.name} warming rate: ${existing.value.toFixed(2)}→${rounded.toFixed(2)}°C/h`)
     }
+
+    upsertRows.push({
+      controller_id: c.controller_id,
+      parameter_name: `warming_rate:${bucket}`,
+      learned_value: rounded,
+      sample_count: existing.sampleCount + 1,
+      last_updated_at: now,
+    })
+  }
+
+  if (upsertRows.length > 0) {
+    await supabase.from('fermentation_learnings').upsert(upsertRows, { onConflict: 'controller_id,parameter_name' })
   }
 }
 
