@@ -24,7 +24,6 @@ interface AvailableController {
 }
 
 interface ApiSettings {
-  brewfather: { userId: string; apiKey: string; configured: boolean };
   rapt: { username: string; apiSecret: string; configured: boolean };
 }
 
