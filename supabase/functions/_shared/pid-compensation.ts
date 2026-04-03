@@ -258,35 +258,36 @@ export async function calculateCompensatedTarget(
     constraints.push('deadband')
     console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.10) {
-    // OVER-ACTUATED: the floor may be too high, causing oscillation.
-    // Actively erode the learned floor downward so the system can recover.
-    // Without this, a too-high floor creates a deadlock: high floor →
-    // overheating → never reaches deadband → floor never decreases.
+    // OVER-ACTUATED: temp has passed the target — STOP cooling/heating immediately.
+    // The integral must decay toward ZERO, not toward ssFloor.
+    // Previous logic decayed toward ssFloor, which meant the system kept
+    // applying the floor duty even while overcooled → 1h+ delay before reducing.
+    //
+    // Also erode the floor aggressively so it doesn't re-inflate duty on
+    // the next deadband entry.
+    const overshoot = Math.abs(need) // how far past target (positive)
+
     if (ssFloor > 0) {
-      // Reduce floor by 10% each over-actuation cycle (EMA toward current integral)
-      // This allows ~5 cycles to bring a 0.5 floor down to ~0.3
-      const reducedFloor = Math.max(0, integral * 0.3 + ssFloor * 0.7)
-      // Quantize DOWN to 10% steps to match hardware PWM resolution.
-      // CRITICAL: Must use Math.floor, not Math.round — otherwise a floor
-      // of e.g. 0.18 produces reducedFloor ~0.164 which rounds UP to 0.2,
-      // making erosion impossible (0.2 > 0.18 → no change).
+      // Aggressive floor erosion: scale by overshoot severity
+      // Small overshoot (0.1°): 30/70 EMA → slow erosion
+      // Large overshoot (0.5°+): jump straight to 50% of current integral
+      const erosionAlpha = Math.min(0.6, 0.3 + overshoot)
+      const reducedFloor = Math.max(0, integral * erosionAlpha + ssFloor * (1 - erosionAlpha))
       const quantizedFloor = Math.floor(reducedFloor * 10) / 10
       if (quantizedFloor < ssFloor) {
         await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
-        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (over-actuated)`)
+        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
       }
     }
-    if (ssFloor > 0 && integral > ssFloor) {
-      integral = integral * 0.85 + ssFloor * 0.15
-    } else if (ssFloor > 0 && integral < ssFloor) {
-      // Below floor but over-actuated — drop below floor to recover
-      integral = Math.min(integral, ssFloor * 0.7)
-    } else {
-      integral *= 0.85
-    }
+
+    // Decay integral toward ZERO — 25% reduction per cycle.
+    // At 5-min cycles: 0.50 → 0.38 → 0.28 → 0.21 → 0.16 (4 cycles = 20 min)
+    // Much faster than old logic which held near ssFloor indefinitely.
+    const decayRate = Math.min(0.85, 0.75 - overshoot * 0.1) // faster decay for bigger overshoot
+    integral = Math.max(0, integral * decayRate)
     dutyCycle = Math.max(0, integral)
     constraints.push(isCooling ? 'overcooled' : 'overheated')
-    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else {
     // NEEDS ACTION — proportional + integral
     //
