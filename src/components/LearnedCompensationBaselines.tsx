@@ -320,15 +320,9 @@ export function LearnedCompensationBaselines() {
             if (!isExpanded || !hasDetails) return null;
             return (
               <div key={`detail-${item.id}`} className="ml-4 mb-1 flex items-center gap-3 text-[10px] text-muted-foreground/70 font-mono bg-muted/10 rounded px-2 py-1">
-                {(() => (
-                  <>
-                    <span>P={Math.round(item.latest_p_correction * 100)}%</span>
-                    <span>I={Math.round(item.latest_i_correction * 100)}%</span>
-                    <span>D={item.latest_d_damping.toFixed(2)}</span>
-                    <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
-                    <span className="text-muted-foreground/40">duty={Math.round(item.accumulated_integral * 100)}%</span>
-                  </>
-                ))()}
+                <span>P={Math.round(item.latest_p_correction * 100)}%</span>
+                <span>I={Math.round(item.accumulated_integral * 100)}%</span>
+                <span>err={item.latest_avg_error >= 0 ? "+" : ""}{item.latest_avg_error.toFixed(2)}°</span>
               </div>
             );
           })}
