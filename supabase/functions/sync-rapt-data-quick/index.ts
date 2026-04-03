@@ -104,28 +104,7 @@ async function fetchRaptControllers(accessToken: string): Promise<any[]> {
   return res.json();
 }
 
-// ── Inlined Brewfather readings fetch — returns SG-corrected values ──
-async function fetchBrewfatherReadings(batchId: string, sgCorrectionEnabled: boolean): Promise<any[]> {
-  const BREWFATHER_USER_ID = Deno.env.get('BREWFATHER_USER_ID');
-  const BREWFATHER_API_KEY = Deno.env.get('BREWFATHER_API_KEY');
-  if (!BREWFATHER_USER_ID || !BREWFATHER_API_KEY) throw new Error('Brewfather credentials not configured');
-
-  const res = await fetch(
-    `https://api.brewfather.app/v2/batches/${encodeURIComponent(batchId)}/readings`,
-    {
-      headers: { 'Authorization': `Basic ${btoa(`${BREWFATHER_USER_ID}:${BREWFATHER_API_KEY}`)}` },
-      signal: AbortSignal.timeout(15000),
-    }
-  );
-  if (!res.ok) throw new Error(`Brewfather API error: ${res.status}`);
-  const readings = await res.json();
-  if (sgCorrectionEnabled) {
-    for (const r of readings) {
-      if (r.sg && r.temp) r.sg = standardSgCorrection(r.sg, r.temp);
-    }
-  }
-  return readings;
-}
+// (Brewfather integration removed — RAPT-only)
 
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 // Applies standard correction + pill-specific residual at source.
