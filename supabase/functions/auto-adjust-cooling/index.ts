@@ -542,6 +542,7 @@ Deno.serve(async (req) => {
         baseTargetMap,
         skipLearning: systemIsIdle,
         pwmBursts,
+        sharedUtilizations,
         preloadedProfileCache: loadedSessions.length > 0
           ? { sessions: loadedSessions, stepsMap: loadedProfileStepsMap }
           : undefined,
