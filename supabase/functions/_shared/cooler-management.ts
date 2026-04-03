@@ -1161,11 +1161,17 @@ async function learnFromCurrentState(
       const holdResult = batch.update(marginParam, scaledMargin, 1.0, 15.0)
       log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: cooler_margin ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C, ${marginParam} ${holdResult.oldValue.toFixed(2)}→${holdResult.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue, hold_old: holdResult.oldValue, hold_new: holdResult.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
-      const tighterMargin = currentMargin * 0.93
-      const alphaOverride = util < 0.5 ? 0.3 : undefined
-      const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
-      batch.update(marginParam, tighterMargin, 1.0, 15.0, alphaOverride)
-      log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
+      // ── Block tightening if beer is above target (dual-sensor blind spot) ──
+      if (anyBeerAboveTarget) {
+        log('MARGIN_LEARN', 'info', `🎓 [${tempBucket}] Low util (${Math.round(util * 100)}%) men öl ovanför mål — blockerar åtstramning (margin ${currentMargin.toFixed(1)}°C behålls)`)
+        batch.update(marginParam, currentMargin, 1.0, 15.0)
+      } else {
+        const tighterMargin = currentMargin * 0.93
+        const alphaOverride = util < 0.5 ? 0.3 : undefined
+        const result = batch.update(`cooler_margin:${tempBucket}`, tighterMargin, 2.0, 15.0, alphaOverride)
+        batch.update(marginParam, tighterMargin, 1.0, 15.0, alphaOverride)
+        log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
+      }
     } else if (util >= 0.7 && util < 0.99) {
       if (currentMargin > 2.5) {
         const nudge = currentMargin * 0.98
