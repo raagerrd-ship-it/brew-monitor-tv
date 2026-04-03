@@ -809,7 +809,7 @@ async function calculateCoolingUtilizations(
   const results: CoolingUtilization[] = []
 
   for (const c of controllersWithCooling) {
-    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '999'))
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? '999'))
     const targetTemp = parseFloat(String(c.target_temp ?? '999'))
     const hysteresis = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
 
