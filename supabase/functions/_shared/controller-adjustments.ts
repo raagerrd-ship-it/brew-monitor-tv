@@ -700,13 +700,25 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // ── Single merged upsert for all PID state ──
     if (!ctx.skipLearning) {
       const now = new Date().toISOString()
+      const epochSec = Math.floor(Date.now() / 1000)
       const rows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = [
         { controller_id: fc.controller_id, parameter_name: 'mode_switch_pressure', learned_value: switchPressure, sample_count: switchPressure, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'mode_last_probe', learned_value: round1(actualTemp)!, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_current_mode', learned_value: pidMode === 'heating' ? 1 : 2, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_effective_target', learned_value: pidEffectiveTarget, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
+        // EST tracking: store current actual_temp and timestamp for rate learning
+        { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp', learned_value: actualTemp, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp_at', learned_value: lastUpdateMs / 1000, sample_count: 1, last_updated_at: now },
       ]
+      // Store observed rate with sample count for EMA
+      if (observedRate !== 0) {
+        rows.push({ controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now })
+      }
+      // Store prediction for accuracy tracking on next fresh read
+      if (tempInterpolated) {
+        rows.push({ controller_id: fc.controller_id, parameter_name: 'est_last_prediction', learned_value: interpolatedTemp, sample_count: 1, last_updated_at: now })
+      }
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
