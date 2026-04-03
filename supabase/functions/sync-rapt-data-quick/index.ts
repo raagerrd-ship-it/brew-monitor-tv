@@ -826,11 +826,12 @@ Deno.serve(async (req) => {
             if (!telemetryData || telemetryData.length === 0) {
               if (brew.linked_controller_id) {
                 const ctrlFull = dbCtrlMap.get(brew.linked_controller_id);
-                if (ctrlFull?.current_temp != null) {
+                const ssotTemp = ctrlFull?.actual_temp ?? ctrlFull?.current_temp;
+                if (ssotTemp != null) {
                   await supabase.from('brew_readings')
-                    .update({ current_temp: ctrlFull.current_temp, updated_at: new Date().toISOString() })
+                    .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
                     .eq('id', brew.id);
-                  console.log(`Updated ${brew.name} with controller probe temp: ${ctrlFull.current_temp}°C`);
+                  console.log(`Updated ${brew.name} with SSOT actual_temp: ${ssotTemp}°C`);
                   customBrewsUpdated++;
                 }
               }
