@@ -293,7 +293,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <Fragment key={controller.id}>
-                {index > 0 && <div className="h-5 mx-2 w-px flex-shrink-0 rounded-full" style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
+                {index > 0 && <div className={`h-5 ${isMobile ? 'mx-1' : 'mx-2'} w-px flex-shrink-0 rounded-full`} style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
