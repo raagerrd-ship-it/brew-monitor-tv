@@ -506,7 +506,9 @@ Deno.serve(async (req) => {
         }
 
         if (discoveryOps.length > 0) await Promise.all(discoveryOps);
-        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms`);
+        discoveredPills = newPills.length;
+        discoveredControllers = newControllers.length;
+        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms — found ${discoveredPills} pills, ${discoveredControllers} controllers`);
       }
 
       console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
