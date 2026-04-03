@@ -192,12 +192,14 @@ async function executePwmDutyCycle(
     } else {
       await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
     }
-    await supabase.from('pending_rapt_retries')
-      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
     // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-    await supabase.from('rapt_temp_controllers')
-      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
+    await Promise.all([
+      supabase.from('pending_rapt_retries')
+        .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%'),
+      supabase.from('rapt_temp_controllers')
+        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id),
+    ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
   } else if (burstSeconds > 0) {
@@ -211,25 +213,27 @@ async function executePwmDutyCycle(
       await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
     }
     // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-    await supabase.from('rapt_temp_controllers')
-      .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
     // Align to minute boundary so the 1-min cron picks it up precisely
     const minuteFloor = Math.floor(Date.now() / 60000) * 60000
     const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
-    await supabase.from('pending_rapt_retries')
-      .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
-    await supabase.from('pending_rapt_retries').insert({
-      controller_id: fc.controller_id,
-      target_temp: revertTarget,
-      reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
-      execute_at: executeAt,
-    })
-    // Reset P-term during burst (probe changes artificially from extreme target)
-    await supabase.from('controller_learned_compensation')
-      .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
-      .eq('controller_id', fc.controller_id)
-      .eq('mode', mode)
+    await Promise.all([
+      supabase.from('rapt_temp_controllers')
+        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id),
+      supabase.from('pending_rapt_retries')
+        .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
+        .then(() => supabase.from('pending_rapt_retries').insert({
+          controller_id: fc.controller_id,
+          target_temp: revertTarget,
+          reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
+          execute_at: executeAt,
+        })),
+      // Reset P-term during burst (probe changes artificially from extreme target)
+      supabase.from('controller_learned_compensation')
+        .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+        .eq('mode', mode),
+    ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
   } else {
@@ -775,16 +779,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
-      await supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' })
-
-      // Learn steady-state duty cycle when PID is in deadband (system at equilibrium)
-      // Quantize to 10% steps to match hardware PWM resolution — prevents
-      // the floor from stabilizing at values that map to different PWM steps.
+      // Merge steady-state duty into the same upsert batch (was a separate updateLearnedParam call)
       if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && pidResult.iCorrection != null) {
         const dutyBucket = getTempBucket(actualTarget)
         const quantizedDuty = Math.round(pidResult.iCorrection * 10) / 10
-        await updateLearnedParam(supabase, fc.controller_id, `steady_state_duty:${dutyBucket}`, quantizedDuty, 0, 1.0)
+        rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: quantizedDuty, sample_count: 1, last_updated_at: now })
       }
+      // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
+      await Promise.all([
+        pidResult.persistPromise,
+        supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' }),
+      ])
+    } else if (pidResult.persistPromise) {
+      // Even when skipLearning, PID state must be persisted
+      await pidResult.persistPromise
     }
 
     // ═══════════════════════════════════════════════════

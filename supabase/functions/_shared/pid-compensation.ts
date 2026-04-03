@@ -68,7 +68,7 @@ export async function calculateCompensatedTarget(
   coolingUtilization?: number | null,
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   pillRate?: number | null,
-): Promise<{ ctrlTargetPid: number; dutyCycle?: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[] }> {
+): Promise<{ ctrlTargetPid: number; dutyCycle?: number; compensation: number; avgDelta: number; dampingFactor?: number; pillRate?: number | null; probeRate?: number | null; etaMinutes?: number | null; errorCorrection?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const avgDelta = 0
   const compensation = 0
@@ -76,18 +76,19 @@ export async function calculateCompensatedTarget(
   // === Adaptive PI-term ===
   const deltaBucket = 'low'
 
-  let learnedRow: any = null;
-  {
-    const { data } = await supabase
+  // ── Parallel pre-fetch: PID state + steady-state duty floor ──
+  const ssBucket = getTempBucket(actualTarget)
+  const [{ data: learnedRow }, ssParam] = await Promise.all([
+    supabase
       .from('controller_learned_compensation')
       .select('learned_pi_correction, convergence_count, accumulated_integral, style_key, updated_at')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
       .eq('step_type', stepType)
-      .maybeSingle();
-    learnedRow = data;
-  }
+      .maybeSingle(),
+    getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0),
+  ])
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
@@ -125,8 +126,7 @@ export async function calculateCompensatedTarget(
   // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
   let integral = persistedIntegral
   if (isCooling && integral > 1.0) {
-    const cBucket = getTempBucket(actualTarget)
-    const seed = await getLearnedParam(supabase, controllerId, `steady_state_duty:${cBucket}`, 0)
+    const seed = ssParam // Already fetched above
     integral = seed.sampleCount >= 3 ? seed.value : 0
     console.log(`🔄 Duty migration ${controllerName}: integral ${persistedIntegral.toFixed(2)}°C → ${integral.toFixed(2)} duty`)
   } else if (!isCooling && Math.abs(integral) > 1.0) {
@@ -137,8 +137,6 @@ export async function calculateCompensatedTarget(
   let dutyCycle = 0
 
   // ── Steady-state duty floor ──────────────────────────────
-  const ssBucket = getTempBucket(actualTarget)
-  const ssParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
 
   if (Math.abs(avgError) <= 0.10) {
@@ -237,7 +235,8 @@ export async function calculateCompensatedTarget(
     console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
 
-  await persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
+  // Defer persist — caller can batch this with other DB writes
+  const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError)
 
   return {
@@ -246,6 +245,7 @@ export async function calculateCompensatedTarget(
     pillRate: pillRate ?? null, probeRate: null, etaMinutes: null,
     errorCorrection: 0, pCorrection, iCorrection: integral,
     learnedBaseline, deltaBucket, convergenceCount, constraints,
+    persistPromise,
   }
 }
 

@@ -298,7 +298,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Log margin history snapshot ───────────────────────────
   const lowestUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
   const actualRate = await measureCoolingRateCached(ctx, effectiveTarget.controllerId)
-  await supabase.from('cooler_margin_history').insert({
+  // Fire-and-forget: margin history is purely diagnostic, no need to await
+  supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
     margin_value: Math.round(effectiveMargin * 100) / 100,
@@ -306,7 +307,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
     cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
     sample_count: learnedMargin.sampleCount,
-  })
+  }).then(null, (err: unknown) => console.warn('cooler_margin_history insert failed:', err))
 
   // ── Hysteresis kick: force relay ON if cooler is in dead band ──
   const coolerHysteresis = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
@@ -314,18 +315,27 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerRelayThreshold = clampedTarget + coolerHysteresis
   const coolerInDeadBand = coolerTemp > clampedTarget && coolerTemp < coolerRelayThreshold
 
-  // ── Pre-fetch recent adjustments once (replaces 4 separate DB queries) ──
-  const { data: recentAdjustments } = await supabase
-    .from('auto_cooling_adjustments')
-    .select('created_at, reason, old_target_temp, new_target_temp')
-    .eq('cooler_controller_id', coolerController.controller_id)
-    .order('created_at', { ascending: false })
-    .limit(20)
-
-  const findRecentAdj = (pattern: string) =>
-    recentAdjustments?.find(a => a.reason.includes(pattern)) ?? null
-  const lastAdjustTime = recentAdjustments?.[0]?.created_at
-    ? new Date(recentAdjustments[0].created_at).getTime() : 0
+  // ── Lazy-fetch recent adjustments (only when needed for decisions) ──
+  let _recentAdjustments: any[] | null = null
+  const ensureRecentAdjustments = async () => {
+    if (_recentAdjustments !== null) return _recentAdjustments
+    const { data } = await supabase
+      .from('auto_cooling_adjustments')
+      .select('created_at, reason, old_target_temp, new_target_temp')
+      .eq('cooler_controller_id', coolerController.controller_id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    _recentAdjustments = data ?? []
+    return _recentAdjustments
+  }
+  const findRecentAdj = async (pattern: string) => {
+    const adjs = await ensureRecentAdjustments()
+    return adjs.find((a: any) => a.reason.includes(pattern)) ?? null
+  }
+  const getLastAdjustTime = async () => {
+    const adjs = await ensureRecentAdjustments()
+    return adjs[0]?.created_at ? new Date(adjs[0].created_at).getTime() : 0
+  }
 
   // Detect if the PREVIOUS cycle was a kick using the DB flag (set when kick is sent)
   const previousWasKick = !!(coolerController as any).hysteresis_kick_active
@@ -377,7 +387,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       }
 
       // ── Anti-oscillation: 15 min cooldown after kick+revert cycle ──
-      const lastKickAdj = findRecentAdj('Hysteres-kick')
+      const lastKickAdj = await findRecentAdj('Hysteres-kick')
       const kickCooldownMs = 15 * 60 * 1000
       const timeSinceLastKick = lastKickAdj
         ? Date.now() - new Date(lastKickAdj.created_at).getTime()
@@ -475,7 +485,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     }
 
     // Cooldown: only idle once per 30 min to let new utilization data arrive
-    const lastIdleAdj = findRecentAdj('Alla controllers aktiverade 0%')
+    const lastIdleAdj = await findRecentAdj('Alla controllers aktiverade 0%')
     const idleCooldownMs = 30 * 60 * 1000
     const timeSinceLastIdle = lastIdleAdj
       ? Date.now() - new Date(lastIdleAdj.created_at).getTime()
@@ -552,7 +562,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Manual override cooldown: respect user's cooler changes for 30 min ──
   // If the user manually changed the cooler target recently, don't override it.
   if (!previousWasKick) {
-    const recentManualAdj = findRecentAdj('Manuell hårdvaruändring')
+    const recentManualAdj = await findRecentAdj('Manuell hårdvaruändring')
 
     if (recentManualAdj && recentManualAdj.reason.includes('kylare-hanterad')) {
       const manualCooldownMs = 30 * 60 * 1000 // 30 min cooldown
@@ -583,7 +593,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
   if (!previousWasKick) {
-    const timeSinceLastAdjust = Date.now() - lastAdjustTime
+    const timeSinceLastAdjust = Date.now() - await getLastAdjustTime()
 
     if (timeSinceLastAdjust < 5 * 60 * 1000) {
       log('RATE_LIMIT', 'info', `Väntar ${Math.ceil((5 * 60 * 1000 - timeSinceLastAdjust) / 60000)}min till nästa justering`)
@@ -1193,21 +1203,52 @@ async function learnWarmingRate(
 ): Promise<void> {
   const { supabase, log } = ctx
 
-  for (const c of controllersWithCooling) {
-    // Use the controller's own target temp for bucket, not the cooler's
-    const controllerBucket = getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20')))
-    const rate = await measureCoolingRateCached(ctx, c.controller_id)
-    // rate > 0 = cooling, rate < 0 = warming. We want warming (negative rate → positive warming)
-    if (rate !== null && rate < -0.05) {
-      const warmingRate = Math.abs(rate) // °C/h of passive warming
-      const result = await updateLearnedParam(supabase, c.controller_id, `warming_rate:${controllerBucket}`, warmingRate, 0.01, 10.0)
-      if (Math.abs(result.oldValue - result.newValue) > 0.01) {
-        log('WARMING_LEARN', 'info', `🎓 [${controllerBucket}] ${c.name} warming rate: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C/h`)
-      }
+  // Pre-fetch cooling rates for all controllers in parallel
+  const rateResults = await Promise.all(
+    controllersWithCooling.map(async c => ({
+      controller: c,
+      rate: await measureCoolingRateCached(ctx, c.controller_id),
+      bucket: getTempBucket(ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))),
+    }))
+  )
 
-      // Steady-state duty cycle learning removed — the PID integral now
-      // directly accumulates the steady-state duty via the unified duty-cycle model.
+  // Collect warming candidates and batch-read their current params
+  const warmingCandidates = rateResults.filter(r => r.rate !== null && r.rate < -0.05)
+  if (warmingCandidates.length === 0) return
+
+  // Batch-read all warming_rate params in a single query
+  const paramNames = warmingCandidates.map(c => `warming_rate:${c.bucket}`)
+  const controllerIds = warmingCandidates.map(c => c.controller.controller_id)
+  const allParams = await getLearnedParams(supabase, controllerIds, [...new Set(paramNames)],
+    Object.fromEntries([...new Set(paramNames)].map(k => [k, 0])))
+
+  // Compute EMA updates in memory, then flush as a single upsert
+  const now = new Date().toISOString()
+  const upsertRows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = []
+
+  for (const { controller: c, rate, bucket } of warmingCandidates) {
+    const warmingRate = Math.abs(rate!)
+    const paramKey = `${c.controller_id}:warming_rate:${bucket}`
+    const existing = allParams.get(paramKey) ?? { value: warmingRate, sampleCount: 0 }
+    const alpha = existing.sampleCount < 5 ? 0.5 : 0.2
+    const newValue = Math.max(0.01, Math.min(10.0, existing.value * (1 - alpha) + warmingRate * alpha))
+    const rounded = Math.round(newValue * 100) / 100
+
+    if (Math.abs(existing.value - rounded) > 0.01) {
+      log('WARMING_LEARN', 'info', `🎓 [${bucket}] ${c.name} warming rate: ${existing.value.toFixed(2)}→${rounded.toFixed(2)}°C/h`)
     }
+
+    upsertRows.push({
+      controller_id: c.controller_id,
+      parameter_name: `warming_rate:${bucket}`,
+      learned_value: rounded,
+      sample_count: existing.sampleCount + 1,
+      last_updated_at: now,
+    })
+  }
+
+  if (upsertRows.length > 0) {
+    await supabase.from('fermentation_learnings').upsert(upsertRows, { onConflict: 'controller_id,parameter_name' })
   }
 }
 
