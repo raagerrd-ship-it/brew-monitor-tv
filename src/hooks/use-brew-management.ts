@@ -60,8 +60,7 @@ export function useBrewManagement() {
     try {
       setLoading(true);
 
-      const [batchesResponse, selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
-        supabase.functions.invoke('brewfather-batches', { body: { limit: 10 } }),
+      const [selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.from('selected_brews').select('batch_id').eq('is_visible', true),
         supabase.from('brew_readings')
           .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation')
@@ -71,10 +70,9 @@ export function useBrewManagement() {
           .select('id, controller_id, name, current_temp, pill_temp, actual_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, cooling_hysteresis, heating_hysteresis, cooling_run_time, cooling_starts, heating_run_time, heating_starts')
       ]);
 
-      if (batchesResponse.error) throw batchesResponse.error;
       if (selectedResponse.error) throw selectedResponse.error;
 
-      setBatches(batchesResponse.data || []);
+      setCustomBrews(customBrewsResponse.data || []);
       setCustomBrews(customBrewsResponse.data || []);
       setPills(pillsResponse.data || []);
       setControllers(controllersResponse.data || []);
