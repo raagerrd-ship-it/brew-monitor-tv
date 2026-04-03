@@ -788,13 +788,11 @@ Deno.serve(async (req) => {
     };
 
     const tPhase2a = Date.now();
-    const [bfResult, customBrewResult] = await Promise.allSettled([
-      brewfatherSync(),
+    const [customBrewResult] = await Promise.allSettled([
       customBrewSync(),
     ]);
-    console.log(`⏱️ Phase 2a (Brewfather+custom): ${Date.now() - tPhase2a}ms`);
+    console.log(`⏱️ Phase 2a (custom brews): ${Date.now() - tPhase2a}ms`);
 
-    if (bfResult.status === 'rejected') console.error('Brewfather sync error:', bfResult.reason);
     if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
 
     // ──────────────────────────────────────────────────────────
