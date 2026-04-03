@@ -600,15 +600,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // a quick delta_history query only when actually needed for ramp context.
     let pillRate: number | null = null
 
-    // Calculate cooling utilization for this controller and share with cooler
+    // Use pre-fetched utilization (calculated in parallel before the loop)
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
     if (fc.cooling_enabled) {
-      const utilResult = await calculateSingleUtilization(supabase, fc, { skipShift: true })
-      coolingUtil = utilResult.rolling
-      recentUtil = utilResult.recent
-      // Share with cooler context to avoid re-querying
-      ctx.sharedUtilizations.set(fc.controller_id, utilResult)
+      const utilResult = ctx.sharedUtilizations.get(fc.controller_id)
+      if (utilResult) {
+        coolingUtil = utilResult.rolling
+        recentUtil = utilResult.recent
+      }
     }
 
     // Build ramp context for PID rate-aware boost
