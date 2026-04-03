@@ -619,7 +619,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       return adjustments
     }
     const anyBeerAbove = controllersWithCooling.some(c => {
-      const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+      const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
       const bt = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
       return beerTemp > bt + 0.15
     })
