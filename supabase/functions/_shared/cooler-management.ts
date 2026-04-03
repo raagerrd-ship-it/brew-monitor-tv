@@ -1083,7 +1083,7 @@ async function learnFromCurrentState(
   // With dual sensors, probe can be cold (glycol jacket) while beer is still warm.
   // Low probe utilization does NOT mean cooling is sufficient in this case.
   const anyBeerAboveTarget = controllersWithCooling.some(c => {
-    const beerTemp = parseFloat(String((c as any).actual_temp ?? c.current_temp ?? '0'))
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? '0'))
     const baseTarget = getBaseTarget(c)
     return beerTemp > baseTarget + 0.15 // small tolerance for measurement noise
   })
