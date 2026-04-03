@@ -1658,10 +1658,13 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
           {coolerContent}
         </PhaseSection>
 
-        {/* Phase 2c: History (RAPT send + cleanup) */}
-        <PhaseSection code="2c" name="Historik" ms={pt['2c_hist_ms']}>
+        {/* Phase 3a: RAPT flush (send commands) */}
+        <PhaseSection code="3a" name="Flush" ms={pt['3a_flush_ms']}>
           {raptSendContent}
         </PhaseSection>
+
+        {/* Phase 3b: History + snapshots */}
+        <PhaseSection code="3b" name="Historik" ms={pt['3b_hist_ms']} />
 
         {/* Övrigt (uncategorized) */}
         {otherContent}
