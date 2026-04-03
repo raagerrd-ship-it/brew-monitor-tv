@@ -251,7 +251,11 @@ export function LearnedCompensationBaselines() {
                     </td>
                     <td className="py-1.5 text-right">
                       {(() => {
-                        const totalDuty = Math.min(1, Math.max(0, item.latest_d_damping));
+                        // If latest_d_damping is still the DB default (1.0), fall back to P+I
+                        const rawDuty = item.latest_d_damping === 1 && item.accumulated_integral < 0.95
+                          ? Math.min(1, item.latest_p_correction + item.accumulated_integral)
+                          : item.latest_d_damping;
+                        const totalDuty = Math.min(1, Math.max(0, rawDuty));
                         const dutyPct = Math.round(totalDuty * 100);
                         const quantized = Math.round(totalDuty * 10) * 10;
                         const barColor = quantized > 60 ? "bg-red-400" : quantized > 40 ? "bg-yellow-400" : isHeating ? "bg-orange-400" : "bg-cyan-400";
