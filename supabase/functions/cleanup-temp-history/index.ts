@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("cooler_margin_history")
         .select("id")
-        .lt("recorded_at", cutoff)
+        .lt("recorded_at", cutoff30d)
         .limit(1000);
       if (!data || data.length === 0) break;
       const ids = data.map((r: any) => r.id);
