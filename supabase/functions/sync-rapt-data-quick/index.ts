@@ -198,11 +198,10 @@ Deno.serve(async (req) => {
     // Read sync_settings + auto_cooling_settings once (reused across phases)
     const [{ data: syncSettingsRow }, { data: autoCoolingRow }] = await Promise.all([
       supabase.from('sync_settings')
-        .select('id, last_successful_rapt_sync_at, rapt_sync_interval, brewfather_enabled').single(),
+        .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single(),
       supabase.from('auto_cooling_settings')
         .select('sg_temp_correction_enabled, cooler_controller_id, enabled').limit(1).maybeSingle(),
     ]);
-    const brewfatherEnabled = (syncSettingsRow as any)?.brewfather_enabled ?? true;
     const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
 
     // Update timestamp (fire-and-forget, no await needed for main flow)
