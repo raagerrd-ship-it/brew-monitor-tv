@@ -585,9 +585,13 @@ Deno.serve(async (req) => {
           .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
         const latestReading = readingsWithSG.length > 0 ? readingsWithSG[readingsWithSG.length - 1] : null;
         const currentSG = latestReading?.sg || existingBrew?.original_gravity || 1.050;
-        const currentTemp = latestReading?.temp || 20;
+        const rawTemp = latestReading?.temp || 20;
         const battery = latestReading?.battery ? Math.round(latestReading.battery) : null;
         const og = existingBrew?.original_gravity || 1.050;
+
+        // SSOT: prefer controller actual_temp over raw pill/probe temp
+        const linkedCtrl = existingBrew?.linked_controller_id ? dbCtrlMap.get(existingBrew.linked_controller_id) : null;
+        const currentTemp = linkedCtrl?.actual_temp ?? rawTemp;
 
         const attenuation = ((og - currentSG) / (og - 1.000)) * 100;
         const abv = ((og - currentSG) * 131.25) || 0;
