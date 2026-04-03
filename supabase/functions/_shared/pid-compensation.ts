@@ -242,7 +242,7 @@ export async function calculateCompensatedTarget(
 
   // Defer persist — caller can batch this with other DB writes
   const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
-    pCorrection, integral, avgError)
+    pCorrection, integral, avgError, dutyCycle)
 
   return {
     ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
