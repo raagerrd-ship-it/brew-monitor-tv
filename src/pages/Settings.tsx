@@ -40,7 +40,61 @@ import { Badge } from "@/components/ui/badge";
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
 
-export default function Settings() {
+function DeviceDiscoveryButton() {
+  const [discovering, setDiscovering] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleDiscover = async () => {
+    setDiscovering(true);
+    setResult(null);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase.functions.invoke("sync-rapt-data-quick", {
+        body: { discover: true },
+      });
+      if (error) throw error;
+      const msg = data?.discovery_summary || "Sökning klar";
+      setResult(msg);
+      toast({ title: "Enhetssökning klar", description: msg });
+    } catch (e: any) {
+      console.error("Discovery failed:", e);
+      toast({ title: "Fel", description: e.message || "Kunde inte söka efter enheter", variant: "destructive" });
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
+      <div className="flex-1">
+        <h4 className="text-sm font-medium flex items-center gap-2">
+          <Search className="h-4 w-4 text-primary" />
+          Hitta nya enheter
+        </h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Sök efter nya RAPT Pills och Temperature Controllers i ditt konto
+        </p>
+        {result && (
+          <p className="text-xs text-primary mt-1">{result}</p>
+        )}
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleDiscover}
+        disabled={discovering}
+        className="shrink-0"
+      >
+        {discovering ? (
+          <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Söker...</>
+        ) : (
+          <><Search className="h-4 w-4 mr-2" />Sök enheter</>
+        )}
+      </Button>
+    </div>
+  );
+}
+
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const settings = useSettingsData();
