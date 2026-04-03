@@ -74,8 +74,8 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
       const chartData: ChartDataPoint[] = history.map((record: SampledRecord) => ({
         time: format(new Date(record.recorded_at), timeRange === '3h' ? 'HH:mm' : 'HH:mm', { locale: sv }),
         timestamp: new Date(record.recorded_at).getTime(),
-        currentTemp: Number(record.current_temp),
-        targetTemp: Number(record.target_temp),
+        currentTemp: Math.round(Number(record.current_temp) * 10) / 10,
+        targetTemp: Math.round(Number(record.target_temp) * 10) / 10,
         coolingPercent: Math.round((Number(record.cooling_ratio ?? 0)) * 100),
       }));
 
