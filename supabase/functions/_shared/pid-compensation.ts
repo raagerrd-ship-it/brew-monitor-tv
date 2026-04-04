@@ -141,11 +141,10 @@ export async function calculateCompensatedTarget(
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
 
   if (Math.abs(avgError) <= 0.10) {
-    // DEADBAND
-    if (ssFloor > 0 && integral > ssFloor) {
+    // DEADBAND — converge toward ssFloor gradually from BOTH directions
+    if (ssFloor > 0) {
+      // Always blend 10% toward ssFloor, whether above or below
       integral = integral * 0.90 + ssFloor * 0.10
-    } else if (ssFloor > 0) {
-      integral = ssFloor
     } else {
       integral *= 0.90
     }
