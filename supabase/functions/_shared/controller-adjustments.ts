@@ -312,7 +312,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'pid_last_duty', 'mode_last_step_index', 'pid_effective_target',
     'thermal_rate_heating', 'thermal_rate_cooling',
     'est_prev_actual_temp', 'est_prev_actual_temp_at',
-    'est_observed_rate', 'est_last_prediction',
+    'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
   ]
   const bucketParams = TEMP_BUCKETS.flatMap(b => [`thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
@@ -385,6 +385,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
     let observedRate = pressureMap.get('est_observed_rate') ?? 0
     const observedRateSamples = sampleCountMap.get('est_observed_rate') ?? 0
+    let observedDuty = pressureMap.get('est_observed_duty') ?? 0
 
     // When we have fresh sensor data (not stale), learn the rate
     if (staleMinutes <= 3 && prevActualTemp != null && prevActualTempAt != null) {
@@ -399,8 +400,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           observedRate = observedRate !== 0
             ? observedRate * (1 - alpha) + rawObservedRate * alpha
             : rawObservedRate
+          // Also track the duty that was active during observation (EMA)
+          const dutyAtObservation = prevDutyPct > 0 ? prevDutyPct : 100
+          observedDuty = observedDuty > 0
+            ? observedDuty * (1 - alpha) + dutyAtObservation * alpha
+            : dutyAtObservation
           log('EST_RATE_LEARNED', 'info',
-            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, ${timeDiffHours.toFixed(1)}h mellan synk)`)
+            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, duty@obs ${observedDuty.toFixed(0)}%, ${timeDiffHours.toFixed(1)}h mellan synk)`)
         }
       }
 
@@ -427,8 +433,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         let rateSource: string
 
         if (hasObservedRate) {
-          effectiveRatePerHour = Math.abs(observedRate)
-          rateSource = 'observed'
+          // Scale observed rate by duty ratio: if rate was measured at 90% duty
+          // but current duty is 50%, effective rate should be ~55% of observed
+          const dutyRatio = (observedDuty > 0 && prevDutyPct > 0)
+            ? Math.min(prevDutyPct / observedDuty, 1.5)  // cap at 1.5x to avoid overestimation
+            : 1.0
+          effectiveRatePerHour = Math.abs(observedRate) * dutyRatio
+          rateSource = dutyRatio !== 1.0 ? `observed*${dutyRatio.toFixed(2)}` : 'observed'
         } else {
           const globalRateKey = `thermal_rate_${lastMode}`
           const bucketRateKey = `${globalRateKey}:${thermalBucket}`
@@ -777,7 +788,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ]
       // Store observed rate with sample count for EMA
       if (observedRate !== 0) {
-        rows.push({ controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now })
+        rows.push(
+          { controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
+          { controller_id: fc.controller_id, parameter_name: 'est_observed_duty', learned_value: observedDuty, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
+        )
       }
       // Store prediction for accuracy tracking on next fresh read
       if (tempInterpolated) {
