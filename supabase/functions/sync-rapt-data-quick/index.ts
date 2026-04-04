@@ -1015,24 +1015,40 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Failure alerting
+      // Failure alerting — only notify if the *previous* cycle also failed (consecutive failures)
+      // This suppresses transient errors from edge function deploys (brief 404 windows)
       const failedSteps = [
         profilesResult?.__error && 'profiles',
         metricsResult?.__error && 'metrics',
         healthResult?.__error && 'health',
         pidResult?.__error && 'pid-glycol',
-      ].filter(Boolean);
+      ].filter(Boolean) as string[];
 
       if (failedSteps.length > 0) {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { data: recentNotifs } = await supabase
-          .from('pending_notifications').select('id')
-          .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
-        if ((recentNotifs?.length ?? 0) < 3) {
-          await supabase.from('pending_notifications').insert({
-            type: 'automation_failure', title: 'Automationsfel',
-            body: `${failedSteps.length} steg misslyckades: ${failedSteps.join(', ')}`,
-          });
+        // Check if previous cycle also had a failure (look at last decision log)
+        const { data: prevLog } = await supabase
+          .from('auto_cooling_decision_logs')
+          .select('decisions')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const prevDecisions = (prevLog?.decisions as any[]) ?? [];
+        const prevHadError = prevDecisions.some((d: any) => d.step === 'PID_ERROR');
+
+        if (prevHadError) {
+          // Two consecutive failures — this is a real problem, notify
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+          const { data: recentNotifs } = await supabase
+            .from('pending_notifications').select('id')
+            .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
+          if ((recentNotifs?.length ?? 0) < 3) {
+            await supabase.from('pending_notifications').insert({
+              type: 'automation_failure', title: 'Automationsfel',
+              body: `${failedSteps.length} steg misslyckades (2+ cykler i rad): ${failedSteps.join(', ')}`,
+            });
+          }
+        } else {
+          console.warn(`Transient failure in ${failedSteps.join(', ')} — suppressing notification (first occurrence)`);
         }
       }
 
