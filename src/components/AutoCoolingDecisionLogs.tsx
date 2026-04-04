@@ -1660,8 +1660,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                 return (
                   <div key={i} className="flex items-center gap-1.5">
                     <span className="font-medium">🚨 {d.message}</span>
-                    {det.timeout && <span className="text-red-300">(timeout)</span>}
-                    {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms}ms)</span>}
+                    {(det.timeout as boolean) && <span className="text-red-300">(timeout)</span>}
+                    {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms as number}ms)</span>}
                   </div>
                 );
               })}
