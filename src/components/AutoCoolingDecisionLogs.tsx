@@ -1653,6 +1653,20 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
 
         {/* Phase 2b: Automation (PID + Stall + Glykol + Pass-through) */}
         <PhaseSection code="2b" name="Automation" ms={pt['2b_auto_ms']}>
+          {pidErrorEntries.length > 0 && (
+            <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-0.5">
+              {pidErrorEntries.map((d, i) => {
+                const det = d.details || {};
+                return (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <span className="font-medium">🚨 {d.message}</span>
+                    {det.timeout && <span className="text-red-300">(timeout)</span>}
+                    {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms}ms)</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {pidTableContent}
           {passThroughContent}
           {stallContent}
