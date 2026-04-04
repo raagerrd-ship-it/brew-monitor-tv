@@ -1,0 +1,1 @@
+UPDATE fermentation_learnings SET learned_value = 0.45, sample_count = 5 WHERE controller_id IN (SELECT controller_id FROM rapt_temp_controllers WHERE name ILIKE '%blå%') AND parameter_name = 'steady_state_duty:cold';
