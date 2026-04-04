@@ -1163,15 +1163,25 @@ async function learnFromCurrentState(
 
     log('UTIL_LEARN', 'info', `[${tempBucket}] Cooling utilization: ${Math.round(util * 100)}% (margin ${currentMargin.toFixed(1)}°C)`)
 
-    if (util >= 0.99 && currentMargin > 1.0) {
+    if (util >= 0.80 && currentMargin > 1.0) {
+      // Controller is struggling — increase cooler margin to help.
+      // Scale boost factor by how hard the controller is working:
+      // 80-89% = gentle 1.03x, 90-98% = moderate 1.06x, 99%+ = aggressive 1.08-1.15x
       const sustainedMeta = getSustainedDemandMeta(lowestUtil)
       const isSustained = sustainedMeta.isSustained
-      const boostFactor = isSustained ? 1.15 : 1.08
+      let boostFactor: number
+      if (util >= 0.99) {
+        boostFactor = isSustained ? 1.15 : 1.08
+      } else if (util >= 0.90) {
+        boostFactor = 1.06
+      } else {
+        boostFactor = 1.03
+      }
       const scaledMargin = currentMargin * boostFactor
       const result = batch.update(`cooler_margin:${tempBucket}`, scaledMargin, 2.0, 15.0)
       // Also boost the load-specific hold_margin — this is the param actually used for MARGIN_CALC
       const holdResult = batch.update(marginParam, scaledMargin, 1.0, 15.0)
-      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] Full utilization (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: cooler_margin ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C, ${marginParam} ${holdResult.oldValue.toFixed(2)}→${holdResult.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue, hold_old: holdResult.oldValue, hold_new: holdResult.newValue })
+      log('MARGIN_LEARN', 'action', `🎓 [${tempBucket}] High duty (${Math.round(util * 100)}%)${isSustained ? ` SUSTAINED (${sustainedMeta.highBucketCount}/${sustainedMeta.sampleCount} bucket ≥90%)` : ''} — increasing ×${boostFactor}: cooler_margin ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C, ${marginParam} ${holdResult.oldValue.toFixed(2)}→${holdResult.newValue.toFixed(2)}°C`, { old_value: result.oldValue, new_value: result.newValue, hold_old: holdResult.oldValue, hold_new: holdResult.newValue })
     } else if (util < 0.7 && currentMargin > 1.2) {
       // ── Block tightening if beer is above target (dual-sensor blind spot) ──
       if (anyBeerAboveTarget) {
@@ -1184,7 +1194,7 @@ async function learnFromCurrentState(
         batch.update(marginParam, tighterMargin, 1.0, 15.0, alphaOverride)
         log('MARGIN_LEARN', 'pass', `🎓 [${tempBucket}] Low utilization (${Math.round(util * 100)}%) — tightening: ${result.oldValue.toFixed(2)}→${result.newValue.toFixed(2)}°C${alphaOverride ? ' (fast α=0.3)' : ''}`, { old_value: result.oldValue, new_value: result.newValue })
       }
-    } else if (util >= 0.7 && util < 0.99) {
+    } else if (util >= 0.7 && util < 0.80) {
       if (currentMargin > 2.5 && !anyBeerAboveTarget) {
         const nudge = currentMargin * 0.98
         const result = batch.update(`cooler_margin:${tempBucket}`, nudge, 2.0, 15.0)
