@@ -608,9 +608,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         }
       } else if (dutyBlocked) {
         pidMode = prevMode!
-        log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%)`, {
-          from: prevMode, to: suggestedMode, last_duty: lastDutyPct, pressure: switchPressure,
-        })
+        if (lastDutyPct <= 10) {
+          log('MODE_DUTY_HOLD', 'info', `${fc.name}: väntar på duty 0% innan lägesbyträkning startar (duty ${lastDutyPct}%)`, {
+            from: prevMode, to: suggestedMode, last_duty: lastDutyPct, pressure: switchPressure,
+          })
+        }
       } else if (isStable) {
         switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
