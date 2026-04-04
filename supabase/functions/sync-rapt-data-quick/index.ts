@@ -989,7 +989,10 @@ Deno.serve(async (req) => {
       if (pidFailed) {
         const errDetail: Record<string, any> = { step: pidResult?.__step ?? 'pid-glycol', duration_ms: pidResult?.__duration ?? 0 };
         if (pidResult?.__timeout) errDetail.timeout = true;
-        pidDecisions.push({ step: 'PID_ERROR', result: 'error', message: `pid-glycol misslyckades`, details: errDetail });
+        if (pidResult?.__status) errDetail.http_status = pidResult.__status;
+        if (pidResult?.__errorText) errDetail.error_text = pidResult.__errorText;
+        const reason = pidResult?.__timeout ? 'timeout' : pidResult?.__status === 404 ? 'deploy-404' : pidResult?.__status ? `http-${pidResult.__status}` : 'unknown';
+        pidDecisions.push({ step: 'PID_ERROR', result: 'error', message: `pid-glycol misslyckades (${reason})`, details: errDetail });
       }
       automationResult = {
         automationDecisions: pidDecisions,
