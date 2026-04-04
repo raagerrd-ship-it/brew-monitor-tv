@@ -926,7 +926,7 @@ Deno.serve(async (req) => {
       const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
 
       // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
-      const callFn = async (name: string, body: any, timeoutMs: number, retries = 2) => {
+      const callFn = async (name: string, body: any, timeoutMs: number, retries = 3) => {
         for (let attempt = 1; attempt <= retries; attempt++) {
           const fnStart = Date.now();
           try {
@@ -941,12 +941,13 @@ Deno.serve(async (req) => {
               const errorText = await response.text();
               // Retry on transient errors (404 during deploy, 502/503 gateway)
               if (attempt < retries && [404, 502, 503].includes(response.status)) {
-                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in 3s...`);
-                await new Promise(r => setTimeout(r, 3000));
+                const delay = response.status === 404 ? 5000 : 3000; // longer delay for 404 (deploy in progress)
+                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in ${delay/1000}s...`);
+                await new Promise(r => setTimeout(r, delay));
                 continue;
               }
               console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
-              return { __error: true, __step: name, __duration: duration };
+              return { __error: true, __step: name, __duration: duration, __status: response.status };
             }
             const data = await response.json();
             if (attempt > 1) console.log(`  ✅ ${name}: ${duration}ms (retry ${attempt})`);
