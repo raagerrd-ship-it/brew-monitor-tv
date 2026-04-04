@@ -1048,21 +1048,22 @@ async function learnFromCurrentState(
   }
 
   // ── Skip margin/cooling-rate learning during PWM ON phases ──
-  // EXCEPTION: When any tank is at ≥97% utilization (saturated demand),
-  // we MUST still learn the margin upward — otherwise the learned margin
-  // stays frozen while SUSTAINED_DEMAND only applies a temporary boost each cycle.
+  // EXCEPTION: When any tank has high utilization (≥70% duty), we MUST still
+  // learn — the controller is struggling and the cooler should increase its
+  // margin to help. Previously this threshold was 97%, which meant controllers
+  // at 80-90% duty never triggered margin increases.
   const anyPwmActive = controllersWithCooling.some(c => {
     const t = parseFloat(String(c.target_temp ?? '20'))
     return t <= -4 || t >= 39
   })
-  const anyUtilSaturated = utilizations?.some(u => u.utilization != null && u.utilization >= 0.97) ?? false
-  if (anyPwmActive && !anyUtilSaturated) {
+  const anyHighDuty = utilizations?.some(u => u.utilization != null && u.utilization >= 0.70) ?? false
+  if (anyPwmActive && !anyHighDuty) {
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
     log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
   }
-  if (anyPwmActive && anyUtilSaturated) {
-    log('MARGIN_LEARN', 'info', `PWM aktiv men tank mättad (≥97%) — tillåter marginalinlärning`)
+  if (anyPwmActive && anyHighDuty) {
+    log('MARGIN_LEARN', 'info', `PWM aktiv men tank med hög duty (≥70%) — tillåter marginalinlärning`)
   }
   const currentCoolerTarget = parseFloat(String(coolerController.target_temp ?? '18'))
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
