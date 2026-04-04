@@ -433,8 +433,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         let rateSource: string
 
         if (hasObservedRate) {
-          effectiveRatePerHour = Math.abs(observedRate)
-          rateSource = 'observed'
+          // Scale observed rate by duty ratio: if rate was measured at 90% duty
+          // but current duty is 50%, effective rate should be ~55% of observed
+          const dutyRatio = (observedDuty > 0 && prevDutyPct > 0)
+            ? Math.min(prevDutyPct / observedDuty, 1.5)  // cap at 1.5x to avoid overestimation
+            : 1.0
+          effectiveRatePerHour = Math.abs(observedRate) * dutyRatio
+          rateSource = dutyRatio !== 1.0 ? `observed*${dutyRatio.toFixed(2)}` : 'observed'
         } else {
           const globalRateKey = `thermal_rate_${lastMode}`
           const bucketRateKey = `${globalRateKey}:${thermalBucket}`
