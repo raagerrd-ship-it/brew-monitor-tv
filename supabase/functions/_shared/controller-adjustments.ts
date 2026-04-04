@@ -385,6 +385,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
     let observedRate = pressureMap.get('est_observed_rate') ?? 0
     const observedRateSamples = sampleCountMap.get('est_observed_rate') ?? 0
+    let observedDuty = pressureMap.get('est_observed_duty') ?? 0
 
     // When we have fresh sensor data (not stale), learn the rate
     if (staleMinutes <= 3 && prevActualTemp != null && prevActualTempAt != null) {
