@@ -788,7 +788,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ]
       // Store observed rate with sample count for EMA
       if (observedRate !== 0) {
-        rows.push({ controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now })
+        rows.push(
+          { controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
+          { controller_id: fc.controller_id, parameter_name: 'est_observed_duty', learned_value: observedDuty, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
+        )
       }
       // Store prediction for accuracy tracking on next fresh read
       if (tempInterpolated) {
