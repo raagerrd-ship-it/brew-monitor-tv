@@ -464,8 +464,42 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
                                    (lastMode === 'heating' && gapToTarget < 0)
 
           if (!isOnCorrectSide) {
-            // Already past target — don't interpolate further away from it
-            // PID will use actual sensor value and correct naturally
+            // Already past target — estimate passive recovery toward target
+            // When cooling overshoots (temp < target), ambient heat pulls temp back up
+            // When heating overshoots (temp > target), heat loss pulls temp back down
+            const overshoot = Math.abs(gapToTarget) // how far past target
+            const dutyFraction = Math.min(prevDutyPct, 100) / 100
+
+            // Passive recovery rate: larger overshoot = faster recovery (more thermal gradient)
+            // Base passive rate ~0.10°C/h, scaled by overshoot magnitude
+            const passiveRate = Math.min(0.10 + overshoot * 0.3, 0.4) // cap at 0.4°C/h
+
+            // If duty is still active, it fights recovery — net rate decreases
+            // At 0% duty: full passive recovery. At 100% duty: active force dominates.
+            const activeForce = effectiveRatePerHour * dutyFraction
+            const netRecoveryRate = Math.max(passiveRate - activeForce * 0.3, 0)
+
+            if (netRecoveryRate > 0) {
+              const recoveryPerMin = netRecoveryRate / 60
+              const recoveryDelta = Math.min(recoveryPerMin * staleMinutes, overshoot * 0.5) // don't recover more than halfway
+              const recoverySign = lastMode === 'cooling' ? 1 : -1 // opposite of active direction
+
+              interpolatedTemp = actualTemp + recoverySign * recoveryDelta
+              // Clamp: don't recover past target
+              if (lastMode === 'cooling') {
+                interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
+              } else {
+                interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
+              }
+
+              interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
+
+              if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
+                tempInterpolated = true
+                log('TEMP_INTERPOLATED', 'info',
+                  `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (recovery ${netRecoveryRate.toFixed(2)}°/h, overshoot ${overshoot.toFixed(2)}°, prevDuty ${prevDutyPct}%)`)
+              }
+            }
           } else {
             const ratePerMin = effectiveRatePerHour / 60
             const rawDelta = ratePerMin * staleMinutes
