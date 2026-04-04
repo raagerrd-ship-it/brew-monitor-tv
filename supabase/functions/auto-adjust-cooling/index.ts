@@ -187,7 +187,9 @@ Deno.serve(async (req) => {
         runningSessions = reqBody.injected_sessions.filter((s: any) =>
           s.status === 'running' && followedControllerIds.includes(s.controller_id)
         );
-        log('SESSIONS', 'info', `Using ${runningSessions!.length} injected session(s) from orchestrator`);
+        if (runningSessions!.length > 0) {
+          log('SESSIONS', 'info', `Using ${runningSessions!.length} injected session(s) from orchestrator`);
+        }
       } else {
         const { data } = await supabase
           .from('fermentation_sessions')
