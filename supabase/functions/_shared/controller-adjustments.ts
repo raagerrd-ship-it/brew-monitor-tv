@@ -400,8 +400,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           observedRate = observedRate !== 0
             ? observedRate * (1 - alpha) + rawObservedRate * alpha
             : rawObservedRate
+          // Also track the duty that was active during observation (EMA)
+          const dutyAtObservation = prevDutyPct > 0 ? prevDutyPct : 100
+          observedDuty = observedDuty > 0
+            ? observedDuty * (1 - alpha) + dutyAtObservation * alpha
+            : dutyAtObservation
           log('EST_RATE_LEARNED', 'info',
-            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, ${timeDiffHours.toFixed(1)}h mellan synk)`)
+            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, duty@obs ${observedDuty.toFixed(0)}%, ${timeDiffHours.toFixed(1)}h mellan synk)`)
         }
       }
 
