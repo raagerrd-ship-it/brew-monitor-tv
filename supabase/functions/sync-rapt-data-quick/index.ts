@@ -982,11 +982,17 @@ Deno.serve(async (req) => {
       }
 
       // Build automationResult compatible with Phase 3 expectations
+      const pidFailed = pidResult?.__error === true;
+      const pidDecisions = !pidFailed ? (pidResult?.decisionLog ?? []) : [];
+      // Inject error decision so the UI shows *why* Phase 2b was empty
+      if (pidFailed) {
+        const errDetail: Record<string, any> = { step: pidResult?.__step ?? 'pid-glycol', duration_ms: pidResult?.__duration ?? 0 };
+        if (pidResult?.__timeout) errDetail.timeout = true;
+        pidDecisions.push({ step: 'PID_ERROR', result: 'error', message: `pid-glycol misslyckades`, details: errDetail });
+      }
       automationResult = {
-        automationDecisions: [
-          ...(pidResult && !pidResult.__error ? (pidResult.decisionLog ?? []) : []),
-        ],
-        automationFinalResult: pidResult && !pidResult.__error ? (pidResult.message ?? null) : null,
+        automationDecisions: pidDecisions,
+        automationFinalResult: !pidFailed ? (pidResult?.message ?? null) : null,
         automationAdjustmentMade: (pidResult?.adjustments?.length ?? 0) > 0,
         pendingUpdates: pidResult?.pendingUpdates ?? [],
         hwOnlyIds: pidResult?.hwOnlyIds ?? [],
