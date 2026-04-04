@@ -154,9 +154,9 @@ export const SonosWidget = memo(function SonosWidget({
     setImageError(false);
   }, [incomingArtUrl]);
 
-  if (isHidden) return variant === "header" ? <Logo /> : null;
-
   const isHeader = variant === "header";
+
+  if (isHidden) return isHeader ? <Logo /> : null;
 
   // Header variant: transparent item matching RAPT controller-bar style
   if (isHeader) {
