@@ -458,33 +458,36 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         }
 
         if (effectiveRatePerHour > 0) {
-          const ratePerMin = effectiveRatePerHour / 60
-          const rawDelta = ratePerMin * staleMinutes
-          const deltaEst = Math.min(rawDelta, 0.3)
-          const sign = lastMode === 'cooling' ? -1 : 1
-
-          interpolatedTemp = actualTemp + sign * deltaEst
           const gapToTarget = actualTemp - actualTarget
 
           const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
                                    (lastMode === 'heating' && gapToTarget < 0)
 
-          if (isOnCorrectSide) {
+          if (!isOnCorrectSide) {
+            // Already past target — don't interpolate further away from it
+            // PID will use actual sensor value and correct naturally
+          } else {
+            const ratePerMin = effectiveRatePerHour / 60
+            const rawDelta = ratePerMin * staleMinutes
+            const deltaEst = Math.min(rawDelta, 0.3)
+            const sign = lastMode === 'cooling' ? -1 : 1
+
+            interpolatedTemp = actualTemp + sign * deltaEst
+
+            // Clamp: don't interpolate past the target
             if (lastMode === 'cooling') {
-              interpolatedTemp = Math.max(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+              interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
             } else {
-              interpolatedTemp = Math.min(interpolatedTemp, actualTarget + gapToTarget * 0.5)
+              interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
             }
-            if (lastMode === 'cooling') interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
-            if (lastMode === 'heating') interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
-          }
 
-          interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
+            interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
 
-          if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
-            tempInterpolated = true
-            log('TEMP_INTERPOLATED', 'info',
-              `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, prevDuty ${prevDutyPct}%)`)
+            if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
+              tempInterpolated = true
+              log('TEMP_INTERPOLATED', 'info',
+                `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, prevDuty ${prevDutyPct}%)`)
+            }
           }
         }
       }
