@@ -947,7 +947,7 @@ Deno.serve(async (req) => {
                 continue;
               }
               console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
-              return { __error: true, __step: name, __duration: duration, __status: response.status };
+              return { __error: true, __step: name, __duration: duration, __status: response.status, __errorText: errorText.slice(0, 300) };
             }
             const data = await response.json();
             if (attempt > 1) console.log(`  ✅ ${name}: ${duration}ms (retry ${attempt})`);
