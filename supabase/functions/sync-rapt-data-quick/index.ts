@@ -926,7 +926,7 @@ Deno.serve(async (req) => {
       const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
 
       // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
-      const callFn = async (name: string, body: any, timeoutMs: number, retries = 2) => {
+      const callFn = async (name: string, body: any, timeoutMs: number, retries = 3) => {
         for (let attempt = 1; attempt <= retries; attempt++) {
           const fnStart = Date.now();
           try {
@@ -941,12 +941,13 @@ Deno.serve(async (req) => {
               const errorText = await response.text();
               // Retry on transient errors (404 during deploy, 502/503 gateway)
               if (attempt < retries && [404, 502, 503].includes(response.status)) {
-                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in 3s...`);
-                await new Promise(r => setTimeout(r, 3000));
+                const delay = response.status === 404 ? 5000 : 3000; // longer delay for 404 (deploy in progress)
+                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in ${delay/1000}s...`);
+                await new Promise(r => setTimeout(r, delay));
                 continue;
               }
               console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
-              return { __error: true, __step: name, __duration: duration };
+              return { __error: true, __step: name, __duration: duration, __status: response.status };
             }
             const data = await response.json();
             if (attempt > 1) console.log(`  ✅ ${name}: ${duration}ms (retry ${attempt})`);
@@ -1014,24 +1015,40 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Failure alerting
+      // Failure alerting — only notify if the *previous* cycle also failed (consecutive failures)
+      // This suppresses transient errors from edge function deploys (brief 404 windows)
       const failedSteps = [
         profilesResult?.__error && 'profiles',
         metricsResult?.__error && 'metrics',
         healthResult?.__error && 'health',
         pidResult?.__error && 'pid-glycol',
-      ].filter(Boolean);
+      ].filter(Boolean) as string[];
 
       if (failedSteps.length > 0) {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { data: recentNotifs } = await supabase
-          .from('pending_notifications').select('id')
-          .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
-        if ((recentNotifs?.length ?? 0) < 3) {
-          await supabase.from('pending_notifications').insert({
-            type: 'automation_failure', title: 'Automationsfel',
-            body: `${failedSteps.length} steg misslyckades: ${failedSteps.join(', ')}`,
-          });
+        // Check if previous cycle also had a failure (look at last decision log)
+        const { data: prevLog } = await supabase
+          .from('auto_cooling_decision_logs')
+          .select('decisions')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const prevDecisions = (prevLog?.decisions as any[]) ?? [];
+        const prevHadError = prevDecisions.some((d: any) => d.step === 'PID_ERROR');
+
+        if (prevHadError) {
+          // Two consecutive failures — this is a real problem, notify
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+          const { data: recentNotifs } = await supabase
+            .from('pending_notifications').select('id')
+            .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
+          if ((recentNotifs?.length ?? 0) < 3) {
+            await supabase.from('pending_notifications').insert({
+              type: 'automation_failure', title: 'Automationsfel',
+              body: `${failedSteps.length} steg misslyckades (2+ cykler i rad): ${failedSteps.join(', ')}`,
+            });
+          }
+        } else {
+          console.warn(`Transient failure in ${failedSteps.join(', ')} — suppressing notification (first occurrence)`);
         }
       }
 
