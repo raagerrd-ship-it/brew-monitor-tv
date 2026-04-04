@@ -715,9 +715,11 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    log('ERROR', 'fail', 'Unexpected error', { error: error instanceof Error ? error.message : 'Unknown error' });
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+    const errStack = error instanceof Error ? error.stack?.split('\n').slice(0, 3).join(' | ') : undefined;
+    log('ERROR', 'fail', 'Unexpected error', { error: errMsg, stack: errStack });
     await printSummary(supabase, 'Error', false);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error', decisionLog }), {
+    return new Response(JSON.stringify({ error: errMsg, error_type: error instanceof Error ? error.constructor.name : 'unknown', decisionLog }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

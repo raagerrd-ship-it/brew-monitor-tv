@@ -1047,7 +1047,7 @@ Deno.serve(async (req) => {
           if ((recentNotifs?.length ?? 0) < 3) {
             await supabase.from('pending_notifications').insert({
               type: 'automation_failure', title: 'Automationsfel',
-              body: `${failedSteps.length} steg misslyckades (2+ cykler i rad): ${failedSteps.join(', ')}`,
+              body: `${failedSteps.length} steg misslyckades (2+ cykler i rad): ${failedSteps.join(', ')}. Orsak: ${pidFailed ? (pidResult?.__timeout ? 'timeout' : pidResult?.__status ? `HTTP ${pidResult.__status}` : 'okänt') : 'se logg'}`,
             });
           }
         } else {

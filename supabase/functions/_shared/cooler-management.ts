@@ -1179,6 +1179,11 @@ async function learnFromCurrentState(
       } else {
         boostFactor = 1.02
       }
+      // Apply the boosted margin (previously missing — boostFactor was calculated but never saved)
+      const boostedMargin = currentMargin * boostFactor
+      const result = batch.update(marginParam, boostedMargin, 1.0, 15.0)
+      batch.update(`cooler_margin:${tempBucket}`, boostedMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'action', `[${tempBucket}:util=${Math.round(util * 100)}%] Boost ×${boostFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C${isSustained ? ' (sustained)' : ''}`, { old_value: result.oldValue, new_value: result.newValue, boost: boostFactor, util: Math.round(util * 100) })
     } else {
       batch.update(marginParam, currentMargin, 1.0, 15.0)
     }
