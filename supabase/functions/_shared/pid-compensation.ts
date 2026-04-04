@@ -141,10 +141,17 @@ export async function calculateCompensatedTarget(
   const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
 
   if (Math.abs(avgError) <= 0.10) {
-    // DEADBAND — converge toward ssFloor gradually from BOTH directions
+    // DEADBAND — converge toward ssFloor gradually
     if (ssFloor > 0) {
-      // Always blend 10% toward ssFloor, whether above or below
-      integral = integral * 0.90 + ssFloor * 0.10
+      if (integral > ssFloor) {
+        // Above floor: blend down at 10% per cycle
+        integral = integral * 0.90 + ssFloor * 0.10
+      } else {
+        // Below floor (e.g. recovering from overshoot): blend up slowly at 5% per cycle
+        // This prevents a duty spike when transitioning from overshoot → deadband
+        integral = integral * 0.95 + ssFloor * 0.05
+        constraints.push('deadband-recovery')
+      }
     } else {
       integral *= 0.90
     }
