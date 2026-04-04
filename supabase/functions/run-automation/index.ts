@@ -47,11 +47,12 @@ Deno.serve(async (req) => {
           const errorText = await response.text();
           // Retry on transient errors (404 during deploy, 502/503 gateway)
           if (attempt < retries && [404, 502, 503].includes(response.status)) {
-            console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in 3s...`);
-            await new Promise(r => setTimeout(r, 3000));
+            const delay = response.status === 404 ? 5000 : 3000;
+            console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in ${delay/1000}s...`);
+            await new Promise(r => setTimeout(r, delay));
             continue;
           }
-          results.push({ step: name, status: "error", duration_ms, error: `${response.status}: ${errorText}` });
+          results.push({ step: name, status: "error", duration_ms, error: `${response.status}: ${errorText.slice(0, 300)}` });
           return null;
         }
 
