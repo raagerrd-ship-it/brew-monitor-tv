@@ -14,14 +14,14 @@ interface UseSonosVisibilityParams {
  * Manages widget visibility.
  * - Inactive (no connection / no track / TV Audio) → hide immediately.
  * - IDLE → 5s grace then hide.
- * - PAUSED on two consecutive checks → hide immediately.
+ * - PAUSED → 30s without new update then hide.
  */
 export function useSonosVisibility(params: UseSonosVisibilityParams) {
   const { isConnected, showWidget, nowPlaying, onAlbumArtChangeRef, bgSentRef, validBgBufferRef } = params;
   const [graceExpired, setGraceExpired] = useState(false);
   const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasPausedRef = useRef(false);
   const [pauseHidden, setPauseHidden] = useState(false);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
   const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
@@ -55,26 +55,27 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
     setGraceExpired(false);
   }, [isInactive, wantsToHide]);
 
-  // PAUSED: if paused on two consecutive nowPlaying updates → hide
+  // PAUSED: hide after 30s without a new update
   useEffect(() => {
     if (isInactive) {
-      wasPausedRef.current = false;
+      if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null; }
       setPauseHidden(false);
       return;
     }
     if (isPaused) {
-      if (wasPausedRef.current) {
-        console.log('[Sonos:Visibility] Paused on consecutive updates — hiding widget');
+      // (Re)start 30s timer on every update while paused
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = setTimeout(() => {
+        console.log('[Sonos:Visibility] Paused for 30s without update — hiding widget');
         setPauseHidden(true);
         clearAll();
-      } else {
-        wasPausedRef.current = true;
-      }
+        pauseTimerRef.current = null;
+      }, 30_000);
     } else {
-      wasPausedRef.current = false;
+      if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null; }
       setPauseHidden(false);
     }
-  }, [isPaused, isInactive, nowPlaying?.playback_state, nowPlaying?.track_name]);
+  }, [isPaused, isInactive, nowPlaying?.playback_state, nowPlaying?.track_name, nowPlaying?.position_ms]);
 
   const shouldHide = isInactive || (wantsToHide && graceExpired) || pauseHidden;
   return { shouldHide };
