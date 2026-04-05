@@ -153,7 +153,10 @@ export async function calculateCompensatedTarget(
         constraints.push('deadband-recovery')
       }
     } else {
-      integral *= 0.90
+      // No ssFloor known — faster decay to account for thermal inertia.
+      // At 20% decay/cycle (5 min), integral drops from 18% to 5% in ~30 min
+      // vs the old 10%/cycle which took ~50 min.
+      integral *= 0.80
     }
     dutyCycle = Math.max(0, integral)
     constraints.push('deadband')
@@ -203,11 +206,18 @@ export async function calculateCompensatedTarget(
       // Interpolation predicts cooling effect, which creates false "error decreasing"
       // signals that prematurely reduce duty cycle before the hardware has actually
       // moved the temperature.
-      // Brake toward ssFloor if known, otherwise toward 0 (always brake when approaching target)
-      const brakeTarget = ssFloor > 0 ? ssFloor : 0
       if (need < BRAKE_ZONE && errorDecreasing && !isInterpolated) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
-        const blendedI = integral * proximity + brakeTarget * (1 - proximity)
+        let blendedI: number
+        if (ssFloor > 0) {
+          // Blend toward known steady-state floor
+          blendedI = integral * proximity + ssFloor * (1 - proximity)
+        } else {
+          // No ssFloor: apply progressive decay (not blend-to-0 which is too aggressive).
+          // At proximity=0 (near deadband): keep 50% of integral
+          // At proximity=1 (far from target): keep 100% (no braking yet)
+          blendedI = integral * (0.50 + 0.50 * proximity)
+        }
         if (blendedI < integral) {
           constraints.push(`brake=${(proximity * 100).toFixed(0)}%`)
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
