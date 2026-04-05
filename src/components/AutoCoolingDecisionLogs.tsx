@@ -1671,14 +1671,32 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
         {/* Phase 2b: Automation (PID + Stall + Glykol + Pass-through) */}
         <PhaseSection code="2b" name="Automation" ms={pt['2b_auto_ms']}>
           {pidErrorEntries.length > 0 && (
-            <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-0.5">
+            <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-1">
               {pidErrorEntries.map((d, i) => {
                 const det = d.details || {};
+                const errorText = det.error_text as string | undefined;
+                let parsedError: string | null = null;
+                if (errorText) {
+                  try {
+                    const parsed = JSON.parse(errorText);
+                    parsedError = parsed.error || parsed.message || errorText;
+                  } catch {
+                    parsedError = errorText.slice(0, 200);
+                  }
+                }
                 return (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <span className="font-medium">🚨 {d.message}</span>
-                    {(det.timeout as boolean) && <span className="text-red-300">(timeout)</span>}
-                    {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms as number}ms)</span>}
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">🚨 {d.message}</span>
+                      {(det.timeout as boolean) && <span className="text-red-300">(timeout)</span>}
+                      {det.http_status != null && <span className="text-red-300/80">HTTP {det.http_status as number}</span>}
+                      {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms as number}ms)</span>}
+                    </div>
+                    {parsedError && (
+                      <div className="text-[9px] text-red-300/70 pl-4 font-mono break-all leading-relaxed">
+                        {parsedError}
+                      </div>
+                    )}
                   </div>
                 );
               })}
