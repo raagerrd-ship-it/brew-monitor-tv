@@ -18,6 +18,7 @@ interface CombinedControllerChartProps {
 /** Metric suffixes and their display config */
 const METRICS = [
   { suffix: 'cooling', label: 'Kylning %', type: 'area' as const, dash: undefined },
+  { suffix: 'heating', label: 'Värmning %', type: 'area' as const, dash: undefined },
   { suffix: 'probe', label: 'Probe', type: 'line' as const, dash: undefined },
   { suffix: 'actual', label: 'Faktisk', type: 'line' as const, dash: undefined },
   { suffix: 'target', label: 'HW-mål', type: 'line' as const, dash: '5 5' as string | undefined },
