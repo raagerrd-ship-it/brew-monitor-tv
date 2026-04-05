@@ -267,7 +267,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               <YAxis
                 yAxisId="temp"
                 orientation={hasCoolingVisible ? 'right' : 'left'}
-                domain={tempDomain}
+                domain={dynamicTempDomain}
                 tick={AXIS_CONFIG.tick}
                 className="text-muted-foreground"
                 tickFormatter={(value) => `${value}°`}
