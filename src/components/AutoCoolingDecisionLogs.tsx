@@ -530,6 +530,20 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
+  // PID_ERROR badge — show error reason in collapsed header
+  if (hasPidError) {
+    const pidErr = log.decisions.find(d => d.step === 'PID_ERROR');
+    const errDet = pidErr?.details as Record<string, unknown> | undefined;
+    const httpStatus = errDet?.http_status ? `HTTP ${errDet.http_status}` : '';
+    const isTimeout = !!errDet?.timeout;
+    const errLabel = isTimeout ? 'PID Timeout' : httpStatus ? `PID ${httpStatus}` : 'PID Fel';
+    raptBadges.push(
+      <Badge key="pid-err" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)' }}>
+        <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />{errLabel}
+      </Badge>
+    );
+  }
+
   // Retry actions
   const retryActions = log.decisions.filter(d => d.step === 'RETRY' && d.result === 'action');
   for (const retry of retryActions) {
