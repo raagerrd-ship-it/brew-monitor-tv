@@ -131,8 +131,9 @@ const PIPELINE_STEPS = new Set([
   'PASS_THROUGH',
   'STALL',
   'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
-  'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
-  'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
+  'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC',
+  'RATE_LIMIT', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
+  'RAMP_BLOCK',
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG', 'COOLER_IDLE',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
@@ -141,6 +142,7 @@ const PIPELINE_STEPS = new Set([
   'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'DUTY_PWM_SKIP',
   'DUTY_BURST', 'DUTY_FULL', 'DUTY_ZERO', 'DUTY_PHASE_B', 'DUTY_SKIP',
   'RETRY', 'PWM_OFF',
+  'PID_ERROR',
 ]);
 
 // --- Helpers ---
@@ -383,7 +385,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
   const phaseTimings = log.decisions.find(d => d.step === 'PHASE_TIMINGS')?.details as Record<string, unknown> | undefined;
   const hasRaptFetchError = !!phaseTimings?.['1_failed_in'];
-  const hasError = log.final_result === 'Error' || hasRaptFetchError;
+  const hasPidError = log.decisions.some(d => d.step === 'PID_ERROR');
+  const hasError = log.final_result === 'Error' || hasRaptFetchError || hasPidError;
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Extract RAPT_SEND outcomes from decisions
@@ -523,6 +526,20 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     raptBadges.push(
       <Badge key="flush-fail" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)' }}>
         <XCircle className="h-2.5 w-2.5 mr-0.5" />{batchFlushTimeout ? 'RAPT Timeout' : 'RAPT Fel'}
+      </Badge>
+    );
+  }
+
+  // PID_ERROR badge — show error reason in collapsed header
+  if (hasPidError) {
+    const pidErr = log.decisions.find(d => d.step === 'PID_ERROR');
+    const errDet = pidErr?.details as Record<string, unknown> | undefined;
+    const httpStatus = errDet?.http_status ? `HTTP ${errDet.http_status}` : '';
+    const isTimeout = !!errDet?.timeout;
+    const errLabel = isTimeout ? 'PID Timeout' : httpStatus ? `PID ${httpStatus}` : 'PID Fel';
+    raptBadges.push(
+      <Badge key="pid-err" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(0 84% 60% / 0.2)', color: 'hsl(0 84% 60%)', borderColor: 'hsl(0 84% 60% / 0.3)' }}>
+        <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />{errLabel}
       </Badge>
     );
   }
@@ -1654,14 +1671,32 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
         {/* Phase 2b: Automation (PID + Stall + Glykol + Pass-through) */}
         <PhaseSection code="2b" name="Automation" ms={pt['2b_auto_ms']}>
           {pidErrorEntries.length > 0 && (
-            <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-0.5">
+            <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-1">
               {pidErrorEntries.map((d, i) => {
                 const det = d.details || {};
+                const errorText = det.error_text as string | undefined;
+                let parsedError: string | null = null;
+                if (errorText) {
+                  try {
+                    const parsed = JSON.parse(errorText);
+                    parsedError = parsed.error || parsed.message || errorText;
+                  } catch {
+                    parsedError = errorText.slice(0, 200);
+                  }
+                }
                 return (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <span className="font-medium">🚨 {d.message}</span>
-                    {(det.timeout as boolean) && <span className="text-red-300">(timeout)</span>}
-                    {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms as number}ms)</span>}
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">🚨 {d.message}</span>
+                      {(det.timeout as boolean) && <span className="text-red-300">(timeout)</span>}
+                      {det.http_status != null && <span className="text-red-300/80">HTTP {det.http_status as number}</span>}
+                      {det.duration_ms != null && <span className="text-muted-foreground">({det.duration_ms as number}ms)</span>}
+                    </div>
+                    {parsedError && (
+                      <div className="text-[9px] text-red-300/70 pl-4 font-mono break-all leading-relaxed">
+                        {parsedError}
+                      </div>
+                    )}
                   </div>
                 );
               })}
