@@ -11,6 +11,8 @@ interface SampledRecord {
   target_temp: number;
   cooling_enabled: boolean;
   cooling_ratio: number | null;
+  actual_temp: number | null;
+  profile_target_temp: number | null;
 }
 
 export interface ChartDataPoint {
@@ -19,6 +21,8 @@ export interface ChartDataPoint {
   currentTemp: number;
   targetTemp: number;
   coolingPercent: number;
+  actualTemp: number | null;
+  profileTargetTemp: number | null;
 }
 
 interface UseControllerTempDataProps {
@@ -77,6 +81,8 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
         currentTemp: Math.round(Number(record.current_temp) * 10) / 10,
         targetTemp: Math.round(Number(record.target_temp) * 10) / 10,
         coolingPercent: Math.round((Number(record.cooling_ratio ?? 0)) * 100),
+        actualTemp: record.actual_temp != null ? Math.round(Number(record.actual_temp) * 10) / 10 : null,
+        profileTargetTemp: record.profile_target_temp != null ? Math.round(Number(record.profile_target_temp) * 10) / 10 : null,
       }));
 
       setData(chartData);
@@ -87,7 +93,7 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
   }, [controllerId, timeRange]);
 
   // Calculate min/max for Y axis with some padding
-  const temps = data.length > 0 ? data.flatMap(d => [d.currentTemp, d.targetTemp]) : [0];
+  const temps = data.length > 0 ? data.flatMap(d => [d.currentTemp, d.targetTemp, ...(d.actualTemp != null ? [d.actualTemp] : []), ...(d.profileTargetTemp != null ? [d.profileTargetTemp] : [])]) : [0];
   const minTemp = Math.floor(Math.min(...temps)) - 1;
   const maxTemp = Math.ceil(Math.max(...temps)) + 1;
 
