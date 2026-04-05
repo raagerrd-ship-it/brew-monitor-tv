@@ -94,8 +94,12 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
 
   // Calculate min/max for Y axis with some padding
   const temps = data.length > 0 ? data.flatMap(d => [d.currentTemp, d.targetTemp, ...(d.actualTemp != null ? [d.actualTemp] : []), ...(d.profileTargetTemp != null ? [d.profileTargetTemp] : [])]) : [0];
-  const minTemp = Math.floor(Math.min(...temps)) - 1;
-  const maxTemp = Math.ceil(Math.max(...temps)) + 1;
+  const rawMin = Math.min(...temps);
+  const rawMax = Math.max(...temps);
+  const range = rawMax - rawMin || 1;
+  const pad = range * 0.05; // 5% padding each side → data fills ~90% of chart
+  const minTemp = Math.floor((rawMin - pad) * 10) / 10;
+  const maxTemp = Math.ceil((rawMax + pad) * 10) / 10;
 
   return {
     data,

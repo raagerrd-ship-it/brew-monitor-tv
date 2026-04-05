@@ -107,9 +107,11 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
 
       const merged = Array.from(bucketMap.values()).sort((a, b) => a.timestamp - b.timestamp);
       setData(merged);
+      const rawRange = (allMaxTemp - allMinTemp) || 1;
+      const pad = rawRange * 0.05;
       setTempDomain([
-        allMinTemp === Infinity ? 0 : Math.floor(allMinTemp) - 1,
-        allMaxTemp === -Infinity ? 30 : Math.ceil(allMaxTemp) + 1,
+        allMinTemp === Infinity ? 0 : Math.floor((allMinTemp - pad) * 10) / 10,
+        allMaxTemp === -Infinity ? 30 : Math.ceil((allMaxTemp + pad) * 10) / 10,
       ]);
       setLoading(false);
     };
