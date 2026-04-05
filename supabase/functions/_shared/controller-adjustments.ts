@@ -859,9 +859,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // IMPORTANT: Only update ssFloor when system is genuinely stable in deadband,
       // NOT during recovery from overshoot (integral < ssFloor = self-reinforcing loop)
       const isRecovery = pidResult.constraints?.includes('deadband-recovery')
-      if (pidResult.dutyCycle != null && pidResult.constraints?.includes('deadband') && !isRecovery && pidResult.iCorrection != null) {
+      const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
+      const isInDeadband = pidResult.constraints?.includes('deadband')
+      const canLearnSsFloor = pidResult.dutyCycle != null && pidResult.iCorrection != null &&
+        (isInDeadband && !isRecovery) || (isMildOvershoot)
+      if (canLearnSsFloor) {
         const dutyBucket = getTempBucket(actualTarget)
-        const quantizedDuty = Math.round(pidResult.iCorrection * 10) / 10
+        const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
         // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
         const { data: existingSs } = await supabase
           .from('fermentation_learnings')
@@ -870,11 +874,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           .eq('parameter_name', `steady_state_duty:${dutyBucket}`)
           .maybeSingle()
         const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
-        // Only learn if integral is close to current floor (within ±20%) — true steady state
-        const isStable = Math.abs(quantizedDuty - currentFloor) <= currentFloor * 0.20 + 0.05
+        // Wider tolerance during mild-overshoot (±50%) to allow floor to converge faster
+        // when system consistently overshoots due to too-high floor.
+        // Normal deadband: ±20% stability guard.
+        const tolerance = isMildOvershoot ? 0.50 : 0.20
+        const isStable = Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
         if (isStable) {
+          // During mild-overshoot, use EMA with higher alpha to converge faster
+          let learnedValue = quantizedDuty
+          if (isMildOvershoot && currentFloor > 0) {
+            const alpha = 0.4 // faster convergence (vs normal deadband which just sets directly)
+            learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
+          }
           const ssCount = (existingSs?.sample_count ?? 0) + 1
-          rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: quantizedDuty, sample_count: ssCount, last_updated_at: now })
+          rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
         }
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
