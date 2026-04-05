@@ -51,7 +51,7 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
 
       const { data: history, error } = await supabase
         .from('temp_controller_history')
-        .select('controller_id, recorded_at, duty_pct, current_temp, target_temp, actual_temp, profile_target_temp')
+        .select('controller_id, recorded_at, duty_pct, cooling_enabled, current_temp, target_temp, actual_temp, profile_target_temp')
         .gte('recorded_at', startTime.toISOString())
         .lte('recorded_at', now.toISOString())
         .in('controller_id', controllers.map(c => c.id))
@@ -83,12 +83,19 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
         const point = bucketMap.get(bucketTs)!;
         const id = record.controller_id;
 
-        // Duty/cooling (max in bucket)
+        // Duty: split into cooling vs heating based on cooling_enabled
         if (record.duty_pct != null) {
-          const coolingKey = `${id}_cooling`;
-          const existing = point[coolingKey] as number | undefined;
           const value = parseFloat(String(record.duty_pct));
-          point[coolingKey] = existing != null ? Math.max(existing, value) : value;
+          const isCooling = record.cooling_enabled;
+          const coolingKey = `${id}_cooling`;
+          const heatingKey = `${id}_heating`;
+          if (isCooling) {
+            const existing = point[coolingKey] as number | undefined;
+            point[coolingKey] = existing != null ? Math.max(existing, value) : value;
+          } else {
+            const existing = point[heatingKey] as number | undefined;
+            point[heatingKey] = existing != null ? Math.max(existing, value) : value;
+          }
         }
 
         // Temps: use last value in bucket (overwrite)

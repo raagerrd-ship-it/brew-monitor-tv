@@ -13,12 +13,13 @@ const LABEL_MAP: Record<string, string> = {
   currentTemp: 'Probe-temp',
   targetTemp: 'HW-mål',
   coolingPercent: 'Kylning %',
+  heatingPercent: 'Värmning %',
   actualTemp: 'Faktisk temp',
   profileTargetTemp: 'Profilmål',
 };
 
 // Lines hidden by default — user clicks legend to show
-const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent']);
+const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent', 'heatingPercent']);
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
@@ -131,7 +132,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             <Tooltip 
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
-                if (name === 'coolingPercent') return [`${value}%`, LABEL_MAP[name]];
+                if (name === 'coolingPercent' || name === 'heatingPercent') return [`${value}%`, LABEL_MAP[name]];
                 return [`${value.toFixed(1)}°`, LABEL_MAP[name] ?? name];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
@@ -157,6 +158,19 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               dot={false}
               name="coolingPercent"
               hide={hidden.has('coolingPercent')}
+            />
+            {/* Heating % area */}
+            <Area 
+              yAxisId="cooling"
+              type="stepAfter"
+              dataKey="heatingPercent"
+              stroke={COLORS.heating}
+              strokeWidth={0}
+              fill={COLORS.heating}
+              fillOpacity={0.15}
+              dot={false}
+              name="heatingPercent"
+              hide={hidden.has('heatingPercent')}
             />
             {/* Probe temp (always shown by default) */}
             <Area 

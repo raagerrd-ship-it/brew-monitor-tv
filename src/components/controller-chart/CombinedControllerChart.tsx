@@ -18,6 +18,7 @@ interface CombinedControllerChartProps {
 /** Metric suffixes and their display config */
 const METRICS = [
   { suffix: 'cooling', label: 'Kylning %', type: 'area' as const, dash: undefined },
+  { suffix: 'heating', label: 'Värmning %', type: 'area' as const, dash: undefined },
   { suffix: 'probe', label: 'Probe', type: 'line' as const, dash: undefined },
   { suffix: 'actual', label: 'Faktisk', type: 'line' as const, dash: undefined },
   { suffix: 'target', label: 'HW-mål', type: 'line' as const, dash: '5 5' as string | undefined },
@@ -80,7 +81,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
 
   // Compute dynamic temp domain based on VISIBLE temp series only
   const dynamicTempDomain = useMemo<[number, number]>(() => {
-    const visibleTempKeys = [...visible].filter(k => !k.endsWith('_cooling'));
+    const visibleTempKeys = [...visible].filter(k => !k.endsWith('_cooling') && !k.endsWith('_heating'));
     if (visibleTempKeys.length === 0 || data.length === 0) return tempDomain;
     let min = Infinity;
     let max = -Infinity;
@@ -102,14 +103,14 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
   // Check if we need a temp Y-axis (any temp series visible)
   const hasTempVisible = useMemo(() => {
     for (const key of visible) {
-      if (!key.endsWith('_cooling')) return true;
+      if (!key.endsWith('_cooling') && !key.endsWith('_heating')) return true;
     }
     return false;
   }, [visible]);
 
   const hasCoolingVisible = useMemo(() => {
     for (const key of visible) {
-      if (key.endsWith('_cooling')) return true;
+      if (key.endsWith('_cooling') || key.endsWith('_heating')) return true;
     }
     return false;
   }, [visible]);
@@ -277,7 +278,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
-                if (name.endsWith('_cooling')) return [`${value}%`, labelMap[name] || name];
+                if (name.endsWith('_cooling') || name.endsWith('_heating')) return [`${value}%`, labelMap[name] || name];
                 return [`${(value as number).toFixed(1)}°`, labelMap[name] || name];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
@@ -289,16 +290,17 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                 const key = `${ctrl.id}_${metric.suffix}`;
                 if (!visible.has(key)) return null;
 
-                if (metric.suffix === 'cooling') {
+                if (metric.suffix === 'cooling' || metric.suffix === 'heating') {
+                  const isHeating = metric.suffix === 'heating';
                   return (
                     <Area
                       key={key}
                       yAxisId="cooling"
                       type="stepAfter"
                       dataKey={key}
-                      stroke={ctrl.color}
+                      stroke={isHeating ? '#ef4444' : ctrl.color}
                       strokeWidth={1.5}
-                      fill={ctrl.color}
+                      fill={isHeating ? '#ef4444' : ctrl.color}
                       fillOpacity={0.12}
                       dot={false}
                       name={key}

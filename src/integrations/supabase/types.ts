@@ -1763,6 +1763,7 @@ export type Database = {
           cooling_enabled: boolean
           cooling_ratio: number
           current_temp: number
+          heating_ratio: number
           profile_target_temp: number
           recorded_at: string
           target_temp: number
