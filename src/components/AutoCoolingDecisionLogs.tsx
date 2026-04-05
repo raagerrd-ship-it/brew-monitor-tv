@@ -131,8 +131,9 @@ const PIPELINE_STEPS = new Set([
   'PASS_THROUGH',
   'STALL',
   'COOLING', 'COOLER_CONFIG', 'COOLER_STATUS', 'COOLER_STALE', 'COOLER_OK',
-  'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC', 'RATE_LIMIT',
-  'RAMP_BLOCK', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
+  'COOLING_CAPABILITY', 'COOLING_UTIL', 'EFFECTIVE_TARGET', 'MARGIN_CALC',
+  'RATE_LIMIT', 'DEMAND_GUARD', 'PROACTIVE', 'RATE_LEARN', 'MARGIN_LEARN', 'UTIL_LEARN', 'MAX_MARGIN', 'MIN_MARGIN',
+  'RAMP_BLOCK',
   'HYSTERESIS_KICK', 'HYSTERESIS_KICK_NOOP', 'HYSTERESIS_DEADBAND', 'HYSTERESIS_REVERT', 'KICK_FLAG', 'COOLER_IDLE',
   'ADJUSTMENT', 'PID_CONTROL', 'BATCH_FLUSH',
   'RAPT_SEND',
@@ -141,6 +142,7 @@ const PIPELINE_STEPS = new Set([
   'PHASE_TIMINGS', 'PID_PWM_UPDATE', 'DUTY_PWM_BURST', 'DUTY_PWM_SKIP',
   'DUTY_BURST', 'DUTY_FULL', 'DUTY_ZERO', 'DUTY_PHASE_B', 'DUTY_SKIP',
   'RETRY', 'PWM_OFF',
+  'PID_ERROR',
 ]);
 
 // --- Helpers ---
@@ -383,7 +385,8 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasDisabledFeatures = allDisabled || disabledFeatures.length > 0;
   const phaseTimings = log.decisions.find(d => d.step === 'PHASE_TIMINGS')?.details as Record<string, unknown> | undefined;
   const hasRaptFetchError = !!phaseTimings?.['1_failed_in'];
-  const hasError = log.final_result === 'Error' || hasRaptFetchError;
+  const hasPidError = log.decisions.some(d => d.step === 'PID_ERROR');
+  const hasError = log.final_result === 'Error' || hasRaptFetchError || hasPidError;
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
   // Extract RAPT_SEND outcomes from decisions
