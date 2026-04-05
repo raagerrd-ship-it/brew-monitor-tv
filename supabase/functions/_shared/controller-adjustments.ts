@@ -150,10 +150,19 @@ async function executePwmDutyCycle(
 ): Promise<void> {
   const { supabase, log } = ctx
 
-  // Check if mode is enabled on hardware
+  // SAFETY GUARD: Prevent cooling commands on heating-only controllers and vice versa
   const isEnabled = mode === 'cooling' ? fc.cooling_enabled : fc.heating_enabled
   if (!isEnabled) {
     log('DUTY_SKIP', 'info', `${fc.name}: ${mode} not enabled, skipping duty cycle`)
+    return
+  }
+  // Double-check: block extreme targets that contradict the controller's capabilities
+  if (mode === 'cooling' && !fc.cooling_enabled) {
+    log('MODE_GUARD', 'fail', `🚨 ${fc.name}: attempted cooling burst but cooling_enabled=false — BLOCKED`)
+    return
+  }
+  if (mode === 'heating' && !fc.heating_enabled) {
+    log('MODE_GUARD', 'fail', `🚨 ${fc.name}: attempted heating burst but heating_enabled=false — BLOCKED`)
     return
   }
 
