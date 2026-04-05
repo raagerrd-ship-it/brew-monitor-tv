@@ -13,12 +13,13 @@ const LABEL_MAP: Record<string, string> = {
   currentTemp: 'Probe-temp',
   targetTemp: 'HW-mål',
   coolingPercent: 'Kylning %',
+  heatingPercent: 'Värmning %',
   actualTemp: 'Faktisk temp',
   profileTargetTemp: 'Profilmål',
 };
 
 // Lines hidden by default — user clicks legend to show
-const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent']);
+const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent', 'heatingPercent']);
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
