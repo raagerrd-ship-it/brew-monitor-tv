@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { useControllerTempData } from './hooks/useControllerTempData';
@@ -8,9 +9,31 @@ interface ControllerTempChartProps {
   controllerColor?: string;
 }
 
+const LABEL_MAP: Record<string, string> = {
+  currentTemp: 'Probe-temp',
+  targetTemp: 'HW-mål',
+  coolingPercent: 'Kylning %',
+  actualTemp: 'Faktisk temp',
+  profileTargetTemp: 'Profilmål',
+};
+
+// Lines hidden by default — user clicks legend to show
+const DEFAULT_HIDDEN = new Set(['actualTemp', 'profileTargetTemp', 'coolingPercent', 'targetTemp']);
+
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
-  const tempLabel = 'Aktuell temp';
+  const [hidden, setHidden] = useState<Set<string>>(new Set(DEFAULT_HIDDEN));
+
+  const handleLegendClick = useCallback((e: any) => {
+    const key = e.dataKey ?? e.value;
+    if (!key) return;
+    setHidden(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   if (loading) {
     return (
@@ -27,6 +50,9 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
       </div>
     );
   }
+
+  const hasActualTemp = data.some(d => d.actualTemp != null);
+  const hasProfileTarget = data.some(d => d.profileTargetTemp != null);
 
   return (
     <div className="space-y-2">
@@ -86,19 +112,21 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             <Tooltip 
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
-                if (name === 'coolingPercent') return [`${value}%`, 'Kylning'];
-                return [`${value.toFixed(1)}°`, name === 'currentTemp' ? tempLabel : 'Mål'];
+                if (name === 'coolingPercent') return [`${value}%`, LABEL_MAP[name]];
+                return [`${value.toFixed(1)}°`, LABEL_MAP[name] ?? name];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
             />
             <Legend 
-              formatter={(value) => {
-                if (value === 'currentTemp') return tempLabel;
-                if (value === 'targetTemp') return 'Måltemp';
-                return 'Kylning %';
-              }}
+              onClick={handleLegendClick}
+              formatter={(value) => (
+                <span style={{ opacity: hidden.has(value) ? 0.35 : 1, cursor: 'pointer' }}>
+                  {LABEL_MAP[value] ?? value}
+                </span>
+              )}
               wrapperStyle={{ fontSize: '11px' }}
             />
+            {/* Cooling % area */}
             <Area 
               yAxisId="cooling"
               type="stepAfter"
@@ -109,7 +137,9 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               fillOpacity={0.15}
               dot={false}
               name="coolingPercent"
+              hide={hidden.has('coolingPercent')}
             />
+            {/* Probe temp (always shown by default) */}
             <Area 
               yAxisId="temp"
               type={LINE_CONFIG.current.type}
@@ -120,7 +150,9 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               fillOpacity={0.08}
               dot={LINE_CONFIG.current.dot}
               name="currentTemp"
+              hide={hidden.has('currentTemp')}
             />
+            {/* HW target */}
             <Line 
               yAxisId="temp"
               type={LINE_CONFIG.target.type}
@@ -130,7 +162,35 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               strokeDasharray={LINE_CONFIG.target.strokeDasharray}
               dot={LINE_CONFIG.target.dot}
               name="targetTemp"
+              hide={hidden.has('targetTemp')}
             />
+            {/* Actual (fused) temp — hidden by default */}
+            {hasActualTemp && (
+              <Line 
+                yAxisId="temp"
+                type="natural"
+                dataKey="actualTemp" 
+                stroke={COLORS.actualTemp}
+                strokeWidth={2}
+                dot={false}
+                name="actualTemp"
+                hide={hidden.has('actualTemp')}
+              />
+            )}
+            {/* Profile target — hidden by default */}
+            {hasProfileTarget && (
+              <Line 
+                yAxisId="temp"
+                type="stepAfter"
+                dataKey="profileTargetTemp" 
+                stroke={COLORS.profileTarget}
+                strokeWidth={2}
+                strokeDasharray="3 3"
+                dot={false}
+                name="profileTargetTemp"
+                hide={hidden.has('profileTargetTemp')}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
