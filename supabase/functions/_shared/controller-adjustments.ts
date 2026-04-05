@@ -150,10 +150,19 @@ async function executePwmDutyCycle(
 ): Promise<void> {
   const { supabase, log } = ctx
 
-  // Check if mode is enabled on hardware
+  // SAFETY GUARD: Prevent cooling commands on heating-only controllers and vice versa
   const isEnabled = mode === 'cooling' ? fc.cooling_enabled : fc.heating_enabled
   if (!isEnabled) {
     log('DUTY_SKIP', 'info', `${fc.name}: ${mode} not enabled, skipping duty cycle`)
+    return
+  }
+  // Double-check: block extreme targets that contradict the controller's capabilities
+  if (mode === 'cooling' && !fc.cooling_enabled) {
+    log('MODE_GUARD', 'fail', `🚨 ${fc.name}: attempted cooling burst but cooling_enabled=false — BLOCKED`)
+    return
+  }
+  if (mode === 'heating' && !fc.heating_enabled) {
+    log('MODE_GUARD', 'fail', `🚨 ${fc.name}: attempted heating burst but heating_enabled=false — BLOCKED`)
     return
   }
 
@@ -262,7 +271,14 @@ async function executePwmDutyCycle(
 
       // Revert if hardware is stuck at a PWM extreme
       if (ctrlTarget < -4 || ctrlTarget >= 39) {
-        log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
+        // SAFETY: Flag if the extreme contradicts the controller's capabilities
+        const stuckInCooling = ctrlTarget < -4 && !fc.cooling_enabled
+        const stuckInHeating = ctrlTarget >= 39 && !fc.heating_enabled
+        if (stuckInCooling || stuckInHeating) {
+          log('MODE_GUARD_REVERT', 'fail', `🚨 ${fc.name}: hw fastnad vid ${ctrlTarget}° (${stuckInCooling ? 'kyla' : 'värme'}-extrem) men ${stuckInCooling ? 'cooling' : 'heating'}_enabled=false — reverterar omedelbart → ${revertTarget}°`)
+        } else {
+          log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
+        }
         if (ctx.updateBatch) {
           ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
         } else {
