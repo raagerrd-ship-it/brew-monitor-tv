@@ -313,9 +313,9 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                   <Line
                     key={key}
                     yAxisId="temp"
-                    type={metric.suffix === 'target' || metric.suffix === 'profile' ? 'stepAfter' : 'natural'}
+                    type={metric.suffix === 'target' || metric.suffix === 'profile' ? 'stepAfter' : 'monotone'}
                     dataKey={key}
-                    stroke={ctrl.color}
+                    stroke={metric.suffix === 'actual' ? '#f59e0b' : ctrl.color}
                     strokeWidth={metric.suffix === 'actual' ? 2.5 : metric.suffix === 'probe' ? 2 : 1.5}
                     strokeDasharray={metric.dash ?? undefined}
                     strokeOpacity={metric.suffix === 'probe' ? 0.5 : 1}
