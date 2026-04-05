@@ -7,7 +7,7 @@ import type { TimeRange } from './useControllerTempData';
 export interface MultiChartDataPoint {
   time: string;
   timestamp: number;
-  [key: string]: string | number; // dynamic keys: {id}_cooling
+  [key: string]: string | number | null; // dynamic keys: {id}_cooling, {id}_actual, {id}_probe, {id}_target, {id}_profile
 }
 
 interface ControllerInfo {
@@ -26,12 +26,14 @@ interface UseMultiControllerTempDataReturn {
   loading: boolean;
   timeRange: TimeRange;
   setTimeRange: (range: TimeRange) => void;
+  tempDomain: [number, number];
 }
 
 export function useMultiControllerTempData({ controllers }: UseMultiControllerTempDataProps): UseMultiControllerTempDataReturn {
   const [data, setData] = useState<MultiChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<TimeRange>('3h');
+  const [tempDomain, setTempDomain] = useState<[number, number]>([0, 30]);
 
   useEffect(() => {
     if (controllers.length === 0) {
@@ -47,10 +49,9 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
       const hoursAgo = timeRange === '3h' ? 3 : 24;
       const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
 
-      // Fetch duty_pct directly from temp_controller_history
       const { data: history, error } = await supabase
         .from('temp_controller_history')
-        .select('controller_id, recorded_at, duty_pct')
+        .select('controller_id, recorded_at, duty_pct, current_temp, target_temp, actual_temp, profile_target_temp')
         .gte('recorded_at', startTime.toISOString())
         .lte('recorded_at', now.toISOString())
         .in('controller_id', controllers.map(c => c.id))
@@ -63,14 +64,13 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
         return;
       }
 
-      // Place duty_pct values into 5-min buckets
+      // Place values into 5-min buckets
       const bucketSizeMs = 5 * 60 * 1000;
       const bucketMap = new Map<number, MultiChartDataPoint>();
+      let allMinTemp = Infinity;
+      let allMaxTemp = -Infinity;
 
       for (const record of history) {
-        const dutyPct = record.duty_pct;
-        if (dutyPct == null) continue;
-
         const ts = new Date(record.recorded_at).getTime();
         const bucketTs = Math.floor(ts / bucketSizeMs) * bucketSizeMs;
 
@@ -81,20 +81,41 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
           });
         }
         const point = bucketMap.get(bucketTs)!;
+        const id = record.controller_id;
 
-        const key = `${record.controller_id}_cooling`;
-        const existing = point[key] as number | undefined;
-        const value = parseFloat(String(dutyPct));
-        point[key] = existing != null ? Math.max(existing, value) : value;
+        // Duty/cooling (max in bucket)
+        if (record.duty_pct != null) {
+          const coolingKey = `${id}_cooling`;
+          const existing = point[coolingKey] as number | undefined;
+          const value = parseFloat(String(record.duty_pct));
+          point[coolingKey] = existing != null ? Math.max(existing, value) : value;
+        }
+
+        // Temps: use last value in bucket (overwrite)
+        const round1 = (v: number | null) => v != null ? Math.round(parseFloat(String(v)) * 10) / 10 : null;
+
+        const probeVal = round1(record.current_temp);
+        const targetVal = round1(record.target_temp);
+        const actualVal = round1(record.actual_temp);
+        const profileVal = round1(record.profile_target_temp);
+
+        if (probeVal != null) { point[`${id}_probe`] = probeVal; allMinTemp = Math.min(allMinTemp, probeVal); allMaxTemp = Math.max(allMaxTemp, probeVal); }
+        if (targetVal != null) { point[`${id}_target`] = targetVal; allMinTemp = Math.min(allMinTemp, targetVal); allMaxTemp = Math.max(allMaxTemp, targetVal); }
+        if (actualVal != null) { point[`${id}_actual`] = actualVal; allMinTemp = Math.min(allMinTemp, actualVal); allMaxTemp = Math.max(allMaxTemp, actualVal); }
+        if (profileVal != null) { point[`${id}_profile`] = profileVal; allMinTemp = Math.min(allMinTemp, profileVal); allMaxTemp = Math.max(allMaxTemp, profileVal); }
       }
 
       const merged = Array.from(bucketMap.values()).sort((a, b) => a.timestamp - b.timestamp);
       setData(merged);
+      setTempDomain([
+        allMinTemp === Infinity ? 0 : Math.floor(allMinTemp) - 1,
+        allMaxTemp === -Infinity ? 30 : Math.ceil(allMaxTemp) + 1,
+      ]);
       setLoading(false);
     };
 
     fetchAll();
   }, [controllers, timeRange]);
 
-  return { data, loading, timeRange, setTimeRange };
+  return { data, loading, timeRange, setTimeRange, tempDomain };
 }
