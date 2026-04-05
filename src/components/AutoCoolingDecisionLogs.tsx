@@ -389,8 +389,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const hasError = log.final_result === 'Error' || hasRaptFetchError || hasPidError;
   const showWarningTriangle = hasDisabledFeatures || hasOfflineController;
 
-  // Extract RAPT_SEND outcomes from decisions
-  const raptSends = log.decisions.filter(d => d.step === 'RAPT_SEND' && !d.message?.includes('PWM revert'));
+  // Extract RAPT_SEND outcomes from decisions (exclude PWM revert and retry fallback sends)
+  const retryControllerNames = new Set(
+    log.decisions
+      .filter(d => d.step === 'RETRY' && d.result === 'action')
+      .map(d => { const m = d.message?.match(/Temp Controller \S+/); return m ? m[0] : ''; })
+      .filter(Boolean)
+  );
+  const raptSends = log.decisions.filter(d =>
+    d.step === 'RAPT_SEND' &&
+    !d.message?.includes('PWM revert') &&
+    !retryControllerNames.has(d.message?.match(/^(.+?):/)?.[1]?.trim() ?? '')
+  );
 
   // ═══════════════════════════════════════════════════════════════════
   // Unified badge builder: one badge per active controller
