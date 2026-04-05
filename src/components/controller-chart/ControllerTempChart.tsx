@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { useControllerTempData } from './hooks/useControllerTempData';
@@ -23,6 +23,25 @@ const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPerc
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
   const [hidden, setHidden] = useState<Set<string>>(new Set(DEFAULT_HIDDEN));
+
+  // Dynamic temp domain based on visible series only
+  const dynamicDomain = useMemo<[number, number]>(() => {
+    if (data.length === 0) return [minTemp, maxTemp];
+    const tempKeys = ['currentTemp', 'targetTemp', 'actualTemp', 'profileTargetTemp'] as const;
+    const visibleKeys = tempKeys.filter(k => !hidden.has(k));
+    if (visibleKeys.length === 0) return [minTemp, maxTemp];
+    let lo = Infinity, hi = -Infinity;
+    for (const d of data) {
+      for (const k of visibleKeys) {
+        const v = d[k];
+        if (v != null) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      }
+    }
+    if (lo === Infinity) return [minTemp, maxTemp];
+    const range = (hi - lo) || 1;
+    const pad = range * 0.05;
+    return [Math.floor((lo - pad) * 10) / 10, Math.ceil((hi + pad) * 10) / 10];
+  }, [data, hidden, minTemp, maxTemp]);
 
   const handleLegendClick = useCallback((e: any) => {
     const key = e.dataKey ?? e.value;
