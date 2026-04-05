@@ -100,10 +100,11 @@ export function useMultiControllerTempData({ controllers }: UseMultiControllerTe
 
         // Temps: use last value in bucket (overwrite)
         const round1 = (v: number | null) => v != null ? Math.round(parseFloat(String(v)) * 10) / 10 : null;
+        const round2 = (v: number | null) => v != null ? Math.round(parseFloat(String(v)) * 100) / 100 : null;
 
         const probeVal = round1(record.current_temp);
         const targetVal = round1(record.target_temp);
-        const actualVal = round1(record.actual_temp);
+        const actualVal = round2(record.actual_temp);
         const profileVal = round1(record.profile_target_temp);
 
         if (probeVal != null) { point[`${id}_probe`] = probeVal; allMinTemp = Math.min(allMinTemp, probeVal); allMaxTemp = Math.max(allMaxTemp, probeVal); }
