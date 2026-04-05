@@ -36,14 +36,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
   // Track which controllers are expanded (showing their sub-metrics)
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // Track which individual series are visible: key = "{id}_{suffix}"
-  const [visible, setVisible] = useState<Set<string>>(() => {
-    // Default: only cooling visible for each controller
-    const initial = new Set<string>();
-    for (const c of controllers) {
-      initial.add(`${c.id}_cooling`);
-    }
-    return initial;
-  });
+  const [visible, setVisible] = useState<Set<string>>(() => new Set());
 
   const { data, loading, timeRange, setTimeRange, tempDomain } = useMultiControllerTempData({ controllers });
 
@@ -279,6 +272,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               contentStyle={TOOLTIP_STYLE}
               formatter={(value: number, name: string) => {
                 if (name.endsWith('_cooling') || name.endsWith('_heating')) return [`${value}%`, labelMap[name] || name];
+                if (name.endsWith('_actual')) return [`${(value as number).toFixed(2)}°`, labelMap[name] || name];
                 return [`${(value as number).toFixed(1)}°`, labelMap[name] || name];
               }}
               labelFormatter={(label) => `Tid: ${label}`}
