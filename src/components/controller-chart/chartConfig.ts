@@ -11,6 +11,8 @@ export const COLORS = {
   target: '#f59e0b', // Amber for target temp
   grid: 'hsl(var(--muted))',
   cooling: '#3b82f6', // Blue for cooling percentage
+  actualTemp: '#10b981', // Emerald for actual (fused) temp
+  profileTarget: '#a855f7', // Purple for profile target
 };
 
 export const AXIS_CONFIG = {
