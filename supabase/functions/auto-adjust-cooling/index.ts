@@ -472,8 +472,9 @@ Deno.serve(async (req) => {
         }
 
         // Stale pending — run-automation failed, process as fallback
-        updateBatch.addHardwareOnly(retry.controller_id, retry.target_temp, 0);
-        log('RETRY', 'action', `PWM OFF revert ${ctrl.name}: FALLBACK hw 0° → ${retry.target_temp}°C (stale ${Math.round(pendingAge/1000)}s, run-automation missed)`);
+        const currentHwTarget = parseFloat(String(ctrl.target_temp ?? retry.target_temp));
+        updateBatch.addHardwareOnly(retry.controller_id, retry.target_temp, currentHwTarget);
+        log('RETRY', 'action', `PWM OFF revert ${ctrl.name}: FALLBACK hw ${currentHwTarget}° → ${retry.target_temp}°C (stale ${Math.round(pendingAge/1000)}s, run-automation missed)`);
       } else if (Math.abs((ctrl.target_temp ?? 0) - retry.target_temp) >= 0.05) {
         updateBatch.add(retry.controller_id, retry.target_temp, ctrl.target_temp ?? undefined);
         log('RETRY', 'action', `Retrying ${ctrl.name}: → ${retry.target_temp}°C (attempt ${retry.attempts + 1}, reason: ${retry.reason.slice(0, 60)})`);
