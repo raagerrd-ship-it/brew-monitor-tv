@@ -271,7 +271,14 @@ async function executePwmDutyCycle(
 
       // Revert if hardware is stuck at a PWM extreme
       if (ctrlTarget < -4 || ctrlTarget >= 39) {
-        log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
+        // SAFETY: Flag if the extreme contradicts the controller's capabilities
+        const stuckInCooling = ctrlTarget < -4 && !fc.cooling_enabled
+        const stuckInHeating = ctrlTarget >= 39 && !fc.heating_enabled
+        if (stuckInCooling || stuckInHeating) {
+          log('MODE_GUARD_REVERT', 'fail', `🚨 ${fc.name}: hw fastnad vid ${ctrlTarget}° (${stuckInCooling ? 'kyla' : 'värme'}-extrem) men ${stuckInCooling ? 'cooling' : 'heating'}_enabled=false — reverterar omedelbart → ${revertTarget}°`)
+        } else {
+          log('DUTY_ZERO_REVERT', 'action', `${fc.name}: hw vid ${ctrlTarget}° (PWM-rest) → ${revertTarget}°`)
+        }
         if (ctx.updateBatch) {
           ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
         } else {
