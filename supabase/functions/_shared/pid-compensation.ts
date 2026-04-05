@@ -203,18 +203,20 @@ export async function calculateCompensatedTarget(
       // Interpolation predicts cooling effect, which creates false "error decreasing"
       // signals that prematurely reduce duty cycle before the hardware has actually
       // moved the temperature.
-      if (need < BRAKE_ZONE && ssFloor > 0 && errorDecreasing && !isInterpolated) {
+      // Brake toward ssFloor if known, otherwise toward 0 (always brake when approaching target)
+      const brakeTarget = ssFloor > 0 ? ssFloor : 0
+      if (need < BRAKE_ZONE && errorDecreasing && !isInterpolated) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
-        const blendedI = integral * proximity + ssFloor * (1 - proximity)
+        const blendedI = integral * proximity + brakeTarget * (1 - proximity)
         if (blendedI < integral) {
           constraints.push(`brake=${(proximity * 100).toFixed(0)}%`)
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
-      } else if (need < BRAKE_ZONE && ssFloor > 0 && !errorDecreasing && !isInterpolated) {
+      } else if (need < BRAKE_ZONE && !errorDecreasing && !isInterpolated) {
         constraints.push('brake-skip')
         console.log(`⏩ ${modeLabel} brake skipped ${controllerName}: error growing (prev=${Math.abs(prevAvgError).toFixed(2)}° → now=${need.toFixed(2)}°), letting I build`)
-      } else if (need < BRAKE_ZONE && ssFloor > 0 && isInterpolated) {
+      } else if (need < BRAKE_ZONE && isInterpolated) {
         constraints.push('brake-interp-skip')
         console.log(`⏩ ${modeLabel} brake skipped (interpolated) ${controllerName}: need=${need.toFixed(2)}° — väntar på bekräftad sensordata`)
       }
