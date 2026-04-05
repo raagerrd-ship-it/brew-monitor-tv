@@ -246,9 +246,32 @@ function buildFeatureBlocks(
       }
     }
 
+    // Check for PID_ERROR in decisions
+    const pidError = decisions.find(d => d.step === "PID_ERROR");
+    const pidErrorExtra = pidError ? (() => {
+      const det = pidError.details as Record<string, unknown> | undefined;
+      const httpStatus = det?.http_status ? `HTTP ${det.http_status}` : '';
+      const isTimeout = !!det?.timeout;
+      let errorMsg = '';
+      const errorText = det?.error_text as string | undefined;
+      if (errorText) {
+        try { const p = JSON.parse(errorText); errorMsg = p.error || p.message || ''; } catch { errorMsg = errorText.slice(0, 100); }
+      }
+      const label = isTimeout ? 'Timeout' : httpStatus || 'Fel';
+      return (
+        <div className="pl-6 pr-1 pt-0.5">
+          <div className="text-[10px] text-destructive bg-destructive/10 border border-destructive/20 rounded px-2 py-1 space-y-0.5">
+            <div className="font-medium">🚨 PID-automation: {label}</div>
+            {errorMsg && <div className="text-[9px] text-destructive/70 font-mono break-all">{errorMsg}</div>}
+          </div>
+        </div>
+      );
+    })() : null;
+
     blocks.push({
       icon: Wrench, label: "PID-kompensation", controllers,
       hasAction: controllers.some(c => c.variant === "action"),
+      extra: pidErrorExtra ?? undefined,
     });
   }
 
