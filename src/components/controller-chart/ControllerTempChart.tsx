@@ -18,7 +18,7 @@ const LABEL_MAP: Record<string, string> = {
 };
 
 // Lines hidden by default — user clicks legend to show
-const DEFAULT_HIDDEN = new Set(['actualTemp', 'profileTargetTemp', 'coolingPercent', 'targetTemp']);
+const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent']);
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
