@@ -73,10 +73,58 @@
 
 `_shared/`-filerna (cooler-management, controller-adjustments, pid-compensation, etc.) porteras rakt av — ren TypeScript-logik. Byt `createClient` → lokal SQLite-wrapper med samma query-interface.
 
+## Lokalt Touch-UI (Pi #2 — 7" touchskärm)
+
+### Layout (1024×600, touch-optimerad)
+
+```text
+┌─────────────────────────────────────────┐
+│ Header: Cloud ● | RAPT ● | BLE ● | 🕐  │
+├─────────────────────────────────────────┤
+│ ┌───────────┐ ┌───────────┐ ┌─────────┐│
+│ │  Tank 1   │ │  Tank 2   │ │ Tank 3  ││
+│ │  18.2°C   │ │  20.1°C   │ │  4.0°C  ││
+│ │  1.048 SG │ │  1.012 SG │ │ 1.001   ││
+│ │  🔋 82%   │ │  🔋 45%   │ │ 🔋 91%  ││
+│ │  Cool ●   │ │  Heat ●   │ │ Off     ││
+│ │ [Profile] │ │ [Hold]    │ │ [Crash] ││
+│ └───────────┘ └───────────┘ └─────────┘│
+│ ┌─────────────────────────────────────┐ │
+│ │ Glykolkylare  12.3°C → 10.0°C  Run │ │
+│ └─────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+- **Header** (40px): Cloud-status (grön/röd prick), RAPT API-status, BLE-status, klocka, senaste synk-tid
+- **3 tankpaneler** (grid 3-kolumner): Pill (temp, SG, batteri) + Controller (temp, target, kyla/värme) + Läge (profil/hold/av)
+- **Glykolkylare** (botten): Temp, target, driftstatus, runtime
+- Tap på tank → expanderad vy med profil-val och temp-slider (bottom sheet)
+
+### Touch-anpassning
+- Stora touch-targets (minst 48px)
+- Inga hover-states, bara tap
+- Swipe för snabbjustering av temperatur
+- Ingen karusell — alla 3 tankar synliga samtidigt
+
+### Komponenter att skapa
+- `src/pages/LocalDashboard.tsx` — huvudvy för touch-skärmen
+- `src/components/local/TankPanel.tsx` — en jästank med pill + controller data
+- `src/components/local/CoolerPanel.tsx` — glykolkylare-status
+- `src/components/local/LocalHeader.tsx` — anslutningsstatus-header
+- `src/components/local/TempAdjustSheet.tsx` — bottom-sheet för temp-justering (touch)
+
+### Routing
+- `/local` route → `LocalDashboard.tsx` (utan AspectRatioLayout)
+- Chromium i kiosk-läge öppnar `http://localhost/local`
+
+## Lovable Cloud UI — Befintligt (inga ändringar)
+
+Det nuvarande BrewingDashboard med BrewCards, karusell, Sonos-widget, album art etc. fortsätter serveras från Lovable och visas på TV:n via Chromecast. Brew-sidor (`/brew/:id`) nås från vilken enhet som helst via internet.
+
 ## Cloud-synk (backup)
 
-### Uppsynk till Lovable Cloud (1x/timme)
-- Node-cron jobb var 60:e minut
+### Uppsynk till Lovable Cloud (var 15:e minut)
+- Node-cron jobb var 15:e minut
 - Synkar via `supabase-js`:
   - `brew_readings` (nya rader sedan sist)
   - `temp_controller_history` (samplade)
