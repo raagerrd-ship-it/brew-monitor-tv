@@ -11,6 +11,7 @@ interface SampledRecord {
   target_temp: number;
   cooling_enabled: boolean;
   cooling_ratio: number | null;
+  heating_ratio: number | null;
   actual_temp: number | null;
   profile_target_temp: number | null;
 }
@@ -21,6 +22,7 @@ export interface ChartDataPoint {
   currentTemp: number;
   targetTemp: number;
   coolingPercent: number;
+  heatingPercent: number;
   actualTemp: number | null;
   profileTargetTemp: number | null;
 }
@@ -81,6 +83,7 @@ export function useControllerTempData({ controllerId }: UseControllerTempDataPro
         currentTemp: Math.round(Number(record.current_temp) * 10) / 10,
         targetTemp: Math.round(Number(record.target_temp) * 10) / 10,
         coolingPercent: Math.round((Number(record.cooling_ratio ?? 0)) * 100),
+        heatingPercent: Math.round((Number(record.heating_ratio ?? 0)) * 100),
         actualTemp: record.actual_temp != null ? Math.round(Number(record.actual_temp) * 10) / 10 : null,
         profileTargetTemp: record.profile_target_temp != null ? Math.round(Number(record.profile_target_temp) * 10) / 10 : null,
       }));
