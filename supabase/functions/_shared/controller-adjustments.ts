@@ -386,6 +386,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     let observedRate = pressureMap.get('est_observed_rate') ?? 0
     const observedRateSamples = sampleCountMap.get('est_observed_rate') ?? 0
     let observedDuty = pressureMap.get('est_observed_duty') ?? 0
+    const prevDutyPct = pressureMap.get('pid_last_duty') ?? 0
 
     // When we have fresh sensor data (not stale), learn the rate
     if (staleMinutes <= 3 && prevActualTemp != null && prevActualTempAt != null) {
@@ -423,7 +424,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // When sensor data is stale (no new RAPT reading), interpolate
     // using observed rate or previous duty to give PID a fresh estimate.
     // Uses previous cycle's duty (pid_last_duty) for fallback rate.
-    const prevDutyPct = pressureMap.get('pid_last_duty') ?? 0
     if (staleMinutes > 3) {
       const lastModeVal = pressureMap.get('pid_current_mode')
       const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
