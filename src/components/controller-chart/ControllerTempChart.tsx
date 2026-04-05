@@ -114,7 +114,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             />
             <YAxis 
               yAxisId="temp"
-              domain={[minTemp, maxTemp]}
+              domain={dynamicDomain}
               tick={AXIS_CONFIG.tick}
               className="text-muted-foreground"
               tickFormatter={(value) => `${value}°`}
