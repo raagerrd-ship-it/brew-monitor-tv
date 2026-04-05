@@ -78,6 +78,27 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
     });
   }, []);
 
+  // Compute dynamic temp domain based on VISIBLE temp series only
+  const dynamicTempDomain = useMemo<[number, number]>(() => {
+    const visibleTempKeys = [...visible].filter(k => !k.endsWith('_cooling'));
+    if (visibleTempKeys.length === 0 || data.length === 0) return tempDomain;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const point of data) {
+      for (const key of visibleTempKeys) {
+        const val = point[key] as number | null | undefined;
+        if (val != null) {
+          if (val < min) min = val;
+          if (val > max) max = val;
+        }
+      }
+    }
+    if (min === Infinity) return tempDomain;
+    const range = (max - min) || 1;
+    const pad = range * 0.05;
+    return [Math.floor((min - pad) * 10) / 10, Math.ceil((max + pad) * 10) / 10];
+  }, [data, visible, tempDomain]);
+
   // Check if we need a temp Y-axis (any temp series visible)
   const hasTempVisible = useMemo(() => {
     for (const key of visible) {
@@ -246,7 +267,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               <YAxis
                 yAxisId="temp"
                 orientation={hasCoolingVisible ? 'right' : 'left'}
-                domain={tempDomain}
+                domain={dynamicTempDomain}
                 tick={AXIS_CONFIG.tick}
                 className="text-muted-foreground"
                 tickFormatter={(value) => `${value}°`}
