@@ -17,12 +17,12 @@ interface CombinedControllerChartProps {
 
 /** Metric suffixes and their display config */
 const METRICS = [
-  { suffix: 'cooling', label: 'Kylning %', type: 'area' as const },
-  { suffix: 'probe', label: 'Probe', type: 'line' as const },
-  { suffix: 'actual', label: 'Faktisk', type: 'line' as const },
-  { suffix: 'target', label: 'HW-mål', type: 'line' as const, dash: '5 5' },
-  { suffix: 'profile', label: 'Profilmål', type: 'line' as const, dash: '3 3' },
-] as const;
+  { suffix: 'cooling', label: 'Kylning %', type: 'area' as const, dash: undefined },
+  { suffix: 'probe', label: 'Probe', type: 'line' as const, dash: undefined },
+  { suffix: 'actual', label: 'Faktisk', type: 'line' as const, dash: undefined },
+  { suffix: 'target', label: 'HW-mål', type: 'line' as const, dash: '5 5' as string | undefined },
+  { suffix: 'profile', label: 'Profilmål', type: 'line' as const, dash: '3 3' as string | undefined },
+];
 
 /** Slightly adjust color brightness for different metrics of the same controller */
 function metricColor(base: string, suffix: string): string {
