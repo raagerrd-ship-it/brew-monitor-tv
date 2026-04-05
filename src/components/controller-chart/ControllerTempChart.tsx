@@ -201,9 +201,9 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
             {hasActualTemp && (
               <Line 
                 yAxisId="temp"
-                type="natural"
+                type="monotone"
                 dataKey="actualTemp" 
-                stroke={COLORS.actualTemp}
+                stroke="#f59e0b"
                 strokeWidth={2}
                 dot={false}
                 name="actualTemp"
