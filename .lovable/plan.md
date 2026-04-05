@@ -1,51 +1,86 @@
 
 
-# Spara lokal Pi-arkitekturplan i projektminnet
+# Uppdaterad plan: Lokalt Touch-UI på Pi #2 + Lovable som TV/remote-dashboard
 
-## Vad som sparas
+## Koncept
 
-Hela planen för lokal-first Brew Monitor på Pi #2 sparas som en minnesfil så den finns tillgänglig nästa gång du säger "nu har jag Raspberry:n".
+Två separata frontend-byggen från samma kodbas:
 
-## Fil som skapas
+```text
+┌─────────────────────────────────────────┐
+│ Pi #2 — 7" touchskärm (1024×600)        │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │ Header: Cloud ● | RAPT ● | 🕐  │    │
+│  ├─────────────────────────────────┤    │
+│  │ ┌───────┐ ┌───────┐ ┌───────┐  │    │
+│  │ │Tank 1 │ │Tank 2 │ │Tank 3 │  │    │
+│  │ │18.2°C │ │20.1°C │ │4.0°C  │  │    │
+│  │ │1.048  │ │1.012  │ │1.001  │  │    │
+│  │ │🔋 82% │ │🔋 45% │ │🔋 91% │  │    │
+│  │ │Cool ● │ │Heat ● │ │Off    │  │    │
+│  │ │Profile│ │Hold   │ │Crash  │  │    │
+│  │ └───────┘ └───────┘ └───────┘  │    │
+│  │ ┌───────────────────────────┐  │    │
+│  │ │ Glykolkylare   12.3°C    │  │    │
+│  │ │ Target: 10.0°C  Running  │  │    │
+│  │ └───────────────────────────┘  │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  Express backend + SQLite + BLE         │
+└─────────────────────────────────────────┘
+         │ var 15:e min
+         ▼
+┌─────────────────────────────────────────┐
+│ Lovable Cloud                           │
+│  - Befintligt BrewingDashboard (TV)     │
+│  - Brew-sidor (/brew/:id)              │
+│  - Inställningar                        │
+│  - AI-konsultation                      │
+└─────────────────────────────────────────┘
+```
 
-**`.lovable/memories/local-pi-architecture.md`** — innehåller:
+## Lokalt Touch-UI — Nytt
 
-### Arkitektur
-- **En Pi** (Pi #2) bredvid jäskärlen kör hela stacken
-- Node.js/Express backend + SQLite (better-sqlite3)
-- Nginx serverar React-frontend
-- Pi #1 hanterar bara Sonos/Cast Away via LAN
+### Layout (1024×600, touch-optimerad)
+- **Header** (40px): Lovable Cloud-status (grön/röd prick), RAPT API-status, klocka, senaste synk-tid
+- **3 tankpaneler** (grid 3-kolumner): Varje panel visar:
+  - Pill: temperatur, gravity (SG), batteri
+  - Controller: aktuell temp, target temp, kyla/värme-status
+  - Läge: Profil-namn eller "Hold XX°C" eller "Av"
+  - Touch-knappar: Välj profil, toggle kyla/värme, justera hold-temp (slider)
+- **Glykolkylare** (botten): Temp, target, driftstatus, runtime
+- Tap på en tank → expanderad vy med fermenteringsprofil-val och temp-slider
 
-### BLE Pill Scanner
-- Python-tjänst med `bleak` — passiv BLE-scan av RAPT Pill(s)
-- Gravity, temp, batteri var ~60:e sekund direkt till SQLite
-- Ingen RAPT Cloud behövs, ingen pairing
+### Komponenter att skapa
+- `src/pages/LocalDashboard.tsx` — huvudvy för touch-skärmen
+- `src/components/local/TankPanel.tsx` — en jästank med pill + controller data
+- `src/components/local/CoolerPanel.tsx` — glykolkylare-status
+- `src/components/local/LocalHeader.tsx` — anslutningsstatus-header
+- `src/components/local/TempAdjustSheet.tsx` — bottom-sheet för temp-justering (touch)
 
-### Edge Functions → Express-routes (prioritetsordning)
-1. `auto-adjust-cooling` → `POST /api/auto-cooling`
-2. `process-fermentation-profiles` → `POST /api/profiles`
-3. `execute-pwm-off` → `POST /api/pwm-off`
-4. `record-temp-history` → `POST /api/temp-history`
-5. `run-automation` → node-cron orkestrering
-6. Resterande ~6 funktioner
+### Touch-anpassning
+- Stora touch-targets (minst 48px)
+- Inga hover-states, bara tap
+- Swipe-gester för snabbjustering av temperatur
+- Ingen karusell — alla 3 tankar synliga samtidigt
 
-### Cloud-synk
-- Lovable Cloud som backup, delta-synk 1x/timme
-- Brew timer hämtas från Cloud om internet finns
-- Album art cachas lokalt
+## Lovable Cloud UI — Befintligt (inga ändringar)
 
-### AI-funktioner
-- Manuell knapp i UI, anropar Cloud om internet finns
-- Disabled med tooltip "Kräver internet" annars
+Det nuvarande BrewingDashboard med BrewCards, karusell, Sonos-widget, album art etc. fortsätter serveras från Lovable och visas på TV:n via Chromecast. Brew-sidor (`/brew/:id`) nås från vilken enhet som helst via internet.
 
-### Offline-kapabilitet
-- Pill BLE, PID-loop, fermenteringsprofiler, dashboard, Sonos: **helt offline**
-- AI, push-notiser, uppdateringar: **kräver internet**
+## Cloud-synk — Ändrat till var 15:e minut
 
-### Deploy
-- `systemd-timer`: `git pull && npm run build && pm2 restart`
-- Körs när internet finns, annars senaste build
+- Delta-synk var 15:e minut istället för 1x/timme
+- Synkar: brew_readings, temp_controller_history, fermentation_sessions, metrics, decision_log
+- Header visar "Synkad: 3 min sedan" med grön/gul/röd indikator
+- Vid internetavbrott: köar och synkar ikapp
 
-### Uppskattad arbetsinsats
-- ~3-4 veckor, portering av shared logic är störst
+## Ändringar i minnesplanen
+
+Uppdaterar `.lovable/memories/local-pi-architecture.md` med:
+1. Nytt avsnitt om lokalt Touch-UI (layout, komponenter)
+2. Synkfrekvens ändrad från 1x/timme → var 15:e minut
+3. Tydlig separation: Touch-UI lokalt, BrewingDashboard via Lovable/TV
+4. Header med anslutningsstatus (Cloud, RAPT, BLE)
 
