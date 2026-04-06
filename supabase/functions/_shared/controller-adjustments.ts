@@ -332,7 +332,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'est_prev_actual_temp', 'est_prev_actual_temp_at',
     'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
   ]
-  const bucketParams = TEMP_BUCKETS.flatMap(b => [`thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`])
+  const bucketParams = TEMP_BUCKETS.flatMap(b => [`thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`, `steady_state_duty:${b}`])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
 
   // Fire both queries in parallel
