@@ -332,7 +332,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'est_prev_actual_temp', 'est_prev_actual_temp_at',
     'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
   ]
-  const bucketParams = TEMP_BUCKETS.flatMap(b => [`thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`, `steady_state_duty:${b}`])
+  const bucketParams = TEMP_BUCKETS.flatMap(b => [
+    `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
+    `steady_state_duty:${b}`,  // legacy (migration fallback)
+    `steady_state_duty:cooling:${b}`, `steady_state_duty:heating:${b}`,
+  ])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
 
   // Fire both queries in parallel
@@ -598,20 +602,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const MODE_SWITCH_CYCLES = 3
     const STALL_MIN_PROGRESS = 0.05
 
-    // ── ssFloor check: block heating when cooling floor is established ──
-    // If we have a learned steady-state cooling duty > 0, the system KNOWS
-    // it needs continuous cooling. Switching to heating would be wrong —
-    // just reduce cooling duty instead.
+    // ── ssFloor check: block mode switch when established floor exists ──
+    // If we have a learned steady-state duty floor > 0 for the CURRENT mode,
+    // the system KNOWS it needs continuous action in that mode.
+    // Switching away would be wrong — just reduce duty instead.
     const ssBucketForMode = getTempBucket(actualTarget)
-    const ssFloorForMode = pressureMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
-    const ssFloorSamples = sampleCountMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
+    // Check mode-specific floor first, fall back to legacy key for cooling
+    const coolingFloor = pressureMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? pressureMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
+    const coolingFloorSamples = sampleCountMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? sampleCountMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
+    const heatingFloor = pressureMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
+    const heatingFloorSamples = sampleCountMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
 
     let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
     // Block switch to heating if we have a confirmed cooling floor
-    if (suggestedMode === 'heating' && prevMode === 'cooling' && ssFloorForMode > 0 && ssFloorSamples >= 5) {
+    if (suggestedMode === 'heating' && prevMode === 'cooling' && coolingFloor > 0 && coolingFloorSamples >= 5) {
       suggestedMode = 'cooling'
-      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(ssFloorForMode * 100).toFixed(0)}% (${ssFloorSamples} prover), stannar i cooling`)
+      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(coolingFloor * 100).toFixed(0)}% (${coolingFloorSamples} prover), stannar i cooling`)
+    }
+    // Block switch to cooling if we have a confirmed heating floor
+    if (suggestedMode === 'cooling' && prevMode === 'heating' && heatingFloor > 0 && heatingFloorSamples >= 5) {
+      suggestedMode = 'heating'
+      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar cooling — inlärt värmegolv ${(heatingFloor * 100).toFixed(0)}% (${heatingFloorSamples} prover), stannar i heating`)
     }
 
     // During active profile ramp, force mode to match ramp direction
@@ -888,7 +900,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           .from('fermentation_learnings')
           .select('sample_count, learned_value')
           .eq('controller_id', fc.controller_id)
-          .eq('parameter_name', `steady_state_duty:${dutyBucket}`)
+          .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
           .maybeSingle()
         const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
         // Wider tolerance during mild-overshoot (±50%) to allow floor to converge faster
@@ -904,7 +916,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
           }
           const ssCount = (existingSs?.sample_count ?? 0) + 1
-          rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
+          rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
         }
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
