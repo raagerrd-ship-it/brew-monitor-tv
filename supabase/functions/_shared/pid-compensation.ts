@@ -189,11 +189,13 @@ export async function calculateCompensatedTarget(
     constraints.push('deadband')
     console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.10 && need >= -0.25) {
-    // MILD OVERSHOOT — gentle decay, preserve integral
+    // MILD OVERSHOOT — decay integral but output ZERO duty.
+    // We're past the setpoint so there's no reason to keep actuating.
+    // Preserve integral memory (slow decay) so we restart smoothly when returning.
     integral *= 0.95
-    dutyCycle = Math.max(0, integral)
+    dutyCycle = 0
     constraints.push('mild-overshoot')
-    console.log(`🔸 ${modeLabel} mild overshoot ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    console.log(`🔸 ${modeLabel} mild overshoot ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=0% (output suppressed)`)
   } else if (need < -0.25) {
     // OVER-ACTUATED — aggressive erosion
     const overshoot = Math.abs(need)
