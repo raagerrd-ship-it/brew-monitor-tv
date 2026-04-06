@@ -186,13 +186,13 @@ export async function calculateCompensatedTarget(
     // OVER-ACTUATED — aggressive erosion
     const overshoot = Math.abs(need)
 
-    if (ssFloor > 0) {
+    if (ssFloorRaw > 0) {
       const erosionAlpha = Math.min(0.6, 0.3 + overshoot)
-      const reducedFloor = Math.max(0, integral * erosionAlpha + ssFloor * (1 - erosionAlpha))
+      const reducedFloor = Math.max(0, integral * erosionAlpha + ssFloorRaw * (1 - erosionAlpha))
       const quantizedFloor = Math.floor(reducedFloor * 10) / 10
-      if (quantizedFloor < ssFloor) {
+      if (quantizedFloor < ssFloorRaw) {
         await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
-        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloor.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
+        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloorRaw.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
       }
     }
 
