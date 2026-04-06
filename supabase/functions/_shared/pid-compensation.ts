@@ -149,7 +149,10 @@ export async function calculateCompensatedTarget(
   if (isCooling && coolerMarginContext && coolerMarginContext.learnedMargin > 0) {
     const actualMargin = actualTemp - coolerMarginContext.coolerTemp
     if (actualMargin > 0.5) {
-      deadbandGainScale = Math.max(0.5, Math.min(2.0, coolerMarginContext.learnedMargin / actualMargin))
+      // Only scale UP (tighter margin = less cooling power per duty-%).
+      // Never scale DOWN — ssFloor is already learned at real conditions,
+      // so reducing it when the cooler is colder would double-count.
+      deadbandGainScale = Math.max(1.0, Math.min(2.0, coolerMarginContext.learnedMargin / actualMargin))
     }
   }
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
