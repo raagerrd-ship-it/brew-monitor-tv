@@ -88,8 +88,19 @@ export async function calculateCompensatedTarget(
       .eq('mode', mode)
       .eq('step_type', stepType)
       .maybeSingle(),
-    getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0),
+    getLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, 0),
   ])
+
+  // Migration fallback: if no mode-specific floor exists, check legacy mode-agnostic key
+  let ssParamResolved = ssParam
+  if (ssParam.sampleCount === 0) {
+    const legacyParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
+    if (legacyParam.sampleCount >= 5 && mode === 'cooling') {
+      // Only inherit legacy floor for cooling (it was always cooling before)
+      ssParamResolved = legacyParam
+      console.log(`🔄 ssFloor migration ${controllerName}: using legacy steady_state_duty:${ssBucket} = ${legacyParam.value.toFixed(3)} (${legacyParam.sampleCount} samples)`)
+    }
+  }
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
