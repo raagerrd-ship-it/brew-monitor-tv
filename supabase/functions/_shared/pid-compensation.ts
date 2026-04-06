@@ -164,9 +164,18 @@ export async function calculateCompensatedTarget(
         // Above floor: blend down at 10% per cycle
         integral = integral * 0.90 + ssFloor * 0.10
       } else {
-        // Below floor (e.g. recovering from overshoot): blend up slowly at 5% per cycle
-        // This prevents a duty spike when transitioning from overshoot → deadband
-        integral = integral * 0.95 + ssFloor * 0.05
+        // Below floor (e.g. recovering from overshoot): recover gently by default,
+        // but catch up faster if temp is drifting warmer inside deadband.
+        const warmingTowardTarget = isCooling && avgError < prevAvgError - 0.01
+        const nearWarmEdge = isCooling && avgError <= 0.03
+        let recoveryAlpha = 0.05
+
+        if (warmingTowardTarget) {
+          recoveryAlpha = nearWarmEdge ? 1.0 : 0.25
+          constraints.push(nearWarmEdge ? 'deadband-floor-catchup' : 'deadband-warm-recovery')
+        }
+
+        integral = integral * (1 - recoveryAlpha) + ssFloor * recoveryAlpha
         constraints.push('deadband-recovery')
       }
     } else {
