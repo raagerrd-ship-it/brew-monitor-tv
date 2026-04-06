@@ -150,7 +150,7 @@ export async function calculateCompensatedTarget(
   let dutyCycle = 0
 
   // ── Steady-state duty floor ──────────────────────────────
-  const ssFloorRaw = ssParam.sampleCount >= 5 ? ssParam.value : 0
+  const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Scale the ssFloor target based on current cooler margin vs learned reference.
@@ -216,7 +216,7 @@ export async function calculateCompensatedTarget(
       const reducedFloor = Math.max(0, integral * erosionAlpha + ssFloorRaw * (1 - erosionAlpha))
       const quantizedFloor = Math.floor(reducedFloor * 10) / 10
       if (quantizedFloor < ssFloorRaw) {
-        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
+        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
         console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloorRaw.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
       }
     }
