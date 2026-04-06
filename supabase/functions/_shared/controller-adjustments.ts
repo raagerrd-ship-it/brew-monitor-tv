@@ -598,7 +598,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const MODE_SWITCH_CYCLES = 3
     const STALL_MIN_PROGRESS = 0.05
 
+    // ── ssFloor check: block heating when cooling floor is established ──
+    // If we have a learned steady-state cooling duty > 0, the system KNOWS
+    // it needs continuous cooling. Switching to heating would be wrong —
+    // just reduce cooling duty instead.
+    const ssBucketForMode = getTempBucket(actualTarget)
+    const ssFloorForMode = pressureMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
+    const ssFloorSamples = sampleCountMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
+
     let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
+
+    // Block switch to heating if we have a confirmed cooling floor
+    if (suggestedMode === 'heating' && prevMode === 'cooling' && ssFloorForMode > 0 && ssFloorSamples >= 5) {
+      suggestedMode = 'cooling'
+      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(ssFloorForMode * 100).toFixed(0)}% (${ssFloorSamples} prover), stannar i cooling`)
+    }
 
     // During active profile ramp, force mode to match ramp direction
     let rampOverrideApplied = false
