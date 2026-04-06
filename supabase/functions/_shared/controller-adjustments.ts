@@ -54,6 +54,8 @@ export interface ControllerAdjustmentContext {
   /** Populated by PID: maps controller_id → pre-calculated UtilizationResult.
    *  Shared with cooler to avoid duplicate DB queries. */
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
+  /** Cooler context for margin-aware PID gain scaling */
+  coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null
 }
 
 /**
@@ -788,6 +790,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, tempInterpolated,
+      pidMode === 'cooling' ? ctx.coolerMarginContext : null,
     )
 
     // Log PID status
