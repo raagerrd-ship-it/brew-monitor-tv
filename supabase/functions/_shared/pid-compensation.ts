@@ -139,10 +139,23 @@ export async function calculateCompensatedTarget(
   let dutyCycle = 0
 
   // ── Steady-state duty floor ──────────────────────────────
-  const ssFloor = ssParam.sampleCount >= 5 ? ssParam.value : 0
+  const ssFloorRaw = ssParam.sampleCount >= 5 ? ssParam.value : 0
+
+  // ── Margin-aware floor scaling (cooling only) ──
+  // Scale the ssFloor target based on current cooler margin vs learned reference.
+  // Higher margin = more cooling power per duty-% → need less duty → scale floor down.
+  // Lower margin = less cooling power → need more duty → scale floor up.
+  let deadbandGainScale = 1.0
+  if (isCooling && coolerMarginContext && coolerMarginContext.learnedMargin > 0) {
+    const actualMargin = actualTemp - coolerMarginContext.coolerTemp
+    if (actualMargin > 0.5) {
+      deadbandGainScale = Math.max(0.5, Math.min(2.0, coolerMarginContext.learnedMargin / actualMargin))
+    }
+  }
+  const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
 
   if (Math.abs(avgError) <= 0.10) {
-    // DEADBAND — converge toward ssFloor gradually
+    // DEADBAND — converge toward margin-adjusted ssFloor gradually
     if (ssFloor > 0) {
       if (integral > ssFloor) {
         // Above floor: blend down at 10% per cycle
@@ -160,8 +173,9 @@ export async function calculateCompensatedTarget(
       integral *= 0.80
     }
     dutyCycle = Math.max(0, integral)
+    if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
     constraints.push('deadband')
-    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.10 && need >= -0.25) {
     // MILD OVERSHOOT — gentle decay, preserve integral
     integral *= 0.95
