@@ -70,6 +70,7 @@ export async function calculateCompensatedTarget(
   rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   pillRate?: number | null,
   isInterpolated?: boolean,
+  coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
 
@@ -188,12 +189,22 @@ export async function calculateCompensatedTarget(
     console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else {
     // NEEDS ACTION — proportional + integral
+    // ── Margin-aware gain scaling (cooling only) ──
+    let gainScale = 1.0
+    if (isCooling && coolerMarginContext && coolerMarginContext.learnedMargin > 0) {
+      const actualMargin = actualTemp - coolerMarginContext.coolerTemp
+      if (actualMargin > 0.5) {
+        gainScale = Math.max(0.5, Math.min(2.0, coolerMarginContext.learnedMargin / actualMargin))
+        constraints.push(`margin-scale=${gainScale.toFixed(2)}`)
+      }
+    }
+
     if (isStaleData) {
       pCorrection = 0
       console.log(`⏸️ ${modeLabel} stale ${controllerName}: P=0 (no new data), holding I=${integral.toFixed(3)}`)
     } else {
-      pCorrection = need * DUTY_P
-      integral = integral * DUTY_DECAY + need * DUTY_I
+      pCorrection = need * DUTY_P * gainScale
+      integral = integral * DUTY_DECAY + need * DUTY_I * gainScale
       integral = Math.max(0, Math.min(DUTY_IMAX, integral))
 
       // ── Braking zone ──

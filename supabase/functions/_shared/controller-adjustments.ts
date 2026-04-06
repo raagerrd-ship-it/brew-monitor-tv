@@ -54,6 +54,8 @@ export interface ControllerAdjustmentContext {
   /** Populated by PID: maps controller_id → pre-calculated UtilizationResult.
    *  Shared with cooler to avoid duplicate DB queries. */
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
+  /** Cooler context for margin-aware PID gain scaling */
+  coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null
 }
 
 /**
