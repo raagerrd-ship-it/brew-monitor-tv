@@ -790,6 +790,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, tempInterpolated,
+      pidMode === 'cooling' ? ctx.coolerMarginContext : null,
     )
 
     // Log PID status
