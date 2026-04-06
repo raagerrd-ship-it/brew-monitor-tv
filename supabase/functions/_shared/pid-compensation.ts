@@ -227,7 +227,9 @@ export async function calculateCompensatedTarget(
       // ── Braking zone ──
       // Only brake when error is DECREASING (approaching setpoint).
       // If error is growing, the system needs to ramp up, not slow down.
-      const BRAKE_ZONE = 0.50
+      // Heating has more thermal inertia (heater → fluid → fermenter → probe)
+      // so we start braking earlier (1.0°C) to allow more deceleration cycles.
+      const BRAKE_ZONE = isCooling ? 0.50 : 1.00
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
       const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
       // CRITICAL: Never brake on interpolated data — only on confirmed sensor readings.
