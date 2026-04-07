@@ -109,6 +109,7 @@ export async function calculateCompensatedTarget(
 
   if (isStaleData) {
     console.log(`⏸️ Stale data ${controllerName} [${mode}]: hoppar över I-ackumulering`)
+    constraints.push('stale')
   }
 
   // Error: actualTarget - actualTemp (same domain as user sees)
