@@ -8,6 +8,7 @@ interface DutyEntry {
   controller_id: string;
   controller_name: string;
   temp_bucket: string;
+  mode: string | null;
   duty: number;
   warming_rate: number;
   cooling_rate: number;
@@ -71,13 +72,36 @@ export function LearnedDutyCycle() {
         coolingLearnings?.map((l) => [l.controller_id, l.learned_value]) ?? []
       );
 
+      // Filter out legacy keys (steady_state_duty:cold) when a mode-specific key exists
+      // (steady_state_duty:cooling:cold). Legacy keys have 1 segment after prefix,
+      // mode-specific have 2 (mode:bucket).
+      const modeSpecificKeys = new Set(
+        dutyLearnings
+          .filter((l) => l.parameter_name.replace("steady_state_duty:", "").includes(":"))
+          .map((l) => {
+            const parts = l.parameter_name.replace("steady_state_duty:", "").split(":");
+            return `${l.controller_id}:${parts[1]}`; // controller:bucket
+          })
+      );
+      const filteredLearnings = dutyLearnings.filter((l) => {
+        const rest = l.parameter_name.replace("steady_state_duty:", "");
+        if (!rest.includes(":")) {
+          // Legacy key — hide if mode-specific exists for same controller+bucket
+          return !modeSpecificKeys.has(`${l.controller_id}:${rest}`);
+        }
+        return true;
+      });
+
       setEntries(
-        dutyLearnings.map((l) => {
-          const bucket = l.parameter_name.replace("steady_state_duty:", "");
+        filteredLearnings.map((l) => {
+          const rest = l.parameter_name.replace("steady_state_duty:", "");
+          const bucket = rest.includes(":") ? rest.split(":")[1] : rest;
+          const mode = rest.includes(":") ? rest.split(":")[0] : null;
           return {
             controller_id: l.controller_id,
             controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
             temp_bucket: bucket,
+            mode,
             duty: l.learned_value,
             warming_rate: warmingMap.get(`${l.controller_id}:${bucket}`) ?? 0,
             cooling_rate: coolingMap.get(l.controller_id) ?? 0,
@@ -154,7 +178,10 @@ export function LearnedDutyCycle() {
                 const color = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : "text-emerald-400";
                 return (
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
-                    <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
+                    <td className="py-1.5">
+                      {BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}
+                      {item.mode && <span className={`ml-1 text-[9px] ${item.mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>({item.mode === 'cooling' ? 'kyl' : 'värm'})</span>}
+                    </td>
                     <td className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <span className={`font-mono ${color}`}>{rawPct}%</span>
