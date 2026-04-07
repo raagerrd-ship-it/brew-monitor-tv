@@ -890,8 +890,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const isRecovery = pidResult.constraints?.includes('deadband-recovery')
       const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
       const isInDeadband = pidResult.constraints?.includes('deadband')
-      const canLearnSsFloor = pidResult.dutyCycle != null && pidResult.iCorrection != null &&
-        (isInDeadband && !isRecovery) || (isMildOvershoot)
+      const isStale = pidResult.constraints?.includes('stale')
+      const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
+      const canLearnSsFloor = hasDutyData && (
+        (isInDeadband && !isRecovery) || isMildOvershoot || isStale
+      )
       if (canLearnSsFloor) {
         const dutyBucket = getTempBucket(actualTarget)
         const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
