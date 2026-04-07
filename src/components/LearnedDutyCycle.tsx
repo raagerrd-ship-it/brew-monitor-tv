@@ -8,6 +8,7 @@ interface DutyEntry {
   controller_id: string;
   controller_name: string;
   temp_bucket: string;
+  mode: string | null;
   duty: number;
   warming_rate: number;
   cooling_rate: number;
@@ -177,7 +178,10 @@ export function LearnedDutyCycle() {
                 const color = quantized > 60 ? "text-red-400" : quantized > 40 ? "text-yellow-400" : "text-emerald-400";
                 return (
                   <tr key={`${item.controller_id}-${item.temp_bucket}`}>
-                    <td className="py-1.5">{BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}</td>
+                    <td className="py-1.5">
+                      {BUCKET_LABELS[item.temp_bucket] ?? item.temp_bucket}
+                      {item.mode && <span className={`ml-1 text-[9px] ${item.mode === 'cooling' ? 'text-sky-400' : 'text-orange-400'}`}>({item.mode === 'cooling' ? 'kyl' : 'värm'})</span>}
+                    </td>
                     <td className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <span className={`font-mono ${color}`}>{rawPct}%</span>
