@@ -190,10 +190,11 @@ export async function calculateCompensatedTarget(
         constraints.push('deadband-recovery')
       }
     } else {
-      // No ssFloor known — faster decay to account for thermal inertia.
-      // At 20% decay/cycle (5 min), integral drops from 18% to 5% in ~30 min
-      // vs the old 10%/cycle which took ~50 min.
-      integral *= 0.80
+      // No ssFloor known — gentle decay to preserve integral while system
+      // learns the correct floor. 5% decay/cycle allows floor learning to
+      // capture the right value before integral is killed.
+      integral *= 0.95
+      constraints.push('deadband-no-floor')
     }
     dutyCycle = Math.max(0, integral)
     if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)

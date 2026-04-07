@@ -903,19 +903,30 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
           .maybeSingle()
         const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
+        const currentSamples = existingSs?.sample_count ?? 0
         // Wider tolerance during mild-overshoot (±50%) to allow floor to converge faster
         // when system consistently overshoots due to too-high floor.
         // Normal deadband: ±20% stability guard.
         const tolerance = isMildOvershoot ? 0.50 : 0.20
-        const isStable = Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
-        if (isStable) {
-          // During mild-overshoot, use EMA with higher alpha to converge faster
+        // When floor is 0 or has very few samples, allow seeding from any positive duty.
+        // This fixes the bootstrap problem where floor=0 can never learn higher values
+        // because the stability check (|duty - 0| <= 0.05) blocks everything > 5%.
+        const isSeeding = currentFloor === 0 || currentSamples < 3
+        const isStable = isSeeding || Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
+        if (isStable && (quantizedDuty > 0 || currentFloor > 0)) {
+          // During seeding: use EMA with low alpha to ramp up gradually
+          // During mild-overshoot: use higher alpha to converge faster downward
           let learnedValue = quantizedDuty
-          if (isMildOvershoot && currentFloor > 0) {
+          if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
+            // First seed: accept the value but use EMA to avoid overcommitting
+            const alpha = currentSamples === 0 ? 0.5 : 0.3
+            learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
+            log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
+          } else if (isMildOvershoot && currentFloor > 0) {
             const alpha = 0.4 // faster convergence (vs normal deadband which just sets directly)
             learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
           }
-          const ssCount = (existingSs?.sample_count ?? 0) + 1
+          const ssCount = currentSamples + 1
           rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
         }
       }
