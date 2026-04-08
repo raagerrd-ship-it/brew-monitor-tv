@@ -168,8 +168,14 @@ async function executePwmDutyCycle(
     return
   }
 
-  // 2-cycle model: 10%-resolution over 10-min (2×5-min) window
-  const dutyPct = Math.round(dutyRaw * 10) * 10
+  // 2-cycle model with dithering: achieves sub-10% effective duty over time.
+  // E.g. dutyRaw=0.23 → alternates between 20% and 30% (30% used 3/10 cycles).
+  const dutyLow = Math.floor(dutyRaw * 10) * 10   // e.g. 20
+  const dutyHigh = Math.ceil(dutyRaw * 10) * 10    // e.g. 30
+  const fraction = dutyRaw * 100 - dutyLow          // e.g. 3.0 (how many tenths toward high)
+  // 10-slot dithering: over 50 min (10×5-min cycles), use high step for 'fraction' slots
+  const ditherSlot = Math.floor(Date.now() / 300000) % 10
+  const dutyPct = ditherSlot < Math.round(fraction) ? dutyHigh : dutyLow
   const totalBurstMin = dutyPct / 10
   const phase = Math.floor(Date.now() / 300000) % 2
   const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
@@ -215,8 +221,8 @@ async function executePwmDutyCycle(
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
   } else if (burstSeconds > 0) {
     // 10-90%: burst at extreme, schedule revert to suppress target
-    log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
-      duty_pct: dutyPct, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode,
+    log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% (raw=${Math.round(dutyRaw * 100)}%, dither=${ditherSlot}/${Math.round(fraction)}) → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
+      duty_pct: dutyPct, duty_raw: Math.round(dutyRaw * 100), dither_slot: ditherSlot, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode,
     })
     if (ctx.updateBatch) {
       ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
