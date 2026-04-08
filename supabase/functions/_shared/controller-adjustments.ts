@@ -885,15 +885,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
       // Merge steady-state duty into the same upsert batch (was a separate updateLearnedParam call)
-      // IMPORTANT: Only update ssFloor when system is genuinely stable in deadband,
-      // NOT during recovery from overshoot (integral < ssFloor = self-reinforcing loop)
+      // ssFloor learning: allow learning whenever system is near target and has
+      // meaningful duty data. This includes deadband (with or without recovery),
+      // target-hold, and mild-overshoot states. The key insight is that ssFloor
+      // should represent the duty needed to MAINTAIN the target, so learning
+      // should happen during all near-target states, not just "pure" deadband.
       const isRecovery = pidResult.constraints?.includes('deadband-recovery')
       const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
+      const isTargetHold = pidResult.constraints?.includes('target-hold')
       const isInDeadband = pidResult.constraints?.includes('deadband')
       const isStale = pidResult.constraints?.includes('stale')
       const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
       const canLearnSsFloor = hasDutyData && (
-        (isInDeadband && !isRecovery) || isMildOvershoot || isStale
+        isInDeadband || isTargetHold || isMildOvershoot || isStale
       )
       if (canLearnSsFloor) {
         const dutyBucket = getTempBucket(actualTarget)
