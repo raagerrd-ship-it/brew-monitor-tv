@@ -3,50 +3,48 @@ Mål
 
 - Göra dödbandet till en håll-zon, inte en avstängnings-zon.
 - Låta `ssFloor` vara den duty som faktiskt håller exakt måltemp trots termisk tröghet.
-- Sluta “tappa” steady duty precis när systemet når målet.
+- Sluta "tappa" steady duty precis när systemet når målet.
 
-Vad jag ser i koden nu
+Status: ✅ Implementerat
 
-- I `supabase/functions/_shared/pid-compensation.ts` används `ssFloor` redan inne i deadband (`|error| <= 0.10`).
-- Problemet är precis efter det: grenen `mild-overshoot` sätter `dutyCycle = 0` så fort man hamnar lite på “fel sida” om målet.
-- I `supabase/functions/_shared/controller-adjustments.ts` blockeras dessutom `ssFloor`-inlärning under `deadband-recovery`, alltså just när regulatorn försöker hitta tillbaka till golvet.
+Ändringar gjorda
 
-Det är därför beteendet känns motsägelsefullt: `ssFloor` finns för att hålla målet, men logiken klipper bort den för tidigt.
+### 1. PID target-hold i `pid-compensation.ts`
 
-Plan
+- **Deadband (±0,10°C)**: Integralen konvergerar mot ssFloor via EMA. Recovery-alpha ökar vid warm-drift.
+- **Target Hold (±0,10–0,25°C)**: Viktad duty istället för att nolla:
+  - **Cool side** (need -0,10 till -0,25): 70% av ssFloor, holdAlpha=0,15
+  - **Warm side** (need +0,10 till +0,25): 130% av ssFloor, holdAlpha=0,30 (heating) / 0,15 (cooling)
+  - Heating använder snabbare alpha pga större termisk tröghet (heater → fluid → fermenter → probe)
+- **Overshoot (>0,25°C)**: Aggressiv erosion (alpha 0,3–0,6) + integral-decay. ssFloor eroderas direkt i DB.
+- Braking-zon: riktningsmedveten, hoppar över vid interpolerad data.
 
-1. Ändra PID-beteendet nära målet i `pid-compensation.ts`
-- Behåll deadband, men definiera det som “target hold”.
-- När ett etablerat `ssFloor` finns ska regulatorn fortsätta hålla samma mode nära målet i stället för att falla till 0%.
-- Ersätt dagens “mild overshoot = duty 0%” med en mjuk håll-logik nära målet:
-  - håll minst floor eller en försiktigt trimmad floor i samma mode
-  - börja först nolla/erodera tydligt när översvängen är verklig, inte bara några hundradelar över/under målet
-- Behåll aggressiv erosion först vid riktig overshoot, inte vid normal target-passering med tröghet.
+### 2. ssFloor-inlärning i `controller-adjustments.ts`
 
-2. Låt `ssFloor` lära sig när den faktiskt håller målet i `controller-adjustments.ts`
-- Uppdatera lärvillkoren så att `ssFloor` får läras även under hold/recovery/catchup nära målet, inte bara i “ren deadband utan recovery”.
-- Fortsätt använda mode-specifika nycklar (`steady_state_duty:cooling:*`, `steady_state_duty:heating:*`).
-- Behåll separat nedlärning vid verklig overshoot så att för höga golv fortfarande kan korrigeras ned.
+- Lärning tillåts i alla near-target-tillstånd: deadband, target-hold, target-hold-warm, mild-overshoot.
+- Seeding (floor=0 eller <3 samples): EMA alpha 0,5/0,3 för gradvis uppbyggnad.
+- Mild-overshoot: EMA alpha 0,4 för snabbare nedkonvergens.
+- Normal deadband: direkt sättning av floor till nuvarande integral.
+- Stabilitetsguard: ±20% (deadband) / ±50% (mild-overshoot) tolerans.
 
-3. Behåll skydd som redan är rätt
-- `MODE_FLOOR_BLOCK` ska vara kvar: har man ett etablerat värmegolv ska den inte börja kyla, och tvärtom.
-- Marginalskalning för kyla kan lämnas som den är.
-- Ingen databasmigration behövs.
+### 3. PWM Dithering
 
-Tekniska detaljer
+- Ersätter ren 10%-kvantisering med tidsstyrd alternering mellan angränsande steg.
+- 10-slots cykel (50 min, baserad på `Date.now() / 300000 % 10`).
+- Exempel: dutyRaw=23% → 7 cykler 20% + 3 cykler 30% = effektiv 23%.
+- ssFloor lagras med full precision; dithering säkerställer korrekt medeldrift.
+- Loggning: `raw=X%, dither=slot/threshold` för spårbarhet.
 
-- Filer: främst
-  - `supabase/functions/_shared/pid-compensation.ts`
-  - `supabase/functions/_shared/controller-adjustments.ts`
-- Ny loggning/constraints bör tydligt skilja på:
-  - target hold
-  - recovery/catchup
-  - verklig overshoot-erosion
-- Jag skulle inte ta bort dödbandet helt; jag skulle ändra dess betydelse från “lugnt område där duty kan dö ut” till “område där `ssFloor` aktivt håller setpoint”.
+### 4. Skydd som behållts
 
-Verifiering efter implementation
+- `MODE_FLOOR_BLOCK`: etablerat golv i ett läge blockerar byte till motsatt.
+- Marginalskalning för kyla (coolerMarginContext).
+- Bromszon: riktningsmedveten, kräver bekräftad sensordata.
+- Mode-switch: kräver 3 stabila cykler + 0% duty.
 
-- Kontrollera Blå på hold-target: duty ska ligga kvar aktiv runt exakt mål i stället för att falla till 0 när den precis passerar målet.
-- Kontrollera Grön i heating: samma princip fast spegelvänt, ingen kylstart om värmegolv finns.
-- Bekräfta att `ssFloor` fortsätter lära uppåt/nedåt medan systemet faktiskt håller måltemp.
-- Bekräfta att riktig overshoot fortfarande kan sänka ett för högt floor och att regulatorn inte fastnar i konstant överstyrning.
+Filer
+
+- `supabase/functions/_shared/pid-compensation.ts`
+- `supabase/functions/_shared/controller-adjustments.ts`
+
+Ingen databasmigration behövdes.
