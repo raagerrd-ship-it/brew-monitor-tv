@@ -202,13 +202,26 @@ export async function calculateCompensatedTarget(
     constraints.push('deadband')
     console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else if (need < -0.10 && need >= -0.25) {
-    // MILD OVERSHOOT — decay integral but output ZERO duty.
-    // We're past the setpoint so there's no reason to keep actuating.
-    // Preserve integral memory (slow decay) so we restart smoothly when returning.
-    integral *= 0.95
-    dutyCycle = 0
-    constraints.push('mild-overshoot')
-    console.log(`🔸 ${modeLabel} mild overshoot ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=0% (output suppressed)`)
+    // TARGET HOLD — slightly past setpoint due to thermal inertia.
+    // If we have an established ssFloor, maintain reduced duty to hold position
+    // instead of cutting to 0% (which causes drift-back and oscillation).
+    if (ssFloor > 0) {
+      // Gently erode integral toward a reduced floor (70% of ssFloor).
+      // This provides enough force to counteract thermal inertia without
+      // actively pushing further past the setpoint.
+      const holdTarget = ssFloor * 0.70
+      const holdAlpha = 0.15
+      integral = integral * (1 - holdAlpha) + holdTarget * holdAlpha
+      dutyCycle = Math.max(0, integral)
+      constraints.push('target-hold')
+      console.log(`🔸 ${modeLabel} target-hold ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I=${integral.toFixed(3)}, holdTarget=${holdTarget.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    } else {
+      // No established floor — decay toward zero as before
+      integral *= 0.95
+      dutyCycle = 0
+      constraints.push('mild-overshoot')
+      console.log(`🔸 ${modeLabel} mild overshoot ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, floor=0, duty=0% (no floor established)`)
+    }
   } else if (need < -0.25) {
     // OVER-ACTUATED — aggressive erosion
     const overshoot = Math.abs(need)
