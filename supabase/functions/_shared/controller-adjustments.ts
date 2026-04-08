@@ -893,11 +893,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       const isRecovery = pidResult.constraints?.includes('deadband-recovery')
       const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
       const isTargetHold = pidResult.constraints?.includes('target-hold')
+      const isTargetHoldWarm = pidResult.constraints?.includes('target-hold-warm')
       const isInDeadband = pidResult.constraints?.includes('deadband')
       const isStale = pidResult.constraints?.includes('stale')
       const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
       const canLearnSsFloor = hasDutyData && (
-        isInDeadband || isTargetHold || isMildOvershoot || isStale
+        isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
       )
       if (canLearnSsFloor) {
         const dutyBucket = getTempBucket(actualTarget)
