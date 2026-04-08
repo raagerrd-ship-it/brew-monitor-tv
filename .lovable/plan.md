@@ -1,46 +1,52 @@
 
+Mål
 
-# Marginaljusterad PID — duty-cykel skalad efter kylargradient
+- Göra dödbandet till en håll-zon, inte en avstängnings-zon.
+- Låta `ssFloor` vara den duty som faktiskt håller exakt måltemp trots termisk tröghet.
+- Sluta “tappa” steady duty precis när systemet når målet.
 
-## Dataanalys (senaste 10h)
+Vad jag ser i koden nu
 
-Kylartempen svänger 0.35–3.59°C, vilket ger Blå en actual margin mellan 2.8–6.1°C. PID:n kompenserar inte för detta — den ger ~35% duty oavsett, trots att kyleffekten per duty-% varierar med faktor 2x.
+- I `supabase/functions/_shared/pid-compensation.ts` används `ssFloor` redan inne i deadband (`|error| <= 0.10`).
+- Problemet är precis efter det: grenen `mild-overshoot` sätter `dutyCycle = 0` så fort man hamnar lite på “fel sida” om målet.
+- I `supabase/functions/_shared/controller-adjustments.ts` blockeras dessutom `ssFloor`-inlärning under `deadband-recovery`, alltså just när regulatorn försöker hitta tillbaka till golvet.
 
-**Inlärd referensmarginal**: 4.94°C (cold bucket, 90 prover)
+Det är därför beteendet känns motsägelsefullt: `ssFloor` finns för att hålla målet, men logiken klipper bort den för tidigt.
 
-## Lösning
+Plan
 
-Införa `gainScale = learnedMargin / actualMargin` (clamped 0.5–2.0) som skalfaktor på P-termen och I-ackumuleringen i cooling mode.
+1. Ändra PID-beteendet nära målet i `pid-compensation.ts`
+- Behåll deadband, men definiera det som “target hold”.
+- När ett etablerat `ssFloor` finns ska regulatorn fortsätta hålla samma mode nära målet i stället för att falla till 0%.
+- Ersätt dagens “mild overshoot = duty 0%” med en mjuk håll-logik nära målet:
+  - håll minst floor eller en försiktigt trimmad floor i samma mode
+  - börja först nolla/erodera tydligt när översvängen är verklig, inte bara några hundradelar över/under målet
+- Behåll aggressiv erosion först vid riktig overshoot, inte vid normal target-passering med tröghet.
 
-## Implementation (3 filer)
+2. Låt `ssFloor` lära sig när den faktiskt håller målet i `controller-adjustments.ts`
+- Uppdatera lärvillkoren så att `ssFloor` får läras även under hold/recovery/catchup nära målet, inte bara i “ren deadband utan recovery”.
+- Fortsätt använda mode-specifika nycklar (`steady_state_duty:cooling:*`, `steady_state_duty:heating:*`).
+- Behåll separat nedlärning vid verklig overshoot så att för höga golv fortfarande kan korrigeras ned.
 
-### 1. `pid-compensation.ts` — Ny parameter + skalningslogik (~15 rader)
+3. Behåll skydd som redan är rätt
+- `MODE_FLOOR_BLOCK` ska vara kvar: har man ett etablerat värmegolv ska den inte börja kyla, och tvärtom.
+- Marginalskalning för kyla kan lämnas som den är.
+- Ingen databasmigration behövs.
 
-Lägg till optional parameter `coolerMarginContext?: { coolerTemp: number; learnedMargin: number }`.
+Tekniska detaljer
 
-I "NEEDS ACTION"-blocket (rad ~190–275), applicera gainScale på P och I:
+- Filer: främst
+  - `supabase/functions/_shared/pid-compensation.ts`
+  - `supabase/functions/_shared/controller-adjustments.ts`
+- Ny loggning/constraints bör tydligt skilja på:
+  - target hold
+  - recovery/catchup
+  - verklig overshoot-erosion
+- Jag skulle inte ta bort dödbandet helt; jag skulle ändra dess betydelse från “lugnt område där duty kan dö ut” till “område där `ssFloor` aktivt håller setpoint”.
 
-```
-actualMargin = actualTemp - coolerTemp
-gainScale = clamp(learnedMargin / actualMargin, 0.5, 2.0)
-pCorrection = need * DUTY_P * gainScale
-integral += need * DUTY_I * gainScale
-```
+Verifiering efter implementation
 
-Logga `margin-scale=X.XX` i constraints-arrayen.
-
-### 2. `controller-adjustments.ts` — Propagera kylardata (~10 rader)
-
-Hämta aktuell kylartemp och inlärd marginal från kontexten som redan finns tillgänglig. Skicka `coolerMarginContext` till `calculateCompensatedTarget()`.
-
-### 3. `auto-adjust-cooling/index.ts` — Passthrough (~5 rader)
-
-Skicka kylarens `current_temp` och `cooler_margin:cold` learning till controller-adjustments-kontexten.
-
-## Skyddsåtgärder
-
-- Clamp 0.5–2.0 förhindrar extrema skalningar
-- Cooling-only — heating påverkas inte
-- Fallback: gainScale = 1.0 vid saknad kylartemp
-- Deadband, braking, ssFloor: oförändrade (marginalen är redan stabil där)
-
+- Kontrollera Blå på hold-target: duty ska ligga kvar aktiv runt exakt mål i stället för att falla till 0 när den precis passerar målet.
+- Kontrollera Grön i heating: samma princip fast spegelvänt, ingen kylstart om värmegolv finns.
+- Bekräfta att `ssFloor` fortsätter lära uppåt/nedåt medan systemet faktiskt håller måltemp.
+- Bekräfta att riktig overshoot fortfarande kan sänka ett för högt floor och att regulatorn inte fastnar i konstant överstyrning.
