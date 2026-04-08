@@ -241,6 +241,16 @@ export async function calculateCompensatedTarget(
     dutyCycle = Math.max(0, integral)
     constraints.push(isCooling ? 'overcooled' : 'overheated')
     console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+  } else if (need > 0.10 && need <= 0.25 && ssFloor > 0) {
+    // TARGET HOLD (warm side) — temp drifting away from setpoint but still close.
+    // Boost duty to 130% of ssFloor to gently pull back without full P+I.
+    const holdTarget = ssFloor * 1.30
+    const holdAlpha = 0.15
+    integral = integral * (1 - holdAlpha) + holdTarget * holdAlpha
+    dutyCycle = Math.min(1.0, Math.max(0, integral))
+    if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
+    constraints.push('target-hold-warm')
+    console.log(`🔶 ${modeLabel} target-hold-warm ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I=${integral.toFixed(3)}, holdTarget=${holdTarget.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
   } else {
     // NEEDS ACTION — proportional + integral (no margin scaling here — only matters in deadband)
 
