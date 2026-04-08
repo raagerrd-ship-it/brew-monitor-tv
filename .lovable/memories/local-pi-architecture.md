@@ -24,6 +24,7 @@
 │                   └──────────────────────────┘  │
 │                                                 │
 │  Pi #1 (Sonos, Cast Away) ← LAN                │
+│  Cast Away proxy: 192.168.1.150:3002            │
 └─────────────────────────────────────────────────┘
          │ LAN                    │ Internet (1x/h)
          ▼                        ▼
@@ -35,7 +36,7 @@
 - **En Pi** (Pi #2) bredvid jäskärlen kör hela stacken
 - Node.js/Express backend + SQLite (better-sqlite3)
 - Nginx serverar React-frontend
-- Pi #1 hanterar bara Sonos/Cast Away via LAN
+- Pi #1 hanterar bara Sonos/Cast Away via LAN (proxy: 192.168.1.150:3002)
 
 ## BLE Pill Scanner
 
