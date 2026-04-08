@@ -216,7 +216,7 @@ export function SyncedDataDialog({
                           {point.sg != null ? point.sg.toFixed(4) : "-"}
                         </td>
                         <td className={`py-1.5 text-right font-mono ${point.pill_temp != null ? 'text-foreground' : 'text-muted-foreground/40'}`}>
-                          {point.pill_temp != null ? `${point.pill_temp.toFixed(1)}°` : "-"}
+                          {point.pill_temp != null ? `${point.pill_temp.toFixed(2)}°` : "-"}
                         </td>
                         {hasAvgTemp && (
                           <td className={`py-1.5 text-right font-mono ${displayActual != null ? 'text-temp-blue' : 'text-muted-foreground/40'}`}>
