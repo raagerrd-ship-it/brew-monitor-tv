@@ -244,8 +244,10 @@ export async function calculateCompensatedTarget(
   } else if (need > 0.10 && need <= 0.25 && ssFloor > 0) {
     // TARGET HOLD (warm side) — temp drifting away from setpoint but still close.
     // Boost duty to 130% of ssFloor to gently pull back without full P+I.
+    // Heating has more thermal inertia so we converge faster (alpha 0.30 vs 0.15)
+    // to avoid prolonged drift below setpoint.
     const holdTarget = ssFloor * 1.30
-    const holdAlpha = 0.15
+    const holdAlpha = isCooling ? 0.15 : 0.30
     integral = integral * (1 - holdAlpha) + holdTarget * holdAlpha
     dutyCycle = Math.min(1.0, Math.max(0, integral))
     if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
