@@ -863,7 +863,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // ── Single merged upsert for all PID state ──
-    if (!ctx.skipLearning) {
+    // PID operational state (duty, mode, interpolation) must ALWAYS be persisted,
+    // even during idle (skipLearning). Only ssFloor learning is gated.
+    {
       const now = new Date().toISOString()
       const epochSec = Math.floor(Date.now() / 1000)
       const rows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = [
@@ -890,68 +892,55 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
-      // Merge steady-state duty into the same upsert batch (was a separate updateLearnedParam call)
-      // ssFloor learning: allow learning whenever system is near target and has
-      // meaningful duty data. This includes deadband (with or without recovery),
-      // target-hold, and mild-overshoot states. The key insight is that ssFloor
-      // should represent the duty needed to MAINTAIN the target, so learning
+      // ssFloor learning: only when NOT in idle mode
+      // ssFloor represents the duty needed to MAINTAIN the target, so learning
       // should happen during all near-target states, not just "pure" deadband.
-      const isRecovery = pidResult.constraints?.includes('deadband-recovery')
-      const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
-      const isTargetHold = pidResult.constraints?.includes('target-hold')
-      const isTargetHoldWarm = pidResult.constraints?.includes('target-hold-warm')
-      const isInDeadband = pidResult.constraints?.includes('deadband')
-      const isStale = pidResult.constraints?.includes('stale')
-      const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-      const canLearnSsFloor = hasDutyData && (
-        isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
-      )
-      if (canLearnSsFloor) {
-        const dutyBucket = getTempBucket(actualTarget)
-        const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
-        // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
-        const { data: existingSs } = await supabase
-          .from('fermentation_learnings')
-          .select('sample_count, learned_value')
-          .eq('controller_id', fc.controller_id)
-          .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
-          .maybeSingle()
-        const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
-        const currentSamples = existingSs?.sample_count ?? 0
-        // Wider tolerance during mild-overshoot (±50%) to allow floor to converge faster
-        // when system consistently overshoots due to too-high floor.
-        // Normal deadband: ±20% stability guard.
-        const tolerance = isMildOvershoot ? 0.50 : 0.20
-        // When floor is 0 or has very few samples, allow seeding from any positive duty.
-        // This fixes the bootstrap problem where floor=0 can never learn higher values
-        // because the stability check (|duty - 0| <= 0.05) blocks everything > 5%.
-        const isSeeding = currentFloor === 0 || currentSamples < 3
-        const isStable = isSeeding || Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
-        if (isStable && (quantizedDuty > 0 || currentFloor > 0)) {
-          // During seeding: use EMA with low alpha to ramp up gradually
-          // During mild-overshoot: use higher alpha to converge faster downward
-          let learnedValue = quantizedDuty
-          if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
-            // First seed: accept the value but use EMA to avoid overcommitting
-            const alpha = currentSamples === 0 ? 0.5 : 0.3
-            learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-            log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
-          } else if (isMildOvershoot && currentFloor > 0) {
-            const alpha = 0.4 // faster convergence (vs normal deadband which just sets directly)
-            learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
+      if (!ctx.skipLearning) {
+        const isRecovery = pidResult.constraints?.includes('deadband-recovery')
+        const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
+        const isTargetHold = pidResult.constraints?.includes('target-hold')
+        const isTargetHoldWarm = pidResult.constraints?.includes('target-hold-warm')
+        const isInDeadband = pidResult.constraints?.includes('deadband')
+        const isStale = pidResult.constraints?.includes('stale')
+        const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
+        const canLearnSsFloor = hasDutyData && (
+          isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
+        )
+        if (canLearnSsFloor) {
+          const dutyBucket = getTempBucket(actualTarget)
+          const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
+          // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
+          const { data: existingSs } = await supabase
+            .from('fermentation_learnings')
+            .select('sample_count, learned_value')
+            .eq('controller_id', fc.controller_id)
+            .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
+            .maybeSingle()
+          const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
+          const currentSamples = existingSs?.sample_count ?? 0
+          const tolerance = isMildOvershoot ? 0.50 : 0.20
+          const isSeeding = currentFloor === 0 || currentSamples < 3
+          const isStable = isSeeding || Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
+          if (isStable && (quantizedDuty > 0 || currentFloor > 0)) {
+            let learnedValue = quantizedDuty
+            if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
+              const alpha = currentSamples === 0 ? 0.5 : 0.3
+              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
+              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
+            } else if (isMildOvershoot && currentFloor > 0) {
+              const alpha = 0.4
+              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
+            }
+            const ssCount = currentSamples + 1
+            rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
           }
-          const ssCount = currentSamples + 1
-          rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
         }
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
       await Promise.all([
         pidResult.persistPromise,
         supabase.from('fermentation_learnings').upsert(rows, { onConflict: 'controller_id,parameter_name' }),
-      ])
-    } else if (pidResult.persistPromise) {
-      // Even when skipLearning, PID state must be persisted
-      await pidResult.persistPromise
+      ].filter(Boolean))
     }
 
     // ═══════════════════════════════════════════════════
