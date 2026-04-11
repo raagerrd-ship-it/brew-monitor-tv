@@ -837,7 +837,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const systemIsIdle = !hasActiveSessions2 && (!hasCoolingEnabled || coolerIsIdle2);
+    const systemIsIdle = !hasActiveSessions2 && !hasActiveControllers && (!hasCoolingEnabled || coolerIsIdle2);
 
     let automationResult: any = null;
     const tPhase2b = Date.now();
