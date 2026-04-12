@@ -1210,7 +1210,7 @@ async function learnFromCurrentState(
       const tightenedMargin = Math.max(tightenFloor, currentMargin * tightenFactor)
       const result = batch.update(marginParam, tightenedMargin, 1.0, 15.0)
       batch.update(`cooler_margin:${tempBucket}`, tightenedMargin, 2.0, 15.0)
-      log('MARGIN_LEARN', 'pass', `[${tempBucket}:util=${Math.round(util * 100)}%] Tighten ×${tightenFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (floor ${minEffFloor.toFixed(1)}°C)`, { old_value: result.oldValue, new_value: result.newValue, tighten: tightenFactor, util: Math.round(util * 100), min_eff_floor: minEffFloor })
+      log('MARGIN_LEARN', 'pass', `[${tempBucket}:util=${Math.round(util * 100)}%] Tighten ×${tightenFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (floor ${tightenFloor.toFixed(1)}°C)`, { old_value: result.oldValue, new_value: result.newValue, tighten: tightenFactor, util: Math.round(util * 100), min_eff_floor: tightenFloor })
     } else {
       batch.update(marginParam, currentMargin, 1.0, 15.0)
     }
