@@ -1057,10 +1057,14 @@ async function learnFromCurrentState(
     return t <= -4 || t >= 39
   })
   const anyHighDuty = utilizations?.some(u => u.utilization != null && u.utilization >= 0.70) ?? false
-  if (anyPwmActive && !anyHighDuty) {
+  const allLowDuty = utilizations?.every(u => u.utilization != null && u.utilization < 0.50) ?? false
+  if (anyPwmActive && !anyHighDuty && !allLowDuty) {
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
     log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
+  }
+  if (anyPwmActive && allLowDuty) {
+    log('MARGIN_LEARN', 'info', `PWM aktiv men alla tankar låg duty (<50%) — tillåter margin-tightening`)
   }
   if (anyPwmActive && anyHighDuty) {
     log('MARGIN_LEARN', 'info', `PWM aktiv men tank med hög duty (≥70%) — tillåter marginalinlärning`)
