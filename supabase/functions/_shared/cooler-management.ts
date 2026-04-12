@@ -1184,6 +1184,27 @@ async function learnFromCurrentState(
       const result = batch.update(marginParam, boostedMargin, 1.0, 15.0)
       batch.update(`cooler_margin:${tempBucket}`, boostedMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `[${tempBucket}:util=${Math.round(util * 100)}%] Boost ×${boostFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C${isSustained ? ' (sustained)' : ''}`, { old_value: result.oldValue, new_value: result.newValue, boost: boostFactor, util: Math.round(util * 100) })
+    } else if (util < 0.50 && currentMargin > 2.0 && !anyBeerAboveTarget) {
+      // Controller is comfortable — tighten margin to save energy.
+      // Scale tightening by how little the controller is working:
+      // 40-49% = gentle 0.98x, 30-39% = moderate 0.96x, 20-29% = stronger 0.94x, <20% = aggressive 0.92x
+      let tightenFactor: number
+      if (util < 0.20) {
+        tightenFactor = 0.92
+      } else if (util < 0.30) {
+        tightenFactor = 0.94
+      } else if (util < 0.40) {
+        tightenFactor = 0.96
+      } else {
+        tightenFactor = 0.98
+      }
+      // Don't tighten below min_effective_margin (the proven minimum that still works)
+      const minEffParam = batch.getCached(`min_effective_margin:${tempBucket}`)
+      const minEffFloor = minEffParam && minEffParam.sampleCount >= 5 ? minEffParam.value : 2.0
+      const tightenedMargin = Math.max(minEffFloor, currentMargin * tightenFactor)
+      const result = batch.update(marginParam, tightenedMargin, 1.0, 15.0)
+      batch.update(`cooler_margin:${tempBucket}`, tightenedMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'pass', `[${tempBucket}:util=${Math.round(util * 100)}%] Tighten ×${tightenFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (floor ${minEffFloor.toFixed(1)}°C)`, { old_value: result.oldValue, new_value: result.newValue, tighten: tightenFactor, util: Math.round(util * 100), min_eff_floor: minEffFloor })
     } else {
       batch.update(marginParam, currentMargin, 1.0, 15.0)
     }
