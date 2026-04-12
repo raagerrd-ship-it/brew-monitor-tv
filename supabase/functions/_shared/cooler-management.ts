@@ -1057,10 +1057,14 @@ async function learnFromCurrentState(
     return t <= -4 || t >= 39
   })
   const anyHighDuty = utilizations?.some(u => u.utilization != null && u.utilization >= 0.70) ?? false
-  if (anyPwmActive && !anyHighDuty) {
+  const allLowDuty = utilizations?.every(u => u.utilization != null && u.utilization < 0.50) ?? false
+  if (anyPwmActive && !anyHighDuty && !allLowDuty) {
     await learnWarmingRate(ctx, controllersWithCooling, tempBucket)
     log('MARGIN_LEARN', 'info', `Hoppar marginal/cooling-rate-inlärning — PWM-burst aktiv (hw target ≤-4 eller ≥39)`)
     return
+  }
+  if (anyPwmActive && allLowDuty) {
+    log('MARGIN_LEARN', 'info', `PWM aktiv men alla tankar låg duty (<50%) — tillåter margin-tightening`)
   }
   if (anyPwmActive && anyHighDuty) {
     log('MARGIN_LEARN', 'info', `PWM aktiv men tank med hög duty (≥70%) — tillåter marginalinlärning`)
@@ -1184,6 +1188,29 @@ async function learnFromCurrentState(
       const result = batch.update(marginParam, boostedMargin, 1.0, 15.0)
       batch.update(`cooler_margin:${tempBucket}`, boostedMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'action', `[${tempBucket}:util=${Math.round(util * 100)}%] Boost ×${boostFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C${isSustained ? ' (sustained)' : ''}`, { old_value: result.oldValue, new_value: result.newValue, boost: boostFactor, util: Math.round(util * 100) })
+    } else if (util < 0.50 && currentMargin > 2.0 && !anyBeerAboveTarget) {
+      // Controller is comfortable — tighten margin to save energy.
+      // Scale tightening by how little the controller is working:
+      // 40-49% = gentle 0.98x, 30-39% = moderate 0.96x, 20-29% = stronger 0.94x, <20% = aggressive 0.92x
+      let tightenFactor: number
+      if (util < 0.20) {
+        tightenFactor = 0.92
+      } else if (util < 0.30) {
+        tightenFactor = 0.94
+      } else if (util < 0.40) {
+        tightenFactor = 0.96
+      } else {
+        tightenFactor = 0.98
+      }
+      // Use a static floor (2.0°C) instead of min_effective_margin for tightening.
+      // min_effective_margin tracks historical margins via EMA, creating a circular
+      // dependency where the floor converges toward the current (too-high) margin.
+      // The static floor ensures we can always explore lower margins safely.
+      const tightenFloor = 2.0
+      const tightenedMargin = Math.max(tightenFloor, currentMargin * tightenFactor)
+      const result = batch.update(marginParam, tightenedMargin, 1.0, 15.0)
+      batch.update(`cooler_margin:${tempBucket}`, tightenedMargin, 2.0, 15.0)
+      log('MARGIN_LEARN', 'pass', `[${tempBucket}:util=${Math.round(util * 100)}%] Tighten ×${tightenFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (floor ${tightenFloor.toFixed(1)}°C)`, { old_value: result.oldValue, new_value: result.newValue, tighten: tightenFactor, util: Math.round(util * 100), min_eff_floor: tightenFloor })
     } else {
       batch.update(marginParam, currentMargin, 1.0, 15.0)
     }

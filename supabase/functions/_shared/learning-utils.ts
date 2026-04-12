@@ -103,6 +103,11 @@ export class LearnBatch {
     this.loaded = true
   }
 
+  /** Read a cached param without modifying it */
+  getCached(paramName: string): { value: number; sampleCount: number } | undefined {
+    return this.cache.get(paramName)
+  }
+
   /** Compute EMA update in memory (no DB call) */
   update(
     paramName: string,
