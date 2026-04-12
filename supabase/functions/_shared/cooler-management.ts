@@ -1202,10 +1202,12 @@ async function learnFromCurrentState(
       } else {
         tightenFactor = 0.98
       }
-      // Don't tighten below min_effective_margin (the proven minimum that still works)
-      const minEffParam = batch.getCached(`min_effective_margin:${tempBucket}`)
-      const minEffFloor = minEffParam && minEffParam.sampleCount >= 5 ? minEffParam.value : 2.0
-      const tightenedMargin = Math.max(minEffFloor, currentMargin * tightenFactor)
+      // Use a static floor (2.0°C) instead of min_effective_margin for tightening.
+      // min_effective_margin tracks historical margins via EMA, creating a circular
+      // dependency where the floor converges toward the current (too-high) margin.
+      // The static floor ensures we can always explore lower margins safely.
+      const tightenFloor = 2.0
+      const tightenedMargin = Math.max(tightenFloor, currentMargin * tightenFactor)
       const result = batch.update(marginParam, tightenedMargin, 1.0, 15.0)
       batch.update(`cooler_margin:${tempBucket}`, tightenedMargin, 2.0, 15.0)
       log('MARGIN_LEARN', 'pass', `[${tempBucket}:util=${Math.round(util * 100)}%] Tighten ×${tightenFactor}: ${result.oldValue.toFixed(1)}→${result.newValue.toFixed(1)}°C (floor ${minEffFloor.toFixed(1)}°C)`, { old_value: result.oldValue, new_value: result.newValue, tighten: tightenFactor, util: Math.round(util * 100), min_eff_floor: minEffFloor })
