@@ -182,8 +182,7 @@ export function CustomBrewDialog({
           label: `${format(new Date(point.date), "d MMM HH:mm", { locale: sv })} • ${sgStr} SG • ${tempStr}`
         };
       })
-      .reverse() // Show newest first
-      .slice(0, 30); // Limit to last 30 points
+      .reverse(); // Show newest first
   }, [sgData]);
 
   // Load SG data from snapshots when editing
