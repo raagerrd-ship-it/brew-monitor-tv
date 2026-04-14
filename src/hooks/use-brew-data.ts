@@ -335,31 +335,27 @@ export function useBrewData(): UseBrewDataReturn {
       }
     }
 
+    // Fetch SG data from snapshots (SSOT) for all brews
+    const brewIds = brewReadings.map((r: any) => r.id);
+    const { data: allSnapshots } = await supabase
+      .from('brew_data_snapshots')
+      .select('brew_id, recorded_at, sg, pill_temp')
+      .in('brew_id', brewIds)
+      .order('recorded_at', { ascending: true });
+    
+    const snapshotsByBrew = new Map<string, Array<{ date: string; value: number; temp: number }>>();
+    for (const snap of (allSnapshots || [])) {
+      if (snap.sg == null) continue;
+      const list = snapshotsByBrew.get(snap.brew_id) || [];
+      list.push({ date: snap.recorded_at, value: snap.sg, temp: snap.pill_temp ?? 0 });
+      snapshotsByBrew.set(snap.brew_id, list);
+    }
+
     return brewReadings.map((reading: any) => {
-      const originalSgData = reading.sg_data || [];
-      let sgData = originalSgData;
+      const sgData = snapshotsByBrew.get(reading.id) || [];
 
-      if (reading.status === 'Conditioning' || reading.status === 'Completed') {
-        const sortedData = [...sgData].sort((a, b) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-
-        let cutoffIndex = sortedData.length - 1;
-        for (let i = sortedData.length - 1; i > 0; i--) {
-          const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
-          const rate = calculateFermentationRate(recentData);
-
-          if (rate !== null && Math.abs(rate) >= 0.001) {
-            cutoffIndex = i;
-            break;
-          }
-        }
-
-        sgData = sortedData.slice(0, cutoffIndex + 1);
-      }
-
-      const fermentationRate = calculateFermentationRate(originalSgData);
-      const fermentationTrend = calculateFermentationTrend(originalSgData);
+      const fermentationRate = calculateFermentationRate(sgData);
+      const fermentationTrend = calculateFermentationTrend(sgData);
 
       // For custom brews (with linked_pill_id), use pill's last_update if brew has no last_update
       let effectiveLastUpdate = reading.last_update;
@@ -586,32 +582,8 @@ export function useBrewData(): UseBrewDataReturn {
       setBrews(prevBrews =>
         prevBrews.map(brew => {
           if (brew.batch_id === updatedReading.batch_id) {
-            const originalSgData = updatedReading.sg_data || [];
-            let newSgData = originalSgData;
-
-            if (
-              updatedReading.status === 'Conditioning' ||
-              updatedReading.status === 'Completed'
-            ) {
-              const sortedData = [...newSgData].sort(
-                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-              );
-
-              let cutoffIndex = sortedData.length - 1;
-              for (let i = sortedData.length - 1; i > 0; i--) {
-                const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
-                const rate = calculateFermentationRate(recentData);
-
-                if (rate !== null && Math.abs(rate) >= 0.001) {
-                  cutoffIndex = i;
-                  break;
-                }
-              }
-
-              newSgData = sortedData.slice(0, cutoffIndex + 1);
-            }
-
-            const newFermentationRate = calculateFermentationRate(originalSgData);
+            // sgData comes from snapshots (loaded on full fetch), keep existing for realtime updates
+            const newFermentationRate = calculateFermentationRate(brew.sgData);
 
             return {
               ...brew,
@@ -631,7 +603,6 @@ export function useBrewData(): UseBrewDataReturn {
                   })
                 : 'Ingen data',
               lastUpdateRaw: updatedReading.last_update,
-              sgData: newSgData,
               fermentationRate:
                 (updatedReading.status ?? brew.status) === 'Conditioning' ||
                 (updatedReading.status ?? brew.status) === 'Completed'

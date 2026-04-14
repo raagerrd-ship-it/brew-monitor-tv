@@ -850,7 +850,7 @@ Deno.serve(async (req) => {
       // Consolidated brew_readings query — used for brew_sg_data AND injected into computeAllMetrics
       const { data: allFermentingBrews } = await supabase
         .from('brew_readings')
-        .select('id, name, sg_data, original_gravity, final_gravity, current_sg, current_temp, battery, status, last_update, linked_controller_id, fermentation_start, attenuation, style')
+        .select('id, name, original_gravity, final_gravity, current_sg, current_temp, battery, status, last_update, linked_controller_id, fermentation_start, attenuation, style')
         .in('status', ['Jäsning', 'Fermenting']);
 
       // Build brew_sg_data map from consolidated query

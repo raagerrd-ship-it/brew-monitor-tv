@@ -3,6 +3,7 @@ import type { BrewData, PillData, TempController, BrewEvent, FermentationSession
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { calculateFermentationRate, calculateFermentationTrend } from "@/lib/fermentation-calc";
+import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -111,7 +112,16 @@ export function useBrewPage(brewId: string | undefined) {
           };
         }
 
-        const sgData = reading.sg_data || [];
+        // Fetch SG data from snapshots (SSOT)
+        const { data: snapshots } = await supabase
+          .from('brew_data_snapshots')
+          .select('recorded_at, sg, pill_temp')
+          .eq('brew_id', reading.id)
+          .order('recorded_at', { ascending: true });
+        
+        const sgData = (snapshots || [])
+          .filter((s: any) => s.sg != null)
+          .map((s: any) => ({ date: s.recorded_at, value: s.sg, temp: s.pill_temp ?? 0 }));
         const fermentationRate = calculateFermentationRate(sgData);
         const fermentationTrend = calculateFermentationTrend(sgData);
 

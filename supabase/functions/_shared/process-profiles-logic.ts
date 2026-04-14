@@ -3,6 +3,7 @@ import { ProfileStep } from './temp-utils.ts'
 import { processStep, StepContext, SgDataPoint } from './step-handlers.ts'
 import { completeProfile, advanceToNextStep } from './session-lifecycle.ts'
 import type { FermentationSession, BrewData, FermentationMetrics } from './types.ts'
+import { fetchSgDataBatch } from './types.ts'
 
 // ─── Batch data helpers ───────────────────────────────────────────────
 
@@ -28,12 +29,12 @@ function buildControllerMap(allControllers: any[] | null): Map<string, any> {
   return map
 }
 
-function buildBrewDataMap(allBrewData: any[] | null): Map<string, BrewData> {
+function buildBrewDataMap(allBrewData: any[] | null, snapshotSgMap: Map<string, SgDataPoint[]>): Map<string, BrewData> {
   const map = new Map()
   if (allBrewData) {
     for (const b of allBrewData) {
       map.set(b.id, {
-        sg_data: b.sg_data as SgDataPoint[],
+        sg_data: snapshotSgMap.get(b.id) || [],
         original_gravity: parseFloat(String(b.original_gravity ?? 0)),
         final_gravity: parseFloat(String(b.final_gravity ?? 0)),
       })
@@ -147,7 +148,7 @@ export async function processAllSessions(
     opts?.brewReadings
       ? Promise.resolve({ data: opts.brewReadings.filter((b: any) => brewIds.includes(b.id)) })
       : (brewIds.length > 0
-        ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
+        ? supabase.from('brew_readings').select('id, original_gravity, final_gravity').in('id', brewIds)
         : Promise.resolve({ data: null } as { data: null })),
     opts?.brewMetrics
       ? Promise.resolve({ data: opts.brewMetrics.filter((m: any) => brewIds.includes(m.brew_id)) })
@@ -156,9 +157,14 @@ export async function processAllSessions(
         : Promise.resolve({ data: null } as { data: null })),
   ])
 
+  // Fetch SG data from snapshots (SSOT)
+  const snapshotSgMap = brewIds.length > 0
+    ? await fetchSgDataBatch(supabase, brewIds)
+    : new Map<string, SgDataPoint[]>()
+
   const stepsMap = buildStepsMap(allSteps)
   const controllerMap = buildControllerMap(allControllers)
-  const brewDataMap = buildBrewDataMap(allBrewData as any[] | null)
+  const brewDataMap = buildBrewDataMap(allBrewData as any[] | null, snapshotSgMap)
   const metricsMap = buildMetricsMap(allMetrics as any[] | null)
 
   // Process each session (with per-session error isolation)

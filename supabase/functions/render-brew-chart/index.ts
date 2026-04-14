@@ -504,7 +504,7 @@ Deno.serve(async (req) => {
     // Thinning policy caps snapshots at ~500 rows, so no pagination needed
     const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
-        .select('id, sg_data, original_gravity, final_gravity, pill_compensation')
+        .select('id, original_gravity, final_gravity, pill_compensation')
         .eq('id', brewId)
         .single(),
       supabase.from('brew_data_snapshots')
@@ -524,15 +524,8 @@ Deno.serve(async (req) => {
 
     const snapshotRows = downsamplePreservingTargetSteps(allSnapshots, MAX_CHART_POINTS);
 
-    // Fallback to SG log if snapshots are not yet available
-    const chartRows = snapshotRows.length > 0 ? snapshotRows : ((brew.sg_data || []) as SgDataPoint[]).map((p) => ({
-      recorded_at: p.date,
-      sg: p.value,
-      pill_temp: p.temp ?? null,
-      controller_temp: null,
-      profile_target_temp: null,
-      actual_temp: null,
-    }));
+    // Snapshots are the SSOT for chart data
+    const chartRows = snapshotRows;
 
     // ── Step 2: Generate SVG and return inline ──
     const usePillComp = pillCompensation !== undefined ? !!pillCompensation : brew.pill_compensation !== false;
