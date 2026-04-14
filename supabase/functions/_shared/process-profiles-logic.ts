@@ -148,7 +148,7 @@ export async function processAllSessions(
     opts?.brewReadings
       ? Promise.resolve({ data: opts.brewReadings.filter((b: any) => brewIds.includes(b.id)) })
       : (brewIds.length > 0
-        ? supabase.from('brew_readings').select('id, sg_data, original_gravity, final_gravity').in('id', brewIds)
+        ? supabase.from('brew_readings').select('id, original_gravity, final_gravity').in('id', brewIds)
         : Promise.resolve({ data: null } as { data: null })),
     opts?.brewMetrics
       ? Promise.resolve({ data: opts.brewMetrics.filter((m: any) => brewIds.includes(m.brew_id)) })
@@ -157,9 +157,14 @@ export async function processAllSessions(
         : Promise.resolve({ data: null } as { data: null })),
   ])
 
+  // Fetch SG data from snapshots (SSOT)
+  const snapshotSgMap = brewIds.length > 0
+    ? await fetchSgDataBatch(supabase, brewIds)
+    : new Map<string, SgDataPoint[]>()
+
   const stepsMap = buildStepsMap(allSteps)
   const controllerMap = buildControllerMap(allControllers)
-  const brewDataMap = buildBrewDataMap(allBrewData as any[] | null)
+  const brewDataMap = buildBrewDataMap(allBrewData as any[] | null, snapshotSgMap)
   const metricsMap = buildMetricsMap(allMetrics as any[] | null)
 
   // Process each session (with per-session error isolation)
