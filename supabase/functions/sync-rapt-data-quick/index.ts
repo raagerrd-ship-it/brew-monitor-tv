@@ -533,7 +533,7 @@ Deno.serve(async (req) => {
     const customBrewSync = async () => {
       const { data: customBrews } = await supabase
         .from('brew_readings')
-        .select('*')
+        .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, current_sg, current_temp, battery, last_update, created_at, label_image_url, description, pill_compensation')
         .like('batch_id', 'custom\\_%')
         .in('status', ['Jäsning', 'Fermenting']);
 
@@ -590,8 +590,12 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
-        if (existingSgData.length === 0) {
+        // Check if brew has existing snapshots to determine initial vs quick-append
+        const { count: snapshotCount } = await supabase
+          .from('brew_data_snapshots')
+          .select('id', { count: 'exact', head: true })
+          .eq('brew_id', brew.id);
+        if (!snapshotCount || snapshotCount === 0) {
           initialSyncBrews.push({ brew, pillId });
         } else {
           quickAppendBrews.push({ brew, pillId });
