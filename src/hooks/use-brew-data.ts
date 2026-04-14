@@ -335,28 +335,24 @@ export function useBrewData(): UseBrewDataReturn {
       }
     }
 
+    // Fetch SG data from snapshots (SSOT) for all brews
+    const brewIds = brewReadings.map((r: any) => r.id);
+    const { data: allSnapshots } = await supabase
+      .from('brew_data_snapshots')
+      .select('brew_id, recorded_at, sg, pill_temp')
+      .in('brew_id', brewIds)
+      .order('recorded_at', { ascending: true });
+    
+    const snapshotsByBrew = new Map<string, Array<{ date: string; value: number; temp: number }>>();
+    for (const snap of (allSnapshots || [])) {
+      if (snap.sg == null) continue;
+      const list = snapshotsByBrew.get(snap.brew_id) || [];
+      list.push({ date: snap.recorded_at, value: snap.sg, temp: snap.pill_temp ?? 0 });
+      snapshotsByBrew.set(snap.brew_id, list);
+    }
+
     return brewReadings.map((reading: any) => {
-      const originalSgData = reading.sg_data || [];
-      let sgData = originalSgData;
-
-      if (reading.status === 'Conditioning' || reading.status === 'Completed') {
-        const sortedData = [...sgData].sort((a, b) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-
-        let cutoffIndex = sortedData.length - 1;
-        for (let i = sortedData.length - 1; i > 0; i--) {
-          const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
-          const rate = calculateFermentationRate(recentData);
-
-          if (rate !== null && Math.abs(rate) >= 0.001) {
-            cutoffIndex = i;
-            break;
-          }
-        }
-
-        sgData = sortedData.slice(0, cutoffIndex + 1);
-      }
+      const sgData = snapshotsByBrew.get(reading.id) || [];
 
       const fermentationRate = calculateFermentationRate(originalSgData);
       const fermentationTrend = calculateFermentationTrend(originalSgData);
