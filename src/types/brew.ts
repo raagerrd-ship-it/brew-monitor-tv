@@ -37,6 +37,7 @@ export interface BrewData {
   label_image_url: string | null;
   description: string | null;
   pill_compensation?: boolean;
+  fermentationEnd: string | null;
   overshootReason: string | null;
   originalTarget: number | null;
   pidReason: string | null;

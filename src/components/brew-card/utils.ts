@@ -28,17 +28,21 @@ export function isBrewInactive(status: string): boolean {
 }
 
 /**
- * Calculate days since fermentation started
+ * Calculate days since fermentation started (or days of active fermentation if end date is set)
  */
-export function calculateDaysSinceStart(sgData: Array<{ date: string; value: number; temp: number }>): number {
+export function calculateDaysSinceStart(
+  sgData: Array<{ date: string; value: number; temp: number }>,
+  fermentationEnd?: string | null
+): number {
   if (sgData.length === 0) return 0;
   
   const sortedData = [...sgData].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   const firstDate = new Date(sortedData[0].date);
+  const endDate = fermentationEnd ? new Date(fermentationEnd) : new Date();
   return Math.floor(
-    (new Date().getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+    (endDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 }
 
@@ -49,6 +53,10 @@ export function getStatusDisplayText(brew: BrewData): string {
   if (brew.status === "Jäsning" && brew.sgData.length > 0) {
     const daysSinceStart = calculateDaysSinceStart(brew.sgData);
     return `${brew.status} dag ${daysSinceStart}`;
+  }
+  if ((brew.status === "Konditionering" || brew.status === "Klar") && brew.sgData.length > 0 && brew.fermentationEnd) {
+    const fermDays = calculateDaysSinceStart(brew.sgData, brew.fermentationEnd);
+    return `${brew.status} (${fermDays}d jäsning)`;
   }
   return brew.status;
 }
