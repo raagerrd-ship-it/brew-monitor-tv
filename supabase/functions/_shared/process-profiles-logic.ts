@@ -3,6 +3,7 @@ import { ProfileStep } from './temp-utils.ts'
 import { processStep, StepContext, SgDataPoint } from './step-handlers.ts'
 import { completeProfile, advanceToNextStep } from './session-lifecycle.ts'
 import type { FermentationSession, BrewData, FermentationMetrics } from './types.ts'
+import { fetchSgDataBatch } from './types.ts'
 
 // ─── Batch data helpers ───────────────────────────────────────────────
 
@@ -28,12 +29,12 @@ function buildControllerMap(allControllers: any[] | null): Map<string, any> {
   return map
 }
 
-function buildBrewDataMap(allBrewData: any[] | null): Map<string, BrewData> {
+function buildBrewDataMap(allBrewData: any[] | null, snapshotSgMap: Map<string, SgDataPoint[]>): Map<string, BrewData> {
   const map = new Map()
   if (allBrewData) {
     for (const b of allBrewData) {
       map.set(b.id, {
-        sg_data: b.sg_data as SgDataPoint[],
+        sg_data: snapshotSgMap.get(b.id) || [],
         original_gravity: parseFloat(String(b.original_gravity ?? 0)),
         final_gravity: parseFloat(String(b.final_gravity ?? 0)),
       })
