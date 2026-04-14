@@ -418,17 +418,27 @@ export function CustomBrewDialog({
           pill_compensation: true, // legacy field, kept for backward compat
         };
 
-        // If leaving fermentation and user selected an endpoint, trim sg_data
+        // If leaving fermentation and user selected an endpoint, trim snapshots
         if (isLeavingFermentation && selectedEndPointIndex !== "") {
           const endIndex = parseInt(selectedEndPointIndex, 10);
-          const trimmedSgData = sgData.slice(0, endIndex + 1);
-          updateData.sg_data = trimmedSgData;
+          const keepUntilDate = sgData[endIndex]?.date;
           
-          // Update current_sg to the last point's value (support both field names)
-          const lastPoint = trimmedSgData[trimmedSgData.length - 1];
+          // Update current_sg to the last kept point's value
+          const lastPoint = sgData[endIndex];
           const lastSgValue = lastPoint?.sg ?? lastPoint?.value;
           if (lastSgValue !== undefined) {
             updateData.current_sg = lastSgValue;
+          }
+
+          // Delete snapshots after the selected endpoint
+          if (keepUntilDate) {
+            const { error: snapError } = await supabase
+              .from('brew_data_snapshots')
+              .delete()
+              .eq('brew_id', editBrew.id)
+              .gt('recorded_at', keepUntilDate);
+            if (snapError) console.error('Error trimming snapshots:', snapError);
+            else console.log(`Trimmed snapshots after ${keepUntilDate}`);
           }
         }
 
@@ -438,10 +448,6 @@ export function CustomBrewDialog({
           : fermStart !== editBrew.fermentation_start;
           
         if (fermStart && fermStartChanged) {
-          const fermStartTime = new Date(fermStart).getTime();
-          const currentSgData = (updateData.sg_data as Array<{ date: string; [key: string]: unknown }>) ?? sgData;
-          const pointsBefore = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() < fermStartTime);
-          
           // Check how many brew_data_snapshots would be affected
           const { count: snapshotCount } = await supabase
             .from('brew_data_snapshots')
@@ -449,13 +455,11 @@ export function CustomBrewDialog({
             .eq('brew_id', editBrew.id)
             .lt('recorded_at', fermStart);
 
-          const totalToRemove = pointsBefore.length + (snapshotCount ?? 0);
-          
-          if (totalToRemove > 0) {
+          if ((snapshotCount ?? 0) > 0) {
             // Show confirmation dialog and pause save
             const result = await new Promise<'confirm' | 'skip'>((resolve) => {
               setPendingTrimConfirm({
-                count: pointsBefore.length,
+                count: 0,
                 snapshotCount: snapshotCount ?? 0,
                 onConfirm: async () => {
                   resolve('confirm');
@@ -469,22 +473,13 @@ export function CustomBrewDialog({
             });
 
             if (result === 'confirm') {
-              if (pointsBefore.length > 0) {
-                const filtered = currentSgData.filter((p: { date: string }) => new Date(p.date).getTime() >= fermStartTime);
-                updateData.sg_data = filtered;
-                console.log(`Removed ${pointsBefore.length} sg_data points before fermentation start`);
-              }
-
-              // Also delete brew_data_snapshots before the new start
-              if ((snapshotCount ?? 0) > 0) {
-                const { error: snapError } = await supabase
-                  .from('brew_data_snapshots')
-                  .delete()
-                  .eq('brew_id', editBrew.id)
-                  .lt('recorded_at', fermStart);
-                if (snapError) console.error('Error deleting snapshots:', snapError);
-                else console.log(`Deleted ${snapshotCount} brew_data_snapshots before fermentation start`);
-              }
+              const { error: snapError } = await supabase
+                .from('brew_data_snapshots')
+                .delete()
+                .eq('brew_id', editBrew.id)
+                .lt('recorded_at', fermStart);
+              if (snapError) console.error('Error deleting snapshots:', snapError);
+              else console.log(`Deleted ${snapshotCount} snapshots before fermentation start`);
             }
           }
         }
