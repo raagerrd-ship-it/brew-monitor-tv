@@ -1385,28 +1385,26 @@ Deno.serve(async (req) => {
     const snapshotTask = async () => {
       const { data: activeBrews } = await supabase
         .from('brew_readings')
-        .select('id, current_sg, current_temp, last_update, linked_controller_id, status, sg_data')
+        .select('id, current_sg, current_temp, last_update, linked_controller_id, status')
         .in('status', ['Jäsning', 'Fermenting']);
       if (!activeBrews?.length) return;
 
       const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
       const { data: ctrls } = ctrlIds.length > 0
         ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update')
+            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update, pill_temp')
             .in('controller_id', ctrlIds)
         : { data: [] as any[] };
       const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
 
       let count = 0;
       for (const brew of activeBrews) {
-        const sgArr = Array.isArray(brew.sg_data) ? brew.sg_data as any[] : [];
-        if (sgArr.length === 0) continue;
-        const latest = sgArr[sgArr.length - 1];
+        if (brew.current_sg == null) continue;
         const ctrl = ctrlMap.get(brew.linked_controller_id);
         await createBrewSnapshot(supabase, brew.id, {
-          recorded_at: ctrl?.last_update || latest.date || new Date().toISOString(),
-          sg: latest.value ?? null,
-          pill_temp: latest.temp ?? null,
+          recorded_at: ctrl?.last_update || brew.last_update || new Date().toISOString(),
+          sg: brew.current_sg,
+          pill_temp: ctrl?.pill_temp ?? brew.current_temp ?? null,
           controller_temp: ctrl?.current_temp ?? null,
           profile_target_temp: ctrl?.profile_target_temp ?? null,
           actual_temp: ctrl?.actual_temp ?? null,
