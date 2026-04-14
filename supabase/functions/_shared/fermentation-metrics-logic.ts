@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import type { SgDataPoint } from './types.ts'
+import { fetchSgDataBatch } from './types.ts'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ export async function computeAllMetrics(
   } else {
     const { data } = await supabase
       .from('brew_readings')
-      .select('id, name, sg_data, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation, style')
+      .select('id, name, original_gravity, final_gravity, current_sg, fermentation_start, linked_controller_id, status, attenuation, style')
       .in('status', ['Fermenting', 'Jäsning'])
     brews = data || []
   }
@@ -180,10 +181,15 @@ export async function computeAllMetrics(
 
   const sessionBrewIds = new Set(sessionsData.map((s: any) => s.brew_id))
 
+  // Fetch SG data from snapshots (SSOT) instead of sg_data field
+  const snapshotSgMap = opts?.brews
+    ? await fetchSgDataBatch(supabase, brewIds)
+    : await fetchSgDataBatch(supabase, brewIds)
+
   const upserts: any[] = []
 
   for (const brew of brews) {
-    const allSgData = (Array.isArray(brew.sg_data) ? brew.sg_data : []) as SgDataPoint[]
+    const allSgData = snapshotSgMap.get(brew.id) || []
     const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000
     const sgData = allSgData.filter(p => new Date(p.date).getTime() > fourteenDaysAgo)
     if (sgData.length < 3) continue
