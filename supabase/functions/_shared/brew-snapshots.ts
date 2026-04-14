@@ -95,56 +95,42 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
 
     if (allRows.length <= 500) return;
 
-    // Use brew-relative age (from first snapshot) so early fermentation
-    // data is preserved even when the brew is old.
-    const brewStart = new Date(allRows[0].recorded_at).getTime();
-    const MS_48H  = 48 * 60 * 60 * 1000;
-    const MS_7D   =  7 * 24 * 60 * 60 * 1000;
-    const MS_14D  = 14 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const MS_24H = 24 * 60 * 60 * 1000;
+    const cutoff24h = now - MS_24H;
 
-    // Age bands relative to brew start:
-    //   0–48h  → keep all (~15 min resolution)
-    //   2–7d   → keep every 2nd (~30 min)
-    //   7–14d  → keep every 3rd (~45 min)
-    //   14d+   → keep every 4th (~1h)
-    const bands: { rows: typeof allRows; keepEvery: number }[] = [
-      { rows: [], keepEvery: 1 },  // 0-48h
-      { rows: [], keepEvery: 2 },  // 2-7d
-      { rows: [], keepEvery: 3 },  // 7-14d
-      { rows: [], keepEvery: 4 },  // 14d+
-    ];
+    // Split: recent (last 24h) vs older
+    // Always protect the very first row
+    const protectedIds = new Set<string>();
+    protectedIds.add(allRows[0].id); // first ever snapshot
+    protectedIds.add(allRows[allRows.length - 1].id); // last snapshot
+
+    const recentRows: typeof allRows = [];
+    const olderRows: typeof allRows = [];
 
     for (const row of allRows) {
-      const brewAge = new Date(row.recorded_at).getTime() - brewStart;
-      if (brewAge < MS_48H) bands[0].rows.push(row);
-      else if (brewAge < MS_7D) bands[1].rows.push(row);
-      else if (brewAge < MS_14D) bands[2].rows.push(row);
-      else bands[3].rows.push(row);
-    }
-
-    const idsToDelete: string[] = [];
-
-    for (const band of bands) {
-      if (band.keepEvery <= 1 || band.rows.length <= 2) continue;
-      // Always keep first and last in each band
-      for (let i = 1; i < band.rows.length - 1; i++) {
-        if (i % band.keepEvery !== 0) {
-          idsToDelete.push(band.rows[i].id);
-        }
+      if (new Date(row.recorded_at).getTime() >= cutoff24h) {
+        recentRows.push(row);
+      } else {
+        olderRows.push(row);
       }
     }
 
-    // If we'd still exceed 500 after this pass, do a second pass with
-    // more aggressive thinning on the oldest band
-    const remaining = allRows.length - idsToDelete.length;
-    if (remaining > 550 && bands[3].rows.length > 10) {
-      // Increase keepEvery for 14d+ band
-      const alreadyDeleted = new Set(idsToDelete);
-      const oldBand = bands[3].rows.filter(r => !alreadyDeleted.has(r.id));
-      const extraKeep = Math.max(6, Math.ceil(oldBand.length / 2));
-      for (let i = 1; i < oldBand.length - 1; i++) {
-        if (i % extraKeep !== 0) {
-          idsToDelete.push(oldBand[i].id);
+    // Budget: keep all recent rows, thin older rows to fit within ~500 total
+    const budget = Math.max(10, 500 - recentRows.length);
+
+    const idsToDelete: string[] = [];
+
+    if (olderRows.length > budget) {
+      // Calculate keepEvery dynamically so we end up with ~budget rows
+      const keepEvery = Math.max(2, Math.round(olderRows.length / budget));
+
+      for (let i = 0; i < olderRows.length; i++) {
+        const row = olderRows[i];
+        if (protectedIds.has(row.id)) continue;
+        // Keep every Nth row (0-indexed: keep i=0, i=keepEvery, i=2*keepEvery, ...)
+        if (i % keepEvery !== 0) {
+          idsToDelete.push(row.id);
         }
       }
     }
@@ -157,7 +143,8 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
       await supabase.from('brew_data_snapshots').delete().in('id', batch);
     }
 
-    console.log(`[Snapshots] Thinned ${idsToDelete.length} old snapshots for brew ${brewId} (${allRows.length} → ${allRows.length - idsToDelete.length})`);
+    const kept = allRows.length - idsToDelete.length;
+    console.log(`[Snapshots] Thinned ${idsToDelete.length} snapshots for brew ${brewId} (${allRows.length} → ${kept}, recent24h: ${recentRows.length}, older kept: ${kept - recentRows.length})`);
   } catch (err) {
     console.error('Error in thinSnapshots:', err);
   }
