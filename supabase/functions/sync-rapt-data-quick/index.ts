@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
+import { fetchSgDataFromSnapshots } from '../_shared/types.ts';
 import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 import { processAllSessions } from '../_shared/process-profiles-logic.ts';
 import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
@@ -759,10 +760,24 @@ Deno.serve(async (req) => {
             const linkedCtrlInit = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
             const ssotTempInit = linkedCtrlInit?.actual_temp ?? latestData.temp;
 
+            // Create snapshots for all initial data points
+            for (const point of mergedSgData) {
+              const ctrl = linkedCtrlInit;
+              await createBrewSnapshot(supabase, brew.id, {
+                recorded_at: point.date,
+                sg: point.value,
+                pill_temp: point.temp,
+                controller_temp: ctrl?.current_temp ?? null,
+                profile_target_temp: ctrl?.profile_target_temp ?? null,
+                actual_temp: ctrl?.actual_temp ?? point.temp,
+              });
+            }
+
+            // Update brew_readings with latest values (no sg_data write)
             const { error: updateError } = await supabase
               .from('brew_readings')
               .update({
-                sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTempInit,
+                current_sg: currentSg, current_temp: ssotTempInit,
                 original_gravity: og, attenuation: Math.max(0, Math.min(100, attenuation)),
                 abv: Math.max(0, abv), battery: latestTelemetry.battery,
                 last_update: latestData.date, updated_at: new Date().toISOString()
@@ -770,7 +785,7 @@ Deno.serve(async (req) => {
               .eq('id', brew.id);
 
             if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); return; }
-            console.log(`Initial sync: Updated custom brew ${brew.name} with ${newSgData.length} data points`);
+            console.log(`Initial sync: Created ${newSgData.length} snapshots for ${brew.name}`);
             customBrewsUpdated++;
 
             if (sgTempCorrectionEnabled) {
