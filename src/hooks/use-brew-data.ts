@@ -354,8 +354,8 @@ export function useBrewData(): UseBrewDataReturn {
     return brewReadings.map((reading: any) => {
       const sgData = snapshotsByBrew.get(reading.id) || [];
 
-      const fermentationRate = calculateFermentationRate(originalSgData);
-      const fermentationTrend = calculateFermentationTrend(originalSgData);
+      const fermentationRate = calculateFermentationRate(sgData);
+      const fermentationTrend = calculateFermentationTrend(sgData);
 
       // For custom brews (with linked_pill_id), use pill's last_update if brew has no last_update
       let effectiveLastUpdate = reading.last_update;
