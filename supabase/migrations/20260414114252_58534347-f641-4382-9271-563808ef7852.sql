@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_readings DROP COLUMN sg_data;

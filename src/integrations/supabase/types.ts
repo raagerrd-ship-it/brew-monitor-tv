@@ -382,7 +382,6 @@ export type Database = {
           name: string
           original_gravity: number
           pill_compensation: boolean
-          sg_data: Json
           share_id: string | null
           status: string
           style: string
@@ -410,7 +409,6 @@ export type Database = {
           name: string
           original_gravity: number
           pill_compensation?: boolean
-          sg_data?: Json
           share_id?: string | null
           status: string
           style: string
@@ -438,7 +436,6 @@ export type Database = {
           name?: string
           original_gravity?: number
           pill_compensation?: boolean
-          sg_data?: Json
           share_id?: string | null
           status?: string
           style?: string

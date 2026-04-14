@@ -519,7 +519,6 @@ export function CustomBrewDialog({
             current_temp: 20,
             attenuation: 0,
             abv: 0,
-            sg_data: [],
             fermentation_start: fermStart,
             label_image_url: labelImageUrl,
             description: description.trim() || null,
