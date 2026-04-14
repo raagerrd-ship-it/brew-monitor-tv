@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
       console.log('Using passed-in RAPT auth token');
     }
     let brewsUpdated = 0;
-    const pendingSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = [];
+    
 
     for (const brew of customBrews) {
       try {
@@ -361,7 +361,6 @@ Deno.serve(async (req) => {
         success: true, 
         brewsUpdated,
         totalBrews: customBrews.length,
-        pendingSnapshots,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
