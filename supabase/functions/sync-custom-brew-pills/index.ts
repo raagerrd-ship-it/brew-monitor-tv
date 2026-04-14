@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
+import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 async function fetchPillTelemetryCorrected(
