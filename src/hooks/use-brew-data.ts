@@ -582,32 +582,8 @@ export function useBrewData(): UseBrewDataReturn {
       setBrews(prevBrews =>
         prevBrews.map(brew => {
           if (brew.batch_id === updatedReading.batch_id) {
-            const originalSgData = updatedReading.sg_data || [];
-            let newSgData = originalSgData;
-
-            if (
-              updatedReading.status === 'Conditioning' ||
-              updatedReading.status === 'Completed'
-            ) {
-              const sortedData = [...newSgData].sort(
-                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-              );
-
-              let cutoffIndex = sortedData.length - 1;
-              for (let i = sortedData.length - 1; i > 0; i--) {
-                const recentData = sortedData.slice(Math.max(0, i - 10), i + 1);
-                const rate = calculateFermentationRate(recentData);
-
-                if (rate !== null && Math.abs(rate) >= 0.001) {
-                  cutoffIndex = i;
-                  break;
-                }
-              }
-
-              newSgData = sortedData.slice(0, cutoffIndex + 1);
-            }
-
-            const newFermentationRate = calculateFermentationRate(originalSgData);
+            // sgData comes from snapshots (loaded on full fetch), keep existing for realtime updates
+            const newFermentationRate = calculateFermentationRate(brew.sgData);
 
             return {
               ...brew,
@@ -627,7 +603,6 @@ export function useBrewData(): UseBrewDataReturn {
                   })
                 : 'Ingen data',
               lastUpdateRaw: updatedReading.last_update,
-              sgData: newSgData,
               fermentationRate:
                 (updatedReading.status ?? brew.status) === 'Conditioning' ||
                 (updatedReading.status ?? brew.status) === 'Completed'
