@@ -186,22 +186,30 @@ export function CustomBrewDialog({
       .slice(0, 30); // Limit to last 30 points
   }, [sgData]);
 
-  // Load sg_data when editing
+  // Load SG data from snapshots when editing
   useEffect(() => {
     const loadSgData = async () => {
       if (open && editBrew) {
         const { data, error } = await supabase
-          .from("brew_readings")
-          .select("sg_data")
-          .eq("id", editBrew.id)
-          .single();
+          .from("brew_data_snapshots")
+          .select("recorded_at, sg, pill_temp, controller_temp")
+          .eq("brew_id", editBrew.id)
+          .order("recorded_at", { ascending: true });
         
-        if (!error && data?.sg_data) {
-          const parsedData = Array.isArray(data.sg_data) ? data.sg_data : [];
-          setSgData(parsedData as unknown as SgDataPoint[]);
-          // Default to last point
-          if (parsedData.length > 0) {
-            setSelectedEndPointIndex((parsedData.length - 1).toString());
+        if (!error && data && data.length > 0) {
+          const parsed: SgDataPoint[] = data
+            .filter(r => r.sg != null)
+            .map(r => ({
+              date: r.recorded_at,
+              sg: r.sg!,
+              value: r.sg!,
+              temp: r.pill_temp ?? undefined,
+              pillTemp: r.pill_temp ?? undefined,
+              controllerTemp: r.controller_temp ?? undefined,
+            }));
+          setSgData(parsed);
+          if (parsed.length > 0) {
+            setSelectedEndPointIndex((parsed.length - 1).toString());
           }
         }
       }
