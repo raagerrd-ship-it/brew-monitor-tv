@@ -284,6 +284,7 @@ function BrewCardComponent({
                           />
                         </PopoverContent>
                       </Popover>
+                    )}
                     {brew.status === "Jäsning" && devices.controller && !brew.fermentationSession && (
                       <button
                         className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
