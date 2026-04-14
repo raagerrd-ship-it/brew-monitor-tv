@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
+import { fetchSgDataFromSnapshots } from '../_shared/types.ts';
 import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 import { processAllSessions } from '../_shared/process-profiles-logic.ts';
 import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
@@ -533,7 +534,7 @@ Deno.serve(async (req) => {
     const customBrewSync = async () => {
       const { data: customBrews } = await supabase
         .from('brew_readings')
-        .select('*')
+        .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, current_sg, current_temp, battery, last_update, created_at, label_image_url, description, pill_compensation')
         .like('batch_id', 'custom\\_%')
         .in('status', ['Jäsning', 'Fermenting']);
 
@@ -590,8 +591,12 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
-        if (existingSgData.length === 0) {
+        // Check if brew has existing snapshots to determine initial vs quick-append
+        const { count: snapshotCount } = await supabase
+          .from('brew_data_snapshots')
+          .select('id', { count: 'exact', head: true })
+          .eq('brew_id', brew.id);
+        if (!snapshotCount || snapshotCount === 0) {
           initialSyncBrews.push({ brew, pillId });
         } else {
           quickAppendBrews.push({ brew, pillId });
@@ -640,45 +645,34 @@ Deno.serve(async (req) => {
           const newPointDate = new Date(pillLastUpdate).toISOString();
           if (fermentationStartDate && new Date(newPointDate) < fermentationStartDate) continue;
 
-          const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
-          const existingDates = new Set(existingSgData.map(d => d.date));
-          
-          // Dedup: skip if this timestamp already exists
-          if (existingDates.has(newPointDate)) {
-            // Still update with SSOT actual_temp if available
-            if (brew.linked_controller_id) {
-              const ctrl = dbCtrlMap.get(brew.linked_controller_id);
-              const ssotTemp = ctrl?.actual_temp ?? ctrl?.current_temp;
-              if (ssotTemp != null) {
-                await supabase.from('brew_readings')
-                  .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
-                  .eq('id', brew.id);
-              }
-            }
-            continue;
-          }
-
-          const newPoint: SgDataPoint = { date: newPointDate, value: sgValue, temp: pillTemp };
-          const mergedSgData = [...existingSgData, newPoint]
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-          const latestData = mergedSgData[mergedSgData.length - 1];
+          // Dedup via snapshot upsert (onConflict: brew_id,recorded_at, ignoreDuplicates)
           const og = brew.original_gravity;
-          const currentSg = latestData.value;
+          const currentSg = sgValue;
           const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
           const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
 
           // SSOT: prefer controller actual_temp over pill temp
           const linkedCtrlForTemp = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
-          const ssotTemp = linkedCtrlForTemp?.actual_temp ?? latestData.temp;
+          const ssotTemp = linkedCtrlForTemp?.actual_temp ?? pillTemp;
 
+          // Create snapshot (dedup handled by upsert)
+          await createBrewSnapshot(supabase, brew.id, {
+            recorded_at: newPointDate,
+            sg: sgValue,
+            pill_temp: pillTemp,
+            controller_temp: linkedCtrlForTemp?.current_temp ?? null,
+            profile_target_temp: linkedCtrlForTemp?.profile_target_temp ?? null,
+            actual_temp: ssotTemp,
+          });
+
+          // Update brew_readings with latest values (no sg_data write)
           const { error: updateError } = await supabase
             .from('brew_readings')
             .update({
-              sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTemp,
+              current_sg: currentSg, current_temp: ssotTemp,
               attenuation: Math.max(0, Math.min(100, attenuation)),
               abv: Math.max(0, abv), battery: pillBattery,
-              last_update: latestData.date, updated_at: new Date().toISOString()
+              last_update: newPointDate, updated_at: new Date().toISOString()
             })
             .eq('id', brew.id);
 
@@ -687,7 +681,10 @@ Deno.serve(async (req) => {
           customBrewsUpdated++;
 
           if (sgTempCorrectionEnabled) {
-            try { await processSgCalibration(supabase, pillId, mergedSgData); } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
+            try {
+              const snapshots = await fetchSgDataFromSnapshots(supabase, brew.id);
+              await processSgCalibration(supabase, pillId, snapshots);
+            } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
           }
         } catch (brewError) {
           console.error(`Error quick-appending brew ${brew.name}:`, brewError);
@@ -763,10 +760,24 @@ Deno.serve(async (req) => {
             const linkedCtrlInit = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
             const ssotTempInit = linkedCtrlInit?.actual_temp ?? latestData.temp;
 
+            // Create snapshots for all initial data points
+            for (const point of mergedSgData) {
+              const ctrl = linkedCtrlInit;
+              await createBrewSnapshot(supabase, brew.id, {
+                recorded_at: point.date,
+                sg: point.value,
+                pill_temp: point.temp,
+                controller_temp: ctrl?.current_temp ?? null,
+                profile_target_temp: ctrl?.profile_target_temp ?? null,
+                actual_temp: ctrl?.actual_temp ?? point.temp,
+              });
+            }
+
+            // Update brew_readings with latest values (no sg_data write)
             const { error: updateError } = await supabase
               .from('brew_readings')
               .update({
-                sg_data: mergedSgData, current_sg: currentSg, current_temp: ssotTempInit,
+                current_sg: currentSg, current_temp: ssotTempInit,
                 original_gravity: og, attenuation: Math.max(0, Math.min(100, attenuation)),
                 abv: Math.max(0, abv), battery: latestTelemetry.battery,
                 last_update: latestData.date, updated_at: new Date().toISOString()
@@ -774,7 +785,7 @@ Deno.serve(async (req) => {
               .eq('id', brew.id);
 
             if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); return; }
-            console.log(`Initial sync: Updated custom brew ${brew.name} with ${newSgData.length} data points`);
+            console.log(`Initial sync: Created ${newSgData.length} snapshots for ${brew.name}`);
             customBrewsUpdated++;
 
             if (sgTempCorrectionEnabled) {
@@ -1374,28 +1385,26 @@ Deno.serve(async (req) => {
     const snapshotTask = async () => {
       const { data: activeBrews } = await supabase
         .from('brew_readings')
-        .select('id, current_sg, current_temp, last_update, linked_controller_id, status, sg_data')
+        .select('id, current_sg, current_temp, last_update, linked_controller_id, status')
         .in('status', ['Jäsning', 'Fermenting']);
       if (!activeBrews?.length) return;
 
       const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
       const { data: ctrls } = ctrlIds.length > 0
         ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update')
+            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update, pill_temp')
             .in('controller_id', ctrlIds)
         : { data: [] as any[] };
       const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
 
       let count = 0;
       for (const brew of activeBrews) {
-        const sgArr = Array.isArray(brew.sg_data) ? brew.sg_data as any[] : [];
-        if (sgArr.length === 0) continue;
-        const latest = sgArr[sgArr.length - 1];
+        if (brew.current_sg == null) continue;
         const ctrl = ctrlMap.get(brew.linked_controller_id);
         await createBrewSnapshot(supabase, brew.id, {
-          recorded_at: ctrl?.last_update || latest.date || new Date().toISOString(),
-          sg: latest.value ?? null,
-          pill_temp: latest.temp ?? null,
+          recorded_at: ctrl?.last_update || brew.last_update || new Date().toISOString(),
+          sg: brew.current_sg,
+          pill_temp: ctrl?.pill_temp ?? brew.current_temp ?? null,
           controller_temp: ctrl?.current_temp ?? null,
           profile_target_temp: ctrl?.profile_target_temp ?? null,
           actual_temp: ctrl?.actual_temp ?? null,

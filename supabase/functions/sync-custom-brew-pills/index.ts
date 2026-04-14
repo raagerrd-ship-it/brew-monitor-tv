@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
+import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 
 // ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
 async function fetchPillTelemetryCorrected(
@@ -145,7 +146,7 @@ Deno.serve(async (req) => {
       console.log('Using passed-in RAPT auth token');
     }
     let brewsUpdated = 0;
-    const pendingSnapshots: { brewId: string; recorded_at: string; sg: number | null; pill_temp: number | null; controller_temp: number | null; profile_target_temp: number | null }[] = [];
+    
 
     for (const brew of customBrews) {
       try {
@@ -184,12 +185,14 @@ Deno.serve(async (req) => {
         const endDate = new Date();
         let startDate: Date;
         
-        // Check if sg_data is empty (no previous sync has succeeded)
-        const existingSgData: SgDataPoint[] = Array.isArray(brew.sg_data) ? brew.sg_data : [];
-        const hasNoData = existingSgData.length === 0;
+        // Check if this brew has existing snapshots (determines initial vs incremental sync)
+        const { count: existingSnapshotCount } = await supabase
+          .from('brew_data_snapshots')
+          .select('id', { count: 'exact', head: true })
+          .eq('brew_id', brew.id);
+        const hasNoData = !existingSnapshotCount || existingSnapshotCount === 0;
         
         if (hasNoData) {
-          // No data yet - use fermentation_start if set, otherwise use created_at or 30 days ago
           if (brew.fermentation_start) {
             startDate = new Date(brew.fermentation_start);
             console.log(`No existing data for ${brew.name}, fetching from fermentation start: ${startDate.toISOString()}`);
@@ -201,7 +204,6 @@ Deno.serve(async (req) => {
             console.log(`No existing data for ${brew.name}, fetching from ${startDate.toISOString()}`);
           }
         } else if (brew.fermentation_start) {
-          // Has data, filter by fermentation_start first, then fetch from last_update
           if (brew.last_update) {
             startDate = new Date(brew.last_update);
             startDate.setMinutes(startDate.getMinutes() - 5);
@@ -209,18 +211,15 @@ Deno.serve(async (req) => {
             startDate = new Date(brew.fermentation_start);
           }
         } else if (brew.last_update) {
-          // Has data and last_update - start from there with buffer
           startDate = new Date(brew.last_update);
           startDate.setMinutes(startDate.getMinutes() - 5);
         } else {
-          // Has data but no last_update (shouldn't happen, but fallback)
           startDate = new Date();
           startDate.setDate(startDate.getDate() - 7);
         }
 
         console.log(`Fetching telemetry from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
-        // Fetch telemetry data (inlined — no HTTP hop)
         let telemetryData: any[];
         try {
           telemetryData = await fetchPillTelemetryCorrected(
@@ -234,15 +233,10 @@ Deno.serve(async (req) => {
         if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
           console.log(`No new telemetry data for brew ${brew.name}, checking controller fallback...`);
           
-          // Fallback: use pre-fetched controller data (no DB query needed)
           if (brew.linked_controller_id) {
             const ctrlFromMemory = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-            
-            // Use in-memory data if it has the fields we need, otherwise fall back to DB
-            let ctrlFull: any = null;
-            if (ctrlFromMemory && ctrlFromMemory.current_temp !== undefined) {
-              ctrlFull = ctrlFromMemory;
-            } else {
+            let ctrlFull: any = ctrlFromMemory?.current_temp !== undefined ? ctrlFromMemory : null;
+            if (!ctrlFull) {
               const { data } = await supabase
                 .from('rapt_temp_controllers')
                 .select('current_temp, actual_temp, pill_temp, target_temp, profile_target_temp')
@@ -252,29 +246,24 @@ Deno.serve(async (req) => {
             }
             
             if (ctrlFull) {
-              // SSOT: prefer actual_temp over raw probe temp
               const fallbackTemp = ctrlFull.actual_temp ?? ctrlFull.current_temp;
-              const brewUpdate = fallbackTemp != null ? supabase
-                .from('brew_readings')
-                .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
-                .eq('id', brew.id) : Promise.resolve({ error: null });
+              if (fallbackTemp != null) {
+                await supabase.from('brew_readings')
+                  .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
+                  .eq('id', brew.id);
+                console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`);
+                brewsUpdated++;
+              }
 
-              const now = new Date().toISOString();
-              // Collect controller-only snapshot for Phase 2c
-              const ctrlForSnap = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-              pendingSnapshots.push({
-                brewId: brew.id,
-                recorded_at: now,
+              // Create controller-only snapshot
+              await createBrewSnapshot(supabase, brew.id, {
+                recorded_at: new Date().toISOString(),
                 sg: brew.current_sg ?? 1.000,
-                pill_temp: ctrlFull.current_temp ?? null,
+                pill_temp: ctrlFull.pill_temp ?? null,
                 controller_temp: ctrlFull.current_temp ?? null,
-                profile_target_temp: ctrlForSnap?.profile_target_temp ?? null,
+                profile_target_temp: ctrlFull.profile_target_temp ?? null,
+                actual_temp: ctrlFull.actual_temp ?? null,
               });
-
-              // Execute brew update
-              const brewRes = await brewUpdate;
-              if (brewRes.error) console.error(`Failed to update brew ${brew.name}:`, brewRes.error);
-              else if (fallbackTemp != null) { console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`); brewsUpdated++; }
             }
           }
           continue;
@@ -282,7 +271,7 @@ Deno.serve(async (req) => {
 
         console.log(`Received ${telemetryData.length} telemetry records`);
 
-        // Convert telemetry to sg_data — values already corrected at fetch time
+        // Convert telemetry to data points
         const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
         
         const newSgData: SgDataPoint[] = telemetryData
@@ -295,33 +284,18 @@ Deno.serve(async (req) => {
 
         console.log(`Filtered to ${newSgData.length} valid SG readings (0.990-1.200 range)`);
 
-        // Create a Set of existing dates for deduplication
-        const existingDates = new Set(existingSgData.map(d => d.date));
-        
-        // Add only new data points
-        const uniqueNewData = newSgData.filter(d => !existingDates.has(d.date));
-        
-        // Merge and sort by date
-        const mergedSgData = [...existingSgData, ...uniqueNewData]
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        console.log(`Merged sg_data: ${existingSgData.length} existing + ${uniqueNewData.length} new = ${mergedSgData.length} total`);
-
-        // Even if no new data points, we should still update current values
-        // Only skip if mergedSgData is empty (nothing to update from)
-        if (mergedSgData.length === 0) {
-          console.log(`No data for brew ${brew.name}`);
+        if (newSgData.length === 0) {
+          console.log(`No valid data for brew ${brew.name}`);
           continue;
         }
 
-        // Get the first and latest data points
-        const firstData = mergedSgData[0];
-        const latestData = mergedSgData[mergedSgData.length - 1];
+        // Sort by date
+        const sortedData = newSgData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const firstData = sortedData[0];
+        const latestData = sortedData[sortedData.length - 1];
         const latestTelemetry = telemetryData[telemetryData.length - 1] as TelemetryRecord;
         
-        // Auto-update OG to first SG value ONLY on initial sync (when there was no data before)
-        // This ensures manually set OG values are preserved
-        // Only update if the first SG is reasonable (between 1.030 and 1.150)
+        // Auto-update OG on initial sync
         let og = brew.original_gravity;
         const firstSgIsReasonableOg = firstData.value >= 1.030 && firstData.value <= 1.150;
         
@@ -330,34 +304,34 @@ Deno.serve(async (req) => {
           console.log(`Auto-updating OG for ${brew.name} from ${brew.original_gravity} to ${og} (initial sync)`);
         }
         
-        // Calculate attenuation and ABV using (potentially updated) OG
         const currentSg = latestData.value;
         const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
         const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
 
-        // Log values being updated
-        console.log(`Updating ${brew.name} with values:`, {
-          current_sg: currentSg,
-          current_temp: latestData.temp,
-          battery: latestTelemetry.battery,
-          last_update: latestData.date,
-          og,
-          attenuation,
-          abv,
-          sg_data_length: mergedSgData.length
-        });
-
-        // Update brew_readings — SSOT: prefer controller actual_temp
+        // Create snapshots for all new data points (dedup via upsert)
         const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
+        let snapshotsCreated = 0;
+        for (const point of sortedData) {
+          const created = await createBrewSnapshot(supabase, brew.id, {
+            recorded_at: point.date,
+            sg: point.value,
+            pill_temp: point.temp,
+            controller_temp: ctrlForBrew?.current_temp ?? null,
+            profile_target_temp: ctrlForBrew?.profile_target_temp ?? null,
+            actual_temp: ctrlForBrew?.actual_temp ?? point.temp,
+          });
+          if (created) snapshotsCreated++;
+        }
+
+        // Update brew_readings with latest values (no sg_data write)
         const ssotTemp = ctrlForBrew?.actual_temp ?? latestData.temp;
 
         const { error: updateError } = await supabase
           .from('brew_readings')
           .update({
-            sg_data: mergedSgData,
             current_sg: currentSg,
             current_temp: ssotTemp,
-            original_gravity: og, // Update OG if changed
+            original_gravity: og,
             attenuation: Math.max(0, Math.min(100, attenuation)),
             abv: Math.max(0, abv),
             battery: latestTelemetry.battery,
@@ -371,22 +345,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        console.log(`Successfully updated brew ${brew.name} with ${uniqueNewData.length} new data points`);
-
-        // Collect snapshot job for Phase 2c (after automation)
-        if (uniqueNewData.length > 0) {
-          const latestPoint = mergedSgData[mergedSgData.length - 1];
-          const ctrlForSnap = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-          pendingSnapshots.push({
-            brewId: brew.id,
-            recorded_at: latestPoint.date,
-            sg: latestPoint.value,
-            pill_temp: latestPoint.temp,
-            controller_temp: ctrlForSnap?.current_temp ?? null,
-            profile_target_temp: ctrlForSnap?.profile_target_temp ?? null,
-          });
-        }
-
+        console.log(`Updated brew ${brew.name}: ${snapshotsCreated} new snapshots, SG=${currentSg.toFixed(4)}`);
         brewsUpdated++;
 
       } catch (brewError) {
@@ -402,7 +361,6 @@ Deno.serve(async (req) => {
         success: true, 
         brewsUpdated,
         totalBrews: customBrews.length,
-        pendingSnapshots,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
