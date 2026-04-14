@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_readings ADD COLUMN fermentation_end timestamp with time zone DEFAULT NULL;

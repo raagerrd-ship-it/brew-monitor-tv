@@ -408,6 +408,7 @@ export function useBrewData(): UseBrewDataReturn {
         fermentationSession: sessionsByBrewId.get(reading.id) || null,
         label_image_url: reading.label_image_url || null,
         description: reading.description || null,
+        fermentationEnd: reading.fermentation_end || null,
         overshootReason: reading.linked_controller_id 
           ? overshootMap.get(reading.linked_controller_id)?.reason ?? null 
           : null,

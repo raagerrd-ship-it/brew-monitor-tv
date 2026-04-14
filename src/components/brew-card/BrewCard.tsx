@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useRef, useEffect } from "react";
+import { useMemo, memo, useState, useRef, useEffect, useCallback } from "react";
 import { useChartSettings } from "@/hooks/use-chart-settings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,12 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play, Clock } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play, Clock, CalendarDays } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { sv } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { BrewCardProps } from "./types";
@@ -57,6 +62,16 @@ function BrewCardComponent({
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
+  const [fermEndOpen, setFermEndOpen] = useState(false);
+
+  const handleSetFermentationEnd = useCallback(async (date: Date | undefined) => {
+    if (!date) return;
+    const isoDate = date.toISOString();
+    await supabase.from('brew_readings').update({ fermentation_end: isoDate }).eq('id', brew.id);
+    setFermEndOpen(false);
+    setMenuOpen(false);
+    onEventsChange(); // trigger reload
+  }, [brew.id, onEventsChange]);
   const { smoothLines, setSmoothLines, timeRange, setTimeRange } = useChartSettings();
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -246,6 +261,29 @@ function BrewCardComponent({
                           controllerId={devices.controller?.controller_id ?? null}
                         />
                       </div>
+                    )}
+                    {isCompletedOrConditioning && (
+                      <Popover open={fermEndOpen} onOpenChange={setFermEndOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                          >
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            {brew.fermentationEnd
+                              ? `Jäsning klar ${format(new Date(brew.fermentationEnd), 'd MMM', { locale: sv })}`
+                              : 'Sätt jäsningsdatum'}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start" side="left">
+                          <Calendar
+                            mode="single"
+                            selected={brew.fermentationEnd ? new Date(brew.fermentationEnd) : undefined}
+                            onSelect={handleSetFermentationEnd}
+                            disabled={(date) => date > new Date()}
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
                     )}
                     {brew.status === "Jäsning" && devices.controller && !brew.fermentationSession && (
                       <button
