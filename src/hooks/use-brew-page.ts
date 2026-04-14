@@ -3,6 +3,7 @@ import type { BrewData, PillData, TempController, BrewEvent, FermentationSession
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { calculateFermentationRate, calculateFermentationTrend } from "@/lib/fermentation-calc";
+import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
