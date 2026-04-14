@@ -2,58 +2,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 
-// ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
-async function fetchPillTelemetryCorrected(
-  accessToken: string, pillId: string, startDate: string, endDate: string,
-  supabase: any, sgCorrectionEnabled: boolean
-): Promise<TelemetryRecord[]> {
-  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
-  const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
-  const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetTelemetry?${params}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`RAPT telemetry API error: ${res.status} ${errText}`);
-  }
-  const raw: TelemetryRecord[] = await res.json();
-
-  if (sgCorrectionEnabled) {
-    let pillResidual = 0;
-    let shouldCorrect = false;
-    try {
-      const { residualPerDegree, confident, sampleCount } = await getLearnedResidual(supabase, pillId);
-      pillResidual = residualPerDegree;
-      shouldCorrect = confident;
-      if (!confident) {
-        console.log(`⏳ SG correction skipped for pill ${pillId}: only ${sampleCount} samples (need 10+)`);
-      }
-    } catch (_e) { /* no correction yet */ }
-    
-    if (shouldCorrect) {
-      for (const t of raw) {
-        const rawSg = t.gravity / 1000;
-        t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
-      }
-    }
-  }
-  return raw;
-}
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
-
-interface TelemetryRecord {
-  createdOn: string;
-  gravity: number;
-  temperature: number;
-  battery: number;
-}
-
-import type { SgDataPoint } from '../_shared/types.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,7 +13,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting custom brew pill sync...');
+    console.log('Starting custom brew pill sync (quick-append)...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -79,90 +31,49 @@ Deno.serve(async (req) => {
       .like('batch_id', 'custom\\_%')
       .in('status', ['Jäsning', 'Fermenting']);
 
-    if (brewsError) {
-      throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);
-    }
+    if (brewsError) throw new Error(`Failed to fetch custom brews: ${brewsError.message}`);
 
     if (!customBrews || customBrews.length === 0) {
       console.log('No custom brews in fermentation found');
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No custom brews in fermentation',
-          brewsUpdated: 0
-        }),
+        JSON.stringify({ success: true, message: 'No custom brews in fermentation', brewsUpdated: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`Found ${customBrews.length} custom brews in fermentation`);
 
-    // Get auth token + pill/controller data — prefer passed-in from sync-rapt-data-quick
-    let access_token: string = '';
+    // Get passed-in data from sync-rapt-data-quick (preferred) or fall back to DB
     let allPills: any[] | null = null;
     let allControllers: any[] | null = null;
     try {
       const body = await req.json().catch(() => ({}));
-      access_token = body?.access_token || '';
-      // Use passed-in pill/controller data if available (saves 2 DB queries)
       if (body?.pills && Array.isArray(body.pills)) allPills = body.pills;
       if (body?.controllers && Array.isArray(body.controllers)) allControllers = body.controllers;
-    } catch {
-      // no body
-    }
+    } catch { /* no body */ }
 
-    // Fallback: query DB only if data wasn't passed in
     if (!allPills || !allControllers) {
       const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
-        allPills ? Promise.resolve({ data: allPills }) : supabase.from('rapt_pills').select('pill_id, name, paired_device_id'),
-        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp'),
+        allPills ? Promise.resolve({ data: allPills }) : supabase.from('rapt_pills').select('pill_id, name, paired_device_id, gravity, temperature, battery_level, last_update'),
+        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp, actual_temp'),
       ]);
       if (!allPills) allPills = dbPills;
       if (!allControllers) allControllers = dbControllers;
     }
-    
-    if (!access_token) {
-      console.log('No token passed, getting own RAPT auth token...');
-      // Inlined auth — no HTTP hop to rapt-auth
-      const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-      const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
-      if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
-      const formData = new URLSearchParams();
-      formData.append('client_id', 'rapt-user');
-      formData.append('grant_type', 'password');
-      formData.append('username', RAPT_USERNAME);
-      formData.append('password', RAPT_API_SECRET);
-      const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
-      const authRes = await fetch(`${authBaseUrl}/connect/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!authRes.ok) throw new Error(`RAPT auth error: ${authRes.status}`);
-      const authData = await authRes.json();
-      access_token = authData.access_token;
-    } else {
-      console.log('Using passed-in RAPT auth token');
-    }
+
     let brewsUpdated = 0;
-    
 
     for (const brew of customBrews) {
       try {
-        // Auto-resolve pill_id via paired_device_id matching
-        // Priority: 1) linked_pill_id on brew (legacy), 2) linked_controller_id → controller's linked_pill_id, 3) paired_device_id temp matching
+        // ── Resolve pill for this brew ──
         let pillId = brew.linked_pill_id;
-        
+
         if (!pillId && brew.linked_controller_id) {
           const controller = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-          if (controller?.linked_pill_id) {
-            pillId = controller.linked_pill_id;
-          }
+          if (controller?.linked_pill_id) pillId = controller.linked_pill_id;
         }
 
         if (!pillId) {
-          // Try paired_device_id: find a pill paired to a controller whose pill_temp matches brew temp
           for (const pill of (allPills || [])) {
             if (!pill.paired_device_id) continue;
             const controller = allControllers?.find(c => c.controller_id === pill.paired_device_id);
@@ -173,170 +84,99 @@ Deno.serve(async (req) => {
             }
           }
         }
-        
+
         if (!pillId) {
           console.log(`No pill_id available for brew ${brew.name}, skipping`);
           continue;
         }
 
-        console.log(`Processing brew: ${brew.name} (pill: ${pillId})`);
+        // ── Get latest values from pill (already synced by sync-rapt-data-quick) ──
+        const pill = allPills?.find(p => p.pill_id === pillId);
+        const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
 
-        // Calculate date range
-        const endDate = new Date();
-        let startDate: Date;
-        
-        // Check if this brew has existing snapshots (determines initial vs incremental sync)
+        if (!pill) {
+          console.log(`Pill ${pillId} not found in data for brew ${brew.name}, skipping`);
+          continue;
+        }
+
+        const rawSg = pill.gravity != null ? pill.gravity / 1000 : null;
+        const pillTemp = pill.temperature;
+
+        if (rawSg == null || rawSg < 0.990 || rawSg > 1.200) {
+          console.log(`No valid SG for brew ${brew.name} (raw: ${rawSg}), using controller fallback`);
+          // Controller-only fallback
+          if (ctrlForBrew) {
+            const fallbackTemp = ctrlForBrew.actual_temp ?? ctrlForBrew.current_temp;
+            if (fallbackTemp != null) {
+              await supabase.from('brew_readings')
+                .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
+                .eq('id', brew.id);
+              await createBrewSnapshot(supabase, brew.id, {
+                recorded_at: new Date().toISOString(),
+                sg: brew.current_sg ?? 1.000,
+                pill_temp: ctrlForBrew.pill_temp ?? null,
+                controller_temp: ctrlForBrew.current_temp ?? null,
+                profile_target_temp: ctrlForBrew.profile_target_temp ?? null,
+                actual_temp: ctrlForBrew.actual_temp ?? null,
+              });
+              brewsUpdated++;
+            }
+          }
+          continue;
+        }
+
+        // ── Apply SG correction if enabled ──
+        let correctedSg = rawSg;
+        if (sgTempCorrectionEnabled && pillTemp != null) {
+          try {
+            const { residualPerDegree, confident } = await getLearnedResidual(supabase, pillId);
+            if (confident) {
+              correctedSg = applySgCorrection(rawSg, pillTemp, residualPerDegree);
+            }
+          } catch (_e) { /* no correction yet */ }
+        }
+
+        // ── Auto-set OG on first snapshot ──
+        let og = brew.original_gravity;
         const { count: existingSnapshotCount } = await supabase
           .from('brew_data_snapshots')
           .select('id', { count: 'exact', head: true })
           .eq('brew_id', brew.id);
         const hasNoData = !existingSnapshotCount || existingSnapshotCount === 0;
-        
-        if (hasNoData) {
-          if (brew.fermentation_start) {
-            startDate = new Date(brew.fermentation_start);
-            console.log(`No existing data for ${brew.name}, fetching from fermentation start: ${startDate.toISOString()}`);
-          } else {
-            const brewCreatedDate = new Date(brew.created_at);
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            startDate = brewCreatedDate < thirtyDaysAgo ? thirtyDaysAgo : brewCreatedDate;
-            console.log(`No existing data for ${brew.name}, fetching from ${startDate.toISOString()}`);
-          }
-        } else if (brew.fermentation_start) {
-          if (brew.last_update) {
-            startDate = new Date(brew.last_update);
-            startDate.setMinutes(startDate.getMinutes() - 5);
-          } else {
-            startDate = new Date(brew.fermentation_start);
-          }
-        } else if (brew.last_update) {
-          startDate = new Date(brew.last_update);
-          startDate.setMinutes(startDate.getMinutes() - 5);
-        } else {
-          startDate = new Date();
-          startDate.setDate(startDate.getDate() - 7);
+
+        if (hasNoData && correctedSg >= 1.030 && correctedSg <= 1.150) {
+          og = correctedSg;
+          console.log(`Auto-updating OG for ${brew.name} to ${og} (initial sync)`);
         }
 
-        console.log(`Fetching telemetry from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        // ── Compute derived values ──
+        const attenuation = og > 1 ? Math.round(((og - correctedSg) / (og - 1)) * 100) : 0;
+        const abv = og > 1 ? Number(((og - correctedSg) * 131.25).toFixed(1)) : 0;
+        const ssotTemp = ctrlForBrew?.actual_temp ?? pillTemp;
+        const now = new Date().toISOString();
 
-        let telemetryData: any[];
-        try {
-          telemetryData = await fetchPillTelemetryCorrected(
-            access_token, pillId, startDate.toISOString(), endDate.toISOString(), supabase, sgTempCorrectionEnabled
-          );
-        } catch (telemetryError) {
-          console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
-          continue;
-        }
+        // ── Create snapshot ──
+        await createBrewSnapshot(supabase, brew.id, {
+          recorded_at: now,
+          sg: correctedSg,
+          pill_temp: pillTemp,
+          controller_temp: ctrlForBrew?.current_temp ?? null,
+          profile_target_temp: ctrlForBrew?.profile_target_temp ?? null,
+          actual_temp: ctrlForBrew?.actual_temp ?? pillTemp,
+        });
 
-        if (!telemetryData || !Array.isArray(telemetryData) || telemetryData.length === 0) {
-          console.log(`No new telemetry data for brew ${brew.name}, checking controller fallback...`);
-          
-          if (brew.linked_controller_id) {
-            const ctrlFromMemory = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-            let ctrlFull: any = ctrlFromMemory?.current_temp !== undefined ? ctrlFromMemory : null;
-            if (!ctrlFull) {
-              const { data } = await supabase
-                .from('rapt_temp_controllers')
-                .select('current_temp, actual_temp, pill_temp, target_temp, profile_target_temp')
-                .eq('controller_id', brew.linked_controller_id)
-                .maybeSingle();
-              ctrlFull = data;
-            }
-            
-            if (ctrlFull) {
-              const fallbackTemp = ctrlFull.actual_temp ?? ctrlFull.current_temp;
-              if (fallbackTemp != null) {
-                await supabase.from('brew_readings')
-                  .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
-                  .eq('id', brew.id);
-                console.log(`Updated ${brew.name} with controller probe temp: ${fallbackTemp}°C`);
-                brewsUpdated++;
-              }
-
-              // Create controller-only snapshot
-              await createBrewSnapshot(supabase, brew.id, {
-                recorded_at: new Date().toISOString(),
-                sg: brew.current_sg ?? 1.000,
-                pill_temp: ctrlFull.pill_temp ?? null,
-                controller_temp: ctrlFull.current_temp ?? null,
-                profile_target_temp: ctrlFull.profile_target_temp ?? null,
-                actual_temp: ctrlFull.actual_temp ?? null,
-              });
-            }
-          }
-          continue;
-        }
-
-        console.log(`Received ${telemetryData.length} telemetry records`);
-
-        // Convert telemetry to data points
-        const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
-        
-        const newSgData: SgDataPoint[] = telemetryData
-          .map((t: TelemetryRecord) => ({ date: new Date(t.createdOn).toISOString(), value: t.gravity / 1000, temp: t.temperature }))
-          .filter((d: SgDataPoint) => {
-            if (d.value < 0.990 || d.value > 1.200) return false;
-            if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;
-            return true;
-          });
-
-        console.log(`Filtered to ${newSgData.length} valid SG readings (0.990-1.200 range)`);
-
-        if (newSgData.length === 0) {
-          console.log(`No valid data for brew ${brew.name}`);
-          continue;
-        }
-
-        // Sort by date
-        const sortedData = newSgData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const firstData = sortedData[0];
-        const latestData = sortedData[sortedData.length - 1];
-        const latestTelemetry = telemetryData[telemetryData.length - 1] as TelemetryRecord;
-        
-        // Auto-update OG on initial sync
-        let og = brew.original_gravity;
-        const firstSgIsReasonableOg = firstData.value >= 1.030 && firstData.value <= 1.150;
-        
-        if (hasNoData && firstSgIsReasonableOg) {
-          og = firstData.value;
-          console.log(`Auto-updating OG for ${brew.name} from ${brew.original_gravity} to ${og} (initial sync)`);
-        }
-        
-        const currentSg = latestData.value;
-        const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
-        const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
-
-        // Create snapshots for all new data points (dedup via upsert)
-        const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
-        let snapshotsCreated = 0;
-        for (const point of sortedData) {
-          const created = await createBrewSnapshot(supabase, brew.id, {
-            recorded_at: point.date,
-            sg: point.value,
-            pill_temp: point.temp,
-            controller_temp: ctrlForBrew?.current_temp ?? null,
-            profile_target_temp: ctrlForBrew?.profile_target_temp ?? null,
-            actual_temp: ctrlForBrew?.actual_temp ?? point.temp,
-          });
-          if (created) snapshotsCreated++;
-        }
-
-        // Update brew_readings with latest values (no sg_data write)
-        const ssotTemp = ctrlForBrew?.actual_temp ?? latestData.temp;
-
+        // ── Update brew_readings with latest values ──
         const { error: updateError } = await supabase
           .from('brew_readings')
           .update({
-            current_sg: currentSg,
+            current_sg: correctedSg,
             current_temp: ssotTemp,
             original_gravity: og,
             attenuation: Math.max(0, Math.min(100, attenuation)),
             abv: Math.max(0, abv),
-            battery: latestTelemetry.battery,
-            last_update: latestData.date,
-            updated_at: new Date().toISOString()
+            battery: pill.battery_level,
+            last_update: now,
+            updated_at: now,
           })
           .eq('id', brew.id);
 
@@ -345,9 +185,8 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        console.log(`Updated brew ${brew.name}: ${snapshotsCreated} new snapshots, SG=${currentSg.toFixed(4)}`);
+        console.log(`Updated brew ${brew.name}: SG=${correctedSg.toFixed(4)}, temp=${ssotTemp}°C`);
         brewsUpdated++;
-
       } catch (brewError) {
         console.error(`Error processing brew ${brew.name}:`, brewError);
         continue;
@@ -357,22 +196,14 @@ Deno.serve(async (req) => {
     console.log(`Custom brew pill sync complete. Updated ${brewsUpdated}/${customBrews.length} brews`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        brewsUpdated,
-        totalBrews: customBrews.length,
-      }),
+      JSON.stringify({ success: true, brewsUpdated, totalBrews: customBrews.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('Error in sync-custom-brew-pills:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
