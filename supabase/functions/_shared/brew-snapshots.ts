@@ -93,24 +93,32 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
       }
     }
 
-    const now = Date.now();
-    const MS_24H  = 24 * 60 * 60 * 1000;
-    const MS_7D   =  7 * 24 * 60 * 60 * 1000;
-    const MS_30D  = 30 * 24 * 60 * 60 * 1000;
+    if (allRows.length <= 500) return;
 
-    // Split into age bands
+    // Use brew-relative age (from first snapshot) so early fermentation
+    // data is preserved even when the brew is old.
+    const brewStart = new Date(allRows[0].recorded_at).getTime();
+    const MS_48H  = 48 * 60 * 60 * 1000;
+    const MS_7D   =  7 * 24 * 60 * 60 * 1000;
+    const MS_14D  = 14 * 24 * 60 * 60 * 1000;
+
+    // Age bands relative to brew start:
+    //   0–48h  → keep all (~15 min resolution)
+    //   2–7d   → keep every 2nd (~30 min)
+    //   7–14d  → keep every 3rd (~45 min)
+    //   14d+   → keep every 4th (~1h)
     const bands: { rows: typeof allRows; keepEvery: number }[] = [
-      { rows: [], keepEvery: 1 },  // <24h — keep all
-      { rows: [], keepEvery: 2 },  // 1-7d
-      { rows: [], keepEvery: 4 },  // 7-30d
-      { rows: [], keepEvery: 8 },  // 30d+
+      { rows: [], keepEvery: 1 },  // 0-48h
+      { rows: [], keepEvery: 2 },  // 2-7d
+      { rows: [], keepEvery: 3 },  // 7-14d
+      { rows: [], keepEvery: 4 },  // 14d+
     ];
 
     for (const row of allRows) {
-      const age = now - new Date(row.recorded_at).getTime();
-      if (age < MS_24H) bands[0].rows.push(row);
-      else if (age < MS_7D) bands[1].rows.push(row);
-      else if (age < MS_30D) bands[2].rows.push(row);
+      const brewAge = new Date(row.recorded_at).getTime() - brewStart;
+      if (brewAge < MS_48H) bands[0].rows.push(row);
+      else if (brewAge < MS_7D) bands[1].rows.push(row);
+      else if (brewAge < MS_14D) bands[2].rows.push(row);
       else bands[3].rows.push(row);
     }
 
@@ -122,6 +130,21 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
       for (let i = 1; i < band.rows.length - 1; i++) {
         if (i % band.keepEvery !== 0) {
           idsToDelete.push(band.rows[i].id);
+        }
+      }
+    }
+
+    // If we'd still exceed 500 after this pass, do a second pass with
+    // more aggressive thinning on the oldest band
+    const remaining = allRows.length - idsToDelete.length;
+    if (remaining > 550 && bands[3].rows.length > 10) {
+      // Increase keepEvery for 14d+ band
+      const alreadyDeleted = new Set(idsToDelete);
+      const oldBand = bands[3].rows.filter(r => !alreadyDeleted.has(r.id));
+      const extraKeep = Math.max(6, Math.ceil(oldBand.length / 2));
+      for (let i = 1; i < oldBand.length - 1; i++) {
+        if (i % extraKeep !== 0) {
+          idsToDelete.push(oldBand[i].id);
         }
       }
     }
