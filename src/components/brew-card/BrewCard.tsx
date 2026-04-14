@@ -62,6 +62,16 @@ function BrewCardComponent({
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
   const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
+  const [fermEndOpen, setFermEndOpen] = useState(false);
+
+  const handleSetFermentationEnd = useCallback(async (date: Date | undefined) => {
+    if (!date) return;
+    const isoDate = date.toISOString();
+    await supabase.from('brew_readings').update({ fermentation_end: isoDate }).eq('id', brew.id);
+    setFermEndOpen(false);
+    setMenuOpen(false);
+    onEventsChange(); // trigger reload
+  }, [brew.id, onEventsChange]);
   const { smoothLines, setSmoothLines, timeRange, setTimeRange } = useChartSettings();
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
