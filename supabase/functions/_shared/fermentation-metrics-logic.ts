@@ -107,7 +107,7 @@ export interface ComputeMetricsOpts {
 }
 
 export async function computeAllMetrics(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   opts?: ComputeMetricsOpts,
 ): Promise<MetricsResult> {
   // Get all actively fermenting brews (skip if injected)

@@ -28,7 +28,7 @@ import { insertNotification } from './notifications.ts'
 // ============================================================
 
 export interface CoolerContext {
-  supabase: ReturnType<typeof createClient>
+  supabase: any
   supabaseUrl: string
   serviceRoleKey: string
   allControllers: TempController[]
@@ -687,7 +687,7 @@ export interface UtilizationResult {
 }
 
 export async function calculateSingleUtilization(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   c: TempController,
   options?: { skipShift?: boolean },
 ): Promise<UtilizationResult> {
@@ -1311,7 +1311,7 @@ async function learnWarmingRate(
 // ─── Batch-fetch cooling rates for multiple controllers ─────
 
 async function batchMeasureCoolingRates(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerIds: string[],
 ): Promise<Map<string, number | null>> {
   const result = new Map<string, number | null>()

@@ -5,7 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
  * Aggregates PID adjustments and convergence errors.
  */
 export async function saveFermentationLearnings(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   sessionStartedAt: string,
 ): Promise<void> {

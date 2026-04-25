@@ -5,7 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * Deduplicates by type + brew_id/controller_id within the last hour.
  */
 export async function insertNotification(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   opts: {
     type: string;
     title: string;

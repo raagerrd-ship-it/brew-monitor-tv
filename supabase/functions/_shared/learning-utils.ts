@@ -15,7 +15,7 @@ export function getTempBucket(targetTemp: number): string {
 
 /** Load a learned parameter, returning the learned value or a default */
 export async function getLearnedParam(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   paramName: string,
   defaultValue: number
@@ -34,7 +34,7 @@ export async function getLearnedParam(
 
 /** Update a learned parameter with EMA (exponential moving average) */
 export async function updateLearnedParam(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   paramName: string,
   newObservation: number,
@@ -75,13 +75,13 @@ export async function updateLearnedParam(
  * flushes all updates as a single upsert. Saves N reads + N writes → 1 read + 1 write.
  */
 export class LearnBatch {
-  private supabase: ReturnType<typeof createClient>
+  private supabase: any
   private controllerId: string
   private cache = new Map<string, { value: number; sampleCount: number }>()
   private updates: Array<{ paramName: string; rounded: number; sampleCount: number }> = []
   private loaded = false
 
-  constructor(supabase: ReturnType<typeof createClient>, controllerId: string) {
+  constructor(supabase: any, controllerId: string) {
     this.supabase = supabase
     this.controllerId = controllerId
   }
@@ -152,7 +152,7 @@ export class LearnBatch {
  *  controllerId can be a single string or an array of controller IDs.
  *  When multiple controllers are provided, returned keys are prefixed: `{controllerId}:{paramName}` */
 export async function getLearnedParams(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string | string[],
   paramNames: string[],
   defaults: Record<string, number>,

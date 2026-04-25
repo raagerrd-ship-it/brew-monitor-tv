@@ -78,7 +78,7 @@ export interface ProcessSessionsOpts {
 }
 
 export async function processAllSessions(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   opts?: ProcessSessionsOpts,
 ): Promise<ProfilesResult> {
   // Get all running sessions (skip if injected)
