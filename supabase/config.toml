@@ -75,3 +75,6 @@ verify_jwt = false
 
 [functions.sonos-bridge-push]
 verify_jwt = false
+
+[functions.sonos-position]
+verify_jwt = false
