@@ -140,7 +140,7 @@ export interface SessionRef {
 
 /** Context passed to each step handler */
 export interface StepContext {
-  supabase: ReturnType<typeof createClient>
+  supabase: any
   session: FermentationSession
   currentStep: ProfileStep
   steps: ProfileStep[]
@@ -165,7 +165,7 @@ export interface StepResult {
  * Used by step-handlers (during step processing) and session-lifecycle (during step transitions).
  */
 export async function setProfileTarget(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   profileTarget: number,
 ): Promise<void> {

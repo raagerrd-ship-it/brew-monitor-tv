@@ -24,7 +24,7 @@ export interface AdjustmentRecord {
 
 /** Insert an adjustment record into auto_cooling_adjustments */
 export async function logAdjustment(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   record: AdjustmentRecord
 ): Promise<void> {
   await supabase.from('auto_cooling_adjustments').insert({

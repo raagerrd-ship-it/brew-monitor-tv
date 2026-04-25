@@ -3,7 +3,7 @@ import { updateLearnedParam, getLearnedParam, getTempBucket } from './learning-u
 
 /** Persist PID state to controller_learned_compensation */
 async function persistPidState(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
   dutyCycle: number,
@@ -57,7 +57,7 @@ function computeIntegral(
  * @param isStaleData    Whether sensor data is stale (no new readings since last PID run)
  */
 export async function calculateCompensatedTarget(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   actualTarget: number,
   ctrlTarget: number,
@@ -375,7 +375,7 @@ interface LearnRateResult {
  * pluggable filter logic.
  */
 async function learnRateCore(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   paramName: string,
   filter: RateFilter,
@@ -477,7 +477,7 @@ function getThermalRateParamName(mode: 'heating' | 'cooling', tempBucket?: strin
  * Learn and retrieve the hardware thermal rate (°C/hour) for a controller.
  */
 export async function learnThermalRate(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   controllerId: string,
   mode: 'heating' | 'cooling',
   skipLearning?: boolean,
@@ -527,7 +527,7 @@ export async function learnThermalRate(
  * Learn glycol cooler thermal rate under different load conditions.
  */
 export async function learnGlycolCoolerRate(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   coolerId: string,
   currentLoad: number,
   skipLearning?: boolean,
@@ -543,7 +543,7 @@ export async function learnGlycolCoolerRate(
  * Get all learned glycol rates for a cooler (all load buckets).
  */
 export async function getGlycolRatesSummary(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   coolerId: string
 ): Promise<Record<string, { rate: number; sampleCount: number }>> {
   const { data } = await supabase

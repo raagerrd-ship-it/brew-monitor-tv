@@ -9,7 +9,7 @@ import { SessionRef, setProfileTarget } from './types.ts'
  * Handles: session status update, clear profile target, step log, notification, and learning.
  */
 export async function completeProfile(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   session: SessionRef,
   stepIndex: number,
 ): Promise<void> {
@@ -50,7 +50,7 @@ export async function completeProfile(
  * Sets profile target for the new step immediately.
  */
 export async function advanceToNextStep(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   sessionId: string,
   controllerId: string,
   nextStepIndex: number,

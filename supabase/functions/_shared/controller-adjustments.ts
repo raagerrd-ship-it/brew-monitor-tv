@@ -33,7 +33,7 @@ export interface PwmBurst {
 }
 
 export interface ControllerAdjustmentContext {
-  supabase: ReturnType<typeof createClient>
+  supabase: any
   supabaseUrl: string
   serviceRoleKey: string
   followedControllersFullData: TempController[]

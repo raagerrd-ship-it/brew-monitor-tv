@@ -134,7 +134,7 @@ function residualParamName(pillId: string): string {
  * The controller_id field stores the pill_id for SG corrections.
  */
 export async function getLearnedResidual(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   pillId: string
 ): Promise<{ residualPerDegree: number; sampleCount: number; confident: boolean }> {
   const { value, sampleCount } = await getLearnedParam(
@@ -150,7 +150,7 @@ export async function getLearnedResidual(
  * Update the learned SG residual for a pill using EMA.
  */
 export async function updateLearnedResidual(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   pillId: string,
   newResidual: number
 ): Promise<{ oldValue: number; newValue: number; sampleCount: number }> {
@@ -171,7 +171,7 @@ export async function updateLearnedResidual(
  * - Returns the correction to apply
  */
 export async function processSgCalibration(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   pillId: string,
   sgData: SgDataPoint[]
 ): Promise<{ residualPerDegree: number; calibrationStatus: string }> {
