@@ -33,7 +33,7 @@ export interface BrewData {
  * Snapshots are the SSOT — this replaces reading from brew_readings.sg_data.
  */
 export async function fetchSgDataFromSnapshots(
-  supabase: ReturnType<typeof import('https://esm.sh/@supabase/supabase-js@2').createClient>,
+  supabase: any,
   brewId: string,
 ): Promise<SgDataPoint[]> {
   const allRows: { recorded_at: string; sg: number | null; pill_temp: number | null }[] = []
@@ -68,7 +68,7 @@ export async function fetchSgDataFromSnapshots(
  * Returns a Map<brewId, SgDataPoint[]>.
  */
 export async function fetchSgDataBatch(
-  supabase: ReturnType<typeof import('https://esm.sh/@supabase/supabase-js@2').createClient>,
+  supabase: any,
   brewIds: string[],
 ): Promise<Map<string, SgDataPoint[]>> {
   const result = new Map<string, SgDataPoint[]>()
