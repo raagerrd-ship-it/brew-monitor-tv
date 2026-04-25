@@ -6,9 +6,60 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, RefreshCw, ChevronDown, CheckCircle2, XCircle, Radio, Wifi, WifiOff } from "lucide-react";
+import { Loader2, RefreshCw, ChevronDown, CheckCircle2, XCircle, Radio, Wifi, WifiOff, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+
+function BridgeEndpoints() {
+  const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+  const stateUrl = `${baseUrl}/sonos-bridge-push`;
+  const positionUrl = `${baseUrl}/sonos-position`;
+
+  const copy = async (url: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`${label} kopierad`);
+    } catch {
+      toast.error('Kunde inte kopiera');
+    }
+  };
+
+  return (
+    <div className="space-y-3 p-4 rounded-lg border border-border/60 bg-muted/20">
+      <div className="space-y-0.5">
+        <p className="settings-label">Bridge endpoints</p>
+        <p className="text-xs text-muted-foreground">
+          URL:er för Cast Away-bridgen att posta data till. Använd shared secret <code className="text-foreground">SONOS_BRIDGE_SECRET</code> i headern <code className="text-foreground">x-bridge-secret</code>.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">State endpoint (full payload — låtbyten, volym, palette)</Label>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[11px] font-mono text-foreground break-all select-all bg-background/60 border border-border/40 px-2 py-1.5 rounded">
+            {stateUrl}
+          </code>
+          <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => copy(stateUrl, 'State URL')}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Position endpoint (lättviktiga 1s-ticks)</Label>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[11px] font-mono text-foreground break-all select-all bg-background/60 border border-border/40 px-2 py-1.5 rounded">
+            {positionUrl}
+          </code>
+          <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => copy(positionUrl, 'Position URL')}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 function BridgeDiagnostics() {
@@ -356,6 +407,8 @@ export function SonosSettings() {
 
   return (
     <div className="space-y-6">
+      <BridgeEndpoints />
+
       {/* General Sonos Settings */}
       <div className="space-y-4 p-4 rounded-lg border border-border/60 bg-muted/20">
         <p className="settings-label">Allmänna inställningar</p>
