@@ -2,7 +2,7 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
 
-declare let self: ServiceWorkerGlobalScope;
+declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
 // Activate new SW immediately instead of waiting
 self.skipWaiting();
