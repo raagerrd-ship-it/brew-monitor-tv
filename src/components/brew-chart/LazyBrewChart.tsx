@@ -3,9 +3,30 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useTvMode } from '@/contexts/TvModeContext';
 import type { BrewChartProps } from './types';
 
-// Lazy load the heavy recharts-based BrewChart component
-const BrewChartLazy = lazy(() => 
-  import('./BrewChart').then(module => ({ default: module.BrewChart }))
+// Lazy load the heavy recharts-based BrewChart component.
+// Retries once on chunk-load failure (transient network), then forces a full
+// page reload so a new index.html with valid chunk hashes is fetched.
+const RELOAD_FLAG = 'chunk-reload-attempted';
+const loadBrewChart = (): Promise<typeof import('./BrewChart')> =>
+  import('./BrewChart').catch((err) => {
+      const msg = String(err?.message || err);
+      const isChunkError =
+        msg.includes('Failed to fetch dynamically imported module') ||
+        msg.includes('Importing a module script failed') ||
+        msg.includes('error loading dynamically imported module');
+      if (isChunkError) {
+      return import('./BrewChart').catch(() => {
+        if (sessionStorage.getItem(RELOAD_FLAG) === '1') throw err;
+        sessionStorage.setItem(RELOAD_FLAG, '1');
+        window.location.reload();
+        return new Promise<typeof import('./BrewChart')>(() => {});
+      });
+    }
+    throw err;
+  });
+
+const BrewChartLazy = lazy(() =>
+  loadBrewChart().then((module) => ({ default: module.BrewChart }))
 );
 
 
