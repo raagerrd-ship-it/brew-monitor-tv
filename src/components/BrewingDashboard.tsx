@@ -231,29 +231,7 @@ export function BrewingDashboard() {
             ))}
           </div>
         ) : brews.length === 0 ? (
-          <div className="flex items-center justify-center h-full p-4">
-            <div className="max-w-2xl w-full p-10 text-center rounded-xl flex flex-col items-center gap-2" style={{
-              background: 'linear-gradient(145deg, hsl(222 20% 14% / 0.7) 0%, hsl(222 20% 12% / 0.7) 100%)',
-              border: '1px solid hsl(222 15% 25% / 0.4)',
-              boxShadow: '0 8px 24px hsl(222 30% 3% / 0.5), 0 4px 10px hsl(222 30% 3% / 0.3), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
-              backdropFilter: 'blur(20px)',
-            }}>
-              <div className="flex items-center justify-center w-16 h-16 rounded-2xl mb-2" style={{
-                background: 'hsl(var(--primary) / 0.1)',
-                border: '1px solid hsl(var(--primary) / 0.2)',
-              }}>
-                <Beer className="h-8 w-8 text-primary/70" />
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight">Inga öl valda</h2>
-              <p className="text-muted-foreground max-w-md">
-                Gå till inställningar för att välja vilka öl du vill visa på dashboarden
-              </p>
-              <Button onClick={() => navigate('/settings')} className="mt-4">
-                <Settings className="mr-2 h-4 w-4" />
-                Öppna Inställningar
-              </Button>
-            </div>
-          </div>
+          <div className="h-full" />
         ) : isMobile ? (
           <div className="flex flex-col flex-1 min-h-0">
             {brews.length > 1 && (
