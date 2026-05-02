@@ -137,7 +137,7 @@ export function BrewManagement() {
           </p>
           <Button
             onClick={saveSelection}
-            disabled={saving || selectedBrews.length === 0}
+            disabled={saving}
           >
             {saving ? (
               <>
