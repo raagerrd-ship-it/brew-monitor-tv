@@ -7,6 +7,7 @@ import { formatRecency } from "@/lib/format-recency";
 interface LearnedMargin {
   controller_id: string;
   controller_name: string;
+  kind: "hold" | "ramp" | "generic";
   bucket: string;
   learned_value: number;
   sample_count: number;
@@ -25,6 +26,18 @@ const LOAD_LABELS: Record<string, string> = {
   load_0: "0 tankar",
   load_1: "1 tank",
   load_2plus: "2+ tankar",
+};
+
+const KIND_LABELS: Record<LearnedMargin["kind"], string> = {
+  hold: "Håll",
+  ramp: "Sänk",
+  generic: "Generisk",
+};
+
+const KIND_COLORS: Record<LearnedMargin["kind"], string> = {
+  hold: "text-emerald-400",
+  ramp: "text-orange-400",
+  generic: "text-muted-foreground",
 };
 
 const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
@@ -46,7 +59,9 @@ export function LearnedCoolerMarginValues() {
       const { data: learnings } = await supabase
         .from("fermentation_learnings")
         .select("controller_id, parameter_name, learned_value, sample_count, last_updated_at")
-        .like("parameter_name", "cooler_margin:%")
+        .or(
+          "parameter_name.like.cooler_margin:%,parameter_name.like.hold_margin:%,parameter_name.like.ramp_margin:%"
+        )
         .order("last_updated_at", { ascending: false });
 
       if (!learnings || learnings.length === 0) {
@@ -76,10 +91,21 @@ export function LearnedCoolerMarginValues() {
 
       setEntries(
         learnings.map((l) => {
-          const raw = l.parameter_name.replace("cooler_margin:", "");
+          let kind: LearnedMargin["kind"] = "generic";
+          let raw = l.parameter_name;
+          if (raw.startsWith("hold_margin:")) {
+            kind = "hold";
+            raw = raw.replace("hold_margin:", "");
+          } else if (raw.startsWith("ramp_margin:")) {
+            kind = "ramp";
+            raw = raw.replace("ramp_margin:", "");
+          } else {
+            raw = raw.replace("cooler_margin:", "");
+          }
           return {
             controller_id: l.controller_id,
             controller_name: nameMap.get(l.controller_id) ?? l.controller_id.slice(0, 8),
+            kind,
             bucket: raw,
             learned_value: l.learned_value,
             sample_count: l.sample_count,
@@ -119,6 +145,8 @@ export function LearnedCoolerMarginValues() {
 
   for (const items of Object.values(grouped)) {
     items.sort((a, b) => {
+      const kindOrder = { hold: 0, ramp: 1, generic: 2 } as const;
+      if (a.kind !== b.kind) return kindOrder[a.kind] - kindOrder[b.kind];
       const aBase = a.bucket.split(":")[0];
       const bBase = b.bucket.split(":")[0];
       const aIdx = BUCKET_ORDER.indexOf(aBase);
@@ -152,6 +180,7 @@ export function LearnedCoolerMarginValues() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border/40 bg-muted/30">
+                  <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Typ</th>
                   <th className="text-left font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Zon</th>
                   <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Marginal</th>
                   {hasAnyMinEff && <th className="text-right font-medium text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-2">Min</th>}
@@ -161,7 +190,8 @@ export function LearnedCoolerMarginValues() {
               </thead>
               <tbody>
                 {items.map((item, idx) => (
-                  <tr key={`${item.controller_id}-${item.bucket}`} className={idx < items.length - 1 ? "border-b border-border/20" : ""}>
+                  <tr key={`${item.controller_id}-${item.kind}-${item.bucket}`} className={idx < items.length - 1 ? "border-b border-border/20" : ""}>
+                    <td className={`px-3 py-2 font-medium ${KIND_COLORS[item.kind]}`}>{KIND_LABELS[item.kind]}</td>
                     <td className="px-3 py-2">{formatBucketLabel(item.bucket)}</td>
                     <td className="px-3 py-2 text-right font-mono text-blue-400">{item.learned_value.toFixed(1)}°C</td>
                     {hasAnyMinEff && (
