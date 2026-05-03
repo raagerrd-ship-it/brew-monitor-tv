@@ -45,7 +45,7 @@ export interface CoolerContext {
   /** When true, skip all learning (EMA updates) — system is in idle mode */
   skipLearning?: boolean
   /** PWM bursts from PID — used to detect active cooling need even when hardware util is 0% */
-  pwmBursts?: Array<{ controller_id: string; duty_pct: number }>
+  pwmBursts?: Array<{ controller_id: string; duty_pct: number; mode?: 'cooling' | 'heating' }>
   /** Pre-calculated utilization results from PID step — avoids re-querying */
   sharedUtilizations?: Map<string, UtilizationResult>
   /** Cached cooling rate results per controller — avoids duplicate DB queries */
@@ -218,7 +218,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   for (const u of utilizations) {
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
-    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)?.duty_pct ?? 0
+    const pwmBurst = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)
+    const pwmDuty = pwmBurst?.mode === 'heating' ? 0 : (pwmBurst?.duty_pct ?? 0)
     log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°) behov=${u.utilization != null ? Math.round(u.utilization * 100) : '?'}%${pwmDuty > 0 ? ` (pwm=${pwmDuty}%)` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
@@ -822,8 +823,10 @@ async function calculateCoolingUtilizations(
       utilResult = await calculateSingleUtilization(ctx.supabase, c)
     }
 
-    // PID duty cycle is the primary demand signal; hardware util is fallback
-    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
+    // PID duty cycle is the primary demand signal; hardware util is fallback.
+    // IMPORTANT: heating bursts must NOT count as cooling demand for the glycol cooler.
+    const pwmBurst = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)
+    const pwmDuty = pwmBurst?.mode === 'heating' ? 0 : (pwmBurst?.duty_pct ?? 0)
     const pwmDutyFraction = pwmDuty / 100
     const hwUtil = utilResult.rolling
     const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
