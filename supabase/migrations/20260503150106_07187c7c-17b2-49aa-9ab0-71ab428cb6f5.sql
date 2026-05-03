@@ -1,0 +1,1 @@
+DELETE FROM public.fermentation_learnings WHERE parameter_name LIKE 'cooler_margin:%' OR parameter_name LIKE 'min_effective_margin:%';
