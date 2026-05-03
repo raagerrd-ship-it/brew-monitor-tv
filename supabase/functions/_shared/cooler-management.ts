@@ -823,8 +823,10 @@ async function calculateCoolingUtilizations(
       utilResult = await calculateSingleUtilization(ctx.supabase, c)
     }
 
-    // PID duty cycle is the primary demand signal; hardware util is fallback
-    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)?.duty_pct ?? 0
+    // PID duty cycle is the primary demand signal; hardware util is fallback.
+    // IMPORTANT: heating bursts must NOT count as cooling demand for the glycol cooler.
+    const pwmBurst = ctx.pwmBursts?.find(b => b.controller_id === c.controller_id)
+    const pwmDuty = pwmBurst?.mode === 'heating' ? 0 : (pwmBurst?.duty_pct ?? 0)
     const pwmDutyFraction = pwmDuty / 100
     const hwUtil = utilResult.rolling
     const effectiveUtil = hwUtil != null ? Math.max(hwUtil, pwmDutyFraction) : (pwmDutyFraction > 0 ? pwmDutyFraction : null)
