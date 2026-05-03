@@ -71,6 +71,7 @@ export async function calculateCompensatedTarget(
   pillRate?: number | null,
   isInterpolated?: boolean,
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
+  modeJustSwitched?: boolean,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
 
@@ -149,6 +150,20 @@ export async function calculateCompensatedTarget(
   }
 
   let dutyCycle = 0
+
+  // ── Soft-start after mode switch when near target ──
+  // When the system just flipped mode (e.g. heating → cooling) and we're
+  // already close to the setpoint, don't blast full P+I from the inherited
+  // floor. Instead reset the integral and cap actuation so the new mode's
+  // effect can be observed before more energy is committed. If we're far
+  // from target the regular path runs (need to actually act).
+  const SOFT_START_NEAR_TARGET = 0.5
+  const softStartActive = !!modeJustSwitched && Math.abs(avgError) < SOFT_START_NEAR_TARGET
+  if (softStartActive) {
+    integral = 0
+    constraints.push('mode-switch-softstart')
+    console.log(`🌱 ${controllerName}: mode-switch soft-start (err=${avgError.toFixed(2)}°) — I→0, capping duty for observation`)
+  }
 
   // ── Steady-state duty floor ──────────────────────────────
   const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
@@ -345,6 +360,15 @@ export async function calculateCompensatedTarget(
 
     dutyCycle = Math.max(0, Math.min(1.0, raw))
     console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
+  }
+
+  // Soft-start cap applies AFTER all branches so deadband/coast still output 0.
+  if (softStartActive && dutyCycle > 0.20) {
+    const capped = 0.20
+    console.log(`🌱 ${modeLabel} soft-start cap ${controllerName}: duty ${(dutyCycle * 100).toFixed(0)}% → ${(capped * 100).toFixed(0)}% (mjukstart efter mode-byte)`)
+    dutyCycle = capped
+    iCorrection = Math.min(iCorrection, capped)
+    integral = Math.min(integral, capped)
   }
 
   // Defer persist — caller can batch this with other DB writes
