@@ -28,6 +28,25 @@ const LOAD_LABELS: Record<string, string> = {
   load_2plus: "2+ tankar",
 };
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  activity_low: "låg",
+  activity_med: "med",
+  activity_high: "hög",
+};
+
+const BUCKET_LABELS_SHORT: Record<string, string> = {
+  cold: "Kall",
+  cool: "Sval",
+  warm: "Varm",
+  hot: "Het",
+};
+
+const LOAD_LABELS_SHORT: Record<string, string> = {
+  load_0: "0t",
+  load_1: "1t",
+  load_2plus: "2t+",
+};
+
 const KIND_LABELS: Record<LearnedMargin["kind"], string> = {
   hold: "Håll",
   ramp: "Sänk",
@@ -45,7 +64,15 @@ const BUCKET_ORDER = ["cold", "cool", "warm", "hot"];
 function formatBucketLabel(bucket: string): string {
   const parts = bucket.split(":");
   const labels = parts.map((p) => {
-    return BUCKET_LABELS[p] ?? LOAD_LABELS[p] ?? p;
+    return BUCKET_LABELS[p] ?? LOAD_LABELS[p] ?? ACTIVITY_LABELS[p] ?? p;
+  });
+  return labels.join(" · ");
+}
+
+function formatBucketLabelShort(bucket: string): string {
+  const parts = bucket.split(":");
+  const labels = parts.map((p) => {
+    return BUCKET_LABELS_SHORT[p] ?? LOAD_LABELS_SHORT[p] ?? ACTIVITY_LABELS[p] ?? p;
   });
   return labels.join(" · ");
 }
