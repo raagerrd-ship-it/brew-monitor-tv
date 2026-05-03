@@ -170,8 +170,19 @@ export async function calculateCompensatedTarget(
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
 
   if (Math.abs(avgError) <= 0.10) {
-    // DEADBAND — converge toward margin-adjusted ssFloor gradually
-    if (ssFloor > 0) {
+    // DEADBAND — single-sided behaviour:
+    //   • If we're on the "past-target" side (need < 0), COAST (duty 0)
+    //     and let thermal inertia recover naturally instead of holding a
+    //     counter-floor that fights the overshoot.
+    //   • If we're still on the "needs-action" side (need >= 0), converge
+    //     toward ssFloor as before so the mode keeps holding without slip.
+    if (need < -0.02) {
+      // Coast: bleed integral down quickly, output 0%
+      integral *= 0.70
+      dutyCycle = 0
+      constraints.push('deadband-coast')
+      console.log(`🌬️ ${modeLabel} deadband-coast ${controllerName}: err=${avgError.toFixed(2)}° (past target), I→${integral.toFixed(3)}, duty=0% (single-sided hold)`)
+    } else if (ssFloor > 0) {
       if (integral > ssFloor) {
         // Above floor: blend down at 10% per cycle
         integral = integral * 0.90 + ssFloor * 0.10
@@ -190,40 +201,30 @@ export async function calculateCompensatedTarget(
         integral = integral * (1 - recoveryAlpha) + ssFloor * recoveryAlpha
         constraints.push('deadband-recovery')
       }
+      dutyCycle = Math.max(0, integral)
+      if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
+      constraints.push('deadband')
+      console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}%`)
     } else {
       // No ssFloor known — gentle decay to preserve integral while system
       // learns the correct floor. 5% decay/cycle allows floor learning to
       // capture the right value before integral is killed.
       integral *= 0.95
       constraints.push('deadband-no-floor')
-    }
-    dutyCycle = Math.max(0, integral)
-    if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
-    constraints.push('deadband')
-    console.log(`✅ ${modeLabel} deadband ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-  } else if (need < -0.10 && need >= -0.25) {
-    // TARGET HOLD — slightly past setpoint due to thermal inertia.
-    // If we have an established ssFloor, maintain reduced duty to hold position
-    // instead of cutting to 0% (which causes drift-back and oscillation).
-    if (ssFloor > 0) {
-      // Gently erode integral toward a reduced floor (70% of ssFloor).
-      // This provides enough force to counteract thermal inertia without
-      // actively pushing further past the setpoint.
-      const holdTarget = ssFloor * 0.70
-      const holdAlpha = 0.15
-      integral = integral * (1 - holdAlpha) + holdTarget * holdAlpha
       dutyCycle = Math.max(0, integral)
-      constraints.push('target-hold')
-      console.log(`🔸 ${modeLabel} target-hold ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I=${integral.toFixed(3)}, holdTarget=${holdTarget.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
-    } else {
-      // No established floor — decay toward zero as before
-      integral *= 0.95
-      dutyCycle = 0
-      constraints.push('mild-overshoot')
-      console.log(`🔸 ${modeLabel} mild overshoot ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, floor=0, duty=0% (no floor established)`)
+      console.log(`✅ ${modeLabel} deadband-no-floor ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
     }
+  } else if (need < -0.10 && need >= -0.25) {
+    // SINGLE-SIDED COAST — past setpoint in mode direction.
+    // Stop actuating completely and let thermal inertia + ambient bring
+    // temperature back toward target naturally. Active counter-floor here
+    // just fights the overshoot and creates oscillation.
+    integral *= 0.80
+    dutyCycle = 0
+    constraints.push('coast-overshoot')
+    console.log(`🌬️ ${modeLabel} coast ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0% (single-sided hold, passive recovery)`)
   } else if (need < -0.25) {
-    // OVER-ACTUATED — aggressive erosion
+    // OVER-ACTUATED — aggressive erosion + coast (no actuation)
     const overshoot = Math.abs(need)
 
     if (ssFloorRaw > 0) {
@@ -238,9 +239,11 @@ export async function calculateCompensatedTarget(
 
     const decayRate = Math.min(0.85, 0.75 - overshoot * 0.1)
     integral = Math.max(0, integral * decayRate)
-    dutyCycle = Math.max(0, integral)
+    // Force coast — never actuate when significantly past target in mode direction.
+    dutyCycle = 0
     constraints.push(isCooling ? 'overcooled' : 'overheated')
-    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    constraints.push('coast-overshoot')
+    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} (coast) ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=0% (passive recovery)`)
   } else if (need > 0.10 && need <= 0.25 && ssFloor > 0) {
     // TARGET HOLD (warm side) — temp drifting away from setpoint but still close.
     // Boost duty to 130% of ssFloor to gently pull back without full P+I.
