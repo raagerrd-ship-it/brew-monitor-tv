@@ -218,7 +218,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   for (const u of utilizations) {
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
-    const pwmDuty = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)?.duty_pct ?? 0
+    const pwmBurst = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)
+    const pwmDuty = pwmBurst?.mode === 'heating' ? 0 : (pwmBurst?.duty_pct ?? 0)
     log('COOLING_UTIL', 'info', `${u.controllerName}: ${u.isActivelyCooling ? '❄️ kyler' : '⏸️ vilar'} (probe ${round1(u.probeTemp)}° mål ${round1(u.targetTemp)}° hyst ${round1(u.hysteresis)}°) behov=${u.utilization != null ? Math.round(u.utilization * 100) : '?'}%${pwmDuty > 0 ? ` (pwm=${pwmDuty}%)` : ''}`, {
       utilization: u.utilization != null ? Math.round(u.utilization * 100) : null,
       recent_utilization: u.recentUtilization != null ? Math.round(u.recentUtilization * 100) : null,
