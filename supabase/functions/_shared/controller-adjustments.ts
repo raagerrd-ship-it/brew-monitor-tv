@@ -30,6 +30,7 @@ export interface PwmBurst {
   off_target: number
   duty_seconds: number
   duty_pct: number
+  mode?: 'cooling' | 'heating'
 }
 
 export interface ControllerAdjustmentContext {
