@@ -203,7 +203,35 @@ export function LearnedCoolerMarginValues() {
       {Object.entries(grouped).map(([name, items]) => (
         <div key={name} className="space-y-1">
           <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
-          <div className="rounded-md border border-border/40 overflow-hidden">
+
+          {/* Mobile: compact card list */}
+          <div className="sm:hidden rounded-md border border-border/40 divide-y divide-border/20">
+            {items.map((item) => (
+              <div key={`m-${item.controller_id}-${item.kind}-${item.bucket}`} className="px-2.5 py-2 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-[10px] uppercase tracking-wider font-semibold shrink-0 ${KIND_COLORS[item.kind]}`}>
+                      {KIND_LABELS[item.kind]}
+                    </span>
+                    <span className="text-xs text-foreground truncate">{formatBucketLabelShort(item.bucket)}</span>
+                  </div>
+                  <span className="font-mono text-xs text-blue-400 shrink-0">{item.learned_value.toFixed(1)}°C</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>
+                    {item.min_effective != null && (
+                      <>min <span className="font-mono text-green-400">{item.min_effective.toFixed(1)}°</span> · </>
+                    )}
+                    {item.sample_count} prov
+                  </span>
+                  <span>{formatRecency(item.last_updated_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: full table */}
+          <div className="hidden sm:block rounded-md border border-border/40 overflow-hidden">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border/40 bg-muted/30">
