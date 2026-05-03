@@ -219,7 +219,7 @@ async function executePwmDutyCycle(
         .eq('controller_id', fc.controller_id),
     ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
-    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100 })
+    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100, mode })
   } else if (burstSeconds > 0) {
     // 10-90%: burst at extreme, schedule revert to suppress target
     log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% (raw=${Math.round(dutyRaw * 100)}%, dither=${ditherSlot}/${Math.round(fraction)}) → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
@@ -253,7 +253,7 @@ async function executePwmDutyCycle(
         .eq('mode', mode),
     ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
-    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct })
+    ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct, mode })
   } else {
     // 0% or phase B idle
     if (dutyPct === 0) {
