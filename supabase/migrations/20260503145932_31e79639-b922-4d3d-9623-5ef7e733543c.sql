@@ -1,0 +1,1 @@
+DELETE FROM public.fermentation_learnings WHERE parameter_name LIKE 'hold_margin:%';
