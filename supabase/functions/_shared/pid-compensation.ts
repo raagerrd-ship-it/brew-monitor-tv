@@ -197,6 +197,26 @@ export async function calculateCompensatedTarget(
       integral *= 0.70
       dutyCycle = 0
       constraints.push('deadband-coast')
+
+      // COOL-SOFT (mirror of warm-soft) — if ssFloor is mature (≥5 samples)
+      // and we keep ending up on the past-target side inside the deadband,
+      // the learned floor is biased too high (over-actuating). Gently erode
+      // it toward 95% of its current value via EMA so the next deadband
+      // cycle holds slightly less duty and centers closer to setpoint.
+      // Only apply when clearly past target (need ≤ -0.05) to avoid eroding
+      // on borderline noise.
+      if (ssFloorRaw > 0 && ssFloorSamples >= 5 && need <= -0.05) {
+        const softAlpha = 0.10
+        const target = ssFloorRaw * 0.95
+        const eroded = ssFloorRaw * (1 - softAlpha) + target * softAlpha
+        const quantized = Math.round(eroded * 1000) / 1000
+        if (quantized < ssFloorRaw) {
+          await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantized, 0, 1.0, 1.0)
+          constraints.push('cool-soft')
+          console.log(`🌊 ${modeLabel} cool-soft erosion ${controllerName}: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (err=${avgError.toFixed(2)}°, past target)`)
+        }
+      }
+
       console.log(`🌬️ ${modeLabel} deadband-coast ${controllerName}: err=${avgError.toFixed(2)}° (past target), I→${integral.toFixed(3)}, duty=0% (single-sided hold)`)
     } else if (ssFloor > 0) {
       if (integral > ssFloor) {
