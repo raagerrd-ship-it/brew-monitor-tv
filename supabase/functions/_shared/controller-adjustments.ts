@@ -180,7 +180,17 @@ async function executePwmDutyCycle(
   const totalBurstMin = dutyPct / 10
   const phase = Math.floor(Date.now() / 300000) % 2
   const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-  const burstSeconds = currentBurstMin * 60
+  let burstSeconds = currentBurstMin * 60
+
+  // LOW-DUTY CONSOLIDATION: at ≤10% duty, the standard 60s-every-10min pattern
+  // makes the fermenter feel many micro-pulses without enough thermal effect
+  // between them to evaluate. Consolidate to a single longer burst per 20 min
+  // (4-cycle window). Average duty unchanged.
+  //   10% → 120s every 20min instead of 60s every 10min (-50% burst count)
+  if (dutyPct > 0 && dutyPct <= 10) {
+    const lowPhase = Math.floor(Date.now() / 300000) % 4
+    burstSeconds = lowPhase === 0 ? totalBurstMin * 60 * 2 : 0
+  }
 
   const raptProbeTemp = fc.current_temp
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
@@ -679,7 +689,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         from: prevMode, to: suggestedMode, distance: round1(distanceToTarget),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
-    } else if (onWrongSide && distanceToTarget > 0.05) {
+    } else if (onWrongSide && distanceToTarget > 0.15) {
       const isStable = velocity < STALL_MIN_PROGRESS
       const velocitySigned = lastProbe != null ? actualTemp - lastProbe : 0
       const isDivergingCheck = (suggestedMode === 'cooling' && velocitySigned > 0.02) ||
