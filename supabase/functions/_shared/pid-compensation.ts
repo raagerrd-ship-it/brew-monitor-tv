@@ -167,6 +167,7 @@ export async function calculateCompensatedTarget(
 
   // ── Steady-state duty floor ──────────────────────────────
   const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
+  const ssFloorSamples = ssParamResolved.sampleCount
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Scale the ssFloor target based on current cooler margin vs learned reference.
