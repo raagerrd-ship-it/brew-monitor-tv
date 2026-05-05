@@ -100,9 +100,13 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-[10px] text-muted-foreground/70 mt-1">
                 {isPillCompActive
                   ? `Medel · Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
-                  : currentController.pill_temp != null
-                    ? `Pill: ${currentController.pill_temp.toFixed(1)}°`
-                    : 'Ctrl-sensor'}
+                  : preferredSensor === 'probe'
+                    ? (currentController.pill_temp != null
+                        ? `Probe · Pill: ${currentController.pill_temp.toFixed(1)}°`
+                        : 'Probe')
+                    : (currentController.pill_temp != null
+                        ? `Pill${currentController.current_temp != null ? ` · Probe: ${currentController.current_temp.toFixed(1)}°` : ''}`
+                        : 'Ctrl-sensor')}
               </p>
             </div>
             
