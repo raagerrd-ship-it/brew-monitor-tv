@@ -57,7 +57,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
-  const actualTemp = currentController.actual_temp;
+  // When dual-sensor is OFF, display the user's preferred sensor directly
+  // (with fallback) rather than the stored actual_temp, which may lag behind
+  // a recent preference toggle until the next sync.
+  const actualTemp = isPillCompActive
+    ? currentController.actual_temp
+    : preferredSensor === 'probe'
+      ? (currentController.current_temp ?? currentController.pill_temp ?? currentController.actual_temp)
+      : (currentController.pill_temp ?? currentController.current_temp ?? currentController.actual_temp);
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (
