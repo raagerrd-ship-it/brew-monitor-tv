@@ -577,6 +577,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const RAMP_RATE_COOLING = 4.0 // °C/hour max target decrease
     const RAMP_RATE_HEATING = 3.0 // °C/hour max target increase
     const CYCLE_HOURS = 5 / 60    // 5-min cycle
+    const BIG_JUMP_BYPASS = 5.0   // °C: skip ramp-limit on large step changes (e.g. cold start, new session)
 
     const lastEffective = pressureMap.get('pid_effective_target')
     let pidEffectiveTarget = actualTarget
@@ -584,7 +585,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     if (lastEffective != null) {
       const delta = actualTarget - lastEffective
-      if (delta < -0.1) {
+      if (Math.abs(delta) >= BIG_JUMP_BYPASS) {
+        // Big jump (e.g. user set 25° from 10°): jump straight to target, no ramp.
+        pidEffectiveTarget = actualTarget
+      } else if (delta < -0.1) {
         const maxDrop = RAMP_RATE_COOLING * CYCLE_HOURS
         pidEffectiveTarget = Math.max(actualTarget, lastEffective - maxDrop)
         rampRateLimited = pidEffectiveTarget > actualTarget + 0.05
