@@ -196,8 +196,9 @@ async function executePwmDutyCycle(
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
   const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
 
-  // ON target: force relay past 5°C hysteresis
-  const onTarget = mode === 'cooling' ? -5 : 40
+  // ON target: force relay past hysteresis, but never beyond the controller's
+  // own configured hardware bounds.
+  const onTarget = mode === 'cooling' ? minTemp : maxTemp
 
   // Revert target: suppress opposite action by setting hw target away from probe
   let revertTarget: number
@@ -289,10 +290,10 @@ async function executePwmDutyCycle(
       }
 
       // Revert if hardware is stuck at a PWM extreme
-      if (ctrlTarget < -4 || ctrlTarget >= 39) {
+      if (ctrlTarget <= minTemp + 0.1 || ctrlTarget >= maxTemp - 0.1) {
         // SAFETY: Flag if the extreme contradicts the controller's capabilities
-        const stuckInCooling = ctrlTarget < -4 && !fc.cooling_enabled
-        const stuckInHeating = ctrlTarget >= 39 && !fc.heating_enabled
+        const stuckInCooling = ctrlTarget <= minTemp + 0.1 && !fc.cooling_enabled
+        const stuckInHeating = ctrlTarget >= maxTemp - 0.1 && !fc.heating_enabled
         if (stuckInCooling || stuckInHeating) {
           log('MODE_GUARD_REVERT', 'fail', `🚨 ${fc.name}: hw fastnad vid ${ctrlTarget}° (${stuckInCooling ? 'kyla' : 'värme'}-extrem) men ${stuckInCooling ? 'cooling' : 'heating'}_enabled=false — reverterar omedelbart → ${revertTarget}°`)
         } else {
