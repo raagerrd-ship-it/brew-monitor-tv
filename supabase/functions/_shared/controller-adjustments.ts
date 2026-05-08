@@ -653,7 +653,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (profileCtx?.rampDirection && 
         (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
       const rampMode = profileCtx.rampDirection as 'heating' | 'cooling'
-      if (suggestedMode !== rampMode) {
+      // Safety escape: if temp is >1°C on the wrong side of target, allow opposite mode
+      // (e.g. heating ramp but beer self-heated 6°C above target → must cool)
+      const RAMP_OVERRIDE_OVERSHOOT_LIMIT = 1.0
+      const overshoot = rampMode === 'heating'
+        ? actualTemp - actualTarget   // positive = too hot, need cooling
+        : actualTarget - actualTemp   // positive = too cold, need heating
+      if (suggestedMode !== rampMode && overshoot > RAMP_OVERRIDE_OVERSHOOT_LIMIT) {
+        log('MODE_RAMP_OVERRIDE_BYPASS', 'info',
+          `${fc.name}: ramp ${rampMode} override SKIPPED — överskjutning ${overshoot.toFixed(1)}° > ${RAMP_OVERRIDE_OVERSHOOT_LIMIT}°, tillåter ${suggestedMode}`)
+      } else if (suggestedMode !== rampMode) {
         log('MODE_RAMP_OVERRIDE', 'info', 
           `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode})`)
         suggestedMode = rampMode
