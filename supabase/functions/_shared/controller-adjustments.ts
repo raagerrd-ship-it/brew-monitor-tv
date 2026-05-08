@@ -196,9 +196,9 @@ async function executePwmDutyCycle(
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
   const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
 
-  // ON target: force relay past hysteresis, but never beyond the controller's
-  // own configured hardware bounds.
-  const onTarget = mode === 'cooling' ? minTemp : maxTemp
+  // ON target: hard-coded extremes to force the relay past hysteresis reliably.
+  // Controller min/max bounds vary per fermenter and may not be aggressive enough.
+  const onTarget = mode === 'cooling' ? -5 : 40
 
   // Revert target: suppress opposite action by setting hw target away from probe
   let revertTarget: number
@@ -308,6 +308,23 @@ async function executePwmDutyCycle(
           .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
           .eq('controller_id', fc.controller_id)
         adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
+      } else {
+        // HEARTBEAT REASSERT: every 3rd cycle (~15 min), re-send the intended
+        // hw target even if unchanged. Protects against telemetry drift / silent
+        // hw-state mismatches where RAPT shows a stale extreme value.
+        const heartbeatSlot = Math.floor(Date.now() / 300000) % 3
+        if (heartbeatSlot === 0 && Math.abs(ctrlTarget - revertTarget) > 0.05) {
+          log('DUTY_ZERO_HEARTBEAT', 'action', `${fc.name}: heartbeat re-assert hw ${ctrlTarget}° → ${revertTarget}° (var 15:e min)`)
+          if (ctx.updateBatch) {
+            ctx.updateBatch.add(fc.controller_id, revertTarget, ctrlTarget)
+          } else {
+            await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, revertTarget)
+          }
+          await supabase.from('rapt_temp_controllers')
+            .update({ target_temp: revertTarget, updated_at: new Date().toISOString() })
+            .eq('controller_id', fc.controller_id)
+          adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: revertTarget })
+        }
       }
     } else {
       log('DUTY_PHASE_B', 'info', `${fc.name}: ${mode} PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode })
