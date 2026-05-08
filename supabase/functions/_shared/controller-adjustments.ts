@@ -196,9 +196,9 @@ async function executePwmDutyCycle(
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
   const maxTemp = parseFloat(String(fc.max_target_temp ?? '25'))
 
-  // ON target: force relay past hysteresis, but never beyond the controller's
-  // own configured hardware bounds.
-  const onTarget = mode === 'cooling' ? minTemp : maxTemp
+  // ON target: hard-coded extremes to force the relay past hysteresis reliably.
+  // Controller min/max bounds vary per fermenter and may not be aggressive enough.
+  const onTarget = mode === 'cooling' ? -5 : 40
 
   // Revert target: suppress opposite action by setting hw target away from probe
   let revertTarget: number
