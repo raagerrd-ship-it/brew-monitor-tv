@@ -144,11 +144,10 @@ export const StepConditionsDisplay = memo(function StepConditionsDisplay({
       const stableDays = Math.floor(stableHours / 24);
       const stableH = Math.floor(stableHours % 24);
 
-      // Only show for wait_for_gravity_stable, or gradual_ramp when triggered
-      const isGradualTriggered = (stepType === 'gradual_ramp' && activityScore != null && activityScore <= (currentStep.activity_trigger ?? 35));
-      const isDiacetylTriggered = (stepType === 'diacetyl_rest' && (attenuation ?? 0) >= (currentStep.attenuation_trigger ?? 75));
-      
-      if (stepType === 'wait_for_gravity_stable' || isGradualTriggered || isDiacetylTriggered) {
+      // Always show SG-stability for steps that require it for completion,
+      // so the user can see when it's the blocker (e.g. activity is low but
+      // SG hasn't been stable long enough).
+      if (stepType === 'wait_for_gravity_stable' || stepType === 'gradual_ramp' || stepType === 'diacetyl_rest') {
         conditions.push({
           label: 'SG-stabilitet',
           icon: <Activity className={iconClass} />,
