@@ -130,11 +130,18 @@ export const StepConditionsDisplay = memo(function StepConditionsDisplay({
     if (sgData && sgData.length >= 2 && currentStep.gravity_stable_days) {
       const threshold = currentStep.gravity_threshold ?? 0.001;
       const sorted = [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const currentSgVal = sorted[0].value;
+      // Window-based stability (matches backend isGravityStable):
+      // walk back while max-min of readings remains within threshold.
+      let max = sorted[0].value;
+      let min = sorted[0].value;
       let stableFrom = new Date(sorted[0].date);
-      
       for (let i = 1; i < sorted.length; i++) {
-        if (sorted[i].value > currentSgVal + threshold) break;
+        const v = sorted[i].value;
+        const newMax = Math.max(max, v);
+        const newMin = Math.min(min, v);
+        if (newMax - newMin > threshold) break;
+        max = newMax;
+        min = newMin;
         stableFrom = new Date(sorted[i].date);
       }
       
