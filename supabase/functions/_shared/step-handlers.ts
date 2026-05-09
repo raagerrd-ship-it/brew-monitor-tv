@@ -42,30 +42,22 @@ export function isGravityStable(sgData: SgDataPoint[], stableDays: number, thres
 
   const sortedData = sortSgDataDesc(sgData)
 
-  // Window-based stability: walk back from the newest reading and find the
-  // earliest point where (max − min) of all readings between it and now is
-  // still within threshold. Robust against single-point noise (which a
-  // strict "latest + threshold" comparison would mistake for a reset).
-  const newest = sortedData[0]
-  let max = newest.value
-  let min = newest.value
-  let stableFromDate = new Date(newest.date)
+  const currentSg = sortedData[0].value
+  let stableFromDate = new Date(sortedData[0].date)
 
   for (let i = 1; i < sortedData.length; i++) {
-    const r = sortedData[i]
-    const newMax = Math.max(max, r.value)
-    const newMin = Math.min(min, r.value)
-    if (newMax - newMin > threshold) break
-    max = newMax
-    min = newMin
-    stableFromDate = new Date(r.date)
+    const reading = sortedData[i]
+    if (reading.value > currentSg + threshold) {
+      break
+    }
+    stableFromDate = new Date(reading.date)
   }
 
   const now = new Date()
   const stableHours = (now.getTime() - stableFromDate.getTime()) / (1000 * 60 * 60)
   const stableDaysActual = stableHours / 24
 
-  console.log(`Gravity stability: window max=${max.toFixed(4)} min=${min.toFixed(4)} (Δ=${(max - min).toFixed(4)}, threshold=${threshold}), stable since ${stableFromDate.toISOString()}, ${stableDaysActual.toFixed(2)} days (need ${stableDays} days)`)
+  console.log(`Gravity stability: current SG ${currentSg.toFixed(4)}, stable since ${stableFromDate.toISOString()}, ${stableDaysActual.toFixed(2)} days (need ${stableDays} days)`)
 
   return stableDaysActual >= stableDays
 }
