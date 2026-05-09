@@ -337,14 +337,29 @@ export function useBrewData(): UseBrewDataReturn {
 
     // Fetch SG data from snapshots (SSOT) for all brews
     const brewIds = brewReadings.map((r: any) => r.id);
-    const { data: allSnapshots } = await supabase
-      .from('brew_data_snapshots')
-      .select('brew_id, recorded_at, sg, pill_temp')
-      .in('brew_id', brewIds)
-      .order('recorded_at', { ascending: true });
-    
+    // Paginate — Supabase silently caps at 1000 rows. With many brews,
+    // a single query would drop the newest snapshots and break the SG
+    // stability calculation (latest reading would be a stale, higher value).
+    const allSnapshots: Array<{ brew_id: string; recorded_at: string; sg: number | null; pill_temp: number | null }> = [];
+    if (brewIds.length > 0) {
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const { data: page } = await supabase
+          .from('brew_data_snapshots')
+          .select('brew_id, recorded_at, sg, pill_temp')
+          .in('brew_id', brewIds)
+          .order('recorded_at', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (!page || page.length === 0) break;
+        allSnapshots.push(...page);
+        if (page.length < pageSize) break;
+        from += pageSize;
+      }
+    }
+
     const snapshotsByBrew = new Map<string, Array<{ date: string; value: number; temp: number }>>();
-    for (const snap of (allSnapshots || [])) {
+    for (const snap of allSnapshots) {
       if (snap.sg == null) continue;
       const list = snapshotsByBrew.get(snap.brew_id) || [];
       list.push({ date: snap.recorded_at, value: snap.sg, temp: snap.pill_temp ?? 0 });
