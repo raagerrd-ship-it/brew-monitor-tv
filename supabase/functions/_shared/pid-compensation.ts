@@ -237,6 +237,21 @@ export async function calculateCompensatedTarget(
         integral = integral * (1 - recoveryAlpha) + ssFloor * recoveryAlpha
         constraints.push('deadband-recovery')
       }
+      // SATURATION EROSION — if floor is near the duty ceiling (≥85%), the
+      // learned floor is biased too high and produces 100/0 on/off pendling
+      // instead of a stable mid-duty. Probe down 5%/cycle whenever we're
+      // holding inside deadband; if the new floor is still too low, normal
+      // ssFloor learning will push it back up.
+      if (ssFloorRaw >= 0.85 && ssFloorSamples >= 5) {
+        const probeAlpha = 0.05
+        const eroded = ssFloorRaw * (1 - probeAlpha)
+        const quantized = Math.round(eroded * 1000) / 1000
+        if (quantized < ssFloorRaw) {
+          await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantized, 0, 1.0, 1.0)
+          constraints.push('saturation-erosion')
+          console.log(`🪫 ${modeLabel} saturation-erosion ${controllerName}: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (probing down from ceiling)`)
+        }
+      }
       dutyCycle = Math.max(0, integral)
       if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
       constraints.push('deadband')
