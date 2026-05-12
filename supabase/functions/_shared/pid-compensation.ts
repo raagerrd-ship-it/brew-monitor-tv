@@ -267,14 +267,24 @@ export async function calculateCompensatedTarget(
       console.log(`✅ ${modeLabel} deadband-no-floor ${controllerName}: err=${avgError.toFixed(2)}°, I=${integral.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
     }
   } else if (need < -0.10 && need >= -0.25) {
-    // SINGLE-SIDED COAST — past setpoint in mode direction.
-    // Stop actuating completely and let thermal inertia + ambient bring
-    // temperature back toward target naturally. Active counter-floor here
-    // just fights the overshoot and creates oscillation.
-    integral *= 0.80
-    dutyCycle = 0
-    constraints.push('coast-overshoot')
-    console.log(`🌬️ ${modeLabel} coast ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0% (single-sided hold, passive recovery)`)
+    if (stepType === 'hold' && ssFloor > 0) {
+      const holdTarget = ssFloor * 0.70
+      const holdAlpha = 0.15
+      integral = integral * (1 - holdAlpha) + holdTarget * holdAlpha
+      dutyCycle = Math.min(1.0, Math.max(0, integral))
+      if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
+      constraints.push('target-hold')
+      console.log(`🔹 ${modeLabel} target-hold ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I=${integral.toFixed(3)}, holdTarget=${holdTarget.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
+    } else {
+      // SINGLE-SIDED COAST — past setpoint in mode direction.
+      // Stop actuating completely and let thermal inertia + ambient bring
+      // temperature back toward target naturally. Active counter-floor here
+      // just fights the overshoot and creates oscillation.
+      integral *= 0.80
+      dutyCycle = 0
+      constraints.push('coast-overshoot')
+      console.log(`🌬️ ${modeLabel} coast ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I→${integral.toFixed(3)}, duty=0% (single-sided hold, passive recovery)`)
+    }
   } else if (need < -0.25) {
     // OVER-ACTUATED — aggressive erosion + coast (no actuation)
     const overshoot = Math.abs(need)
