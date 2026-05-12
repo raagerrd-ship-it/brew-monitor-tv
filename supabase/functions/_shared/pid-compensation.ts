@@ -186,13 +186,14 @@ export async function calculateCompensatedTarget(
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
 
   if (Math.abs(avgError) <= 0.10) {
+    const shouldCoastInDeadband = stepType !== 'hold'
     // DEADBAND — single-sided behaviour:
     //   • If we're on the "past-target" side (need < 0), COAST (duty 0)
     //     and let thermal inertia recover naturally instead of holding a
     //     counter-floor that fights the overshoot.
     //   • If we're still on the "needs-action" side (need >= 0), converge
     //     toward ssFloor as before so the mode keeps holding without slip.
-    if (need < -0.02) {
+    if (need < -0.02 && shouldCoastInDeadband) {
       // Coast: bleed integral down quickly, output 0%
       integral *= 0.70
       dutyCycle = 0
