@@ -318,6 +318,32 @@ Deno.serve(async (req) => {
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
+
+        // Phase-aware weighting: fetch activity_score per controller (via linked brew → metrics)
+        const ctrlIdsForActivity = selectedControllersData.map((c: any) => c.id);
+        const activityByController = new Map<string, number>();
+        if (ctrlIdsForActivity.length > 0) {
+          const { data: activeBrews } = await supabase
+            .from('brew_readings')
+            .select('id, linked_controller_id')
+            .in('status', ['Fermenting', 'Jäsning'])
+            .in('linked_controller_id', ctrlIdsForActivity);
+          const brewToCtrl = new Map<string, string>();
+          (activeBrews || []).forEach((b: any) => {
+            if (b.linked_controller_id) brewToCtrl.set(b.id, b.linked_controller_id);
+          });
+          if (brewToCtrl.size > 0) {
+            const { data: metrics } = await supabase
+              .from('brew_fermentation_metrics')
+              .select('brew_id, activity_score')
+              .in('brew_id', Array.from(brewToCtrl.keys()));
+            (metrics || []).forEach((m: any) => {
+              const cid = brewToCtrl.get(m.brew_id);
+              if (cid) activityByController.set(cid, Number(m.activity_score) || 0);
+            });
+          }
+        }
+
         const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
@@ -363,7 +389,12 @@ Deno.serve(async (req) => {
           // Compute actual_temp via dual-sensor fusion
           const dualEnabled = updateData.dual_sensor_enabled;
           if (dualEnabled && pillTemp != null && currentTemp != null) {
-            updateData.actual_temp = (pillTemp + currentTemp) / 2;
+            // Phase-aware: high activity → weight probe (thermowell) higher,
+            // stationary/crash → 50/50. Drives smoothly via activity_score.
+            const act = activityByController.get(controller.id) ?? 0;
+            const a = Math.max(0, Math.min(60, act));
+            const probeWeight = 0.5 + 0.2 * (a / 60);
+            updateData.actual_temp = currentTemp * probeWeight + pillTemp * (1 - probeWeight);
           } else {
             const pref = existingMap.get(controller.id)?.preferred_sensor ?? 'pill';
             updateData.actual_temp = pref === 'probe'
