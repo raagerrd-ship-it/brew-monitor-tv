@@ -654,15 +654,32 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
 
-    // Block switch to heating if we have a confirmed cooling floor
-    if (suggestedMode === 'heating' && prevMode === 'cooling' && coolingFloor > 0 && coolingFloorSamples >= 5) {
-      suggestedMode = 'cooling'
-      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(coolingFloor * 100).toFixed(0)}% (${coolingFloorSamples} prover), stannar i cooling`)
-    }
-    // Block switch to cooling if we have a confirmed heating floor
-    if (suggestedMode === 'cooling' && prevMode === 'heating' && heatingFloor > 0 && heatingFloorSamples >= 5) {
-      suggestedMode = 'heating'
-      log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar cooling — inlärt värmegolv ${(heatingFloor * 100).toFixed(0)}% (${heatingFloorSamples} prover), stannar i heating`)
+    // SAFETY FIRST: detect emergency BEFORE inlärda golv-block kan tysta nödbromsen.
+    // Om temperaturen sticker iväg >0.8°C på fel sida måste vi få byta läge oavsett
+    // tidigare inlärda steady-state floors (annars deadlock: prevMode=heating, beer
+    // far över target, FLOOR_BLOCK skriver om suggestedMode→heating, onWrongSide blir
+    // false, PID kör 0% och systemet är blint för rusningen).
+    const rawDistanceToTarget = Math.abs(actualTemp - actualTarget)
+    const emergencyOverride =
+      prevMode != null &&
+      suggestedMode !== prevMode &&
+      rawDistanceToTarget > 0.8 &&
+      fc.heating_enabled && fc.cooling_enabled
+
+    if (!emergencyOverride) {
+      // Block switch to heating if we have a confirmed cooling floor
+      if (suggestedMode === 'heating' && prevMode === 'cooling' && coolingFloor > 0 && coolingFloorSamples >= 5) {
+        suggestedMode = 'cooling'
+        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(coolingFloor * 100).toFixed(0)}% (${coolingFloorSamples} prover), stannar i cooling`)
+      }
+      // Block switch to cooling if we have a confirmed heating floor
+      if (suggestedMode === 'cooling' && prevMode === 'heating' && heatingFloor > 0 && heatingFloorSamples >= 5) {
+        suggestedMode = 'heating'
+        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar cooling — inlärt värmegolv ${(heatingFloor * 100).toFixed(0)}% (${heatingFloorSamples} prover), stannar i heating`)
+      }
+    } else {
+      log('MODE_FLOOR_BLOCK_BYPASS', 'info',
+        `${fc.name}: hoppar över floor-block, Δ${rawDistanceToTarget.toFixed(2)}° > 0.8° kräver omedelbart läge=${suggestedMode}`)
     }
 
     // During active profile ramp, force mode to match ramp direction
@@ -779,8 +796,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         }
       }
     } else if (onWrongSide) {
+      // Litet fel (0.05–0.6°C) på fel sida: ackumulera tryck istället för att låsa
+      // pressure på 1. Krypande fel ska annars aldrig nå MODE_SWITCH_CYCLES.
       pidMode = prevMode ?? suggestedMode
-      if (lastDutyPct === 0 && switchPressure === 0) switchPressure = 1
+      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+      if (switchPressure >= MODE_SWITCH_CYCLES && lastDutyPct === 0) {
+        pidMode = suggestedMode
+        switchPressure = 0
+        log('MODE_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (krypande fel Δ${round1(distanceToTarget)}°, ${MODE_SWITCH_CYCLES} cykler, duty=0%)`, {
+          from: prevMode, to: suggestedMode, cycles: MODE_SWITCH_CYCLES, distance: round1(distanceToTarget),
+        })
+      }
     } else {
       pidMode = prevMode ?? suggestedMode
       if (switchPressure > 0) switchPressure = Math.max(0, switchPressure - 1)
