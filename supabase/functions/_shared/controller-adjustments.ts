@@ -629,6 +629,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       })
     }
 
+    // ── Integral wind-up release at ramp completion ──
+    // När det virtuella målet slutar röra på sig (rampen klar) har PID byggt upp
+    // integral ("ryggsäck") för att driva rampen. Den fortsätter trycka i några
+    // cykler och orsakar onödig överskjutning. Detektera flank (was=1 → nu=0)
+    // och nollställ accumulated_integral så vi startar på ren P-term vid target.
+    const wasRampActive = pressureMap.get('was_ramp_active') === 1
+    const rampJustFinished = wasRampActive && !rampRateLimited
+    if (rampJustFinished) {
+      log('PID_RAMP_DONE', 'action', `${fc.name}: ramp klar (mål ${round1(actualTarget)}°) — nollställer integral för att förhindra wind-up overshoot`)
+      // Fire-and-forget; PID-loopen nedan läser accumulated_integral direkt efter.
+      await supabase.from('controller_learned_compensation')
+        .update({ accumulated_integral: 0, latest_i_correction: 0, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+    }
+
     // Store pidEffectiveTarget for cooler management (stable, rate-limited target)
     ctx.baseTargetMap.set(fc.controller_id, pidEffectiveTarget)
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
