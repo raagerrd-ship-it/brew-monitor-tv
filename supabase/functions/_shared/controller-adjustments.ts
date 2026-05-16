@@ -1044,18 +1044,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const isInDeadband = pidResult.constraints?.includes('deadband')
         const isStale = pidResult.constraints?.includes('stale')
         const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-        const canLearnSsFloor = hasDutyData && (
+        // Freeze floor seeding/EMA during ramps — the live target crawls
+        // through buckets and would fragment learning into many half-converged
+        // floors. Erosion writes inside calculateCompensatedTarget still run
+        // (those are guarded by their own conditions and protect against
+        // over-actuation during the ramp).
+        const canLearnSsFloor = hasDutyData && !isRampStep && (
           isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
         )
         if (canLearnSsFloor) {
           const dutyBucket = getTempBucket(actualTarget)
+          // Phase-keyed write key when phase is known, otherwise mode-keyed
+          // (preserves prior behaviour for standalone controllers / no brew).
+          const dutyParamName = phaseBucket
+            ? `steady_state_duty:${pidMode}:${dutyBucket}:${phaseBucket}`
+            : `steady_state_duty:${pidMode}:${dutyBucket}`
           const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
           // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
           const { data: existingSs } = await supabase
             .from('fermentation_learnings')
             .select('sample_count, learned_value')
             .eq('controller_id', fc.controller_id)
-            .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
+            .eq('parameter_name', dutyParamName)
             .maybeSingle()
           const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
           const currentSamples = existingSs?.sample_count ?? 0
@@ -1067,13 +1077,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
               const alpha = currentSamples === 0 ? 0.5 : 0.3
               learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
+              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode}${phaseBucket ? `:${phaseBucket}` : ''} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
             } else if (isMildOvershoot && currentFloor > 0) {
               const alpha = 0.4
               learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
             }
             const ssCount = currentSamples + 1
-            rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
+            rows.push({ controller_id: fc.controller_id, parameter_name: dutyParamName, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
           }
         }
       }
