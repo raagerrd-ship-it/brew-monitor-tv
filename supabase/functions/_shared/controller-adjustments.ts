@@ -732,10 +732,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         from: prevMode, to: suggestedMode, oldStep: lastStepIndex, newStep: currentStepIndex,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
-    } else if (onWrongSide && distanceToTarget > 1.0) {
+    } else if (onWrongSide && distanceToTarget > 0.8) {
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > 1°, omedelbar)`, {
+      log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > 0.8°, omedelbar)`, {
         from: prevMode, to: suggestedMode, distance: round1(distanceToTarget),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
