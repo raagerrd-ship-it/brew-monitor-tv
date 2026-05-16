@@ -671,9 +671,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (profileCtx?.rampDirection && 
         (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
       const rampMode = profileCtx.rampDirection as 'heating' | 'cooling'
-      // Safety escape: if temp is >1°C on the wrong side of target, allow opposite mode
-      // (e.g. heating ramp but beer self-heated 6°C above target → must cool)
-      const RAMP_OVERRIDE_OVERSHOOT_LIMIT = 1.0
+      // Safety escape: if temp is clearly on the wrong side during a ramp,
+      // allow the opposite mode before we get a full 1°C runaway.
+      // This prevents heating ramps from pinning mode=heating while beer is
+      // already drifting warm and cooling should begin.
+      const RAMP_OVERRIDE_OVERSHOOT_LIMIT = 0.3
       const overshoot = rampMode === 'heating'
         ? actualTemp - actualTarget   // positive = too hot, need cooling
         : actualTarget - actualTemp   // positive = too cold, need heating
