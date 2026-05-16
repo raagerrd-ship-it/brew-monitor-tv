@@ -946,12 +946,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
+    // Phase bucket: collapsed fermentation phase for this controller's brew.
+    const phaseBucket = phaseBucketByController.get(fc.controller_id) ?? null
+    // Ramp-bucket stabilisation: during an active ramp the live target crawls
+    // through multiple buckets — anchor the floor lookup to the ramp end-target
+    // (or current profile target for gradual_ramp) so floor learning doesn't
+    // fragment per bucket and lookups anticipate where we're heading.
+    const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
+    const rampEndTarget = isRampStep ? (profileStatus?.profileTarget ?? null) : null
+    const floorLookupTarget = rampEndTarget != null ? rampEndTarget : null
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, tempInterpolated,
       pidMode === 'cooling' ? ctx.coolerMarginContext : null,
       modeJustSwitched,
+      phaseBucket,
+      floorLookupTarget,
     )
 
     // Log PID status
