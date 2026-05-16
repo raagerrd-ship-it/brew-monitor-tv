@@ -366,6 +366,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'thermal_rate_heating', 'thermal_rate_cooling',
     'est_prev_actual_temp', 'est_prev_actual_temp_at',
     'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
+    'was_ramp_active',
   ]
   const bucketParams = TEMP_BUCKETS.flatMap(b => [
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
