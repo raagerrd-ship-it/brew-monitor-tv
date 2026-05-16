@@ -722,7 +722,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         from: prevMode, to: suggestedMode, distance: round1(distanceToTarget),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
-    } else if (onWrongSide && distanceToTarget > 0.15) {
+    } else if (onWrongSide && distanceToTarget > 0.6) {
       const isStable = velocity < STALL_MIN_PROGRESS
       const velocitySigned = lastProbe != null ? actualTemp - lastProbe : 0
       const isDivergingCheck = (suggestedMode === 'cooling' && velocitySigned > 0.02) ||

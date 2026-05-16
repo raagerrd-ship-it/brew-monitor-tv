@@ -277,9 +277,9 @@ export async function calculateCompensatedTarget(
       console.log(`🔹 ${modeLabel} target-hold ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, I=${integral.toFixed(3)}, holdTarget=${holdTarget.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%`)
     } else {
       // SINGLE-SIDED COAST — past setpoint in mode direction.
-      // Stop actuating completely and let thermal inertia + ambient bring
-      // temperature back toward target naturally. Active counter-floor here
-      // just fights the overshoot and creates oscillation.
+      // For non-hold steps we let thermal inertia recover naturally.
+      // For hold steps with a known floor we kiss at 30% of floor to
+      // catch the recovery before undershooting (see pre-emptive-catch).
       integral *= 0.80
       dutyCycle = 0
       constraints.push('coast-overshoot')
@@ -301,11 +301,22 @@ export async function calculateCompensatedTarget(
 
     const decayRate = Math.min(0.85, 0.75 - overshoot * 0.1)
     integral = Math.max(0, integral * decayRate)
-    // Force coast — never actuate when significantly past target in mode direction.
-    dutyCycle = 0
-    constraints.push(isCooling ? 'overcooled' : 'overheated')
-    constraints.push('coast-overshoot')
-    console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} (coast) ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=0% (passive recovery)`)
+    // Pre-emptive catch: during a hold step with an established floor, apply
+    // 30% of ssFloor while still overshot so the same-mode actuator gently
+    // "catches" the glide back toward target. Prevents the recovery from
+    // undershooting and forcing the opposite mode to spin up. Non-hold steps
+    // (ramps) still force coast=0 to avoid fighting the ramp trajectory.
+    if (stepType === 'hold' && ssFloorRaw > 0) {
+      dutyCycle = Math.min(1.0, ssFloorRaw * 0.30)
+      constraints.push(isCooling ? 'overcooled' : 'overheated')
+      constraints.push('catch-30pct')
+      console.log(`🪢 ${modeLabel} catch ${controllerName}: overshoot=${overshoot.toFixed(2)}°, applying 30% of floor (${ssFloorRaw.toFixed(2)}) → duty=${(dutyCycle * 100).toFixed(0)}% (pre-emptive catch)`)
+    } else {
+      dutyCycle = 0
+      constraints.push(isCooling ? 'overcooled' : 'overheated')
+      constraints.push('coast-overshoot')
+      console.log(`${isCooling ? '❄️' : '🔥'} ${modeLabel} ${isCooling ? 'overcooled' : 'overheated'} (coast) ${controllerName}: err=${avgError.toFixed(2)}°, overshoot=${overshoot.toFixed(2)}°, I→${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=0% (passive recovery)`)
+    }
   } else if (need > 0.10 && need <= 0.25 && ssFloor > 0) {
     // TARGET HOLD (warm side) — temp drifting away from setpoint but still close.
     // Boost duty above ssFloor to gently pull back without full P+I.
