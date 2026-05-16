@@ -741,11 +741,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isProfileRampBypass = onWrongSide && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
-    if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && stepChanged) {
+    if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && (stepChanged || rampJustFinished)) {
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}, omedelbar)`, {
-        from: prevMode, to: suggestedMode, oldStep: lastStepIndex, newStep: currentStepIndex,
+      const trigger = rampJustFinished ? 'ramp avslutad' : `profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}`
+      log(rampJustFinished ? 'MODE_RAMP_SWITCH' : 'MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${trigger}, omedelbar)`, {
+        from: prevMode, to: suggestedMode, trigger, oldStep: lastStepIndex, newStep: currentStepIndex,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (onWrongSide && distanceToTarget > 0.8) {
