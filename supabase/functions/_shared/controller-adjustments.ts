@@ -840,23 +840,26 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const estimatedRate = Math.max(0.5, distance / 4)
         rampContext = { requiredRatePerHour: estimatedRate, tempBucket, loadBucket }
       }
+    }
 
-      // Only fetch pill rate when ramp context needs it
-      if (rampContext) {
-        const { data: deltaHistory } = await supabase
-          .from('temp_delta_history')
-          .select('pill_temp, recorded_at')
-          .eq('controller_id', fc.controller_id)
-          .order('recorded_at', { ascending: false })
-          .limit(8)
-        if (deltaHistory && deltaHistory.length >= 3) {
-          const newest = deltaHistory[0]
-          const oldest = deltaHistory[deltaHistory.length - 1]
-          const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
-          const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
-          if (timeDiffHours > 0.05) {
-            pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
-          }
+    // Fetch recent pill rate whenever the controller is actively cooling and
+    // beer is above target — needed both for ramp boost AND for predictive
+    // brake-zone expansion during hold steps (prevents overshoot when the
+    // cooling rate exceeds what the static 0.5°C brake window can handle).
+    if (pidMode === 'cooling' && actualTemp - actualTarget > 0.3) {
+      const { data: deltaHistory } = await supabase
+        .from('temp_delta_history')
+        .select('pill_temp, recorded_at')
+        .eq('controller_id', fc.controller_id)
+        .order('recorded_at', { ascending: false })
+        .limit(8)
+      if (deltaHistory && deltaHistory.length >= 3) {
+        const newest = deltaHistory[0]
+        const oldest = deltaHistory[deltaHistory.length - 1]
+        const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
+        const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
+        if (timeDiffHours > 0.05) {
+          pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
         }
       }
     }

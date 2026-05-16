@@ -339,7 +339,13 @@ export async function calculateCompensatedTarget(
       // If error is growing, the system needs to ramp up, not slow down.
       // Heating has more thermal inertia (heater → fluid → fermenter → probe)
       // so we start braking earlier (1.0°C) to allow more deceleration cycles.
-      const BRAKE_ZONE = isCooling ? 0.50 : 1.00
+      const BRAKE_ZONE_STATIC = isCooling ? 0.50 : 1.00
+      // Predictive expansion: if temp is moving fast toward setpoint, brake
+      // earlier so the next 15-min cycle doesn't blow past target. Use
+      // 2× safety factor on (rate × cycle_hours).
+      const CYCLE_HOURS = 0.25
+      const ratePrediction = pillRate != null ? Math.abs(pillRate) * CYCLE_HOURS * 2.0 : 0
+      const BRAKE_ZONE = Math.max(BRAKE_ZONE_STATIC, ratePrediction)
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
       const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
       // CRITICAL: Never brake on interpolated data — only on confirmed sensor readings.
