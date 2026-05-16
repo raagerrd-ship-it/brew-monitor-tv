@@ -360,6 +360,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
   // Collect all possible parameter names (including all temp bucket variants)
   const TEMP_BUCKETS = ['cold', 'cool', 'warm', 'hot']
+  const PHASE_BUCKETS = ['active', 'tail', 'clean'] as const
   const BASE_PARAMS = [
     'mode_switch_pressure', 'mode_last_probe', 'pid_current_mode',
     'pid_last_duty', 'mode_last_step_index', 'pid_effective_target',
@@ -372,11 +373,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
     `steady_state_duty:${b}`,  // legacy (migration fallback)
     `steady_state_duty:cooling:${b}`, `steady_state_duty:heating:${b}`,
+    // Phase-keyed floors: separates floor per fermentation heat-load class
+    // so phase transitions don't require slow erosion to converge.
+    ...PHASE_BUCKETS.flatMap(p => [
+      `steady_state_duty:cooling:${b}:${p}`,
+      `steady_state_duty:heating:${b}:${p}`,
+    ]),
   ])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
 
-  // Fire both queries in parallel
-  const [{ data: allLearnings }, utilResults] = await Promise.all([
+  // Fetch fermentation phase per controller (via sessionBrewIdMap → brew metrics)
+  // so each PID cycle knows whether the brew is in active/tail/clean exotherm.
+  const controllerBrewIds = Array.from(ctx.sessionBrewIdMap.values()).filter(Boolean) as string[]
+
+  // Fire all queries in parallel
+  const [{ data: allLearnings }, utilResults, { data: phaseMetrics }] = await Promise.all([
     // 1. Single batch query for all fermentation_learnings
     supabase.from('fermentation_learnings')
       .select('controller_id, parameter_name, learned_value, sample_count')
@@ -391,7 +402,30 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           return { controllerId: fc.controller_id, result }
         })
     ),
+    // 3. Fermentation phase per brew (for phase-keyed ssFloor)
+    controllerBrewIds.length > 0
+      ? supabase.from('brew_fermentation_metrics')
+          .select('brew_id, fermentation_phase')
+          .in('brew_id', controllerBrewIds)
+      : Promise.resolve({ data: [] }),
   ])
+
+  // Build controller → phaseBucket map. Raw phases collapse into 3 heat-load
+  // classes: lag/exponential → 'active', declining → 'tail', stationary → 'clean'.
+  // Controllers without a brew or with unknown phase get null (falls back to
+  // mode-keyed floor in calculateCompensatedTarget — original behaviour).
+  const phaseByBrew = new Map<string, string>()
+  for (const row of (phaseMetrics ?? [])) {
+    if (row.fermentation_phase) phaseByBrew.set(row.brew_id, row.fermentation_phase)
+  }
+  const phaseBucketByController = new Map<string, 'active' | 'tail' | 'clean'>()
+  for (const [controllerId, brewId] of ctx.sessionBrewIdMap.entries()) {
+    const phase = brewId ? phaseByBrew.get(brewId) : undefined
+    if (!phase || phase === 'unknown') continue
+    if (phase === 'lag' || phase === 'exponential') phaseBucketByController.set(controllerId, 'active')
+    else if (phase === 'declining') phaseBucketByController.set(controllerId, 'tail')
+    else if (phase === 'stationary') phaseBucketByController.set(controllerId, 'clean')
+  }
 
   // Build per-controller lookup maps
   const learningsByController = new Map<string, Map<string, number>>()
