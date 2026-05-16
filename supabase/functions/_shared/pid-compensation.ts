@@ -348,11 +348,16 @@ export async function calculateCompensatedTarget(
       const BRAKE_ZONE = Math.max(BRAKE_ZONE_STATIC, ratePrediction)
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
       const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
-      // CRITICAL: Never brake on interpolated data — only on confirmed sensor readings.
-      // Interpolation predicts cooling effect, which creates false "error decreasing"
-      // signals that prematurely reduce duty cycle before the hardware has actually
-      // moved the temperature.
-      if (need < BRAKE_ZONE && errorDecreasing && !isInterpolated) {
+      // Pill-confirmed approach: pillRate is from an independent sensor and is NOT
+      // affected by controller-probe staleness. In cooling mode, pillRate<-0.05°C/h
+      // means temp is actually falling; in heating mode pillRate>+0.05°C/h means
+      // it is actually rising. When that direction matches "approaching setpoint"
+      // we trust the pill enough to brake even when the probe value is interpolated.
+      const pillConfirmsApproach = pillRate != null && (
+        (isCooling && pillRate < -0.05) || (!isCooling && pillRate > 0.05)
+      )
+      const canBrake = errorDecreasing && (!isInterpolated || pillConfirmsApproach)
+      if (need < BRAKE_ZONE && canBrake) {
         const proximity = Math.max(0, (need - 0.10) / (BRAKE_ZONE - 0.10))
         let blendedI: number
         if (ssFloor > 0) {
@@ -365,16 +370,16 @@ export async function calculateCompensatedTarget(
           blendedI = integral * (0.50 + 0.50 * proximity)
         }
         if (blendedI < integral) {
-          constraints.push(`brake=${(proximity * 100).toFixed(0)}%`)
+          constraints.push(`brake=${(proximity * 100).toFixed(0)}%${isInterpolated ? '-pill' : ''}`)
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
-      } else if (need < BRAKE_ZONE && !errorDecreasing && !isInterpolated) {
+      } else if (need < BRAKE_ZONE && !errorDecreasing) {
         constraints.push('brake-skip')
         console.log(`⏩ ${modeLabel} brake skipped ${controllerName}: error growing (prev=${Math.abs(prevAvgError).toFixed(2)}° → now=${need.toFixed(2)}°), letting I build`)
-      } else if (need < BRAKE_ZONE && isInterpolated) {
+      } else if (need < BRAKE_ZONE && isInterpolated && !pillConfirmsApproach) {
         constraints.push('brake-interp-skip')
-        console.log(`⏩ ${modeLabel} brake skipped (interpolated) ${controllerName}: need=${need.toFixed(2)}° — väntar på bekräftad sensordata`)
+        console.log(`⏩ ${modeLabel} brake skipped (interpolated, pill ej bekräftar) ${controllerName}: need=${need.toFixed(2)}°, pillRate=${pillRate}`)
       }
 
       // ── Settling guard (cooling only) ──
