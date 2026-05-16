@@ -366,6 +366,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'thermal_rate_heating', 'thermal_rate_cooling',
     'est_prev_actual_temp', 'est_prev_actual_temp_at',
     'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
+    'was_ramp_active',
   ]
   const bucketParams = TEMP_BUCKETS.flatMap(b => [
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
@@ -628,6 +629,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       })
     }
 
+    // ── Integral wind-up release at ramp completion ──
+    // När det virtuella målet slutar röra på sig (rampen klar) har PID byggt upp
+    // integral ("ryggsäck") för att driva rampen. Den fortsätter trycka i några
+    // cykler och orsakar onödig överskjutning. Detektera flank (was=1 → nu=0)
+    // och nollställ accumulated_integral så vi startar på ren P-term vid target.
+    const wasRampActive = pressureMap.get('was_ramp_active') === 1
+    const rampJustFinished = wasRampActive && !rampRateLimited
+    if (rampJustFinished) {
+      log('PID_RAMP_DONE', 'action', `${fc.name}: ramp klar (mål ${round1(actualTarget)}°) — nollställer integral för att förhindra wind-up overshoot`)
+      // Fire-and-forget; PID-loopen nedan läser accumulated_integral direkt efter.
+      await supabase.from('controller_learned_compensation')
+        .update({ accumulated_integral: 0, latest_i_correction: 0, updated_at: new Date().toISOString() })
+        .eq('controller_id', fc.controller_id)
+    }
+
     // Store pidEffectiveTarget for cooler management (stable, rate-limited target)
     ctx.baseTargetMap.set(fc.controller_id, pidEffectiveTarget)
     let switchPressure = pressureMap.get('mode_switch_pressure') ?? 0
@@ -725,11 +741,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isProfileRampBypass = onWrongSide && isProfileRamp && rampMatchesSuggested && distanceToTarget > 0.3
 
     let pidMode: 'heating' | 'cooling'
-    if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && stepChanged) {
+    if (canSwitchMode && prevMode != null && suggestedMode !== prevMode && (stepChanged || rampJustFinished)) {
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}, omedelbar)`, {
-        from: prevMode, to: suggestedMode, oldStep: lastStepIndex, newStep: currentStepIndex,
+      const trigger = rampJustFinished ? 'ramp avslutad' : `profilsteg ändrat ${lastStepIndex} → ${currentStepIndex}`
+      log(rampJustFinished ? 'MODE_RAMP_SWITCH' : 'MODE_STEP_SWITCH', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (${trigger}, omedelbar)`, {
+        from: prevMode, to: suggestedMode, trigger, oldStep: lastStepIndex, newStep: currentStepIndex,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
     } else if (onWrongSide && distanceToTarget > 0.8) {
@@ -949,6 +966,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         { controller_id: fc.controller_id, parameter_name: 'pid_current_mode', learned_value: pidMode === 'heating' ? 1 : 2, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_effective_target', learned_value: pidEffectiveTarget, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'was_ramp_active', learned_value: rampRateLimited ? 1 : 0, sample_count: 1, last_updated_at: now },
         // EST tracking: store current actual_temp and timestamp for rate learning
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp', learned_value: actualTemp, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp_at', learned_value: lastUpdateMs / 1000, sample_count: 1, last_updated_at: now },
