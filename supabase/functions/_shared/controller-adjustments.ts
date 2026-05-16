@@ -360,6 +360,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
   // Collect all possible parameter names (including all temp bucket variants)
   const TEMP_BUCKETS = ['cold', 'cool', 'warm', 'hot']
+  const PHASE_BUCKETS = ['active', 'tail', 'clean'] as const
   const BASE_PARAMS = [
     'mode_switch_pressure', 'mode_last_probe', 'pid_current_mode',
     'pid_last_duty', 'mode_last_step_index', 'pid_effective_target',
@@ -372,11 +373,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
     `steady_state_duty:${b}`,  // legacy (migration fallback)
     `steady_state_duty:cooling:${b}`, `steady_state_duty:heating:${b}`,
+    // Phase-keyed floors: separates floor per fermentation heat-load class
+    // so phase transitions don't require slow erosion to converge.
+    ...PHASE_BUCKETS.flatMap(p => [
+      `steady_state_duty:cooling:${b}:${p}`,
+      `steady_state_duty:heating:${b}:${p}`,
+    ]),
   ])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
 
-  // Fire both queries in parallel
-  const [{ data: allLearnings }, utilResults] = await Promise.all([
+  // Fetch fermentation phase per controller (via sessionBrewIdMap → brew metrics)
+  // so each PID cycle knows whether the brew is in active/tail/clean exotherm.
+  const controllerBrewIds = Array.from(ctx.sessionBrewIdMap.values()).filter(Boolean) as string[]
+
+  // Fire all queries in parallel
+  const [{ data: allLearnings }, utilResults, { data: phaseMetrics }] = await Promise.all([
     // 1. Single batch query for all fermentation_learnings
     supabase.from('fermentation_learnings')
       .select('controller_id, parameter_name, learned_value, sample_count')
@@ -391,7 +402,30 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           return { controllerId: fc.controller_id, result }
         })
     ),
+    // 3. Fermentation phase per brew (for phase-keyed ssFloor)
+    controllerBrewIds.length > 0
+      ? supabase.from('brew_fermentation_metrics')
+          .select('brew_id, fermentation_phase')
+          .in('brew_id', controllerBrewIds)
+      : Promise.resolve({ data: [] }),
   ])
+
+  // Build controller → phaseBucket map. Raw phases collapse into 3 heat-load
+  // classes: lag/exponential → 'active', declining → 'tail', stationary → 'clean'.
+  // Controllers without a brew or with unknown phase get null (falls back to
+  // mode-keyed floor in calculateCompensatedTarget — original behaviour).
+  const phaseByBrew = new Map<string, string>()
+  for (const row of (phaseMetrics ?? [])) {
+    if (row.fermentation_phase) phaseByBrew.set(row.brew_id, row.fermentation_phase)
+  }
+  const phaseBucketByController = new Map<string, 'active' | 'tail' | 'clean'>()
+  for (const [controllerId, brewId] of ctx.sessionBrewIdMap.entries()) {
+    const phase = brewId ? phaseByBrew.get(brewId) : undefined
+    if (!phase || phase === 'unknown') continue
+    if (phase === 'lag' || phase === 'exponential') phaseBucketByController.set(controllerId, 'active')
+    else if (phase === 'declining') phaseBucketByController.set(controllerId, 'tail')
+    else if (phase === 'stationary') phaseBucketByController.set(controllerId, 'clean')
+  }
 
   // Build per-controller lookup maps
   const learningsByController = new Map<string, Map<string, number>>()
@@ -912,12 +946,23 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
+    // Phase bucket: collapsed fermentation phase for this controller's brew.
+    const phaseBucket = phaseBucketByController.get(fc.controller_id) ?? null
+    // Ramp-bucket stabilisation: during an active ramp the live target crawls
+    // through multiple buckets — anchor the floor lookup to the ramp end-target
+    // (or current profile target for gradual_ramp) so floor learning doesn't
+    // fragment per bucket and lookups anticipate where we're heading.
+    const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
+    const rampEndTarget = isRampStep ? (profileStatus?.profileTarget ?? null) : null
+    const floorLookupTarget = rampEndTarget != null ? rampEndTarget : null
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, tempInterpolated,
       pidMode === 'cooling' ? ctx.coolerMarginContext : null,
       modeJustSwitched,
+      phaseBucket,
+      floorLookupTarget,
     )
 
     // Log PID status
@@ -999,18 +1044,28 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const isInDeadband = pidResult.constraints?.includes('deadband')
         const isStale = pidResult.constraints?.includes('stale')
         const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-        const canLearnSsFloor = hasDutyData && (
+        // Freeze floor seeding/EMA during ramps — the live target crawls
+        // through buckets and would fragment learning into many half-converged
+        // floors. Erosion writes inside calculateCompensatedTarget still run
+        // (those are guarded by their own conditions and protect against
+        // over-actuation during the ramp).
+        const canLearnSsFloor = hasDutyData && !isRampStep && (
           isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
         )
         if (canLearnSsFloor) {
           const dutyBucket = getTempBucket(actualTarget)
+          // Phase-keyed write key when phase is known, otherwise mode-keyed
+          // (preserves prior behaviour for standalone controllers / no brew).
+          const dutyParamName = phaseBucket
+            ? `steady_state_duty:${pidMode}:${dutyBucket}:${phaseBucket}`
+            : `steady_state_duty:${pidMode}:${dutyBucket}`
           const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
           // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
           const { data: existingSs } = await supabase
             .from('fermentation_learnings')
             .select('sample_count, learned_value')
             .eq('controller_id', fc.controller_id)
-            .eq('parameter_name', `steady_state_duty:${pidMode}:${dutyBucket}`)
+            .eq('parameter_name', dutyParamName)
             .maybeSingle()
           const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
           const currentSamples = existingSs?.sample_count ?? 0
@@ -1022,13 +1077,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
             if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
               const alpha = currentSamples === 0 ? 0.5 : 0.3
               learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
+              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode}${phaseBucket ? `:${phaseBucket}` : ''} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
             } else if (isMildOvershoot && currentFloor > 0) {
               const alpha = 0.4
               learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
             }
             const ssCount = currentSamples + 1
-            rows.push({ controller_id: fc.controller_id, parameter_name: `steady_state_duty:${pidMode}:${dutyBucket}`, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
+            rows.push({ controller_id: fc.controller_id, parameter_name: dutyParamName, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
           }
         }
       }
