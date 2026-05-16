@@ -143,7 +143,24 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const coolerMaxTemp = parseFloat(String(coolerController.max_target_temp ?? '25'))
 
   // ── Batch pre-load cooling rates for ALL controllers (1 query instead of N) ──
-  const controllersWithCooling = followedControllersFullData.filter(c => c.cooling_enabled === true)
+  // Exclude tanks that are currently below their target (PID requesting heat) —
+  // they don't demand cold glycol and would otherwise force the cooler to hold
+  // an unnecessarily low setpoint while the heater fights against it.
+  const getBaseTargetForCtrl = (c: TempController): number =>
+    ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '999'))
+  const controllersWithCooling = followedControllersFullData.filter(c => {
+    if (c.cooling_enabled !== true) return false
+    const beerTemp = parseFloat(String((c as any).actual_temp ?? 'NaN'))
+    if (!isFinite(beerTemp)) return true // no sensor → keep, fail safe
+    const baseTarget = getBaseTargetForCtrl(c)
+    const hyst = parseFloat(String(c.cooling_hysteresis ?? '0.2'))
+    // Clearly in heating territory (below target by > hysteresis) → no cooling demand
+    if (beerTemp < baseTarget - hyst) {
+      log('HEATING_MODE_SKIP', 'info', `${c.name}: öl ${beerTemp.toFixed(2)}° < mål ${baseTarget.toFixed(1)}°-hyst ${hyst} — exkluderar från kylar-target (värmeläge)`)
+      return false
+    }
+    return true
+  })
   const allRateIds = [coolerController.controller_id, ...controllersWithCooling.map(c => c.controller_id)]
   const uniqueRateIds = [...new Set(allRateIds)]
   if (!ctx.coolingRateCache) ctx.coolingRateCache = new Map()
