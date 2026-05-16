@@ -966,6 +966,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         { controller_id: fc.controller_id, parameter_name: 'pid_current_mode', learned_value: pidMode === 'heating' ? 1 : 2, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_effective_target', learned_value: pidEffectiveTarget, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'was_ramp_active', learned_value: rampRateLimited ? 1 : 0, sample_count: 1, last_updated_at: now },
         // EST tracking: store current actual_temp and timestamp for rate learning
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp', learned_value: actualTemp, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp_at', learned_value: lastUpdateMs / 1000, sample_count: 1, last_updated_at: now },
