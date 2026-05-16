@@ -72,6 +72,8 @@ export async function calculateCompensatedTarget(
   isInterpolated?: boolean,
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
   modeJustSwitched?: boolean,
+  phaseBucket?: 'active' | 'tail' | 'clean' | null,
+  floorLookupTarget?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
 
@@ -79,8 +81,14 @@ export async function calculateCompensatedTarget(
   const deltaBucket = 'low'
 
   // ── Parallel pre-fetch: PID state + steady-state duty floor ──
-  const ssBucket = getTempBucket(actualTarget)
-  const [{ data: learnedRow }, ssParam] = await Promise.all([
+  // For ramps, controller-adjustments.ts passes the ramp end-target so the
+  // floor lookup stays anchored to a single bucket throughout the ramp
+  // instead of fragmenting across every bucket the live target crosses.
+  const ssBucket = getTempBucket(floorLookupTarget ?? actualTarget)
+  const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
+  const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
+  const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
+  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
       .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
@@ -89,19 +97,46 @@ export async function calculateCompensatedTarget(
       .eq('mode', mode)
       .eq('step_type', stepType)
       .maybeSingle(),
-    getLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, 0),
+    phaseBucket
+      ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
+      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
+    getLearnedParam(supabase, controllerId, modeKeyedName, 0),
   ])
 
-  // Migration fallback: if no mode-specific floor exists, check legacy mode-agnostic key
-  let ssParamResolved = ssParam
-  if (ssParam.sampleCount === 0) {
+  // Resolve floor with fallback chain:
+  //   1. phase-keyed (mode + bucket + fermentation phase) — preferred when available
+  //   2. mode-keyed  (mode + bucket)                       — existing behaviour
+  //   3. legacy      (bucket only, cooling-only)           — pre-mode-split data
+  let ssParamResolved: { value: number; sampleCount: number }
+  let floorSource = 'phase'
+  if (phaseBucket && phaseParam.sampleCount >= 3) {
+    ssParamResolved = phaseParam
+    floorSource = `phase:${phaseBucket}`
+  } else if (modeParam.sampleCount > 0) {
+    ssParamResolved = modeParam
+    floorSource = 'mode'
+  } else {
+    ssParamResolved = modeParam
+    floorSource = 'mode-empty'
+  }
+  if (ssParamResolved.sampleCount === 0) {
     const legacyParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
     if (legacyParam.sampleCount >= 5 && mode === 'cooling') {
-      // Only inherit legacy floor for cooling (it was always cooling before)
       ssParamResolved = legacyParam
+      floorSource = 'legacy'
       console.log(`🔄 ssFloor migration ${controllerName}: using legacy steady_state_duty:${ssBucket} = ${legacyParam.value.toFixed(3)} (${legacyParam.sampleCount} samples)`)
     }
   }
+  // Inherit mode-keyed as seed if we have a phase bucket but no phase data yet —
+  // gives the new phase floor a sensible starting point instead of 0.
+  if (phaseBucket && phaseParam.sampleCount < 3 && modeParam.sampleCount >= 5) {
+    ssParamResolved = modeParam
+    floorSource = `mode-seed→${phaseBucket}`
+  }
+
+  // Write-key: where erosion/seeding writes go. Phase-keyed when we have phase
+  // context, otherwise the existing mode-keyed key (preserves prior behaviour).
+  const floorWriteKey = phaseBucket ? phaseKeyedName : modeKeyedName
 
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
@@ -212,9 +247,9 @@ export async function calculateCompensatedTarget(
         const eroded = ssFloorRaw * (1 - softAlpha) + target * softAlpha
         const quantized = Math.round(eroded * 1000) / 1000
         if (quantized < ssFloorRaw) {
-          await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantized, 0, 1.0, 1.0)
+          await updateLearnedParam(supabase, controllerId, floorWriteKey, quantized, 0, 1.0, 1.0)
           constraints.push('cool-soft')
-          console.log(`🌊 ${modeLabel} cool-soft erosion ${controllerName}: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (err=${avgError.toFixed(2)}°, past target)`)
+          console.log(`🌊 ${modeLabel} cool-soft erosion ${controllerName} [${floorSource}]: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (err=${avgError.toFixed(2)}°, past target)`)
         }
       }
 
@@ -248,9 +283,9 @@ export async function calculateCompensatedTarget(
         const eroded = ssFloorRaw * (1 - probeAlpha)
         const quantized = Math.round(eroded * 1000) / 1000
         if (quantized < ssFloorRaw) {
-          await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantized, 0, 1.0, 1.0)
+          await updateLearnedParam(supabase, controllerId, floorWriteKey, quantized, 0, 1.0, 1.0)
           constraints.push('saturation-erosion')
-          console.log(`🪫 ${modeLabel} saturation-erosion ${controllerName}: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (probing down from ceiling)`)
+          console.log(`🪫 ${modeLabel} saturation-erosion ${controllerName} [${floorSource}]: floor ${ssFloorRaw.toFixed(3)} → ${quantized.toFixed(3)} (probing down from ceiling)`)
         }
       }
       dutyCycle = Math.max(0, integral)
@@ -294,8 +329,8 @@ export async function calculateCompensatedTarget(
       const reducedFloor = Math.max(0, integral * erosionAlpha + ssFloorRaw * (1 - erosionAlpha))
       const quantizedFloor = Math.floor(reducedFloor * 10) / 10
       if (quantizedFloor < ssFloorRaw) {
-        await updateLearnedParam(supabase, controllerId, `steady_state_duty:${mode}:${ssBucket}`, quantizedFloor, 0, 1.0, 1.0)
-        console.log(`📉 ${modeLabel} floor erosion ${controllerName}: ${ssFloorRaw.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
+        await updateLearnedParam(supabase, controllerId, floorWriteKey, quantizedFloor, 0, 1.0, 1.0)
+        console.log(`📉 ${modeLabel} floor erosion ${controllerName} [${floorSource}]: ${ssFloorRaw.toFixed(2)} → ${quantizedFloor.toFixed(2)} (overshoot=${overshoot.toFixed(2)}°)`)
       }
     }
 
