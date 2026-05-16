@@ -885,11 +885,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // Fetch recent pill rate whenever the controller is actively cooling and
-    // beer is above target — needed both for ramp boost AND for predictive
-    // brake-zone expansion during hold steps (prevents overshoot when the
-    // cooling rate exceeds what the static 0.5°C brake window can handle).
-    if (pidMode === 'cooling' && actualTemp - actualTarget > 0.3) {
+    // Fetch recent pill rate whenever we are actively regulating near or past
+    // target — needed for predictive brake-zone expansion in BOTH heating and
+    // cooling (calculateCompensatedTarget uses Math.abs(pillRate) symmetrically).
+    // Without this, a heating ramp landing on its target has no momentum signal
+    // and the heater keeps gassing while afterheat carries temp past setpoint.
+    const isNearCoolingTarget = pidMode === 'cooling' && (actualTemp - actualTarget) > 0.3
+    const isNearHeatingTarget = pidMode === 'heating' && (actualTarget - actualTemp) > 0.3
+    if (isNearCoolingTarget || isNearHeatingTarget) {
       const { data: deltaHistory } = await supabase
         .from('temp_delta_history')
         .select('pill_temp, recorded_at')
