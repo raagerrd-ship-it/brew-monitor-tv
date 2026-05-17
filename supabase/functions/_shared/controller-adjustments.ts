@@ -706,7 +706,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // små över-/undershoots passivt. Vidga neutralzonen så vi inte föreslår
     // motsatt läge på 0.1-0.2° brus runt setpoint (annars börjar krypande-fel
     // pressuren ackumulera direkt och triggar onödiga mode-byten efter 15 min).
-    const isHoldStep = profileCtx?.currentStepType === 'hold'
+    const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
     const NEUTRAL_BAND = isHoldStep ? 0.20 : 0.05
     let suggestedMode: 'heating' | 'cooling'
     if (actualTemp > actualTarget + NEUTRAL_BAND) {
