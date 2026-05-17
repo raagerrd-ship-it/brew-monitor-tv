@@ -348,7 +348,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
-    margin_value: Math.round(worstCaseMargin * 100) / 100,
+    margin_value: Math.round(effectiveMargin * 100) / 100,
     max_effective: minEffective.sampleCount > 0 ? Math.round(minEffective.value * 100) / 100 : null,
     utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
     cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
