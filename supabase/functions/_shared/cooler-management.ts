@@ -307,23 +307,31 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use learned margin directly — min_effective is logged as reference only (no hard floor)
   const baseMargin = learnedMargin.value
-  // Hard floor: aldrig under 5.0°C marginal — kylaren behöver headroom även under hold,
+  // Hard floor: aldrig under 5.0°C WORST-CASE marginal — kylaren behöver headroom även under hold,
   // särskilt efter ramp-ner då glykolen är kall och driver uppåt under stationär fas.
-  const MIN_COOLER_MARGIN = 5.0
+  // Worst case = strax innan kompressorn slår till, dvs glykol = cooler_target + hysteres.
+  // Vi måste alltså lägga på hysteresen i kommanderad marginal så att (target − (cooler_target + hyst)) ≥ 5°C.
+  const MIN_WORST_CASE_MARGIN = 5.0
+  const coolerHysteresisForMargin = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
   const boostedMargin = baseMargin * rateBoostFactor
-  const flooredMargin = Math.max(boostedMargin, MIN_COOLER_MARGIN)
+  const worstCaseFloor = MIN_WORST_CASE_MARGIN + coolerHysteresisForMargin
+  const hystAdjustedMargin = boostedMargin + coolerHysteresisForMargin
+  const flooredMargin = Math.max(hystAdjustedMargin, worstCaseFloor)
   const effectiveMargin = Math.round(flooredMargin * 10) / 10
-  if (flooredMargin > boostedMargin) {
-    log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C under hårt golv ${MIN_COOLER_MARGIN}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+  const worstCaseMargin = Math.round((effectiveMargin - coolerHysteresisForMargin) * 10) / 10
+  if (flooredMargin > hystAdjustedMargin) {
+    log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + hyst ${coolerHysteresisForMargin.toFixed(1)}°C under worst-case-golv ${worstCaseFloor.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
-  log('MARGIN_CALC', 'info', `Target: ${effectiveTarget.temp.toFixed(1)}°C - margin ${effectiveMargin.toFixed(1)}°C = kylare ${clampedTarget.toFixed(1)}°C`, {
+  log('MARGIN_CALC', 'info', `Target ${effectiveTarget.temp.toFixed(1)}°C − margin ${effectiveMargin.toFixed(1)}°C (worst-case ${worstCaseMargin.toFixed(1)}°C @ hyst ${coolerHysteresisForMargin.toFixed(1)}°C) = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
     margin_source: marginSource,
     margin_samples: learnedMargin.sampleCount,
     learned_margin: learnedMargin.value,
+    cooler_hysteresis: coolerHysteresisForMargin,
+    worst_case_margin: worstCaseMargin,
     rate_boost: rateBoostFactor > 1.0 ? rateBoostFactor : null,
     min_effective: minEffective.value,
     current_cooler: currentCoolerTarget,
@@ -338,7 +346,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   supabase.from('cooler_margin_history').insert({
     controller_id: coolerController.controller_id,
     temp_bucket: tempBucket,
-    margin_value: Math.round(effectiveMargin * 100) / 100,
+    margin_value: Math.round(worstCaseMargin * 100) / 100,
     max_effective: minEffective.sampleCount > 0 ? Math.round(minEffective.value * 100) / 100 : null,
     utilization: lowestUtil?.utilization != null ? Math.round(lowestUtil.utilization * 1000) / 1000 : null,
     cooling_rate: actualRate != null ? Math.round(actualRate * 100) / 100 : null,
