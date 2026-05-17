@@ -167,10 +167,13 @@ export async function calculateCompensatedTarget(
   // ═══════════════════════════════════════════════════════
   const isCooling = mode === 'cooling'
   const need = isCooling ? -avgError : avgError // positive when action is needed
-  const DUTY_P = 0.5
-  const DUTY_I = 0.15
-  const DUTY_DECAY = 0.98
-  const DUTY_IMAX = 0.95
+  // Hold-steg med trög termisk massa: dämpa P+I så integralen inte pinnar mot
+  // taket och garanterar undershoot. Ramper/wait-steg behåller snabbare gain.
+  const isHold = stepType === 'hold'
+  const DUTY_P = isHold ? 0.35 : 0.5
+  const DUTY_I = isHold ? 0.06 : 0.15
+  const DUTY_DECAY = isHold ? 0.95 : 0.98
+  const DUTY_IMAX = isHold ? 0.60 : 0.95
   const modeLabel = isCooling ? 'Duty' : 'Heating duty'
 
   // Migration: old integral was in °C (typically 0–2). New model uses duty (0–1).
