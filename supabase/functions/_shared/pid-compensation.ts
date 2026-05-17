@@ -208,17 +208,18 @@ export async function calculateCompensatedTarget(
   const ssFloorSamples = ssParamResolved.sampleCount
 
   // ── Margin-aware floor scaling (cooling only) ──
-  // Scale the ssFloor target based on current cooler margin vs learned reference.
-  // Higher margin = more cooling power per duty-% → need less duty → scale floor down.
-  // Lower margin = less cooling power → need more duty → scale floor up.
+  // Skala ssFloor-utdata bidirektionellt baserat på faktisk glykolmarginal vs lärd referens.
+  // Större faktisk marginal (kallare glykol) = mer kyleffekt per duty-% → skala NED.
+  // Mindre faktisk marginal (varmare glykol)  = mindre kyleffekt per duty-% → skala UPP.
+  // Asymmetriskt fönster (0.6×–1.8×): överkylning är farligare än underkylning, men
+  // nedskalning aktiv så att vi inte överkyler när kylvattnet är kallare än lärt.
+  // Vi rör inte ssFloorRaw i DB — endast utskickad duty-cykel påverkas, så lärningen
+  // av baslinjen är opåverkad.
   let deadbandGainScale = 1.0
   if (isCooling && coolerMarginContext && coolerMarginContext.learnedMargin > 0) {
     const actualMargin = actualTemp - coolerMarginContext.coolerTemp
     if (actualMargin > 0.5) {
-      // Only scale UP (tighter margin = less cooling power per duty-%).
-      // Never scale DOWN — ssFloor is already learned at real conditions,
-      // so reducing it when the cooler is colder would double-count.
-      deadbandGainScale = Math.max(1.0, Math.min(2.0, coolerMarginContext.learnedMargin / actualMargin))
+      deadbandGainScale = Math.max(0.6, Math.min(1.8, coolerMarginContext.learnedMargin / actualMargin))
     }
   }
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
