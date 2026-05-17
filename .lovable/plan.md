@@ -1,64 +1,66 @@
-## Problem
+## Mål
+Behåll den fungerande 5°C-marginalen som *mittvärde* istället för att skifta hela bandet uppåt med full hysteres. Kompressorn ska fortfarande inte cykla oftare.
 
-Just nu: `cooler_target = controller_target − 5°C` (5°C hard floor).
-Men kylaren har `cooling_hysteresis = 2°C` → kompressorn släpper inte förrän glykolen är `cooler_target + 2°C`.
+## Bakgrund
+Nuvarande implementation (just deployad):
+```
+effectiveMargin = max(boostedMargin + hyst, MIN_COOLER_MARGIN + hyst)
+                = max(... , 5 + 2) = 7°C
+```
+→ glycol svänger 9–11°C, marginal 5–7°C (medel 6°C, worst case 5°C).
 
-Resultat (observerat just nu):
-- Controller target: 16°C
-- Cooler target: 11°C
-- Glykol just nu: 12.5°C (på väg upp mot 13°C innan kompressorn startar)
-- **Faktisk worst-case marginal = 16 − 13 = 3°C** — inte 5°C som vi lovar.
+Det är "säkrare" men du har redan validerat att 5°C som mittvärde fungerar utmärkt — vi behöver inte offra 1°C extra köldreserv.
 
-Hysteresen ska behållas stor (skyddar kompressorn mot kortcykling), men måste **räknas in** i marginalen.
+## Ny formel: halv hysteres-kompensation
+```
+halfHyst         = coolerHysteresis / 2          // t.ex. 2.0 / 2 = 1.0
+effectiveMargin  = max(boostedMargin + halfHyst, MIN_COOLER_MARGIN)
+                 = max(boostedMargin + 1.0, 5.0)
+```
 
-## Lösning
-
-Höj effektiv marginal med hysteresen så att golvet gäller worst-case (precis innan kompressorn startar).
-
-### Ändring i `supabase/functions/_shared/cooler-management.ts` (rad ~308–322)
+Resultat vid `controller_target = 16°C`, `boostedMargin = 5.0`, `hyst = 2.0`:
+- `cooler_target = 16 − 6 = 10°C`
+- Kompressor släpper vid 10°C → glycol driver upp till **12°C** (10 + hyst) → marginal = **4°C** worst case
+- Kompressor slår på vid 12°C → glycol åker ner mot 10°C → marginal = **6°C** best case
+- **Medel: 5°C** ✅ exakt det som fungerade bra
 
 ```text
-Ny formel:
-  worstCaseFloor   = MIN_COOLER_MARGIN + coolerHysteresis   // t.ex. 5 + 2 = 7
-  effectiveMargin  = max(boostedMargin + coolerHysteresis, worstCaseFloor)
-  cooler_target    = controller_target − effectiveMargin
+Före (hyst-okänslig):    glycol 9–11°C → marginal 5–7°C (medel 6)
+Nu (full hyst):          glycol 9–11°C → marginal 5–7°C (medel 6)   ← för defensivt
+Föreslaget (halv hyst):  glycol 10–12°C → marginal 4–6°C (medel 5)  ← matchar verklighet
 ```
 
-Garanterar: när glykolen når relä-tröskeln (`cooler_target + hyst`) är marginalen fortfarande ≥ 5°C.
+## Tekniska detaljer
 
-### Logg-uppdatering
+**`supabase/functions/_shared/cooler-management.ts`:**
+- Behåll `coolerHysteresis = coolerController.cooling_hysteresis ?? 0.2`
+- Ändra:
+  ```ts
+  const halfHyst = coolerHysteresis / 2;
+  const effectiveMargin = Math.max(
+    boostedMargin + halfHyst,
+    MIN_COOLER_MARGIN          // tillbaka till 5.0, INTE 5.0 + hyst
+  );
+  ```
+- Ta bort `MIN_WORST_CASE_MARGIN`-konstanten (eller låt den vara 5.0 = MIN_COOLER_MARGIN)
+- `MARGIN_FLOOR`-loggen triggar när `boostedMargin + halfHyst < MIN_COOLER_MARGIN`
+- `MARGIN_CALC`-loggen visar: `commanded`, `half_hyst`, `worst_case (= commanded − halfHyst)`, `best_case (= commanded + halfHyst)`, `avg (= commanded)`
 
-`MARGIN_CALC`-loggen visar både kommanderad och worst-case-marginal:
-```
-Target 16.0°C − margin 7.0°C (worst-case 5.0°C @ hyst 2.0°C) = kylare 9.0°C
-```
+**`cooler_margin_history.margin_value`:**
+- Logga `commanded − halfHyst` (worst case) — fortfarande ärlig men inte överdrivet pessimistisk
+- Alternativt: logga `commanded` (mittvärde) — enklare att tolka i UI
 
-`MARGIN_FLOOR` triggar när `boostedMargin + hyst < worstCaseFloor`:
-```
-Lärd marginal 4.7°C + hyst 2.0°C under worst-case-golv 7.0°C — använder 7.0°C
-```
+**`LearnedMarginHistory.tsx` (tooltip):**
+- Visa "medel Xc · ±Yc" där Y = halfHyst, så det framgår att fältet svänger symmetriskt runt mittvärdet
 
-### Marginal-historik
+**Lärda parametrar (`cooler_margin:*`):**
+- Oförändrat — fortsatt rå commanded marginal. Run-time-applicering hanteras av halv-hysteres-formeln.
 
-`cooler_margin_history.margin_value` lagrar **worst-case-marginalen** (kommanderad − hyst) så UI:t visar det "verkliga" skyddsutrymmet.
+## Validering
+1. Deploya `auto-adjust-cooling`
+2. `curl` engång → bekräfta att `cooler_target` blir **10°C** (inte 9°C, inte 11°C) vid `controller_target=16`, `boostedMargin=5`, `hyst=2`
+3. Övervaka 30 min → glycol ska pendla 10–12°C, kompressorstart-frekvens oförändrad (hyst-bandet är 2°C som tidigare)
+4. Bekräfta att `MARGIN_CALC.avg ≈ 5.0`
 
-### UI (`LearnedMarginHistory.tsx`)
-
-Tooltip/underrad visar `hyst Xc` så det syns att marginalen är hysteres-justerad. Inga nya tabellkolumner.
-
-### Inlärning rörs inte
-
-Den lärda `cooler_margin:*`-parametern är fortfarande "rå" marginal (kommanderad − target). Hysteres läggs på vid användning, inte vid inlärning. Det betyder att om kylaren byts till en med annan hysteres så stämmer historiken automatiskt.
-
-## Förväntat resultat
-
-Med dagens läge (16°C target, 2°C hyst):
-- Cooler target: 11°C → **9°C**
-- Glykol pendlar 9–11°C (istället för 11–13°C)
-- Worst-case marginal: 5°C garanterat
-- Kompressorns start/stopp-frekvens **oförändrad** (hysteres rörs inte)
-
-## Filer som ändras
-
-- `supabase/functions/_shared/cooler-management.ts` — marginalformel + loggar
-- `src/components/LearnedMarginHistory.tsx` — visa hyst-info i tooltip
+## Vilka frågor du bör besvara innan implementation
+- **Loggvärde i `cooler_margin_history`**: worst-case (4°C) eller mittvärde (5°C)? Mittvärde matchar din mentala modell bäst men avviker från tidigare semantik.
