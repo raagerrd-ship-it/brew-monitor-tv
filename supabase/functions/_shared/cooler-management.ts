@@ -307,31 +307,33 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use learned margin directly — min_effective is logged as reference only (no hard floor)
   const baseMargin = learnedMargin.value
-  // Hard floor: aldrig under 5.0°C WORST-CASE marginal — kylaren behöver headroom även under hold,
-  // särskilt efter ramp-ner då glykolen är kall och driver uppåt under stationär fas.
-  // Worst case = strax innan kompressorn slår till, dvs glykol = cooler_target + hysteres.
-  // Vi måste alltså lägga på hysteresen i kommanderad marginal så att (target − (cooler_target + hyst)) ≥ 5°C.
-  const MIN_WORST_CASE_MARGIN = 5.0
+  // Hard floor: 5.0°C AVERAGE marginal (mittvärde) — glykolen pendlar ±halv hysteres
+  // runt kommanderad target, så vi lägger på halva hysteresen för att mittvärdet ska
+  // hamna på lärt värde. Worst case = mittvärde − halvHyst, best case = mittvärde + halvHyst.
+  const MIN_COOLER_MARGIN = 5.0
   const coolerHysteresisForMargin = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
+  const halfHyst = coolerHysteresisForMargin / 2
   const boostedMargin = baseMargin * rateBoostFactor
-  const worstCaseFloor = MIN_WORST_CASE_MARGIN + coolerHysteresisForMargin
-  const hystAdjustedMargin = boostedMargin + coolerHysteresisForMargin
-  const flooredMargin = Math.max(hystAdjustedMargin, worstCaseFloor)
+  const hystAdjustedMargin = boostedMargin + halfHyst
+  const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
   const effectiveMargin = Math.round(flooredMargin * 10) / 10
-  const worstCaseMargin = Math.round((effectiveMargin - coolerHysteresisForMargin) * 10) / 10
+  const worstCaseMargin = Math.round((effectiveMargin - halfHyst) * 10) / 10
+  const bestCaseMargin = Math.round((effectiveMargin + halfHyst) * 10) / 10
   if (flooredMargin > hystAdjustedMargin) {
-    log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + hyst ${coolerHysteresisForMargin.toFixed(1)}°C under worst-case-golv ${worstCaseFloor.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+    log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C under golv ${MIN_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
-  log('MARGIN_CALC', 'info', `Target ${effectiveTarget.temp.toFixed(1)}°C − margin ${effectiveMargin.toFixed(1)}°C (worst-case ${worstCaseMargin.toFixed(1)}°C @ hyst ${coolerHysteresisForMargin.toFixed(1)}°C) = kylare ${clampedTarget.toFixed(1)}°C`, {
+  log('MARGIN_CALC', 'info', `Target ${effectiveTarget.temp.toFixed(1)}°C − margin ${effectiveMargin.toFixed(1)}°C (medel, swing ${worstCaseMargin.toFixed(1)}–${bestCaseMargin.toFixed(1)}°C @ hyst ${coolerHysteresisForMargin.toFixed(1)}°C) = kylare ${clampedTarget.toFixed(1)}°C`, {
     temp_bucket: tempBucket,
     margin_source: marginSource,
     margin_samples: learnedMargin.sampleCount,
     learned_margin: learnedMargin.value,
     cooler_hysteresis: coolerHysteresisForMargin,
+    half_hyst: halfHyst,
     worst_case_margin: worstCaseMargin,
+    best_case_margin: bestCaseMargin,
     rate_boost: rateBoostFactor > 1.0 ? rateBoostFactor : null,
     min_effective: minEffective.value,
     current_cooler: currentCoolerTarget,
