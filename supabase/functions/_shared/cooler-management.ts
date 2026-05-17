@@ -307,7 +307,15 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use learned margin directly — min_effective is logged as reference only (no hard floor)
   const baseMargin = learnedMargin.value
-  const effectiveMargin = Math.round(baseMargin * rateBoostFactor * 10) / 10
+  // Hard floor: aldrig under 5.0°C marginal — kylaren behöver headroom även under hold,
+  // särskilt efter ramp-ner då glykolen är kall och driver uppåt under stationär fas.
+  const MIN_COOLER_MARGIN = 5.0
+  const boostedMargin = baseMargin * rateBoostFactor
+  const flooredMargin = Math.max(boostedMargin, MIN_COOLER_MARGIN)
+  const effectiveMargin = Math.round(flooredMargin * 10) / 10
+  if (flooredMargin > boostedMargin) {
+    log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C under hårt golv ${MIN_COOLER_MARGIN}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+  }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
 
