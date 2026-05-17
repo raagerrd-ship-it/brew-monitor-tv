@@ -702,7 +702,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const heatingFloor = pressureMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
     const heatingFloorSamples = sampleCountMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
 
-    let suggestedMode: 'heating' | 'cooling' = actualTemp > actualTarget + 0.05 ? 'cooling' : 'heating'
+    // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
+    // små över-/undershoots passivt. Vidga neutralzonen så vi inte föreslår
+    // motsatt läge på 0.1-0.2° brus runt setpoint (annars börjar krypande-fel
+    // pressuren ackumulera direkt och triggar onödiga mode-byten efter 15 min).
+    const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
+    const NEUTRAL_BAND = isHoldStep ? 0.20 : 0.05
+    let suggestedMode: 'heating' | 'cooling'
+    if (actualTemp > actualTarget + NEUTRAL_BAND) {
+      suggestedMode = 'cooling'
+    } else if (actualTemp < actualTarget - NEUTRAL_BAND) {
+      suggestedMode = 'heating'
+    } else {
+      // Inom neutralzonen: behåll föregående läge (eller default cooling om okänt)
+      suggestedMode = prevMode ?? (actualTemp > actualTarget ? 'cooling' : 'heating')
+    }
 
     // SAFETY FIRST: detect emergency BEFORE inlärda golv-block kan tysta nödbromsen.
     // Om temperaturen sticker iväg >0.8°C på fel sida måste vi få byta läge oavsett
