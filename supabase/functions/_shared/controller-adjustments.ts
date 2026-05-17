@@ -690,6 +690,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Mode detection: overshoot-aware with stabilisation guard.
     const MODE_SWITCH_CYCLES = 3
     const STALL_MIN_PROGRESS = 0.05
+    // RAPT rapporterar var ~15:e min men PID-cron körs var 5:e min. Räkna
+    // bara pressure-cykler där vi har FÄRSK probe-data — annars baseras
+    // mode-byte på interpolerade värden (i praktiken samma datapunkt 3 ggr).
+    const isFreshReading = !tempInterpolated
 
     // ── ssFloor check: block mode switch when established floor exists ──
     // If we have a learned steady-state duty floor > 0 for the CURRENT mode,
@@ -827,7 +831,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         }
       } else if (isStable) {
-        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
           switchPressure = 0
@@ -838,13 +842,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         } else {
           pidMode = prevMode!
-          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabil fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${needsDutyZero ? ', duty=0%' : ', ramp-bypass'})`, {
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabil fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${needsDutyZero ? ', duty=0%' : ', ramp-bypass'}${isFreshReading ? '' : ', interp-skip'})`, {
             suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
             velocity: round1(velocity), distance: round1(distanceToTarget),
           })
         }
       } else {
-        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
           switchPressure = 0
@@ -854,7 +858,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         } else {
           pidMode = prevMode!
-          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (divergerar fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (divergerar fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${isFreshReading ? '' : ', interp-skip'})`, {
             suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
             distance: round1(distanceToTarget),
           })
@@ -863,8 +867,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     } else if (onWrongSide) {
       // Litet fel (0.05–0.6°C) på fel sida: ackumulera tryck istället för att låsa
       // pressure på 1. Krypande fel ska annars aldrig nå MODE_SWITCH_CYCLES.
+      // Räknas bara på färska RAPT-läsningar — interpolerade värden får inte
+      // driva mode-byten (annars triggar 3 cron-cykler inom 15 min på 1 datapunkt).
       pidMode = prevMode ?? suggestedMode
-      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+      if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES && lastDutyPct === 0) {
         pidMode = suggestedMode
         switchPressure = 0
