@@ -311,16 +311,23 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // runt kommanderad target, så vi lägger på halva hysteresen för att mittvärdet ska
   // hamna på lärt värde. Worst case = mittvärde − halvHyst, best case = mittvärde + halvHyst.
   const MIN_COOLER_MARGIN = 5.0
+  // Hard cap: lärd marginal får aldrig dra iväg över denna nivå även om historiken
+  // har förorenats av tidigare över-defensiva formler eller tillfälliga boosts.
+  const MAX_COOLER_MARGIN = 6.0
   const coolerHysteresisForMargin = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
   const halfHyst = coolerHysteresisForMargin / 2
   const boostedMargin = baseMargin * rateBoostFactor
   const hystAdjustedMargin = boostedMargin + halfHyst
   const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
-  const effectiveMargin = Math.round(flooredMargin * 10) / 10
+  const cappedMargin = Math.min(flooredMargin, MAX_COOLER_MARGIN)
+  const effectiveMargin = Math.round(cappedMargin * 10) / 10
   const worstCaseMargin = Math.round((effectiveMargin - halfHyst) * 10) / 10
   const bestCaseMargin = Math.round((effectiveMargin + halfHyst) * 10) / 10
   if (flooredMargin > hystAdjustedMargin) {
     log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C under golv ${MIN_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+  }
+  if (cappedMargin < flooredMargin) {
+    log('MARGIN_CAP', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C över tak ${MAX_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
