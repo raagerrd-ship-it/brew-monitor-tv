@@ -157,7 +157,10 @@ export function LearnedMarginHistory() {
                 return (
                   <tr key={group.bucket}>
                     <td className="py-1.5">{formatBucket(group.bucket)}</td>
-                    <td className="py-1.5 text-right font-mono text-blue-400">
+                    <td
+                      className="py-1.5 text-right font-mono text-blue-400"
+                      title="Worst-case marginal (innan kompressorn slår till). Kommanderad marginal = denna + kylarens hysteres."
+                    >
                       {group.currentMargin.toFixed(1)}°C
                     </td>
                     <td className="py-1.5 text-right">
