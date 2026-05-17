@@ -377,8 +377,14 @@ export async function calculateCompensatedTarget(
     // NEEDS ACTION — proportional + integral (no margin scaling here — only matters in deadband)
 
     if (isStaleData) {
-      pCorrection = 0
-      console.log(`⏸️ ${modeLabel} stale ${controllerName}: P=0 (no new data), holding I=${integral.toFixed(3)}`)
+      // Stale-data: telemetrin är några minuter gammal men inte värdelös.
+      // Skala ned P till 50% istället för att nolla den — annars förlorar vi
+      // bromskraften precis när vi närmar oss/passerar target. Integralen
+      // hålls fortfarande (ingen ackumulering) för att undvika windup.
+      const STALE_P_SCALE = 0.5
+      pCorrection = need * DUTY_P * STALE_P_SCALE
+      constraints.push(`stale-p×${STALE_P_SCALE}`)
+      console.log(`⏸️ ${modeLabel} stale ${controllerName}: P=${pCorrection.toFixed(3)} (×${STALE_P_SCALE} of fresh), holding I=${integral.toFixed(3)}`)
     } else {
       pCorrection = need * DUTY_P
       integral = integral * DUTY_DECAY + need * DUTY_I
