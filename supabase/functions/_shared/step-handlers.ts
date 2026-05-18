@@ -504,7 +504,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   let activityTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
 
   // Time-based linear floor: ensures ramp progresses at minimum linear rate
-  // Also acts as ceiling to prevent activity from overshooting the time schedule
+  // Blended with activity curve so ramp respects BOTH drivers — no time-only shocks.
   let calculatedTarget = activityTarget
   if (minRampHours && minRampHours > 0 && activityScore > 0) {
     const now = new Date()
@@ -512,14 +512,17 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     const linearIncrease = Math.min(tempIncrease, (tempIncrease / minRampHours) * elapsedSinceTrigger)
     const timeTarget = Math.round((baseTemp + linearIncrease) * 10) / 10
 
-    // Use time as FLOOR (minimum progress) and CEILING (maximum progress)
-    if (activityTarget < timeTarget) {
-      console.log(`⏱️ Time floor: activity wants ${activityTarget}°C but time floor is ${timeTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h) — using time`)
-      calculatedTarget = timeTarget
-    } else if (activityTarget > timeTarget) {
-      console.log(`⏱️ Time ceiling: activity wants ${activityTarget}°C but time allows max ${timeTarget}°C (${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h)`)
-      calculatedTarget = timeTarget
-    }
+    // Blend: average of activity-driven and time-driven targets, so both contribute.
+    // Prevents activity from chock-ramping fast AND prevents time from yanking temp
+    // up before fermentation is ready. Clamped to [baseTemp, baseTemp+tempIncrease].
+    const blended = (activityTarget + timeTarget) / 2
+    calculatedTarget = Math.round(
+      Math.min(baseTemp + tempIncrease, Math.max(baseTemp, blended)) * 10
+    ) / 10
+    console.log(
+      `⏱️ Blended ramp: activity=${activityTarget}°C, time=${timeTarget}°C ` +
+      `(${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h) → ${calculatedTarget}°C`,
+    )
   } else if (minRampHours && activityScore === 0) {
     console.log(`⏱️ Min ramp constraint skipped: activity=0% (fermentation done), allowing full target ${calculatedTarget}°C`)
   }
