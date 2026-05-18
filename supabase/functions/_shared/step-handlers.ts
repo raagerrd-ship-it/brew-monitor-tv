@@ -561,7 +561,8 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       ramp_progress: tempIncrease > 0 ? Math.round(((rampedTarget - baseTemp) / tempIncrease) * 100) : 0,
       fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
     }
-    console.log(`🔄 Gradual ramp: activity=${Math.round(activityScore)}%, progress=${Math.round(rampProgress * 100)}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
+    const progressPct = tempIncrease > 0 ? Math.round(((rampedTarget - baseTemp) / tempIncrease) * 100) : 0
+    console.log(`🔄 Gradual ramp: driver=${driver}, progress=${progressPct}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
   }
 
   // Phase 3: Check completion
