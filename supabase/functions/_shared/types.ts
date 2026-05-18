@@ -126,6 +126,7 @@ export interface FermentationSession {
   step_start_temp: number | null
   started_at: string
   ramp_triggered_at: string | null
+  ramp_start_sg: number | null
 }
 
 /** Minimal session reference for lifecycle operations */
