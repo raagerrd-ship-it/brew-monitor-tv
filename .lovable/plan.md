@@ -1,42 +1,94 @@
-## Problem
+## Mål
 
-Idag finns `deadbandGainScale` i `pid-compensation.ts` som skalar duty-golvet uppåt när glykolen är varmare än referens (svagare kylning → mer duty). Men den vägrar uttryckligen att skala nedåt:
+Ersätt nuvarande `max(activityTarget, timeTarget)` i `processGradualRampStep` med en **SG-driven ramp + tidsgolv**. Aktivitetspoängen används inte längre för att räkna ut måltemp under själva rampen — bara tidigare för att *trigga* rampen (vid `activity_trigger`).
 
-```ts
-// Never scale DOWN — ssFloor is already learned at real conditions
-deadbandGainScale = Math.max(1.0, Math.min(2.0, learnedMargin / actualMargin))
+## Hur det blir
+
+```text
+  temp
+   ^
+   |        ____ tempMax (base + increase)
+   |       /
+   |      /  ← följer SG-progress (mjuk, speglar utjäsning)
+   |     /
+   |   _/    ← tidsgolv glider upp underifrån (skyddsnät)
+   | _/
+   +--------------> tid
+   base
 ```
 
-Konsekvens: när glykolen är **kallare** än lärd referens (t.ex. lärd marginal 5°C men faktisk marginal 8°C → kylvatten ~3°C kallare än modellen antar) får tanken samma duty% som vid normalfallet, och **överkyler**. Det är detta du ser nu.
+`calculatedTarget = max(sgBasedTarget, timeBasedTarget)`, clampad till `[baseTemp, baseTemp + tempIncrease]`.
 
-## Lösning
+## Förändringar
 
-Tillåt symmetrisk skalning: `gainScale = clamp(learnedMargin / actualMargin, 0.6, 1.8)`. När faktisk marginal är större (kallare glykol) blir kvoten <1 och duty skalas ned proportionellt — samma kyleffekt levereras med mindre duty.
+### 1. Databas — ny kolumn för att låsa SG vid ramp-start
+Migration: lägg till `ramp_start_sg numeric` på `fermentation_sessions`. Sparas tillsammans med `ramp_triggered_at` och `step_start_temp` första gången rampen triggas (engångs-snapshot av aktuell SG).
 
-### Varför detta inte korrumperar lärningen
-- `ssFloor`-lärningen sker via separata EMA-uppdateringar baserat på faktiskt uppnådd hold, inte på den skalade duty-utdatan.
-- Vi rör inte `ssFloorRaw` i DB. Endast den **utskickade** duty-cykeln påverkas.
-- Asymmetriskt fönster: tillåt mer uppskalning (1.8×) än nedskalning (0.6×) eftersom överkylning är mindre farlig än underkylning, men nedskalning fortfarande aktiv.
+### 2. `step-handlers.ts` → `processGradualRampStep` (rad ~499–528)
 
-### Var skalningen appliceras
-Idag triggar `margin-scale`-loggen i tre grenar (deadband, target-hold, ytterligare en). Skalningen appliceras redan via `ssFloor = ssFloorRaw * deadbandGainScale` så ändringen är minimal — bara klampgränsen.
+Ersätt aktivitets-kurvan och blandnings-/golv-logiken med:
 
-## Tekniska ändringar
+```ts
+// SG-progress: 0 = vid trigger, 1 = vid förväntat FG
+const rampStartSg = session.ramp_start_sg ?? getLatestSg(brewData.sg_data) ?? null
+const currentSg   = getLatestSg(brewData.sg_data)
+const expectedFg  = brewData.final_gravity || null
 
-**Fil:** `supabase/functions/_shared/pid-compensation.ts`
+let sgBasedTarget = baseTemp
+let sgProgress: number | null = null
+if (rampStartSg && currentSg && expectedFg && rampStartSg > expectedFg) {
+  sgProgress = (rampStartSg - currentSg) / (rampStartSg - expectedFg)
+  sgProgress = Math.min(1, Math.max(0, sgProgress))
+  sgBasedTarget = baseTemp + tempIncrease * sgProgress
+}
 
-1. Rad ~215–223: Ändra clamp från `Math.max(1.0, …)` till `Math.max(0.6, …)`. Behåll övre tak 1.8 (sänkt från 2.0 för symmetri runt 1.0 i log-space).
-2. Uppdatera kommentaren ovanför så den beskriver bidirektionell skalning.
-3. Logga `margin-scale=0.75` etc precis som idag (befintliga `constraints.push` fungerar redan).
+// Tidsgolv (säkerhetsnät — kickar in om SG fastnar)
+let timeBasedTarget = baseTemp
+let timeProgress: number | null = null
+if (minRampHours && minRampHours > 0) {
+  const elapsed = (Date.now() - rampTriggeredAt.getTime()) / 3_600_000
+  timeProgress = Math.min(1, Math.max(0, elapsed / minRampHours))
+  timeBasedTarget = baseTemp + tempIncrease * timeProgress
+}
 
-**Inget annat rörs.** Cooler-management, lärda värden, hysteres-cap, ramp-logik är orörda.
+// Skottsäker kombination: SG styr, tid är golv underifrån
+const floored = Math.max(sgBasedTarget, timeBasedTarget)
+const calculatedTarget = Math.round(
+  Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10
+) / 10
 
-## Verifiering
+const driver = sgBasedTarget >= timeBasedTarget ? 'sg' : 'time-floor'
+console.log(
+  `⏱️ Ramp (${driver}): sg=${sgBasedTarget.toFixed(2)}°C `
+  + `(progress=${sgProgress?.toFixed(2) ?? 'n/a'}), `
+  + `time=${timeBasedTarget.toFixed(2)}°C `
+  + `(${timeProgress?.toFixed(2) ?? 'n/a'}) → ${calculatedTarget}°C`,
+)
+```
 
-1. Deploya `run-automation` + delade moduler.
-2. Kolla nästa auto-cooling-decision-log: när `actualMargin > learnedMargin` ska `margin-scale` < 1.0 visas och uträknad duty% vara lägre än ssFloorRaw.
-3. Observera över några cykler att hold-temperaturen inte driver undertarget mer än hysteresen.
+Vid första triggern: spara även `ramp_start_sg = getLatestSg(brewData.sg_data)` på sessionen.
 
-## Memory-uppdatering
+### 3. Fallback-strategi (viktigt)
+SG-data är inte alltid komplett. Logiken hanterar tre nivåer:
 
-Uppdatera `mem://logic/automation/marginal-aware-duty-scaling` så den beskriver bidirektionell skalning (0.6×–1.8×) istället för "endast upp".
+| Tillgängligt | Beteende |
+|---|---|
+| `rampStartSg + currentSg + final_gravity` finns | Full SG-driven ramp |
+| Saknas (ingen pill, eller `final_gravity = 0`) | `sgBasedTarget = baseTemp` → tidsgolvet tar över helt (= dagens beteende när activity=0) |
+| `minRampHours = null` | Endast SG styr; om även SG saknas → håller `baseTemp` tills SG kommer in |
+
+### 4. Activity-rollen
+- `activity_score` används **endast** för att avgöra om rampen ska triggas (`activityScore <= activityTrigger`).
+- Den tas bort från ramp-progressberäkningen helt — inga fler aktivitetspikar som chockar målet uppåt.
+
+### 5. Typer
+- Lägg till `ramp_start_sg: number | null` i `FermentationSession`-typen (`types.ts`).
+- `src/integrations/supabase/types.ts` regenereras automatiskt av migrationen.
+
+## Deploy
+Efter ändring: deploya `process-fermentation-profiles` och `run-automation`.
+
+## Vad som *inte* ändras
+- Trigger-logik (35% activity), `ACTIVITY_COMPLETE`-koncept tas bort men existerande sessioner med `ramp_triggered_at` redan satt fortsätter — `ramp_start_sg` blir `null` och faller då tillbaka på rent tidsgolv (vilket är säkrast retroaktivt).
+- Slutvillkor för Smart Diacetylvila (`sgStable && activityLow`) — fortsatt activity-baserat.
+- Ramp-rate limiter (4°C/h cool, 3°C/h heat) och PID — orörda.

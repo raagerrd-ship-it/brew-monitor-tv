@@ -468,13 +468,15 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   if (session.ramp_triggered_at) {
     rampTriggeredAt = new Date(session.ramp_triggered_at)
   } else {
-    // First trigger — save ramp_triggered_at and step_start_temp
+    // First trigger — save ramp_triggered_at, step_start_temp and ramp_start_sg
     rampTriggeredAt = new Date()
+    const startSgSnap = getLatestSg(brewData.sg_data)?.value ?? null
     await supabase
       .from('fermentation_sessions')
       .update({
         ramp_triggered_at: rampTriggeredAt.toISOString(),
         step_start_temp: baseTemp,
+        ramp_start_sg: startSgSnap,
       })
       .eq('id', session.id)
 
@@ -489,44 +491,54 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
         base_temp: baseTemp,
         temp_increase: tempIncrease,
         min_ramp_hours: minRampHours,
+        ramp_start_sg: startSgSnap,
       },
     })
-    console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C`)
+    console.log(`🎯 Gradual ramp triggered! activity=${Math.round(activityScore)}% <= ${activityTrigger}%, base=${baseTemp}°C, +${tempIncrease}°C, start_sg=${startSgSnap ?? 'n/a'}`)
 
     // Normal operation — no notification needed
   }
 
-  // Phase 2: Ramping — dual-driver: activity curve AND time floor
-  // Ramp maps activity from trigger (e.g. 35%) → completion threshold (5%)
-  const ACTIVITY_COMPLETE = 5
-  let rampProgress = Math.min(1, Math.max(0, (safeActivityTrigger - activityScore) / (safeActivityTrigger - ACTIVITY_COMPLETE)))
-  rampProgress = rampProgress ** 2
-  let activityTarget = Math.round((baseTemp + tempIncrease * rampProgress) * 10) / 10
+  // Phase 2: Ramping — SG-driven progress with time as a safety floor.
+  // SG mirrors actual fermentation; time-floor guarantees progress if SG stalls.
+  const rampStartSg = session.ramp_start_sg ?? getLatestSg(brewData.sg_data)?.value ?? null
+  const currentSg = getLatestSg(brewData.sg_data)?.value ?? null
+  const expectedFg = brewData.final_gravity && brewData.final_gravity > 0
+    ? brewData.final_gravity
+    : null
 
-  // Time-based linear floor: ensures ramp progresses at minimum linear rate
-  // Blended with activity curve so ramp respects BOTH drivers — no time-only shocks.
-  let calculatedTarget = activityTarget
-  if (minRampHours && minRampHours > 0 && activityScore > 0) {
-    const now = new Date()
-    const elapsedSinceTrigger = (now.getTime() - rampTriggeredAt.getTime()) / (1000 * 60 * 60)
-    const linearIncrease = Math.min(tempIncrease, (tempIncrease / minRampHours) * elapsedSinceTrigger)
-    const timeTarget = Math.round((baseTemp + linearIncrease) * 10) / 10
-
-    // Time acts as a FLOOR — minRampHours guarantees the ramp progresses at least
-    // linearly even if activity is low. If activity is high it can ramp faster, but
-    // never slower than the time floor. Clamped to [baseTemp, baseTemp+tempIncrease].
-    const floored = Math.max(activityTarget, timeTarget)
-    calculatedTarget = Math.round(
-      Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10
-    ) / 10
-    const driver = timeTarget >= activityTarget ? 'time-floor' : 'activity'
-    console.log(
-      `⏱️ Ramp (${driver}): activity=${activityTarget}°C, time=${timeTarget}°C ` +
-      `(${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h) → ${calculatedTarget}°C`,
-    )
-  } else if (minRampHours && activityScore === 0) {
-    console.log(`⏱️ Min ramp constraint skipped: activity=0% (fermentation done), allowing full target ${calculatedTarget}°C`)
+  let sgBasedTarget = baseTemp
+  let sgProgress: number | null = null
+  if (rampStartSg && currentSg && expectedFg && rampStartSg > expectedFg) {
+    sgProgress = (rampStartSg - currentSg) / (rampStartSg - expectedFg)
+    sgProgress = Math.min(1, Math.max(0, sgProgress))
+    sgBasedTarget = baseTemp + tempIncrease * sgProgress
   }
+
+  let timeBasedTarget = baseTemp
+  let timeProgress: number | null = null
+  let elapsedSinceTrigger: number | null = null
+  if (minRampHours && minRampHours > 0) {
+    elapsedSinceTrigger = (Date.now() - rampTriggeredAt.getTime()) / (1000 * 60 * 60)
+    timeProgress = Math.min(1, Math.max(0, elapsedSinceTrigger / minRampHours))
+    timeBasedTarget = baseTemp + tempIncrease * timeProgress
+  }
+
+  // SG drives; time is the floor underneath.
+  const floored = Math.max(sgBasedTarget, timeBasedTarget)
+  const calculatedTarget = Math.round(
+    Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10,
+  ) / 10
+
+  const driver = sgBasedTarget >= timeBasedTarget ? 'sg' : 'time-floor'
+  console.log(
+    `⏱️ Ramp (${driver}): sg=${sgBasedTarget.toFixed(2)}°C ` +
+    `(progress=${sgProgress != null ? sgProgress.toFixed(2) : 'n/a'}, ` +
+    `start=${rampStartSg ?? 'n/a'} → cur=${currentSg ?? 'n/a'} → fg=${expectedFg ?? 'n/a'}), ` +
+    `time=${timeBasedTarget.toFixed(2)}°C ` +
+    `(${elapsedSinceTrigger != null ? elapsedSinceTrigger.toFixed(1) : 'n/a'}h / ${minRampHours ?? 'n/a'}h) ` +
+    `→ ${calculatedTarget}°C`,
+  )
 
   const maxTarget = Math.round((baseTemp + tempIncrease) * 10) / 10
   const cappedCurrentTarget = (currentProfileTarget !== null && currentProfileTarget > baseTemp)
@@ -549,7 +561,8 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       ramp_progress: tempIncrease > 0 ? Math.round(((rampedTarget - baseTemp) / tempIncrease) * 100) : 0,
       fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
     }
-    console.log(`🔄 Gradual ramp: activity=${Math.round(activityScore)}%, progress=${Math.round(rampProgress * 100)}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
+    const progressPct = tempIncrease > 0 ? Math.round(((rampedTarget - baseTemp) / tempIncrease) * 100) : 0
+    console.log(`🔄 Gradual ramp: driver=${driver}, progress=${progressPct}%, target=${rampedTarget}°C (base=${baseTemp}, +${tempIncrease}°C max)`)
   }
 
   // Phase 3: Check completion
