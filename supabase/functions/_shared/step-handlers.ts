@@ -512,15 +512,16 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     const linearIncrease = Math.min(tempIncrease, (tempIncrease / minRampHours) * elapsedSinceTrigger)
     const timeTarget = Math.round((baseTemp + linearIncrease) * 10) / 10
 
-    // Blend: average of activity-driven and time-driven targets, so both contribute.
-    // Prevents activity from chock-ramping fast AND prevents time from yanking temp
-    // up before fermentation is ready. Clamped to [baseTemp, baseTemp+tempIncrease].
-    const blended = (activityTarget + timeTarget) / 2
+    // Time acts as a FLOOR — minRampHours guarantees the ramp progresses at least
+    // linearly even if activity is low. If activity is high it can ramp faster, but
+    // never slower than the time floor. Clamped to [baseTemp, baseTemp+tempIncrease].
+    const floored = Math.max(activityTarget, timeTarget)
     calculatedTarget = Math.round(
-      Math.min(baseTemp + tempIncrease, Math.max(baseTemp, blended)) * 10
+      Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10
     ) / 10
+    const driver = timeTarget >= activityTarget ? 'time-floor' : 'activity'
     console.log(
-      `⏱️ Blended ramp: activity=${activityTarget}°C, time=${timeTarget}°C ` +
+      `⏱️ Ramp (${driver}): activity=${activityTarget}°C, time=${timeTarget}°C ` +
       `(${elapsedSinceTrigger.toFixed(1)}h / ${minRampHours}h) → ${calculatedTarget}°C`,
     )
   } else if (minRampHours && activityScore === 0) {
