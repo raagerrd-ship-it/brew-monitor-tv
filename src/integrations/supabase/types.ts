@@ -805,6 +805,7 @@ export type Database = {
           current_step_index: number
           id: string
           profile_id: string
+          ramp_start_sg: number | null
           ramp_triggered_at: string | null
           started_at: string
           status: string
@@ -820,6 +821,7 @@ export type Database = {
           current_step_index?: number
           id?: string
           profile_id: string
+          ramp_start_sg?: number | null
           ramp_triggered_at?: string | null
           started_at?: string
           status?: string
@@ -835,6 +837,7 @@ export type Database = {
           current_step_index?: number
           id?: string
           profile_id?: string
+          ramp_start_sg?: number | null
           ramp_triggered_at?: string | null
           started_at?: string
           status?: string
