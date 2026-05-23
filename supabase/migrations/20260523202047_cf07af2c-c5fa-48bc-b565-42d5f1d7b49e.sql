@@ -1,0 +1,1 @@
+DELETE FROM brew_data_snapshots WHERE id='5c11b3ef-2132-413d-a86a-ef8e1d48affc';
