@@ -441,7 +441,7 @@ export function FermentationSessionCompact({
           )}
         </div>
         
-        {currentStep && (
+        {currentStep && currentStep.step_type !== 'wait_for_acknowledgement' && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1" style={{ fontSize: '12px' }}>
             {/* Temperature display */}
             <TemperatureDisplay
