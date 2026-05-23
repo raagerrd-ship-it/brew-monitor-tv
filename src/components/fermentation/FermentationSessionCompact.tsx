@@ -441,7 +441,7 @@ export function FermentationSessionCompact({
           )}
         </div>
         
-        {currentStep && (
+        {currentStep && currentStep.step_type !== 'wait_for_acknowledgement' && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1" style={{ fontSize: '12px' }}>
             {/* Temperature display */}
             <TemperatureDisplay
@@ -488,7 +488,6 @@ export function FermentationSessionCompact({
                 if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'wait_for_acknowledgement') return <Hand className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 return null;
               })()}
