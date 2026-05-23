@@ -123,6 +123,7 @@ export interface FermentationStepData {
   gravity_stable_days: number | null;
   target_sg: number | null;
   sg_comparison: string | null;
+  notes?: string | null;
   step_order: number;
   attenuation_trigger?: number | null;
   activity_trigger?: number | null;
