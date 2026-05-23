@@ -90,6 +90,7 @@ export function useBrewPage(brewId: string | undefined) {
               gravity_threshold: step.gravity_threshold,
               min_ramp_hours: step.min_ramp_hours ?? null,
               ramp_curve: step.ramp_curve ?? null,
+              notes: step.notes ?? null,
             }));
 
           fermentationSession = {
