@@ -488,7 +488,6 @@ export function FermentationSessionCompact({
                 if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'wait_for_acknowledgement') return <Hand className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
                 return null;
               })()}
