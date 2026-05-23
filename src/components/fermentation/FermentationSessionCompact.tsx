@@ -443,8 +443,8 @@ export function FermentationSessionCompact({
         
         {currentStep && currentStep.step_type === 'wait_for_acknowledgement' && currentStep.notes && (
           <div
-            className="mt-1 text-xs text-muted-foreground/90 truncate"
-            style={{ fontSize: '12px' }}
+            className="mt-1 truncate font-medium"
+            style={{ fontSize: '12px', color: 'hsl(38 92% 75%)' }}
             title={currentStep.notes}
           >
             {currentStep.notes}
