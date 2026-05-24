@@ -170,6 +170,12 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Feature flag: when 'ble', pill telemetry comes from Pi via ingest-pill-ble.
+    // RAPT pill API + pill snapshots are skipped here entirely.
+    const PILLS_SOURCE = (Deno.env.get('PILLS_SOURCE') || 'rapt').toLowerCase();
+    const pillsViaBle = PILLS_SOURCE === 'ble';
+    if (pillsViaBle) console.log('🔵 PILLS_SOURCE=ble — RAPT pill fetch + snapshots skipped');
+
     // ── Concurrency guard: skip if another sync ran <30s ago ──
     const { data: recentLog } = await supabase
       .from('auto_cooling_decision_logs')
