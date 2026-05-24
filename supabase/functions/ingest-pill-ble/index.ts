@@ -77,6 +77,16 @@ Deno.serve(async (req) => {
     if (p.paired_device_id) macToPill.set(normMac(p.paired_device_id), p.pill_id);
   }
 
+  // Load pill→controller map once (so we can promote BLE temp to controller SSOT)
+  const { data: linkedControllers } = await supabase
+    .from('rapt_temp_controllers')
+    .select('controller_id, linked_pill_id')
+    .not('linked_pill_id', 'is', null);
+  const pillToController = new Map<string, string>();
+  for (const c of linkedControllers ?? []) {
+    if (c.linked_pill_id) pillToController.set(c.linked_pill_id, c.controller_id);
+  }
+
   // Reduce to latest reading per MAC (lowest noise, 1 update per pill per batch)
   const latestByMac = new Map<string, typeof readings[number]>();
   for (const r of readings) {
@@ -125,6 +135,23 @@ Deno.serve(async (req) => {
     if (upErr) {
       errors.push(`pill ${pillId}: ${upErr.message}`);
       continue;
+    }
+
+    // BLE = SSOT for actual_temp. Promote pill temp to the linked controller
+    // so PID and UI read a fresh value every minute, independent of RAPT sync.
+    const controllerId = pillToController.get(pillId);
+    if (controllerId && r.temp_c != null) {
+      const { error: ctrlErr } = await supabase
+        .from('rapt_temp_controllers')
+        .update({
+          actual_temp: r.temp_c,
+          pill_temp: r.temp_c,
+          pill_temp_at: r.recorded_at,
+          last_update: r.recorded_at,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('controller_id', controllerId);
+      if (ctrlErr) errors.push(`ctrl ${controllerId}: ${ctrlErr.message}`);
     }
 
     // If linked to active brew → write snapshot + update brew_readings
