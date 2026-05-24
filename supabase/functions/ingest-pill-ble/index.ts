@@ -146,7 +146,6 @@ Deno.serve(async (req) => {
         .update({
           actual_temp: r.temp_c,
           pill_temp: r.temp_c,
-          pill_temp_at: r.recorded_at,
           last_update: r.recorded_at,
           updated_at: new Date().toISOString(),
         })
