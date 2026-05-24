@@ -145,6 +145,7 @@ Deno.serve(async (req) => {
 
   let processed = 0;
   let skipped = 0;
+  const unknownMacs = new Set<string>();
   const errors: string[] = [];
 
   // Load active brews with pill linkage once
@@ -162,6 +163,7 @@ Deno.serve(async (req) => {
     const pillId = macToPill.get(mac);
     if (!pillId) {
       skipped++;
+      unknownMacs.add(mac);
       continue;
     }
 
@@ -347,5 +349,6 @@ Deno.serve(async (req) => {
     pills_known: macToPill.size,
     batches: avgByMac.size,
     triggered,
+    unknown_macs: Array.from(unknownMacs),
   });
 });
