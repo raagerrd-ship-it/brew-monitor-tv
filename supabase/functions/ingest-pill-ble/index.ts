@@ -82,6 +82,9 @@ Deno.serve(async (req) => {
     if (p.bluetooth_mac) macToPill.set(normMac(p.bluetooth_mac), p.pill_id);
   }
 
+  console.log('[ingest-pill-ble] pills_known:', macToPill.size,
+    'db_macs:', Array.from(macToPill.keys()));
+
   // Load pill→controller map once (so we can promote BLE temp to controller SSOT)
   const { data: linkedControllers } = await supabase
     .from('rapt_temp_controllers')
@@ -148,6 +151,9 @@ Deno.serve(async (req) => {
   const unknownMacs = new Set<string>();
   const errors: string[] = [];
 
+  console.log('[ingest-pill-ble] incoming_macs:', Array.from(avgByMac.keys()),
+    'readings:', readings.length, 'groups:', avgByMac.size);
+
   // Load active brews with pill linkage once
   const { data: activeBrews } = await supabase
     .from('brew_readings')
@@ -204,22 +210,45 @@ Deno.serve(async (req) => {
     if (controllerId && smoothedTemp != null) {
       // Blend with probe (current_temp) when fresh. RAPT pushes probe ~every 15 min,
       // so 30 min freshness window tolerates 1 missed cycle.
-      const { data: ctrl } = await supabase
+      const { data: ctrlFull } = await supabase
         .from('rapt_temp_controllers')
-        .select('current_temp, last_update')
+        .select('current_temp, last_update, pill_probe_offset')
         .eq('controller_id', controllerId)
         .maybeSingle();
 
-      const probeTemp = ctrl?.current_temp != null ? Number(ctrl.current_temp) : null;
-      const probeAgeMs = ctrl?.last_update
-        ? Date.now() - new Date(ctrl.last_update).getTime()
+      const probeTemp = ctrlFull?.current_temp != null ? Number(ctrlFull.current_temp) : null;
+      const probeAgeMs = ctrlFull?.last_update
+        ? Date.now() - new Date(ctrlFull.last_update).getTime()
         : Infinity;
       const PROBE_FRESH_MS = 30 * 60 * 1000;
+      const probeFresh =
+        probeTemp != null && Number.isFinite(probeTemp) && probeAgeMs < PROBE_FRESH_MS;
 
-      const actualTemp =
-        probeTemp != null && Number.isFinite(probeTemp) && probeAgeMs < PROBE_FRESH_MS
-          ? (smoothedTemp + probeTemp) / 2
-          : smoothedTemp;
+      let actualTemp: number;
+      let fusionMode: string;
+      if (probeFresh) {
+        actualTemp = (smoothedTemp + probeTemp!) / 2;
+        fusionMode = 'blend';
+      } else {
+        // Probe stale → use learned offset (pill - probe) to preserve midpoint.
+        // midpoint ≈ pill - offset/2 when probe was last seen.
+        const rawOffset = ctrlFull?.pill_probe_offset != null
+          ? Number(ctrlFull.pill_probe_offset)
+          : null;
+        const offsetValid =
+          rawOffset != null && Number.isFinite(rawOffset) && Math.abs(rawOffset) <= 5;
+        if (offsetValid) {
+          actualTemp = smoothedTemp - rawOffset / 2;
+          fusionMode = `delta_fallback(offset=${rawOffset.toFixed(2)})`;
+        } else {
+          if (rawOffset != null && Math.abs(rawOffset) > 5) {
+            console.warn(`[ingest-pill-ble] ${controllerId}: offset ${rawOffset} out of range, using pill`);
+          }
+          actualTemp = smoothedTemp;
+          fusionMode = 'pill_only';
+        }
+      }
+      console.log(`[ingest-pill-ble] ${controllerId}: pill=${smoothedTemp.toFixed(2)} probe=${probeTemp ?? 'null'} actual=${actualTemp.toFixed(2)} mode=${fusionMode}`);
 
       const { error: ctrlErr } = await supabase
         .from('rapt_temp_controllers')

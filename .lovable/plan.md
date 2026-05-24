@@ -1,61 +1,72 @@
-## Vad som händer idag
+## Mål
 
-I `ingest-pill-ble` skrivs `actual_temp = smoothedPill` rakt av varje minut när en controller är länkad till en pill — probevärdet (`current_temp` från RAPT, uppdateras var 15:e min) ignoreras totalt för SSOT-syften. Det enda probe används till är `pill_probe_offset`-EMA för drift-larm.
+1. Säkerställa att Pi-data faktiskt landar i `rapt_pills` (just nu står data still sedan 19:42 trots POST 200).
+2. Lägga till delta-fallback för `actual_temp` när probe blir stale: behåll midpoint baserat på senast inlärt offset.
 
-Det gör att PID styr på 100% pill, även när vi har två oberoende sensorer som kan medelvärdesbildas.
+## Nuvarande tillstånd
 
-## Vad du vill
+- `ingest-pill-ble` koden i repo **gör** redan blandning `(pill + probe) / 2` när probe < 30 min gammal (rad 204-235). Min tidigare summering var fel.
+- `pill_probe_offset` (= `pill − probe` EMA) lärs av `sync-rapt-data-quick` och finns på controllern.
+- **Problem:** `rapt_pills.updated_at = 19:42:35`, `last_update = 19:41:21`. Nu är klockan ~21:48. Pi POSTar (200) men inget skrivs. Pi rapporterar `unknown_macs = våra 3 MAC:s, processed: 0`.
 
-När probe finns: `actual_temp` = medelvärde av pill och probe. Probe-värdet är "fryst" i ~15 min mellan RAPT-syncar, så varje ny minutpill ger en ny vägd uppdatering. Vid stor delta (t.ex. 4°C) blir resultatet att pill dras 2°C mot probe tills nästa probe-läsning kommer.
+## Plan
 
-## Fix — minimalt
+### Steg 1 — Verifiera Pi/MAC-matchning på riktigt
 
-Ändring **endast** i `supabase/functions/ingest-pill-ble/index.ts`, i blocket som promotar pill-temp till controller (runt rad 199–212).
+a) Lägg till tydlig `console.log` i `ingest-pill-ble` precis efter `macToPill`-bygget och i loopen — logga `pills_in_db_macs`, `incoming_macs`, `matched`, `unknown`. Idag finns ingen log → vi flyger blint.
 
-### Ny logik
+b) Forcera ny deploy av `ingest-pill-ble` (kan vara stale deployment).
 
-```ts
-// Hämta nuvarande probe-värde + freshness
-const { data: ctrl } = await supabase
-  .from('rapt_temp_controllers')
-  .select('current_temp, last_update')
-  .eq('controller_id', controllerId)
-  .maybeSingle();
+c) Verifiera efter nästa Pi-cykel (~3 min) via logs + SQL `SELECT pill_id, name, temperature, last_update, updated_at FROM rapt_pills`.
 
-const probeTemp = ctrl?.current_temp != null ? Number(ctrl.current_temp) : null;
-const probeAgeMs = ctrl?.last_update ? Date.now() - new Date(ctrl.last_update).getTime() : Infinity;
-const PROBE_FRESH_MS = 30 * 60 * 1000; // 30 min — RAPT skickar var 15:e, ge marginal
+→ verify: `updated_at` har rört sig till nuvarande tid, `processed > 0` i logs.
 
-let actualTemp = smoothedTemp;
-if (probeTemp != null && probeAgeMs < PROBE_FRESH_MS) {
-  actualTemp = (smoothedTemp + probeTemp) / 2;
-}
+### Steg 2 — Delta-fallback för actual_temp
 
-await supabase.from('rapt_temp_controllers').update({
-  actual_temp: Number(actualTemp.toFixed(3)),
-  pill_temp: Number(smoothedTemp.toFixed(3)),  // rå pill kvar i pill_temp för UI/drift
-  last_update: r.recorded_at,
-  updated_at: new Date().toISOString(),
-}).eq('controller_id', controllerId);
+I `ingest-pill-ble` rad 219-222, ersätt enkla fallbacken:
+
+```text
+Idag:
+  probe fresh  → actual = (pill + probe) / 2
+  probe stale  → actual = pill   ← hopp på 1-2°C när probe tappas
+
+Ny logik (använd inlärt offset):
+  probe fresh  → actual = (pill + probe) / 2        (behåll)
+  probe stale & pill_probe_offset finns
+               → actual = pill − (pill_probe_offset / 2)
+  probe stale & inget offset finns
+               → actual = pill                       (samma som idag)
 ```
 
-### Konsekvenser
-- `pill_temp` fortsätter visa enbart pill (för UI och drift-detektion).
-- `actual_temp` blir blandvärde — PID styr på mittpunkten.
-- Vid 4°C delta → `actual_temp` ligger 2°C från pill, exakt som du beskrev.
-- Probe-äldre-än-30min → falla tillbaka till ren pill (samma som idag).
-- Snapshot-skrivningen längre ned i samma funktion hämtar redan controllerns `actual_temp` när `linked_controller_id` finns — den blir automatiskt det blandade värdet. Ingen extra ändring där.
+Konkret: läs `pill_probe_offset` från controller (redan i `select`-listan i steg 1-läsningen — utöka från `select('current_temp, last_update')` till `select('current_temp, last_update, pill_probe_offset')`). Använd offset / 2 så midpoint bibehålls (probe är "den andra halvan").
 
-### Vad jag INTE rör
-- `pill_probe_offset`-lärningen i `sync-rapt-data-quick` (drift-larm fungerar oförändrat).
-- `preferred_sensor`-fältet (alltid blandning när probe finns — du nämnde inget om att göra det konfigurerbart).
-- PID-, ramp-, eller smoothing-konstanter.
+Ditt exempel: pill=16, probe=14 → offset≈+2, midpoint=15. Probe tappas, pill stiger till 17 → actual = 17 − 1 = 16. Pill faller till 15 → actual = 15 − 1 = 14. Midpoint följer pill-rörelsen, vilket är vad vi vill.
 
-## Verifiering
-1. Vänta på nästa BLE-ingest (≤1 min efter Pi-upload) och nästa RAPT-sync (≤15 min för probe).
-2. SQL-check: `SELECT controller_id, pill_temp, current_temp, actual_temp FROM rapt_temp_controllers WHERE linked_pill_id IS NOT NULL;` — `actual_temp` ska ligga ≈ (pill_temp + current_temp)/2.
-3. Edge-svar `pills_known`/`processed` oförändrade.
+→ verify: efter deploy, simulera/vänta tills probe blir >30 min stale (eller logga `usedDeltaFallback: true`). Kolla att `actual_temp ≈ pill_temp − offset/2`.
 
-## Frågor
-1. **30 min freshness-tröskel** för probe ok? RAPT skickar var 15:e min så 30 min ger 1 missad cykel innan vi släpper probe.
-2. Vill du ha ett dödband — t.ex. om delta < 0.2°C, hoppa över blandning för att undvika brus? Min default är **nej**, blanda alltid när båda finns.
+### Steg 3 — Säkerhetsbälte
+
+- Klampa `offset` till `[−5, +5]` innan användning (skydd mot trasiga värden).
+- Om `Math.abs(offset) > 5` → fallback till ren pill + skriv `console.warn`.
+
+## Vad jag INTE rör
+
+- PID-loopen, ramp, hysteresis, cooler-margin — oförändrat.
+- `sync-rapt-data-quick` (offset-lärningen är redan korrekt).
+- Probe-fresh 30 min-tröskeln.
+- Aktivitets-viktad fusion (`computeDualSensorTarget`) — vi valde enkel 50/50 + delta-fallback.
+
+## Risker
+
+- **Steg 1**: Om MAC-mismatch beror på något oväntat (t.ex. case, prefix) syns det i nya loggarna direkt. Worst case behöver vi normalisera bluetooth_mac vid skrivning också.
+- **Steg 2**: Offset-EMA kan ha drift om probe historiskt varit fel. Klampningen i steg 3 mitigerar.
+- Inget rör hårdvara — bara SSOT-beräkning. Säkert att rulla ut.
+
+## Efter implementation
+
+Stabil temperatur kräver att **alla tre** stämmer:
+1. ✅ Pi-data landar (löses i steg 1)
+2. ✅ Blandvärde när båda finns (redan på plats)
+3. ✅ Smart fallback när probe tappas (steg 2)
+
+Då kan jag säga ja på din fråga.
