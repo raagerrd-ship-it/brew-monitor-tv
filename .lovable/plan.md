@@ -1,94 +1,77 @@
+# BLE-sniffer: RAPT Pills via Raspberry Pi 5
+
 ## Mål
+Ersätt RAPT Cloud-sync för piller helt. Pi 5 skannar BLE-advertisements från RAPT Pills och skickar till Lovable Cloud varje minut. Controllers och deras temp-reglering lämnas helt orörda.
 
-Ersätt nuvarande `max(activityTarget, timeTarget)` i `processGradualRampStep` med en **SG-driven ramp + tidsgolv**. Aktivitetspoängen används inte längre för att räkna ut måltemp under själva rampen — bara tidigare för att *trigga* rampen (vid `activity_trigger`).
+## Infrastruktur (Cloud)
 
-## Hur det blir
+### 1. Edge-funktion: `ingest-pill-ble`
+- **Auth**: `x-pi-secret` header (valideras mot `PI_BLE_INGEST_SECRET`)
+- **Body**: Batch av MAC → `{mac, temp_c, gravity_sg, battery_pct, rssi, recorded_at}`
+- **Logik**:
+  1. Validera Zod-schema
+  2. För varje MAC: slå upp i `rapt_pills.paired_device_id`
+  3. Uppdatera `temperature`, `gravity`, `battery_level`, `last_update` på pill-rad
+  4. Om pill har aktiv brew: insert i `brew_data_snapshots`
+  5. Svar med `{processed, skipped, errors}` per batch
+- **RLS**: Ingen (funktionen använder Service Role Key internt)
 
-```text
-  temp
-   ^
-   |        ____ tempMax (base + increase)
-   |       /
-   |      /  ← följer SG-progress (mjuk, speglar utjäsning)
-   |     /
-   |   _/    ← tidsgolv glider upp underifrån (skyddsnät)
-   | _/
-   +--------------> tid
-   base
+### 2. RAPT Cloud-sync justering
+- I `sync-rapt-data-quick`: hoppa över all `hydrometer` telemetry
+- Pill-data kommer uteslutande via BLE
+- Controllers (temp/PID) fortsätter via RAPT API som vanligt
+
+### 3. Secrets
+- Lägg till `PI_BLE_INGEST_SECRET` (användaren får fylla i värdet)
+
+## Pi 5-kod (`/opt/brew-ble/`)
+
+### `ble_scanner.py`
+- Python 3 + `bleak`
+- Passiv BLE-scanning, filtrera på manufacturer data `0x069A` (Kegland)
+- Parsa temp, gravity, battery från advertisement payload
+- Skriv varje reading till SQLite `pill_readings` (med `synced=1/0` flagga)
+
+### `uploader.py`
+- Körs varje minut via systemd timer
+- Hämta osynkade rader från SQLite
+- Batch-POST till Cloud endpoint med `x-pi-secret`
+- Markera som `synced=1` vid 200-svar
+- Exponentiell backoff vid fel, max 3 försök
+- Hälsopuls: skicka en "heartbeat" var 5:e min även om inga nya readings
+
+### `schema.sql`
+```sql
+CREATE TABLE pill_readings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mac TEXT NOT NULL,
+  temp_c REAL,
+  gravity_sg REAL,
+  battery_pct INTEGER,
+  rssi INTEGER,
+  recorded_at TEXT NOT NULL,
+  synced INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_unsynced ON pill_readings(synced, recorded_at);
 ```
 
-`calculatedTarget = max(sgBasedTarget, timeBasedTarget)`, clampad till `[baseTemp, baseTemp + tempIncrease]`.
+## Optimeringar inför drift
 
-## Förändringar
+1. **Payload**: Pi skickar alla readings senaste minuten (batch), inte bara senaste. Cloud hanterar deduplicering per MAC+timestamp.
+2. **Robusthet**: SQLite-kö med max 1000 osynkade rader. Vid Cloud-fel: retry med exponential backoff, spara lokalt.
+3. **Säkerhet**: `x-pi-secret` + validera att MAC finns i `rapt_pills.paired_device_id` (reject unknown MACs).
+4. **DB-volym**: `brew_data_snapshots` från BLE skriver med 1-minutupplösning. Överväg throttling (t.ex. max 1 rad/5 min per pill) om snapshot-volym blir för hög.
 
-### 1. Databas — ny kolumn för att låsa SG vid ramp-start
-Migration: lägg till `ramp_start_sg numeric` på `fermentation_sessions`. Sparas tillsammans med `ramp_triggered_at` och `step_start_temp` första gången rampen triggas (engångs-snapshot av aktuell SG).
+## Verifiering
+- [ ] Pi skriver till SQLite inom 2 min
+- [ ] `rapt_pills.last_update` uppdateras varje minut
+- [ ] Aktiva brews får nya `brew_data_snapshots`
+- [ ] `sync-rapt-data-quick` loggar visar "pill skipped"
+- [ ] Edge-funktion 0 fel på 30 min
 
-### 2. `step-handlers.ts` → `processGradualRampStep` (rad ~499–528)
-
-Ersätt aktivitets-kurvan och blandnings-/golv-logiken med:
-
-```ts
-// SG-progress: 0 = vid trigger, 1 = vid förväntat FG
-const rampStartSg = session.ramp_start_sg ?? getLatestSg(brewData.sg_data) ?? null
-const currentSg   = getLatestSg(brewData.sg_data)
-const expectedFg  = brewData.final_gravity || null
-
-let sgBasedTarget = baseTemp
-let sgProgress: number | null = null
-if (rampStartSg && currentSg && expectedFg && rampStartSg > expectedFg) {
-  sgProgress = (rampStartSg - currentSg) / (rampStartSg - expectedFg)
-  sgProgress = Math.min(1, Math.max(0, sgProgress))
-  sgBasedTarget = baseTemp + tempIncrease * sgProgress
-}
-
-// Tidsgolv (säkerhetsnät — kickar in om SG fastnar)
-let timeBasedTarget = baseTemp
-let timeProgress: number | null = null
-if (minRampHours && minRampHours > 0) {
-  const elapsed = (Date.now() - rampTriggeredAt.getTime()) / 3_600_000
-  timeProgress = Math.min(1, Math.max(0, elapsed / minRampHours))
-  timeBasedTarget = baseTemp + tempIncrease * timeProgress
-}
-
-// Skottsäker kombination: SG styr, tid är golv underifrån
-const floored = Math.max(sgBasedTarget, timeBasedTarget)
-const calculatedTarget = Math.round(
-  Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10
-) / 10
-
-const driver = sgBasedTarget >= timeBasedTarget ? 'sg' : 'time-floor'
-console.log(
-  `⏱️ Ramp (${driver}): sg=${sgBasedTarget.toFixed(2)}°C `
-  + `(progress=${sgProgress?.toFixed(2) ?? 'n/a'}), `
-  + `time=${timeBasedTarget.toFixed(2)}°C `
-  + `(${timeProgress?.toFixed(2) ?? 'n/a'}) → ${calculatedTarget}°C`,
-)
-```
-
-Vid första triggern: spara även `ramp_start_sg = getLatestSg(brewData.sg_data)` på sessionen.
-
-### 3. Fallback-strategi (viktigt)
-SG-data är inte alltid komplett. Logiken hanterar tre nivåer:
-
-| Tillgängligt | Beteende |
-|---|---|
-| `rampStartSg + currentSg + final_gravity` finns | Full SG-driven ramp |
-| Saknas (ingen pill, eller `final_gravity = 0`) | `sgBasedTarget = baseTemp` → tidsgolvet tar över helt (= dagens beteende när activity=0) |
-| `minRampHours = null` | Endast SG styr; om även SG saknas → håller `baseTemp` tills SG kommer in |
-
-### 4. Activity-rollen
-- `activity_score` används **endast** för att avgöra om rampen ska triggas (`activityScore <= activityTrigger`).
-- Den tas bort från ramp-progressberäkningen helt — inga fler aktivitetspikar som chockar målet uppåt.
-
-### 5. Typer
-- Lägg till `ramp_start_sg: number | null` i `FermentationSession`-typen (`types.ts`).
-- `src/integrations/supabase/types.ts` regenereras automatiskt av migrationen.
-
-## Deploy
-Efter ändring: deploya `process-fermentation-profiles` och `run-automation`.
-
-## Vad som *inte* ändras
-- Trigger-logik (35% activity), `ACTIVITY_COMPLETE`-koncept tas bort men existerande sessioner med `ramp_triggered_at` redan satt fortsätter — `ramp_start_sg` blir `null` och faller då tillbaka på rent tidsgolv (vilket är säkrast retroaktivt).
-- Slutvillkor för Smart Diacetylvila (`sgStable && activityLow`) — fortsatt activity-baserat.
-- Ramp-rate limiter (4°C/h cool, 3°C/h heat) och PID — orörda.
+## Out of scope (separata faser)
+- Controller-flöde (PID, auto-cooling, RAPT update) — oförändrat
+- Lokalt UI på Pi — inte nu
+- PID-loop på Pi — inte nu
+- Pi ersätter controllers helt — inte nu
