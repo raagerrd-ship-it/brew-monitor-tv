@@ -1309,12 +1309,19 @@ Deno.serve(async (req) => {
           .in('controller_id', recordIds),
         supabase
           .from('fermentation_learnings')
-          .select('controller_id, learned_value')
+          .select('controller_id, learned_value, last_updated_at')
           .eq('parameter_name', 'pid_last_duty')
           .in('controller_id', recordIds),
       ]);
       const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
-      const dutyMap = new Map((dutyRows || []).map((d: any) => [d.controller_id, parseFloat(String(d.learned_value))]));
+      // Stale guard: treat duty older than 15 min as 0 (controller inactive)
+      const DUTY_STALE_MS = 15 * 60 * 1000;
+      const nowMs = Date.now();
+      const dutyMap = new Map((dutyRows || []).map((d: any) => {
+        const ageMs = d.last_updated_at ? nowMs - new Date(d.last_updated_at).getTime() : Infinity;
+        const val = ageMs > DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value));
+        return [d.controller_id, val];
+      }));
 
       // Insert temp history + delta history in parallel
       const historyRecords = controllersToRecord.map(c => {

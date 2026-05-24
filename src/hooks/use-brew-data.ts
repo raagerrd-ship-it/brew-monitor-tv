@@ -284,7 +284,7 @@ export function useBrewData(): UseBrewDataReturn {
           .order('created_at', { ascending: false }),
         supabase
           .from('fermentation_learnings')
-          .select('controller_id, parameter_name, learned_value')
+          .select('controller_id, parameter_name, learned_value, last_updated_at')
           .in('controller_id', uniqueIds)
           .in('parameter_name', ['pid_last_duty', 'pid_current_mode']),
       ]);
@@ -296,8 +296,15 @@ export function useBrewData(): UseBrewDataReturn {
       if (dutyRes.data) {
         const dutyMap = new Map<string, number>();
         const modeMap = new Map<string, number>();
+        // Stale guard: PID writes pid_last_duty every cycle when active.
+        // If older than 15 min, controller is inactive — show 0% instead of stale value.
+        const STALE_MS = 15 * 60 * 1000;
+        const now = Date.now();
         for (const row of dutyRes.data) {
-          if (row.parameter_name === 'pid_last_duty') dutyMap.set(row.controller_id, row.learned_value);
+          if (row.parameter_name === 'pid_last_duty') {
+            const ageMs = row.last_updated_at ? now - new Date(row.last_updated_at).getTime() : Infinity;
+            dutyMap.set(row.controller_id, ageMs > STALE_MS ? 0 : row.learned_value);
+          }
           if (row.parameter_name === 'pid_current_mode') modeMap.set(row.controller_id, row.learned_value);
         }
         for (const cid of uniqueIds) {
