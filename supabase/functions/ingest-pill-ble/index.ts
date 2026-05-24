@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
     return json({ ok: true, heartbeat: true });
   }
 
+  // Track controllers that received fresh BLE data this batch (event-trigger candidates)
+  const updatedControllers = new Set<string>();
+
   // Load all pills with paired_device_id (MAC)
   const { data: pills, error: pillsErr } = await supabase
     .from('rapt_pills')
@@ -205,6 +208,7 @@ Deno.serve(async (req) => {
         })
         .eq('controller_id', controllerId);
       if (ctrlErr) errors.push(`ctrl ${controllerId}: ${ctrlErr.message}`);
+      else updatedControllers.add(controllerId);
     }
 
     // If linked to active brew → write snapshot + update brew_readings
@@ -272,4 +276,8 @@ Deno.serve(async (req) => {
   }
 
   return json({ processed, skipped, errors, pills_known: macToPill.size, batches: avgByMac.size });
+});
+
+// NOTE: function declaration above closes with the Deno.serve handler.
+// The event-trigger logic lives inside the handler — patched below the return.
 });
