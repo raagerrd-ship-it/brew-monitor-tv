@@ -1091,6 +1091,7 @@ export type Database = {
       rapt_pills: {
         Row: {
           battery_level: number
+          bluetooth_mac: string | null
           color: string
           created_at: string
           gravity: number | null
@@ -1104,6 +1105,7 @@ export type Database = {
         }
         Insert: {
           battery_level: number
+          bluetooth_mac?: string | null
           color?: string
           created_at?: string
           gravity?: number | null
@@ -1117,6 +1119,7 @@ export type Database = {
         }
         Update: {
           battery_level?: number
+          bluetooth_mac?: string | null
           color?: string
           created_at?: string
           gravity?: number | null
