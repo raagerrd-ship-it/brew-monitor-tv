@@ -223,13 +223,16 @@ Deno.serve(async (req) => {
       // so 30 min freshness window tolerates 1 missed cycle.
       const { data: ctrlFull } = await supabase
         .from('rapt_temp_controllers')
-        .select('current_temp, last_update, pill_probe_offset')
+        .select('current_temp, current_temp_updated_at, last_update, pill_probe_offset')
         .eq('controller_id', controllerId)
         .maybeSingle();
 
       const probeTemp = ctrlFull?.current_temp != null ? Number(ctrlFull.current_temp) : null;
-      const probeAgeMs = ctrlFull?.last_update
-        ? Date.now() - new Date(ctrlFull.last_update).getTime()
+      // Use current_temp_updated_at (stamped only when probe actually changes) so BLE's
+      // per-minute writes to last_update can't mask a silent RAPT probe.
+      const probeStampSource = ctrlFull?.current_temp_updated_at ?? ctrlFull?.last_update;
+      const probeAgeMs = probeStampSource
+        ? Date.now() - new Date(probeStampSource).getTime()
         : Infinity;
       const PROBE_FRESH_MS = 30 * 60 * 1000;
       const probeFresh =
