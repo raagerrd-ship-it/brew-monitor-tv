@@ -800,13 +800,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         .select('pill_temp, recorded_at')
         .eq('controller_id', fc.controller_id)
         .order('recorded_at', { ascending: false })
-        .limit(8)
+        .limit(isBleLinked ? 5 : 8)
+      // BLE: kräv minst 3 prov över ≥2 min (≈ 2-3 min fönster på 1-min data).
+      // RAPT: kräv ≥3 prov och >3 min spann (gles data).
+      const minSpanHours = isBleLinked ? (2 / 60) : 0.05
       if (deltaHistory && deltaHistory.length >= 3) {
         const newest = deltaHistory[0]
         const oldest = deltaHistory[deltaHistory.length - 1]
         const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
         const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
-        if (timeDiffHours > 0.05) {
+        if (timeDiffHours > minSpanHours) {
           pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
         }
       }
