@@ -537,7 +537,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // RAPT rapporterar var ~15:e min men PID-cron körs var 5:e min. Räkna
     // bara pressure-cykler där vi har FÄRSK probe-data — annars baseras
     // mode-byte på interpolerade värden (i praktiken samma datapunkt 3 ggr).
-    const isFreshReading = !tempInterpolated
+    const isFreshReading = true
 
     // ── ssFloor check: block mode switch when established floor exists ──
     // If we have a learned steady-state duty floor > 0 for the CURRENT mode,
@@ -752,7 +752,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // When we have a valid interpolation, PID can act on the estimated temp.
     const rawStaleData = prevActualTempAt != null && prevActualTempAt > 0 &&
       lastUpdateMs <= prevActualTempAt * 1000
-    const isStaleData = rawStaleData && !tempInterpolated
+    const isStaleData = rawStaleData
 
     // === Pill rate (for ramp boost — computed from temp_delta_history in caller) ===
     // Uses the already-fetched pressureMap rates when available. Falls back to
@@ -822,7 +822,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
-      pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, tempInterpolated,
+      pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, false,
       pidMode === 'cooling' ? ctx.coolerMarginContext : null,
       modeJustSwitched,
       phaseBucket,
@@ -836,8 +836,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
       actual_temp: Math.round(actualTemp * 100) / 100,
-      interpolated_temp: tempInterpolated ? Math.round(interpolatedTemp * 100) / 100 : undefined,
-      dual_sensors: dualEnabled,
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
@@ -879,21 +877,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         { controller_id: fc.controller_id, parameter_name: 'pid_effective_target', learned_value: pidEffectiveTarget, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'was_ramp_active', learned_value: rampRateLimited ? 1 : 0, sample_count: 1, last_updated_at: now },
-        // EST tracking: store current actual_temp and timestamp for rate learning
-        { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp', learned_value: actualTemp, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp_at', learned_value: lastUpdateMs / 1000, sample_count: 1, last_updated_at: now },
       ]
-      // Store observed rate with sample count for EMA
-      if (observedRate !== 0) {
-        rows.push(
-          { controller_id: fc.controller_id, parameter_name: 'est_observed_rate', learned_value: observedRate, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
-          { controller_id: fc.controller_id, parameter_name: 'est_observed_duty', learned_value: observedDuty, sample_count: observedRateSamples + (staleMinutes <= 3 ? 1 : 0), last_updated_at: now },
-        )
-      }
-      // Store prediction for accuracy tracking on next fresh read
-      if (tempInterpolated) {
-        rows.push({ controller_id: fc.controller_id, parameter_name: 'est_last_prediction', learned_value: interpolatedTemp, sample_count: 1, last_updated_at: now })
-      }
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
       }
