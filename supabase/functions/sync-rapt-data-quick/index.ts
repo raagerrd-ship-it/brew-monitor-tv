@@ -266,7 +266,8 @@ Deno.serve(async (req) => {
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
       let fetchedControllers: any[];
-      const shouldFetchPills = selectedPillIds.length > 0 || discoverNewDevices;
+      // Skip RAPT pill fetch when BLE source active (unless discovering new devices)
+      const shouldFetchPills = !pillsViaBle && (selectedPillIds.length > 0 || discoverNewDevices);
       const shouldFetchControllers = selectedControllerIds.length > 0 || discoverNewDevices;
       [fetchedPills, fetchedControllers] = await Promise.all([
         shouldFetchPills ? fetchRaptPills(access_token) : Promise.resolve([]),
@@ -293,8 +294,19 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Upsert Pills
-      if (selectedPillIds.length > 0) {
+      // When pills come via BLE, build maps from DB (BLE ingest keeps rapt_pills fresh)
+      if (pillsViaBle) {
+        const { data: dbPills } = await supabase
+          .from('rapt_pills')
+          .select('pill_id, temperature, paired_device_id');
+        for (const p of dbPills ?? []) {
+          if (p.temperature != null && p.temperature !== 0) pillTempMap.set(p.pill_id, p.temperature);
+          if (p.paired_device_id) controllerToPillId.set(p.paired_device_id, p.pill_id);
+        }
+      }
+
+      // Upsert Pills (skipped when BLE source — Pi writes them)
+      if (!pillsViaBle && selectedPillIds.length > 0) {
         const selectedPillsData = fetchedPills.filter((pill: any) => selectedPillIds.includes(pill.id));
         if (selectedPillsData.length > 0) {
           const pillUpserts = selectedPillsData.map((pill: any) => ({
