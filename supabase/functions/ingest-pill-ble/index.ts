@@ -210,12 +210,6 @@ Deno.serve(async (req) => {
     if (controllerId && smoothedTemp != null) {
       // Blend with probe (current_temp) when fresh. RAPT pushes probe ~every 15 min,
       // so 30 min freshness window tolerates 1 missed cycle.
-      const { data: ctrl } = await supabase
-        .from('rapt_temp_controllers')
-        .select('current_temp, last_update')
-        .eq('controller_id', controllerId)
-        .maybeSingle();
-
       const { data: ctrlFull } = await supabase
         .from('rapt_temp_controllers')
         .select('current_temp, last_update, pill_probe_offset')
