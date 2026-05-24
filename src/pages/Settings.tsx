@@ -2,6 +2,7 @@ import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
+import { RaptPillPairing } from "@/components/RaptPillPairing";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
 import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
@@ -577,6 +578,9 @@ export default function Settings() {
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
               <RaptPillsManagement />
+            </SettingsSection>
+            <SettingsSection icon={Pill} title="Para Pills (BLE)" description="Koppla varje Pill till sin fysiska BLE-MAC från Pi-scannern">
+              <RaptPillPairing />
             </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
             <SettingsSection icon={Printer} title="Termoskrivare" description="Bluetooth-anslutning till etikettskrivare">
