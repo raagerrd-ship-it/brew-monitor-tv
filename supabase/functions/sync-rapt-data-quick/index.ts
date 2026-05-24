@@ -332,51 +332,28 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, dual_sensor_enabled')
+          supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id, target_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, actual_temp, pill_temp, pill_probe_offset, pill_probe_offset_baseline, pill_probe_offset_updated_at')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-
-        // Phase-aware weighting: fetch activity_score per controller (via linked brew → metrics)
-        const ctrlIdsForActivity = selectedControllersData.map((c: any) => c.id);
-        const activityByController = new Map<string, number>();
-        if (ctrlIdsForActivity.length > 0) {
-          const { data: activeBrews } = await supabase
-            .from('brew_readings')
-            .select('id, linked_controller_id')
-            .in('status', ['Fermenting', 'Jäsning'])
-            .in('linked_controller_id', ctrlIdsForActivity);
-          const brewToCtrl = new Map<string, string>();
-          (activeBrews || []).forEach((b: any) => {
-            if (b.linked_controller_id) brewToCtrl.set(b.id, b.linked_controller_id);
-          });
-          if (brewToCtrl.size > 0) {
-            const { data: metrics } = await supabase
-              .from('brew_fermentation_metrics')
-              .select('brew_id, activity_score')
-              .in('brew_id', Array.from(brewToCtrl.keys()));
-            (metrics || []).forEach((m: any) => {
-              const cid = brewToCtrl.get(m.brew_id);
-              if (cid) activityByController.set(cid, Number(m.activity_score) || 0);
-            });
-          }
-        }
 
         const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
+        const driftAlerts: { controllerId: string; controllerName: string; offset: number; baseline: number }[] = [];
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
           const targetTemp = controller.targetTemperature;
-          const lastUpdate = controller.lastActivityTime || controller.telemetry?.[0]?.createdOn;
 
           // Determine linked pill: API controller field, reverse pill→controller map, then DB fallback
           const linkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId
             || controllerToPillId.get(controller.id)
             || existingMap.get(controller.id)?.linked_pill_id || null;
-          const pillTemp = linkedPillId ? (pillTempMap.get(linkedPillId) ?? null) : null;
+          // BLE owns pill_temp/actual_temp/last_update. Read current pill temp from DB.
+          const existing = existingMap.get(controller.id);
+          const pillTemp = existing?.pill_temp != null ? Number(existing.pill_temp) : null;
 
           const hasActiveSession = controllersWithActiveSessions.has(controller.id);
           const isCoolerController = controller.id === coolerControllerId;
@@ -385,7 +362,6 @@ Deno.serve(async (req) => {
             controller_id: controller.id,
             name: controller.name || controller.id,
             current_temp: currentTemp,
-            pill_temp: pillTemp,
             cooling_enabled: controller.coolingEnabled || false,
             heating_enabled: controller.heatingEnabled || false,
             heating_utilisation: controller.heatingUtilisation || 0,
@@ -395,38 +371,52 @@ Deno.serve(async (req) => {
             cooling_starts: controller.coolingStarts || 0,
             heating_run_time: controller.heatingRunTime || 0,
             heating_starts: controller.heatingStarts || 0,
-            last_update: lastUpdate,
-            is_glycol_cooler: existingMap.get(controller.id)?.is_glycol_cooler ?? false,
-            profile_target_temp: existingMap.get(controller.id)?.profile_target_temp ?? null,
-            min_target_temp: existingMap.get(controller.id)?.min_target_temp ?? null,
-            max_target_temp: existingMap.get(controller.id)?.max_target_temp ?? null,
-            dual_sensor_enabled: existingMap.get(controller.id)?.dual_sensor_enabled ?? false,
+            is_glycol_cooler: existing?.is_glycol_cooler ?? false,
+            profile_target_temp: existing?.profile_target_temp ?? null,
+            min_target_temp: existing?.min_target_temp ?? null,
+            max_target_temp: existing?.max_target_temp ?? null,
             updated_at: new Date().toISOString()
           };
 
-          // Compute actual_temp via dual-sensor fusion
-          const dualEnabled = updateData.dual_sensor_enabled;
-          if (dualEnabled && pillTemp != null && currentTemp != null) {
-            // Phase-aware: high activity → weight probe (thermowell) higher,
-            // stationary/crash → 50/50. Drives smoothly via activity_score.
-            const act = activityByController.get(controller.id) ?? 0;
-            const a = Math.max(0, Math.min(60, act));
-            const probeWeight = 0.5 + 0.2 * (a / 60);
-            updateData.actual_temp = currentTemp * probeWeight + pillTemp * (1 - probeWeight);
-          } else {
-            const pref = existingMap.get(controller.id)?.preferred_sensor ?? 'pill';
-            updateData.actual_temp = pref === 'probe'
-              ? (currentTemp ?? pillTemp ?? null)
-              : (pillTemp ?? currentTemp ?? null);
+          // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
+          // Cold-start safety: if no actual_temp has ever been written and no pill is linked,
+          // seed from the probe so the UI shows something.
+          if (existing?.actual_temp == null && pillTemp == null && currentTemp != null) {
+            updateData.actual_temp = currentTemp;
+          }
+
+          // Probe = drift sanity-check. When we have both pill and probe readings,
+          // learn a running pill−probe offset (EMA, alpha=0.2). Alarm if the offset
+          // drifts >1.0°C from its 24h baseline (pill floating, battery weak, etc.).
+          if (pillTemp != null && currentTemp != null) {
+            const rawOffset = pillTemp - Number(currentTemp);
+            const prevOffset = existing?.pill_probe_offset != null ? Number(existing.pill_probe_offset) : null;
+            const newOffset = prevOffset == null ? rawOffset : prevOffset * 0.8 + rawOffset * 0.2;
+            updateData.pill_probe_offset = Math.round(newOffset * 1000) / 1000;
+            updateData.pill_probe_offset_updated_at = new Date().toISOString();
+
+            const baseline = existing?.pill_probe_offset_baseline != null
+              ? Number(existing.pill_probe_offset_baseline)
+              : null;
+            if (baseline == null) {
+              updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
+            } else if (Math.abs(newOffset - baseline) > 1.0) {
+              driftAlerts.push({
+                controllerId: controller.id,
+                controllerName: existing?.name || controller.name || controller.id,
+                offset: newOffset,
+                baseline,
+              });
+            }
           }
 
           if (linkedPillId) updateData.linked_pill_id = linkedPillId;
           // Preserve DB target_temp for controllers managed by automation:
           // - Active fermentation session (profile controls target)
           // - Cooler controller (cooler management controls target)
-          // - Controller has active PID (has pill + dual sensor or session)
-          const hasProfileTarget = existingMap.get(controller.id)?.profile_target_temp != null;
-          const isPidManaged = pillTemp != null && (hasActiveSession || dualEnabled || hasProfileTarget);
+          // - Controller has active PID (linked pill + active session or profile target)
+          const hasProfileTarget = existing?.profile_target_temp != null;
+          const isPidManaged = pillTemp != null && (hasActiveSession || hasProfileTarget);
           if (!hasActiveSession && !isCoolerController && !isPidManaged) {
             updateData.target_temp = targetTemp;
           } else {
