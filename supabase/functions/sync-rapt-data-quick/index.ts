@@ -170,10 +170,15 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Pills are now exclusively ingested via BLE from the Pi (ingest-pill-ble).
-    // RAPT pill API and pill-derived snapshots are permanently disabled here.
-    const pillsViaBle = true;
-    console.log('🔵 Pills via BLE — RAPT pill fetch + snapshots disabled');
+    // Pills should stay BLE-owned unless explicitly switched back.
+    // Default to BLE so RAPT quick sync can never overwrite pill pairings by accident.
+    const pillsSource = (Deno.env.get('PILLS_SOURCE') || 'ble').trim().toLowerCase();
+    const pillsViaBle = pillsSource !== 'rapt';
+    console.log(
+      pillsViaBle
+        ? `🔵 Pills via BLE (PILLS_SOURCE=${pillsSource}) — RAPT pill fetch + snapshots disabled`
+        : `🟣 Pills via RAPT (PILLS_SOURCE=${pillsSource}) — RAPT pill fetch enabled`
+    );
 
     // ── Concurrency guard: skip if another sync ran <30s ago ──
     const { data: recentLog } = await supabase
