@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
   const { data: activeBrews } = await supabase
     .from('brew_readings')
     .select('id, linked_pill_id, linked_controller_id, original_gravity, fermentation_start, name')
-    .in('status', ['fermenting', 'active'])
+    .in('status', ['fermenting', 'active', 'Jäsning', 'Konditionering'])
     .not('linked_pill_id', 'is', null);
   const pillToBrew = new Map<string, any>();
   for (const b of activeBrews ?? []) {
