@@ -1143,6 +1143,7 @@ export type Database = {
           cooling_starts: number | null
           created_at: string
           current_temp: number | null
+          current_temp_updated_at: string | null
           dual_sensor_enabled: boolean | null
           heating_enabled: boolean | null
           heating_hysteresis: number | null
@@ -1176,6 +1177,7 @@ export type Database = {
           cooling_starts?: number | null
           created_at?: string
           current_temp?: number | null
+          current_temp_updated_at?: string | null
           dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
@@ -1209,6 +1211,7 @@ export type Database = {
           cooling_starts?: number | null
           created_at?: string
           current_temp?: number | null
+          current_temp_updated_at?: string | null
           dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
