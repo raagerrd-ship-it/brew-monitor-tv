@@ -532,7 +532,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const lastStepIndex = pressureMap.get('mode_last_step_index') ?? null
 
     // Mode detection: overshoot-aware with stabilisation guard.
-    const MODE_SWITCH_CYCLES = 3
+    // BLE-länkade controllers har 1-min färsk data + event-driven PID-trigger,
+    // så 2 cykler räcker som brus-skydd. RAPT-only behåller 3 (15 min RAPT-jitter).
+    const isBleLinked = !!(fc as any).linked_pill_id
+    const MODE_SWITCH_CYCLES = isBleLinked ? 2 : 3
     const STALL_MIN_PROGRESS = 0.05
     // RAPT rapporterar var ~15:e min men PID-cron körs var 5:e min. Räkna
     // bara pressure-cykler där vi har FÄRSK probe-data — annars baseras
@@ -645,10 +648,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         from: prevMode, to: suggestedMode, trigger, oldStep: lastStepIndex, newStep: currentStepIndex,
         distance: round1(distanceToTarget), actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
-    } else if (onWrongSide && distanceToTarget > 0.8) {
+    } else if (onWrongSide && distanceToTarget > (isBleLinked ? 0.5 : 0.8)) {
       pidMode = suggestedMode
       switchPressure = 0
-      log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > 0.8°, omedelbar)`, {
+      const emThresh = isBleLinked ? 0.5 : 0.8
+      log('MODE_EMERGENCY', 'action', `${fc.name}: ${prevMode} → ${suggestedMode} (Δ${round1(distanceToTarget)}° > ${emThresh}°, omedelbar${isBleLinked ? ', BLE' : ''})`, {
         from: prevMode, to: suggestedMode, distance: round1(distanceToTarget),
         actualTemp: round1(actualTemp), actualTarget: round1(actualTarget),
       })
@@ -796,13 +800,16 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         .select('pill_temp, recorded_at')
         .eq('controller_id', fc.controller_id)
         .order('recorded_at', { ascending: false })
-        .limit(8)
+        .limit(isBleLinked ? 5 : 8)
+      // BLE: kräv minst 3 prov över ≥2 min (≈ 2-3 min fönster på 1-min data).
+      // RAPT: kräv ≥3 prov och >3 min spann (gles data).
+      const minSpanHours = isBleLinked ? (2 / 60) : 0.05
       if (deltaHistory && deltaHistory.length >= 3) {
         const newest = deltaHistory[0]
         const oldest = deltaHistory[deltaHistory.length - 1]
         const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
         const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
-        if (timeDiffHours > 0.05) {
+        if (timeDiffHours > minSpanHours) {
           pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
         }
       }

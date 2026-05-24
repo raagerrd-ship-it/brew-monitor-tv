@@ -58,7 +58,13 @@ export function round1(v: number | null | undefined): number | null {
 // Prevents acting on sensor data older than a threshold.
 // ============================================================
 
-const STALE_SENSOR_THRESHOLD_MS = 30 * 60 * 1000 // 30 minutes
+const STALE_SENSOR_THRESHOLD_MS = 30 * 60 * 1000 // 30 minutes (RAPT-only fallback)
+const STALE_SENSOR_THRESHOLD_BLE_MS = 8 * 60 * 1000 // 8 minutes (BLE-linked: 1-min cadence)
+
+/** Pick the right freshness threshold per controller. BLE-linked = 8 min, RAPT-only = 30 min. */
+function thresholdForController(c: TempController): number {
+  return (c as any).linked_pill_id ? STALE_SENSOR_THRESHOLD_BLE_MS : STALE_SENSOR_THRESHOLD_MS
+}
 
 /**
  * Check if a controller's sensor data is stale (older than threshold).
@@ -86,11 +92,17 @@ export function filterStaleControllers(
   const fresh: TempController[] = []
   const stale: TempController[] = []
   for (const c of controllers) {
-    const check = isSensorDataStale(c.last_update, thresholdMs)
+    // Per-controller threshold: BLE-linked controllers get 8 min, RAPT-only 30 min.
+    // Caller can still override globally by passing thresholdMs explicitly.
+    const effectiveThreshold = thresholdMs === STALE_SENSOR_THRESHOLD_MS
+      ? thresholdForController(c)
+      : thresholdMs
+    const check = isSensorDataStale(c.last_update, effectiveThreshold)
     if (check.stale) {
       stale.push(c)
       if (log) {
-        log('STALE_SENSOR', 'fail', `${c.name}: Sensor data is ${check.ageMinutes !== null ? `${check.ageMinutes}min old` : 'missing'} — SKIPPING for safety`)
+        const limitMin = Math.round(effectiveThreshold / 60000)
+        log('STALE_SENSOR', 'fail', `${c.name}: Sensor data is ${check.ageMinutes !== null ? `${check.ageMinutes}min old` : 'missing'} (limit ${limitMin}min, ${(c as any).linked_pill_id ? 'BLE' : 'RAPT'}) — SKIPPING for safety`)
       }
     } else {
       fresh.push(c)

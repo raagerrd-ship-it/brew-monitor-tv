@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
     return json({ ok: true, heartbeat: true });
   }
 
+  // Track controllers that received fresh BLE data this batch (event-trigger candidates)
+  const updatedControllers = new Set<string>();
+
   // Load all pills with paired_device_id (MAC)
   const { data: pills, error: pillsErr } = await supabase
     .from('rapt_pills')
@@ -205,6 +208,7 @@ Deno.serve(async (req) => {
         })
         .eq('controller_id', controllerId);
       if (ctrlErr) errors.push(`ctrl ${controllerId}: ${ctrlErr.message}`);
+      else updatedControllers.add(controllerId);
     }
 
     // If linked to active brew → write snapshot + update brew_readings
@@ -271,5 +275,56 @@ Deno.serve(async (req) => {
     processed++;
   }
 
-  return json({ processed, skipped, errors, pills_known: macToPill.size, batches: avgByMac.size });
+  // ── Event-trigger PID for fresh BLE-linked controllers ───────────
+  // Fire-and-forget. Throttle: max 1 PID run per controller per 90 s,
+  // enforced via pid_event_throttle table (UPSERT-then-check).
+  // The 5-min rapt-quick-sync cron remains as safety-net.
+  let triggered = 0;
+  if (updatedControllers.size > 0) {
+    const COOLDOWN_MS = 90 * 1000;
+    const nowIso = new Date().toISOString();
+    const cutoffIso = new Date(Date.now() - COOLDOWN_MS).toISOString();
+    const { data: throttleRows } = await supabase
+      .from('pid_event_throttle')
+      .select('controller_id, last_run_at')
+      .in('controller_id', Array.from(updatedControllers));
+    const lastRunMap = new Map<string, string>();
+    for (const t of throttleRows ?? []) lastRunMap.set(t.controller_id, t.last_run_at);
+
+    const eligible = Array.from(updatedControllers).filter((id) => {
+      const last = lastRunMap.get(id);
+      return !last || last < cutoffIso;
+    });
+
+    if (eligible.length > 0) {
+      // Mark cooldown first to avoid races between concurrent ingests
+      await supabase
+        .from('pid_event_throttle')
+        .upsert(
+          eligible.map((controller_id) => ({ controller_id, last_run_at: nowIso })),
+          { onConflict: 'controller_id' },
+        );
+
+      // Fire-and-forget — do not await; ingest latency must stay low
+      const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/auto-adjust-cooling`;
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({ trigger: 'ble_event', controllers: eligible }),
+      }).catch((e) => console.error('event-trigger fetch failed:', (e as Error).message));
+      triggered = eligible.length;
+    }
+  }
+
+  return json({
+    processed,
+    skipped,
+    errors,
+    pills_known: macToPill.size,
+    batches: avgByMac.size,
+    triggered,
+  });
 });

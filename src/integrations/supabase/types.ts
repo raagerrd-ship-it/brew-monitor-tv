@@ -968,6 +968,21 @@ export type Database = {
         }
         Relationships: []
       }
+      pid_event_throttle: {
+        Row: {
+          controller_id: string
+          last_run_at: string
+        }
+        Insert: {
+          controller_id: string
+          last_run_at?: string
+        }
+        Update: {
+          controller_id?: string
+          last_run_at?: string
+        }
+        Relationships: []
+      }
       pill_sg_calibration: {
         Row: {
           anchor_recorded_at: string | null
