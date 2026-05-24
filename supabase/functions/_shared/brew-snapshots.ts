@@ -43,12 +43,90 @@ export async function createBrewSnapshot(
       return false;
     }
 
-    // Fire-and-forget: thin old snapshots if count exceeds threshold
+    // Fire-and-forget: consolidate closed 5-min buckets, then thin if oversized
+    consolidate5MinBuckets(supabase, brewId).catch(() => {});
     thinSnapshots(supabase, brewId).catch(() => {});
     return true;
   } catch (err) {
     console.error('Error in createBrewSnapshot:', err);
     return false;
+  }
+}
+
+/**
+ * Consolidate snapshots into 5-minute averaged buckets.
+ * For each closed 5-min bucket (i.e. not the current bucket), if it has >1 row,
+ * replace them with a single row containing the average of all numeric columns,
+ * timestamped at the bucket start.
+ *
+ * Effect: long-term storage = one averaged snapshot per 5 min, low-pass filtering
+ * BLE jitter on pill_temp/sg and PWM ripple on actual_temp.
+ */
+export async function consolidate5MinBuckets(supabase: any, brewId: string): Promise<void> {
+  try {
+    const BUCKET_MS = 5 * 60 * 1000;
+    const nowBucket = Math.floor(Date.now() / BUCKET_MS) * BUCKET_MS;
+    // Look back ~30 min — enough to catch the previous bucket plus any backfill,
+    // small enough to keep the query cheap on every write.
+    const lookbackStart = new Date(nowBucket - 6 * BUCKET_MS).toISOString();
+    const lookbackEnd = new Date(nowBucket).toISOString(); // exclusive: skip current bucket
+
+    const { data: rows } = await supabase
+      .from('brew_data_snapshots')
+      .select('id, recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp, auto_target_temp')
+      .eq('brew_id', brewId)
+      .gte('recorded_at', lookbackStart)
+      .lt('recorded_at', lookbackEnd)
+      .order('recorded_at', { ascending: true });
+
+    if (!rows || rows.length < 2) return;
+
+    // Group by 5-min bucket start
+    const buckets = new Map<number, typeof rows>();
+    for (const r of rows) {
+      const bs = Math.floor(new Date(r.recorded_at).getTime() / BUCKET_MS) * BUCKET_MS;
+      const list = buckets.get(bs) || [];
+      list.push(r);
+      buckets.set(bs, list);
+    }
+
+    for (const [bucketStart, group] of buckets) {
+      if (group.length < 2) continue; // already consolidated
+
+      const avg = (key: string) => {
+        const vals = group.map((g: any) => g[key]).filter((v: any) => v != null);
+        if (vals.length === 0) return null;
+        return vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+      };
+
+      const r2 = (v: number | null) => v == null ? null : Math.round(v * 100) / 100;
+      const r4 = (v: number | null) => v == null ? null : Math.round(v * 10000) / 10000;
+
+      const merged = {
+        sg: r4(avg('sg')),
+        pill_temp: r2(avg('pill_temp')),
+        controller_temp: r2(avg('controller_temp')),
+        profile_target_temp: r2(avg('profile_target_temp')),
+        actual_temp: r2(avg('actual_temp')),
+        auto_target_temp: r2(avg('auto_target_temp')),
+      };
+
+      const keepId = group[0].id;
+      const dropIds = group.slice(1).map((g: any) => g.id);
+      const keepTs = new Date(bucketStart).toISOString();
+
+      // Delete the redundant rows first to avoid the unique (brew_id, recorded_at) collision
+      // when re-anchoring the survivor to the bucket start timestamp.
+      if (dropIds.length > 0) {
+        await supabase.from('brew_data_snapshots').delete().in('id', dropIds);
+      }
+      await supabase
+        .from('brew_data_snapshots')
+        .update({ ...merged, recorded_at: keepTs })
+        .eq('id', keepId);
+    }
+  } catch (err) {
+    console.error('Error in consolidate5MinBuckets:', err);
   }
 }
 
