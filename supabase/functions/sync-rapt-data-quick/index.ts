@@ -1338,7 +1338,7 @@ Deno.serve(async (req) => {
         const dutyPct = dutyMap.get(c.controller_id);
         return {
           controller_id: c.controller_id,
-          current_temp: c.current_temp ?? c.pill_temp,
+          current_temp: c.actual_temp ?? c.current_temp ?? c.pill_temp,
           target_temp: post?.target_temp ?? c.target_temp,
           cooling_enabled: c.cooling_enabled || false,
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
