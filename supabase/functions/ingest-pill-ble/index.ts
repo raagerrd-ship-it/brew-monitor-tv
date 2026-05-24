@@ -78,8 +78,13 @@ Deno.serve(async (req) => {
   if (pillsErr) return json({ error: 'DB read failed', details: pillsErr.message }, 500);
 
   const macToPill = new Map<string, string>();
+  const prefixToPill = new Map<string, string>(); // first 10 hex chars (5 bytes) → pill_id
   for (const p of pills ?? []) {
-    if (p.bluetooth_mac) macToPill.set(normMac(p.bluetooth_mac), p.pill_id);
+    if (p.bluetooth_mac) {
+      const m = normMac(p.bluetooth_mac);
+      macToPill.set(m, p.pill_id);
+      if (m.length >= 10) prefixToPill.set(m.slice(0, 10), p.pill_id);
+    }
   }
 
   console.log('[ingest-pill-ble] pills_known:', macToPill.size,
@@ -166,7 +171,13 @@ Deno.serve(async (req) => {
   }
 
   for (const [mac, r] of avgByMac) {
-    const pillId = macToPill.get(mac);
+    let pillId = macToPill.get(mac);
+    if (!pillId && mac.length >= 10) {
+      // BLE address may differ in last byte (public vs random/resolvable address).
+      // Fallback: match on first 5 bytes (10 hex chars).
+      pillId = prefixToPill.get(mac.slice(0, 10));
+      if (pillId) console.log(`[ingest-pill-ble] prefix-matched ${mac} → ${pillId}`);
+    }
     if (!pillId) {
       skipped++;
       unknownMacs.add(mac);
