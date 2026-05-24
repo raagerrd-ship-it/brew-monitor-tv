@@ -87,15 +87,56 @@ Deno.serve(async (req) => {
     if (c.linked_pill_id) pillToController.set(c.linked_pill_id, c.controller_id);
   }
 
-  // Reduce to latest reading per MAC (lowest noise, 1 update per pill per batch)
-  const latestByMac = new Map<string, typeof readings[number]>();
+  // Layer 1 — Batch average per MAC: average all readings for the same pill
+  // in this upload (typically 2/min from Pi). Reduces minute-scale noise ~½.
+  // Timestamp = most recent recorded_at in the group.
+  type Avg = {
+    mac: string;
+    temp_c: number | null;
+    gravity_sg: number | null;
+    battery_pct: number | null;
+    recorded_at: string;
+    sample_count: number;
+    // Raw latest values (for snapshots — preserve unfiltered history)
+    raw_temp_c: number | null;
+    raw_gravity_sg: number | null;
+  };
+  const groups = new Map<string, typeof readings>();
   for (const r of readings) {
     const key = normMac(r.mac);
-    const cur = latestByMac.get(key);
-    if (!cur || new Date(r.recorded_at) > new Date(cur.recorded_at)) {
-      latestByMac.set(key, r);
-    }
+    const arr = groups.get(key) ?? [];
+    arr.push(r);
+    groups.set(key, arr);
   }
+  const avgByMac = new Map<string, Avg>();
+  for (const [mac, arr] of groups) {
+    const sorted = [...arr].sort(
+      (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
+    );
+    const latest = sorted[sorted.length - 1];
+    const mean = (vals: (number | null | undefined)[]) => {
+      const xs = vals.filter((v): v is number => typeof v === 'number');
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+    };
+    avgByMac.set(mac, {
+      mac,
+      temp_c: mean(sorted.map((s) => s.temp_c)),
+      gravity_sg: mean(sorted.map((s) => s.gravity_sg)),
+      battery_pct: mean(sorted.map((s) => s.battery_pct)),
+      recorded_at: latest.recorded_at,
+      sample_count: sorted.length,
+      raw_temp_c: latest.temp_c ?? null,
+      raw_gravity_sg: latest.gravity_sg ?? null,
+    });
+  }
+
+  // EMA coefficients (Layers 2 & 3)
+  // α=0.35 ≈ rolling-3 effective window for temperature (PID stability)
+  // α=0.25 ≈ rolling-5 effective window for gravity (noisier signal)
+  const ALPHA_TEMP = 0.35;
+  const ALPHA_SG = 0.25;
+  const ema = (sample: number, prev: number | null | undefined, alpha: number) =>
+    prev == null || !Number.isFinite(prev) ? sample : alpha * sample + (1 - alpha) * prev;
 
   let processed = 0;
   let skipped = 0;
@@ -112,21 +153,34 @@ Deno.serve(async (req) => {
     if (b.linked_pill_id) pillToBrew.set(b.linked_pill_id, b);
   }
 
-  for (const [mac, r] of latestByMac) {
+  for (const [mac, r] of avgByMac) {
     const pillId = macToPill.get(mac);
     if (!pillId) {
       skipped++;
       continue;
     }
 
-    // Update rapt_pills (BLE is now SSOT for pill telemetry)
+    // Fetch previous smoothed values for EMA continuity
+    const { data: prevPill } = await supabase
+      .from('rapt_pills')
+      .select('temperature, gravity')
+      .eq('pill_id', pillId)
+      .maybeSingle();
+
+    // Layer 2 & 3 — EMA smoothing
+    const smoothedTemp =
+      r.temp_c != null ? ema(r.temp_c, prevPill?.temperature ?? null, ALPHA_TEMP) : null;
+    const smoothedSg =
+      r.gravity_sg != null ? ema(r.gravity_sg, prevPill?.gravity ?? null, ALPHA_SG) : null;
+
+    // Update rapt_pills with smoothed values (BLE = SSOT for pill telemetry)
     const update: Record<string, unknown> = {
       last_update: r.recorded_at,
       updated_at: new Date().toISOString(),
     };
-    if (r.temp_c != null) update.temperature = r.temp_c;
-    if (r.gravity_sg != null) update.gravity = r.gravity_sg;
-    if (r.battery_pct != null) update.battery_level = r.battery_pct;
+    if (smoothedTemp != null) update.temperature = Number(smoothedTemp.toFixed(3));
+    if (smoothedSg != null) update.gravity = Number(smoothedSg.toFixed(5));
+    if (r.battery_pct != null) update.battery_level = Math.round(r.battery_pct);
 
     const { error: upErr } = await supabase
       .from('rapt_pills')
@@ -138,14 +192,14 @@ Deno.serve(async (req) => {
     }
 
     // BLE = SSOT for actual_temp. Promote pill temp to the linked controller
-    // so PID and UI read a fresh value every minute, independent of RAPT sync.
+    // so PID and UI read a fresh (smoothed) value every minute, independent of RAPT sync.
     const controllerId = pillToController.get(pillId);
-    if (controllerId && r.temp_c != null) {
+    if (controllerId && smoothedTemp != null) {
       const { error: ctrlErr } = await supabase
         .from('rapt_temp_controllers')
         .update({
-          actual_temp: r.temp_c,
-          pill_temp: r.temp_c,
+          actual_temp: Number(smoothedTemp.toFixed(3)),
+          pill_temp: Number(smoothedTemp.toFixed(3)),
           last_update: r.recorded_at,
           updated_at: new Date().toISOString(),
         })
@@ -162,8 +216,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Fetch controller actual_temp for SSOT
-      let actualTemp: number | null = r.temp_c;
+      // Use smoothed temp as actual_temp SSOT; fall back to controller if not linked
+      let actualTemp: number | null = smoothedTemp;
       let controllerTemp: number | null = null;
       let profileTargetTemp: number | null = null;
       if (brew.linked_controller_id) {
@@ -173,17 +227,19 @@ Deno.serve(async (req) => {
           .eq('controller_id', brew.linked_controller_id)
           .maybeSingle();
         if (ctrl) {
-          actualTemp = ctrl.actual_temp ?? r.temp_c;
+          actualTemp = ctrl.actual_temp ?? smoothedTemp;
           controllerTemp = ctrl.current_temp ?? null;
           profileTargetTemp = ctrl.profile_target_temp ?? null;
         }
       }
 
       try {
+        // Snapshot keeps RAW pill values for history/AI fidelity;
+        // actual_temp is the smoothed SSOT used by PID.
         await createBrewSnapshot(supabase, brew.id, {
           recorded_at: r.recorded_at,
-          sg: r.gravity_sg,
-          pill_temp: r.temp_c,
+          sg: r.raw_gravity_sg ?? r.gravity_sg,
+          pill_temp: r.raw_temp_c ?? r.temp_c,
           controller_temp: controllerTemp,
           profile_target_temp: profileTargetTemp,
           actual_temp: actualTemp,
@@ -192,9 +248,9 @@ Deno.serve(async (req) => {
         errors.push(`snapshot ${brew.name}: ${(e as Error).message}`);
       }
 
-      // Update brew_readings latest metrics
+      // Update brew_readings latest metrics with smoothed SG for stable ABV/attenuation
       const og = brew.original_gravity;
-      const sg = r.gravity_sg;
+      const sg = smoothedSg ?? r.gravity_sg;
       const attenuation = og > 1 ? Math.max(0, Math.min(100, Math.round(((og - sg) / (og - 1)) * 100))) : 0;
       const abv = og > 1 ? Math.max(0, Number(((og - sg) * 131.25).toFixed(1))) : 0;
 
@@ -215,5 +271,5 @@ Deno.serve(async (req) => {
     processed++;
   }
 
-  return json({ processed, skipped, errors, pills_known: macToPill.size });
+  return json({ processed, skipped, errors, pills_known: macToPill.size, batches: avgByMac.size });
 });
