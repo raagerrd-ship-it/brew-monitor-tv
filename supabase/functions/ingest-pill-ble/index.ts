@@ -200,10 +200,29 @@ Deno.serve(async (req) => {
     // so PID and UI read a fresh (smoothed) value every minute, independent of RAPT sync.
     const controllerId = pillToController.get(pillId);
     if (controllerId && smoothedTemp != null) {
+      // Blend with probe (current_temp) when fresh. RAPT pushes probe ~every 15 min,
+      // so 30 min freshness window tolerates 1 missed cycle.
+      const { data: ctrl } = await supabase
+        .from('rapt_temp_controllers')
+        .select('current_temp, last_update')
+        .eq('controller_id', controllerId)
+        .maybeSingle();
+
+      const probeTemp = ctrl?.current_temp != null ? Number(ctrl.current_temp) : null;
+      const probeAgeMs = ctrl?.last_update
+        ? Date.now() - new Date(ctrl.last_update).getTime()
+        : Infinity;
+      const PROBE_FRESH_MS = 30 * 60 * 1000;
+
+      const actualTemp =
+        probeTemp != null && Number.isFinite(probeTemp) && probeAgeMs < PROBE_FRESH_MS
+          ? (smoothedTemp + probeTemp) / 2
+          : smoothedTemp;
+
       const { error: ctrlErr } = await supabase
         .from('rapt_temp_controllers')
         .update({
-          actual_temp: Number(smoothedTemp.toFixed(3)),
+          actual_temp: Number(actualTemp.toFixed(3)),
           pill_temp: Number(smoothedTemp.toFixed(3)),
           last_update: r.recorded_at,
           updated_at: new Date().toISOString(),
