@@ -1,48 +1,61 @@
-## Rot-orsak
+## Vad som händer idag
 
-`rapt_pills.paired_device_id` används för **två olika saker** med inkompatibla format:
+I `ingest-pill-ble` skrivs `actual_temp = smoothedPill` rakt av varje minut när en controller är länkad till en pill — probevärdet (`current_temp` från RAPT, uppdateras var 15:e min) ignoreras totalt för SSOT-syften. Det enda probe används till är `pill_probe_offset`-EMA för drift-larm.
 
-1. **`sync-rapt-data-quick`** skriver RAPT-API:ets `pairedDeviceId` dit — vilket är **temp-controllerns UUID** (`6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d` för Mjöd/Green osv).
-2. **`ingest-pill-ble`** läser samma fält och förväntar sig **BLE MAC-adress** (`64b7085612ee`, `fce8c0b21db6`, `fce8c0b2141a`).
+Det gör att PID styr på 100% pill, även när vi har två oberoende sensorer som kan medelvärdesbildas.
 
-Diagnostik-querysvar (vad edge faktiskt ser nu):
+## Vad du vill
 
+När probe finns: `actual_temp` = medelvärde av pill och probe. Probe-värdet är "fryst" i ~15 min mellan RAPT-syncar, så varje ny minutpill ger en ny vägd uppdatering. Vid stor delta (t.ex. 4°C) blir resultatet att pill dras 2°C mot probe tills nästa probe-läsning kommer.
+
+## Fix — minimalt
+
+Ändring **endast** i `supabase/functions/ingest-pill-ble/index.ts`, i blocket som promotar pill-temp till controller (runt rad 199–212).
+
+### Ny logik
+
+```ts
+// Hämta nuvarande probe-värde + freshness
+const { data: ctrl } = await supabase
+  .from('rapt_temp_controllers')
+  .select('current_temp, last_update')
+  .eq('controller_id', controllerId)
+  .maybeSingle();
+
+const probeTemp = ctrl?.current_temp != null ? Number(ctrl.current_temp) : null;
+const probeAgeMs = ctrl?.last_update ? Date.now() - new Date(ctrl.last_update).getTime() : Infinity;
+const PROBE_FRESH_MS = 30 * 60 * 1000; // 30 min — RAPT skickar var 15:e, ge marginal
+
+let actualTemp = smoothedTemp;
+if (probeTemp != null && probeAgeMs < PROBE_FRESH_MS) {
+  actualTemp = (smoothedTemp + probeTemp) / 2;
+}
+
+await supabase.from('rapt_temp_controllers').update({
+  actual_temp: Number(actualTemp.toFixed(3)),
+  pill_temp: Number(smoothedTemp.toFixed(3)),  // rå pill kvar i pill_temp för UI/drift
+  last_update: r.recorded_at,
+  updated_at: new Date().toISOString(),
+}).eq('controller_id', controllerId);
 ```
-pill                                       db_normalized
-2ba750b6...  618b29b0fa024f27a8f1a215f44235b3
-0b88d442...  6fbbc7dbcc7749c8be484f07ebb6ff5d  ← Green/Mjöd controller UUID
-04cfce6d...  ffa62be4d6f7453383b457ad93c3ac01  ← Blå/Skogens Sus controller UUID
-```
 
-Inga MAC:s. Därför `skipped: 3`.
+### Konsekvenser
+- `pill_temp` fortsätter visa enbart pill (för UI och drift-detektion).
+- `actual_temp` blir blandvärde — PID styr på mittpunkten.
+- Vid 4°C delta → `actual_temp` ligger 2°C från pill, exakt som du beskrev.
+- Probe-äldre-än-30min → falla tillbaka till ren pill (samma som idag).
+- Snapshot-skrivningen längre ned i samma funktion hämtar redan controllerns `actual_temp` när `linked_controller_id` finns — den blir automatiskt det blandade värdet. Ingen extra ändring där.
 
-**Varför ~21:10?** Det var inte en kodändring i `ingest-pill-ble` (normMac är oförändrad). Det var en `sync-rapt-data-quick`-körning som skrev över `paired_device_id` med RAPT-controller-UUID:erna. `batches: 3` är bara ett nytt log-fält jag la till i förra ronden — inget funktionellt.
+### Vad jag INTE rör
+- `pill_probe_offset`-lärningen i `sync-rapt-data-quick` (drift-larm fungerar oförändrat).
+- `preferred_sensor`-fältet (alltid blandning när probe finns — du nämnde inget om att göra det konfigurerbart).
+- PID-, ramp-, eller smoothing-konstanter.
 
-Tidigare körningar (`processed: 3`) fungerade förmodligen för att fältet manuellt eller tillfälligt hade MAC:s; nästa RAPT-sync skrev över.
+## Verifiering
+1. Vänta på nästa BLE-ingest (≤1 min efter Pi-upload) och nästa RAPT-sync (≤15 min för probe).
+2. SQL-check: `SELECT controller_id, pill_temp, current_temp, actual_temp FROM rapt_temp_controllers WHERE linked_pill_id IS NOT NULL;` — `actual_temp` ska ligga ≈ (pill_temp + current_temp)/2.
+3. Edge-svar `pills_known`/`processed` oförändrade.
 
-## Fix
-
-Separera fälten. Ny dedikerad kolumn för BLE MAC, rör inte `paired_device_id`.
-
-### 1. Migration
-- `ALTER TABLE rapt_pills ADD COLUMN bluetooth_mac text;` (nullable, unique partial index där not null)
-- Engångs-seed för de tre kända pillen:
-  - `2ba750b6-3efe-4a46-9c97-2a1ddbdfaf16` → `64b7085612ee`
-  - `0b88d442-14fd-481e-ac67-671386a362c5` (Mjöd/Green) → `fce8c0b21db6`  *(verifiera vilken MAC tillhör vilken pill — jag mappar dem efter vilka två som har aktiva brews; bekräfta gärna i chatten innan migration)*
-  - `04cfce6d-5199-460b-88e8-ca97f87053e7` (Skogens Sus/Blå) → `fce8c0b2141a`
-
-### 2. `supabase/functions/ingest-pill-ble/index.ts`
-- Ändra `select('pill_id, paired_device_id')` → `select('pill_id, bluetooth_mac')`
-- Bygg `macToPill` från `bluetooth_mac` istället. `normMac()` och resten oförändrat.
-
-### 3. Inget annat rörs
-- `sync-rapt-data-quick` lämnas helt orörd — den fortsätter äga `paired_device_id` för RAPT-länkning.
-- Ingen PID-, snapshot- eller smoothing-logik berörs.
-
-## Verifiering efter deploy
-1. Kör diagnostik-query mot `bluetooth_mac` → ska visa de tre MAC:s.
-2. Trigga en Pi-upload → vänta på edge-svar: `processed: 3, skipped: 0, pills_known: 3, triggered: ≤3`.
-3. Kontrollera att nästa `sync-rapt-data-quick`-körning inte rör `bluetooth_mac` (den selectar bara `paired_device_id`).
-
-## Frågor innan jag bygger
-- Vilken MAC tillhör vilken pill? Jag har en gissning ovan baserat på Mjöd vs Skogens Sus men vill ha bekräftelse — annars seedar jag tomt och du UPDATE:ar de tre raderna manuellt direkt.
+## Frågor
+1. **30 min freshness-tröskel** för probe ok? RAPT skickar var 15:e min så 30 min ger 1 missad cykel innan vi släpper probe.
+2. Vill du ha ett dödband — t.ex. om delta < 0.2°C, hoppa över blandning för att undvika brus? Min default är **nej**, blanda alltid när båda finns.
