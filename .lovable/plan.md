@@ -1,72 +1,55 @@
-## Mål
+## Bakgrund
 
-1. Säkerställa att Pi-data faktiskt landar i `rapt_pills` (just nu står data still sedan 19:42 trots POST 200).
-2. Lägga till delta-fallback för `actual_temp` när probe blir stale: behåll midpoint baserat på senast inlärt offset.
+Sedan BLE-pillen skickar data varje minut (via `ingest-pill-ble`) skrivs `actual_temp` på controllern som blend `(pill + probe) / 2` när probe är fresh, annars `pill - offset/2`. Snapshot-historiken är nu omräknad till samma medel. Vid en genomgång av övrig kod hittade jag följande som inte hänger med den nya kadensen.
 
-## Nuvarande tillstånd
+---
 
-- `ingest-pill-ble` koden i repo **gör** redan blandning `(pill + probe) / 2` när probe < 30 min gammal (rad 204-235). Min tidigare summering var fel.
-- `pill_probe_offset` (= `pill − probe` EMA) lärs av `sync-rapt-data-quick` och finns på controllern.
-- **Problem:** `rapt_pills.updated_at = 19:42:35`, `last_update = 19:41:21`. Nu är klockan ~21:48. Pi POSTar (200) men inget skrivs. Pi rapporterar `unknown_macs = våra 3 MAC:s, processed: 0`.
+## 1. Probe-staleness är osynlig (allvarligt)
 
-## Plan
+`ingest-pill-ble` läser `rapt_temp_controllers.last_update` för att avgöra om probe är fresh (PROBE_FRESH_MS = 30 min), men skriver **samma kolumn** med BLE-timestampen varje minut.
 
-### Steg 1 — Verifiera Pi/MAC-matchning på riktigt
+Resultat: probe ser alltid ut att vara fresh, även när RAPT-probe (current_temp) faktiskt är död. Blend används då för evigt med en fastfryst `current_temp`-värde, istället för att falla tillbaka till `pill_only` eller `delta_fallback`.
 
-a) Lägg till tydlig `console.log` i `ingest-pill-ble` precis efter `macToPill`-bygget och i loopen — logga `pills_in_db_macs`, `incoming_macs`, `matched`, `unknown`. Idag finns ingen log → vi flyger blint.
+**Åtgärd:**
+- Lägg till kolumn `current_temp_updated_at TIMESTAMPTZ` på `rapt_temp_controllers`.
+- `sync-rapt-data-quick`: sätt `current_temp_updated_at = now()` endast när `current_temp` faktiskt ändras från RAPT-pollen.
+- `ingest-pill-ble`: använd `current_temp_updated_at` (inte `last_update`) för PROBE_FRESH-checken.
+- Backfilla kolumnen till `last_update` engångsvis.
 
-b) Forcera ny deploy av `ingest-pill-ble` (kan vara stale deployment).
+## 2. Logging i `auto-adjust-cooling` använder gammal källa
 
-c) Verifiera efter nästa Pi-cykel (~3 min) via logs + SQL `SELECT pill_id, name, temperature, last_update, updated_at FROM rapt_pills`.
+`auto-adjust-cooling/index.ts:312-316` använder `current_temp ?? pill_temp` istället för `actual_temp` för loggraden `ctrl_temp` och flaggan `is_actively_cooling`. Strider mot SSOT-regeln och visar fel värde i decision-loggar (PID-besluten själva är korrekta — de använder `actual_temp` i `controller-adjustments.ts`).
 
-→ verify: `updated_at` har rört sig till nuvarande tid, `processed > 0` i logs.
+**Åtgärd:** Byt till `actual_temp ?? current_temp ?? 0`. Påverkar bara logg/visning.
 
-### Steg 2 — Delta-fallback för actual_temp
+## 3. Fermentationsmetriker är hårdkodade för 15-min RAPT-data
 
-I `ingest-pill-ble` rad 219-222, ersätt enkla fallbacken:
+Filen `_shared/fermentation-metrics-logic.ts`:
 
-```text
-Idag:
-  probe fresh  → actual = (pill + probe) / 2
-  probe stale  → actual = pill   ← hopp på 1-2°C när probe tappas
+- **`determineFermentationPhase`** (rad 33): kräver `hours >= 3` i 6h-fönstret innan fas detekteras. Med 1-min cadence räcker 1h för stabil derivata.
+- **`sgStable48h`** (rad 229): tröskel `< 0.002`. Smoothed BLE-SG har brusgolv runt 0.0003 — vi kan snäppa till `< 0.001` för snabbare crash-detektion utan falska positiva.
+- **`calculateActivityScore`** (rad 80): tar `deltas.slice(0, 6)`. `temp_delta_history` skrivs nu var minut → "recent" blir 6 min istället för avsedda ~1.5h. Byt till tidsfönster (senaste 90 min) istället för fast antal.
 
-Ny logik (använd inlärt offset):
-  probe fresh  → actual = (pill + probe) / 2        (behåll)
-  probe stale & pill_probe_offset finns
-               → actual = pill − (pill_probe_offset / 2)
-  probe stale & inget offset finns
-               → actual = pill                       (samma som idag)
-```
+## 4. Snapshot vid sync-rapt skriver `current_temp ?? pill_temp`
 
-Konkret: läs `pill_probe_offset` från controller (redan i `select`-listan i steg 1-läsningen — utöka från `select('current_temp, last_update')` till `select('current_temp, last_update, pill_probe_offset')`). Använd offset / 2 så midpoint bibehålls (probe är "den andra halvan").
+`sync-rapt-data-quick/index.ts:1332` använder `c.current_temp ?? c.pill_temp` när den bygger history-poster. Bör vara `c.actual_temp ?? c.current_temp ?? c.pill_temp` så `temp_controller_history.current_temp` matchar dashboarden.
 
-Ditt exempel: pill=16, probe=14 → offset≈+2, midpoint=15. Probe tappas, pill stiger till 17 → actual = 17 − 1 = 16. Pill faller till 15 → actual = 15 − 1 = 14. Midpoint följer pill-rörelsen, vilket är vad vi vill.
+---
 
-→ verify: efter deploy, simulera/vänta tills probe blir >30 min stale (eller logga `usedDeltaFallback: true`). Kolla att `actual_temp ≈ pill_temp − offset/2`.
+## Genomförandeordning
 
-### Steg 3 — Säkerhetsbälte
+1. Migration: lägg till `current_temp_updated_at` på `rapt_temp_controllers`, backfilla från `last_update`.
+2. Patch `sync-rapt-data-quick`: sätt `current_temp_updated_at` när probe ändras + använd `actual_temp` i history-skrivningen.
+3. Patch `ingest-pill-ble`: läs `current_temp_updated_at` för probe-freshness.
+4. Patch `auto-adjust-cooling`: logga `actual_temp`.
+5. Patch `fermentation-metrics-logic`: lös upp 15-min-antaganden (1h fönsterkrav, 0.001 stabilitet, tidsbaserat aktivitetsfönster).
+6. Verifiera nästa BLE-cykel: kolla att probe-fallback triggar om RAPT-probe pausar (testbart genom att jämföra `current_temp_updated_at` vs `last_update` i en SQL-fråga efter 30 min).
 
-- Klampa `offset` till `[−5, +5]` innan användning (skydd mot trasiga värden).
-- Om `Math.abs(offset) > 5` → fallback till ren pill + skriv `console.warn`.
+Ingen UI-ändring behövs — alla läsare hänger redan på `actual_temp` via SSOT-konventionen.
 
-## Vad jag INTE rör
+## Punkter jag medvetet INTE rör
 
-- PID-loopen, ramp, hysteresis, cooler-margin — oförändrat.
-- `sync-rapt-data-quick` (offset-lärningen är redan korrekt).
-- Probe-fresh 30 min-tröskeln.
-- Aktivitets-viktad fusion (`computeDualSensorTarget`) — vi valde enkel 50/50 + delta-fallback.
-
-## Risker
-
-- **Steg 1**: Om MAC-mismatch beror på något oväntat (t.ex. case, prefix) syns det i nya loggarna direkt. Worst case behöver vi normalisera bluetooth_mac vid skrivning också.
-- **Steg 2**: Offset-EMA kan ha drift om probe historiskt varit fel. Klampningen i steg 3 mitigerar.
-- Inget rör hårdvara — bara SSOT-beräkning. Säkert att rulla ut.
-
-## Efter implementation
-
-Stabil temperatur kräver att **alla tre** stämmer:
-1. ✅ Pi-data landar (löses i steg 1)
-2. ✅ Blandvärde när båda finns (redan på plats)
-3. ✅ Smart fallback när probe tappas (steg 2)
-
-Då kan jag säga ja på din fråga.
+- Dithering, PID-tuning, ramp-rate — fungerar på `actual_temp` redan och har egna memory-regler.
+- Cooler-management och `pid-compensation` — använder `actual_temp` korrekt.
+- `brew-snapshots.ts` — fixad i förra patchen.
+- `current_sg`-overwrite från RAPT-attenuation — separat ärende (behandlat tidigare).

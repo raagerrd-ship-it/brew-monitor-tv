@@ -380,6 +380,15 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString()
           };
 
+          // Stamp probe freshness ONLY when probe value actually changed (or first-seen).
+          // BLE-ingest writes last_update every minute, so we need a separate timestamp
+          // to detect when the RAPT probe has gone silent.
+          const prevProbe = existing?.current_temp != null ? Number(existing.current_temp) : null;
+          const newProbe = currentTemp != null ? Number(currentTemp) : null;
+          if (newProbe != null && (prevProbe == null || Math.abs(newProbe - prevProbe) > 1e-6)) {
+            updateData.current_temp_updated_at = new Date().toISOString();
+          }
+
           // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
           // Cold-start safety: if no actual_temp has ever been written and no pill is linked,
           // seed from the probe so the UI shows something.
@@ -1329,7 +1338,7 @@ Deno.serve(async (req) => {
         const dutyPct = dutyMap.get(c.controller_id);
         return {
           controller_id: c.controller_id,
-          current_temp: c.current_temp ?? c.pill_temp,
+          current_temp: c.actual_temp ?? c.current_temp ?? c.pill_temp,
           target_temp: post?.target_temp ?? c.target_temp,
           cooling_enabled: c.cooling_enabled || false,
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
