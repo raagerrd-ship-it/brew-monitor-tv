@@ -1134,11 +1134,15 @@ export type Database = {
           hysteresis_kick_active: boolean
           id: string
           is_glycol_cooler: boolean
+          last_hw_push_at: string | null
           last_update: string | null
           linked_pill_id: string | null
           max_target_temp: number | null
           min_target_temp: number | null
           name: string
+          pill_probe_offset: number | null
+          pill_probe_offset_baseline: number | null
+          pill_probe_offset_updated_at: string | null
           pill_temp: number | null
           preferred_sensor: string
           profile_target_temp: number | null
@@ -1163,11 +1167,15 @@ export type Database = {
           hysteresis_kick_active?: boolean
           id?: string
           is_glycol_cooler?: boolean
+          last_hw_push_at?: string | null
           last_update?: string | null
           linked_pill_id?: string | null
           max_target_temp?: number | null
           min_target_temp?: number | null
           name: string
+          pill_probe_offset?: number | null
+          pill_probe_offset_baseline?: number | null
+          pill_probe_offset_updated_at?: string | null
           pill_temp?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
@@ -1192,11 +1200,15 @@ export type Database = {
           hysteresis_kick_active?: boolean
           id?: string
           is_glycol_cooler?: boolean
+          last_hw_push_at?: string | null
           last_update?: string | null
           linked_pill_id?: string | null
           max_target_temp?: number | null
           min_target_temp?: number | null
           name?: string
+          pill_probe_offset?: number | null
+          pill_probe_offset_baseline?: number | null
+          pill_probe_offset_updated_at?: string | null
           pill_temp?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
