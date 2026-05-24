@@ -500,6 +500,27 @@ Deno.serve(async (req) => {
           });
           console.log(`SYNC_MANUAL_LOGGED: ${mc.controllerName}: Loggade manuell ändring ${mc.dbTarget}° → ${mc.hardwareTarget}°`);
         }
+
+        // Drift alarms — pill drifting away from probe by >1°C
+        for (const da of driftAlerts) {
+          const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+          const { data: recent } = await supabase
+            .from('pending_notifications')
+            .select('id')
+            .eq('type', 'sensor_drift')
+            .eq('controller_id', da.controllerId)
+            .gte('created_at', sixHoursAgo)
+            .limit(1);
+          if (!recent || recent.length === 0) {
+            await supabase.from('pending_notifications').insert({
+              type: 'sensor_drift',
+              controller_id: da.controllerId,
+              title: `Sensordrift: ${da.controllerName}`,
+              body: `Pill-probe-offset ${da.offset.toFixed(2)}° (baseline ${da.baseline.toFixed(2)}°). Kolla pillens batteri/läge eller probens kontakt.`,
+            });
+            console.log(`SENSOR_DRIFT: ${da.controllerName} offset=${da.offset.toFixed(2)}° baseline=${da.baseline.toFixed(2)}°`);
+          }
+        }
       }
 
       tPhase1Upsert = Date.now() - tUpsertStart;
