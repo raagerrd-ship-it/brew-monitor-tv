@@ -451,17 +451,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
 
-    // Dual sensor fusion: read pre-computed actual_temp from sync engine,
-    // or compute from controller's own dual_sensor_enabled flag
-    const dualEnabled = (fc as any).dual_sensor_enabled ?? false
-    const preferredSensor: 'pill' | 'probe' = (fc as any).preferred_sensor ?? 'pill'
-    const actualTemp = (fc as any).actual_temp != null
-      ? parseFloat(String((fc as any).actual_temp))
-      : computeDualSensorTarget(actualTarget, fc.current_temp ?? null, fc.pill_temp ?? null, dualEnabled, preferredSensor).actualTemp
-
-    // ── Temperature Interpolation between RAPT syncs ──
-    let interpolatedTemp = actualTemp
-    let tempInterpolated = false
+    // SSOT: pill (via BLE-ingest) writes actual_temp every minute. No fusion,
+    // no interpolation, no probe fallback. If actual_temp is missing the
+    // controller is skipped upstream by filterStaleControllers.
+    const actualTemp = parseFloat(String((fc as any).actual_temp))
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
     const thermalBucket = getTempBucket(actualTemp)
@@ -470,158 +463,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const pressureMap = learningsByController.get(fc.controller_id) ?? new Map()
     const sampleCountMap = samplesByController.get(fc.controller_id) ?? new Map()
 
-    // ── Learn observed actual_temp rate between syncs ──
-    // Track how actual_temp (the fusion) really changes, not the probe rate
-    const prevActualTemp = pressureMap.get('est_prev_actual_temp')
     const prevActualTempAt = pressureMap.get('est_prev_actual_temp_at')
-    let observedRate = pressureMap.get('est_observed_rate') ?? 0
-    const observedRateSamples = sampleCountMap.get('est_observed_rate') ?? 0
-    let observedDuty = pressureMap.get('est_observed_duty') ?? 0
     const prevDutyPct = pressureMap.get('pid_last_duty') ?? 0
-
-    // When we have fresh sensor data (not stale), learn the rate
-    if (staleMinutes <= 3 && prevActualTemp != null && prevActualTempAt != null) {
-      const prevTs = prevActualTempAt // stored as epoch seconds
-      const timeDiffHours = (lastUpdateMs - prevTs * 1000) / (1000 * 60 * 60)
-      if (timeDiffHours > 0.03 && timeDiffHours < 1.0) {
-        const rawObservedRate = (actualTemp - prevActualTemp) / timeDiffHours
-        // Only learn meaningful rates (> 0.1°/h)
-        if (Math.abs(rawObservedRate) > 0.1) {
-          // EMA with alpha=0.3 for responsiveness
-          const alpha = observedRateSamples >= 3 ? 0.3 : 0.5
-          observedRate = observedRate !== 0
-            ? observedRate * (1 - alpha) + rawObservedRate * alpha
-            : rawObservedRate
-          // Also track the duty that was active during observation (EMA)
-          const dutyAtObservation = prevDutyPct > 0 ? prevDutyPct : 100
-          observedDuty = observedDuty > 0
-            ? observedDuty * (1 - alpha) + dutyAtObservation * alpha
-            : dutyAtObservation
-          log('EST_RATE_LEARNED', 'info',
-            `${fc.name}: observerad hastighet ${rawObservedRate.toFixed(3)}°/h (EMA ${observedRate.toFixed(3)}°/h, duty@obs ${observedDuty.toFixed(0)}%, ${timeDiffHours.toFixed(1)}h mellan synk)`)
-        }
-      }
-
-      // Accuracy check: compare last prediction to actual
-      const lastPrediction = pressureMap.get('est_last_prediction')
-      if (lastPrediction != null) {
-        const predictionError = actualTemp - lastPrediction
-        log('EST_ACCURACY', 'info',
-          `${fc.name}: prediktion var ${Number(lastPrediction).toFixed(2)}°, verkligt ${Number(actualTemp).toFixed(2)}°, fel ${predictionError > 0 ? '+' : ''}${predictionError.toFixed(3)}°`)
-      }
-    }
-
-    // ── Pre-PID Temperature Interpolation ──────────────────────
-    // When sensor data is stale (no new RAPT reading), interpolate
-    // using observed rate or previous duty to give PID a fresh estimate.
-    // Uses previous cycle's duty (pid_last_duty) for fallback rate.
-    if (staleMinutes > 3) {
-      const lastModeVal = pressureMap.get('pid_current_mode')
-      const lastMode = lastModeVal === 1 ? 'heating' : lastModeVal === 2 ? 'cooling' : null
-      if (lastMode) {
-        const hasObservedRate = observedRateSamples >= 2 && Math.abs(observedRate) > 0.05
-        let effectiveRatePerHour: number
-        let rateSource: string
-
-        if (hasObservedRate) {
-          // Scale observed rate by duty ratio: if rate was measured at 90% duty
-          // but current duty is 50%, effective rate should be ~55% of observed
-          const dutyRatio = (observedDuty > 0 && prevDutyPct > 0)
-            ? Math.min(prevDutyPct / observedDuty, 1.5)  // cap at 1.5x to avoid overestimation
-            : 1.0
-          effectiveRatePerHour = Math.abs(observedRate) * dutyRatio
-          rateSource = dutyRatio !== 1.0 ? `observed*${dutyRatio.toFixed(2)}` : 'observed'
-        } else {
-          const globalRateKey = `thermal_rate_${lastMode}`
-          const bucketRateKey = `${globalRateKey}:${thermalBucket}`
-          const bucketRate = pressureMap.get(bucketRateKey)
-          const bucketSamples = sampleCountMap.get(bucketRateKey) ?? 0
-          const useBucketRate = bucketRate != null && bucketSamples >= 3
-          const thermalRate = useBucketRate ? bucketRate : (pressureMap.get(globalRateKey) ?? 0)
-          const rateSamples = useBucketRate ? bucketSamples : (sampleCountMap.get(globalRateKey) ?? 0)
-          rateSource = useBucketRate ? `${thermalBucket}(fallback)` : 'global(fallback)'
-          const dutyFraction = Math.min(prevDutyPct, 100) / 100
-          effectiveRatePerHour = thermalRate * dutyFraction
-
-          if (thermalRate <= 0 || rateSamples < 3 || prevDutyPct <= 0) {
-            effectiveRatePerHour = 0
-          }
-        }
-
-        if (effectiveRatePerHour > 0) {
-          const gapToTarget = actualTemp - actualTarget
-
-          const isOnCorrectSide = (lastMode === 'cooling' && gapToTarget > 0) ||
-                                   (lastMode === 'heating' && gapToTarget < 0)
-
-          if (!isOnCorrectSide) {
-            // Already past target — estimate passive recovery toward target
-            // When cooling overshoots (temp < target), ambient heat pulls temp back up
-            // When heating overshoots (temp > target), heat loss pulls temp back down
-            const overshoot = Math.abs(gapToTarget) // how far past target
-            const dutyFraction = Math.min(prevDutyPct, 100) / 100
-
-            // Passive recovery rate: larger overshoot = faster recovery (more thermal gradient)
-            // Base passive rate ~0.10°C/h, scaled by overshoot magnitude
-            const passiveRate = Math.min(0.10 + overshoot * 0.3, 0.4) // cap at 0.4°C/h
-
-            // If duty is still active, it fights recovery — net rate decreases
-            // At 0% duty: full passive recovery. At 100% duty: active force dominates.
-            const activeForce = effectiveRatePerHour * dutyFraction
-            const netRecoveryRate = Math.max(passiveRate - activeForce * 0.3, 0)
-
-            if (netRecoveryRate > 0) {
-              const recoveryPerMin = netRecoveryRate / 60
-              const recoveryDelta = Math.min(recoveryPerMin * staleMinutes, overshoot * 0.5) // don't recover more than halfway
-              const recoverySign = lastMode === 'cooling' ? 1 : -1 // opposite of active direction
-
-              interpolatedTemp = actualTemp + recoverySign * recoveryDelta
-              // Clamp: don't recover past target
-              if (lastMode === 'cooling') {
-                interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
-              } else {
-                interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
-              }
-
-              interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
-
-              if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
-                tempInterpolated = true
-                log('TEMP_INTERPOLATED', 'info',
-                  `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (recovery ${netRecoveryRate.toFixed(2)}°/h, overshoot ${overshoot.toFixed(2)}°, prevDuty ${prevDutyPct}%)`)
-              }
-            }
-          } else {
-            const ratePerMin = effectiveRatePerHour / 60
-            const rawDelta = ratePerMin * staleMinutes
-            const deltaEst = Math.min(rawDelta, 0.3)
-            const sign = lastMode === 'cooling' ? -1 : 1
-
-            interpolatedTemp = actualTemp + sign * deltaEst
-
-            // Clamp: don't interpolate past the target
-            if (lastMode === 'cooling') {
-              interpolatedTemp = Math.max(interpolatedTemp, actualTarget)
-            } else {
-              interpolatedTemp = Math.min(interpolatedTemp, actualTarget)
-            }
-
-            interpolatedTemp = Math.round(interpolatedTemp * 100) / 100
-
-            if (Math.abs(interpolatedTemp - actualTemp) >= 0.005) {
-              tempInterpolated = true
-              log('TEMP_INTERPOLATED', 'info',
-                `${fc.name}: sensor ${Number(actualTemp).toFixed(2)}° (${staleMinutes.toFixed(0)}min gammal) → est ${Number(interpolatedTemp).toFixed(2)}° (rate ${effectiveRatePerHour.toFixed(2)}°/h, källa ${rateSource}, prevDuty ${prevDutyPct}%)`)
-            }
-          }
-        }
-      }
-    }
-
-    // When we have a valid interpolation, PID should use the interpolated temp
-    // and NOT be blocked by stale-data guard — the interpolation provides a
-    // reliable estimate between RAPT sync intervals.
-    const pidInputTemp = tempInterpolated ? interpolatedTemp : actualTemp
+    // PID input is always the real sensor reading — no interpolation.
+    const pidInputTemp = actualTemp
 
     // ── Ramp-rate-limiting: prevents abrupt target changes ──────
     // Gradually moves the effective target at a max rate.
