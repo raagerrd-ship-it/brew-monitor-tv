@@ -176,20 +176,9 @@ async function executePwmDutyCycle(
   // 10-slot dithering: over 50 min (10×5-min cycles), use high step for 'fraction' slots
   const ditherSlot = Math.floor(Date.now() / 300000) % 10
   const dutyPct = ditherSlot < Math.round(fraction) ? dutyHigh : dutyLow
-  const totalBurstMin = dutyPct / 10
-  const phase = Math.floor(Date.now() / 300000) % 2
-  const currentBurstMin = phase === 0 ? Math.ceil(totalBurstMin / 2) : Math.floor(totalBurstMin / 2)
-  let burstSeconds = currentBurstMin * 60
-
-  // LOW-DUTY CONSOLIDATION: at ≤10% duty, the standard 60s-every-10min pattern
-  // makes the fermenter feel many micro-pulses without enough thermal effect
-  // between them to evaluate. Consolidate to a single longer burst per 20 min
-  // (4-cycle window). Average duty unchanged.
-  //   10% → 120s every 20min instead of 60s every 10min (-50% burst count)
-  if (dutyPct > 0 && dutyPct <= 10) {
-    const lowPhase = Math.floor(Date.now() / 300000) % 4
-    burstSeconds = lowPhase === 0 ? totalBurstMin * 60 * 2 : 0
-  }
+  // Single consolidated burst per 10-min cycle (no split phases).
+  // burstSeconds = dutyPct% * 600s  →  10%=60s, 40%=240s, 100%=600s.
+  const burstSeconds = Math.round((dutyPct / 100) * 600)
 
   const raptProbeTemp = fc.current_temp
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
