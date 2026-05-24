@@ -650,7 +650,8 @@ Deno.serve(async (req) => {
       }
 
       // ── Quick-append: use Phase 1 pill data (no API call) ──
-      for (const { brew, pillId } of quickAppendBrews) {
+      // Skipped entirely when BLE source — ingest-pill-ble writes snapshots + brew_readings.
+      for (const { brew, pillId } of (pillsViaBle ? [] : quickAppendBrews)) {
         try {
           const pill = pillMap.get(pillId);
           if (!pill) {
@@ -738,7 +739,7 @@ Deno.serve(async (req) => {
       }
 
       // ── Initial sync: fetch full telemetry history (parallel) ──
-      if (initialSyncBrews.length > 0 && access_token) {
+      if (!pillsViaBle && initialSyncBrews.length > 0 && access_token) {
         console.log(`Initial sync for ${initialSyncBrews.length} brews (fetching telemetry)...`);
         await Promise.all(initialSyncBrews.map(async ({ brew, pillId }) => {
           try {
