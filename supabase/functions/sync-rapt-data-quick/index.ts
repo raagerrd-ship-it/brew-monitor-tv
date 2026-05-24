@@ -170,6 +170,12 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Feature flag: when 'ble', pill telemetry comes from Pi via ingest-pill-ble.
+    // RAPT pill API + pill snapshots are skipped here entirely.
+    const PILLS_SOURCE = (Deno.env.get('PILLS_SOURCE') || 'rapt').toLowerCase();
+    const pillsViaBle = PILLS_SOURCE === 'ble';
+    if (pillsViaBle) console.log('🔵 PILLS_SOURCE=ble — RAPT pill fetch + snapshots skipped');
+
     // ── Concurrency guard: skip if another sync ran <30s ago ──
     const { data: recentLog } = await supabase
       .from('auto_cooling_decision_logs')
@@ -260,7 +266,8 @@ Deno.serve(async (req) => {
       raptFailedPhase = '1b fetch';
       const tFetch = Date.now();
       let fetchedControllers: any[];
-      const shouldFetchPills = selectedPillIds.length > 0 || discoverNewDevices;
+      // Skip RAPT pill fetch when BLE source active (unless discovering new devices)
+      const shouldFetchPills = !pillsViaBle && (selectedPillIds.length > 0 || discoverNewDevices);
       const shouldFetchControllers = selectedControllerIds.length > 0 || discoverNewDevices;
       [fetchedPills, fetchedControllers] = await Promise.all([
         shouldFetchPills ? fetchRaptPills(access_token) : Promise.resolve([]),
@@ -287,8 +294,19 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Upsert Pills
-      if (selectedPillIds.length > 0) {
+      // When pills come via BLE, build maps from DB (BLE ingest keeps rapt_pills fresh)
+      if (pillsViaBle) {
+        const { data: dbPills } = await supabase
+          .from('rapt_pills')
+          .select('pill_id, temperature, paired_device_id');
+        for (const p of dbPills ?? []) {
+          if (p.temperature != null && p.temperature !== 0) pillTempMap.set(p.pill_id, p.temperature);
+          if (p.paired_device_id) controllerToPillId.set(p.paired_device_id, p.pill_id);
+        }
+      }
+
+      // Upsert Pills (skipped when BLE source — Pi writes them)
+      if (!pillsViaBle && selectedPillIds.length > 0) {
         const selectedPillsData = fetchedPills.filter((pill: any) => selectedPillIds.includes(pill.id));
         if (selectedPillsData.length > 0) {
           const pillUpserts = selectedPillsData.map((pill: any) => ({
@@ -632,7 +650,8 @@ Deno.serve(async (req) => {
       }
 
       // ── Quick-append: use Phase 1 pill data (no API call) ──
-      for (const { brew, pillId } of quickAppendBrews) {
+      // Skipped entirely when BLE source — ingest-pill-ble writes snapshots + brew_readings.
+      for (const { brew, pillId } of (pillsViaBle ? [] : quickAppendBrews)) {
         try {
           const pill = pillMap.get(pillId);
           if (!pill) {
@@ -720,7 +739,7 @@ Deno.serve(async (req) => {
       }
 
       // ── Initial sync: fetch full telemetry history (parallel) ──
-      if (initialSyncBrews.length > 0 && access_token) {
+      if (!pillsViaBle && initialSyncBrews.length > 0 && access_token) {
         console.log(`Initial sync for ${initialSyncBrews.length} brews (fetching telemetry)...`);
         await Promise.all(initialSyncBrews.map(async ({ brew, pillId }) => {
           try {

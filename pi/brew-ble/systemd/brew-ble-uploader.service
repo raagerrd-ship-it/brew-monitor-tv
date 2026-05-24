@@ -1,0 +1,9 @@
+[Unit]
+Description=Brew BLE Uploader (oneshot, every minute)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/brew-ble
+ExecStart=/opt/brew-ble/venv/bin/python /opt/brew-ble/uploader.py
