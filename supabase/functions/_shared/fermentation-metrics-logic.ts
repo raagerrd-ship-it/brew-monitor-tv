@@ -30,7 +30,9 @@ function determineFermentationPhase(
   const newest = recent[0]
   const oldest = recent[recent.length - 1]
   const hours = (new Date(newest.date).getTime() - new Date(oldest.date).getTime()) / (1000 * 60 * 60)
-  if (hours < 3) return { phase: 'unknown', sgRatePerHour: 0 }
+  // BLE pushes every minute, so 1h of samples is enough for a stable derivative
+  // (was 3h when we only had 15-min RAPT polls).
+  if (hours < 1) return { phase: 'unknown', sgRatePerHour: 0 }
 
   const sgDrop = oldest.value - newest.value
   const sgRatePerHour = sgDrop / hours
@@ -67,7 +69,7 @@ function determineFermentationPhase(
 // ─── Activity score ───────────────────────────────────────────────────
 
 function calculateActivityScore(
-  deltas: { delta: number }[],
+  deltas: { delta: number; recorded_at?: string }[],
   peakDelta: number,
   sgRatePerHour: number,
   peakSgRatePerHour: number,
@@ -77,8 +79,12 @@ function calculateActivityScore(
 
   let deltaScore = 0
   if (deltas.length > 0 && peakDelta > 0) {
-    const recentAvg = deltas.slice(0, Math.min(6, deltas.length))
-      .reduce((sum, d) => sum + Math.abs(d.delta), 0) / Math.min(6, deltas.length)
+    // Time-based recency: average deltas from the last 90 min.
+    // Falls back to first N samples if timestamps are missing.
+    const cutoff = Date.now() - 90 * 60 * 1000
+    const recent = deltas.filter(d => d.recorded_at && new Date(d.recorded_at).getTime() > cutoff)
+    const window = recent.length > 0 ? recent : deltas.slice(0, Math.min(6, deltas.length))
+    const recentAvg = window.reduce((sum, d) => sum + Math.abs(d.delta), 0) / window.length
     deltaScore = recentAvg / peakDelta
   }
 
