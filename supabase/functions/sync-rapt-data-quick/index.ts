@@ -170,14 +170,12 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Pills should stay BLE-owned unless explicitly switched back.
-    // Default to BLE so RAPT quick sync can never overwrite pill pairings by accident.
-    const pillsSource = (Deno.env.get('PILLS_SOURCE') || 'ble').trim().toLowerCase();
-    const pillsViaBle = pillsSource !== 'rapt';
+    // Pills are BLE-owned only. Never let RAPT quick sync fetch, backfill,
+    // or overwrite pill telemetry/pairing regardless of secret configuration.
+    const pillsSource = (Deno.env.get('PILLS_SOURCE') || '').trim().toLowerCase();
+    const pillsViaBle = true;
     console.log(
-      pillsViaBle
-        ? `🔵 Pills via BLE (PILLS_SOURCE=${pillsSource}) — RAPT pill fetch + snapshots disabled`
-        : `🟣 Pills via RAPT (PILLS_SOURCE=${pillsSource}) — RAPT pill fetch enabled`
+      `🔵 Pills locked to BLE-only${pillsSource ? ` (PILLS_SOURCE=${pillsSource} ignored)` : ''} — RAPT pill fetch + telemetry disabled`
     );
 
     // ── Concurrency guard: skip if another sync ran <30s ago ──
