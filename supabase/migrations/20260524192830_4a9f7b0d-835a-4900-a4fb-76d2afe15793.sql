@@ -1,0 +1,2 @@
+ALTER TABLE public.rapt_pills ADD COLUMN IF NOT EXISTS bluetooth_mac text;
+CREATE UNIQUE INDEX IF NOT EXISTS rapt_pills_bluetooth_mac_unique ON public.rapt_pills (lower(regexp_replace(bluetooth_mac, '[^a-fA-F0-9]', '', 'g'))) WHERE bluetooth_mac IS NOT NULL;
