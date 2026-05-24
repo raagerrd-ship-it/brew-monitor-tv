@@ -69,15 +69,17 @@ Deno.serve(async (req) => {
   // Track controllers that received fresh BLE data this batch (event-trigger candidates)
   const updatedControllers = new Set<string>();
 
-  // Load all pills with paired_device_id (MAC)
+  // Load all pills with bluetooth_mac (dedicated BLE-MAC column).
+  // NOTE: paired_device_id holds the RAPT controller UUID and is overwritten by
+  // sync-rapt-data-quick — do NOT use it for MAC matching.
   const { data: pills, error: pillsErr } = await supabase
     .from('rapt_pills')
-    .select('pill_id, paired_device_id');
+    .select('pill_id, bluetooth_mac');
   if (pillsErr) return json({ error: 'DB read failed', details: pillsErr.message }, 500);
 
   const macToPill = new Map<string, string>();
   for (const p of pills ?? []) {
-    if (p.paired_device_id) macToPill.set(normMac(p.paired_device_id), p.pill_id);
+    if (p.bluetooth_mac) macToPill.set(normMac(p.bluetooth_mac), p.pill_id);
   }
 
   // Load pill→controller map once (so we can promote BLE temp to controller SSOT)
