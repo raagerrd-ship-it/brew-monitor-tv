@@ -60,11 +60,15 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   // When dual-sensor is OFF, display the user's preferred sensor directly
   // (with fallback) rather than the stored actual_temp, which may lag behind
   // a recent preference toggle until the next sync.
-  const actualTemp = isPillCompActive
+  // SSOT: glycol cooler always uses actual_temp (matches header). Only fermenters
+  // fall back to preferred sensor when dual-sensor compensation is off.
+  const actualTemp = isCooler
     ? currentController.actual_temp
-    : preferredSensor === 'probe'
-      ? (currentController.current_temp ?? currentController.pill_temp ?? currentController.actual_temp)
-      : (currentController.pill_temp ?? currentController.current_temp ?? currentController.actual_temp);
+    : isPillCompActive
+      ? currentController.actual_temp
+      : preferredSensor === 'probe'
+        ? (currentController.current_temp ?? currentController.pill_temp ?? currentController.actual_temp)
+        : (currentController.pill_temp ?? currentController.current_temp ?? currentController.actual_temp);
   const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
 
   return (
