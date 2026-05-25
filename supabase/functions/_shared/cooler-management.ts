@@ -1184,7 +1184,7 @@ async function learnFromCurrentState(
   }
 
   // ── Rate-based learning during active ramps ──
-  if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null) {
+  if (effectiveTarget.requiredRatePerHour != null && effectiveTarget.requiredRatePerHour > 0 && actualRate !== null && Number.isFinite(actualRate)) {
     const requiredRate = effectiveTarget.requiredRatePerHour
     const ratio = actualRate > 0.05 ? requiredRate / actualRate : 2.0
 
