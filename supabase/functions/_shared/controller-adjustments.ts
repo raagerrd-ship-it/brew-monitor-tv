@@ -467,7 +467,17 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // SSOT: pill (via BLE-ingest) writes actual_temp every minute. No fusion,
     // no interpolation, no probe fallback. If actual_temp is missing the
     // controller is skipped upstream by filterStaleControllers.
-    const actualTemp = parseFloat(String((fc as any).actual_temp))
+    // FALLBACK: if BLE-ingest hasn't written actual_temp yet (race vs auto-adjust
+    // at :00), use pill_temp directly — it's the same physical sensor that feeds
+    // actual_temp, so no SSOT violation. Avoids NaN → 0% duty → blocked PID.
+    let actualTemp = parseFloat(String((fc as any).actual_temp))
+    if (!Number.isFinite(actualTemp)) {
+      const pillFallback = parseFloat(String((fc as any).pill_temp))
+      if (Number.isFinite(pillFallback)) {
+        actualTemp = pillFallback
+        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder pill_temp=${round1(pillFallback)}° för PID`)
+      }
+    }
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
     const thermalBucket = getTempBucket(actualTemp)
