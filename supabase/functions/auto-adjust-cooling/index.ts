@@ -558,6 +558,23 @@ Deno.serve(async (req) => {
       coolerMarginContext: coolerMarginCtx,
     };
 
+    // Circuit-breaker: hämta öppna kretsar för aktiva controllers så PID
+    // kan hoppa över bursts mot controllers som upprepat failat mot RAPT.
+    try {
+      const { getOpenCircuits } = await import('../_shared/rapt-circuit-breaker.ts');
+      const activeIds = followedControllersFullData.map(c => c.controller_id);
+      const openCircuits = await getOpenCircuits(supabase, activeIds);
+      controllerCtx.openCircuitControllerIds = openCircuits;
+      if (openCircuits.size > 0) {
+        const names = followedControllersFullData
+          .filter(c => openCircuits.has(c.controller_id))
+          .map(c => c.name).join(', ');
+        log('CIRCUIT_STATE', 'fail', `⏸️ RAPT-krets öppen för: ${names} — PWM-bursts pausade`);
+      }
+    } catch (cbErr) {
+      console.error(`Circuit-breaker fetch fail: ${cbErr}`);
+    }
+
     const controllerAdjs = await runControllerAdjustments(controllerCtx);
     allAdjustments.push(...controllerAdjs);
 
