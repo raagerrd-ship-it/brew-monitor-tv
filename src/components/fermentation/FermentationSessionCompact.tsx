@@ -80,8 +80,9 @@ export function FermentationSessionCompact({
   // Single source of truth: backend-computed profile target stored on controller
   const effectiveStepTarget = controllerProfileTarget;
 
-  // Profile target first, controller target only as final fallback
-  const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? targetTemp;
+  // Profile target only — never fall back to controller's raw target_temp,
+  // which can be a PWM-burst value (e.g. -5°C / 40°C) and would mislead the user.
+  const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? null;
 
   const progress = useFermentationProgress({
     currentStep,
