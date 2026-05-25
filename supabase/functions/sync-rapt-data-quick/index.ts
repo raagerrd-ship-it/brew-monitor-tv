@@ -389,6 +389,13 @@ Deno.serve(async (req) => {
             updateData.current_temp_updated_at = new Date().toISOString();
           }
 
+          // For controllers WITHOUT a linked pill (e.g. glycol cooler), BLE-ingest never
+          // touches last_update — so RAPT sync owns freshness for those. Stamp last_update
+          // on every successful poll so auto-cooling doesn't flag them as stale.
+          if (!linkedPillId && currentTemp != null) {
+            updateData.last_update = new Date().toISOString();
+          }
+
           // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
           // Cold-start safety: if no actual_temp has ever been written and no pill is linked,
           // seed from the probe so the UI shows something.
