@@ -157,7 +157,12 @@ Deno.serve(async (req) => {
   // No sleep/blocking needed here.
 
   // Log health summary to pending_notifications if critical
-  if (healthData?.overall_status === 'critical') {
+  const suppressHealthCriticalNotification =
+    healthData?.overall_status === 'critical' &&
+    (healthData.summary?.duplicate_controller_sessions?.length ?? 0) === 0 &&
+    (healthData.summary?.sessions_with_stale_controllers ?? 0) > 0;
+
+  if (healthData?.overall_status === 'critical' && !suppressHealthCriticalNotification) {
     const issuesSummary = (healthData.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
     // Deduplicate: only send if no recent health-critical notification
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();

@@ -129,16 +129,7 @@ Deno.serve(async (req) => {
     const followedControllerIds = followedControllersFullData.map(c => c.controller_id);
 
     if (staleControllers.length > 0) {
-      // Notify about stale sensors — this is a safety concern
-      for (const sc of staleControllers) {
-        const age = isSensorDataStale(sc.last_update);
-        await insertNotification(supabase, {
-          type: 'stale_sensor',
-          title: 'Sensor offline',
-          body: `${sc.name}: Ingen sensordata på ${age.ageMinutes ?? '?'} minuter. Automatisk styrning pausad för denna enhet.`,
-          controller_id: sc.controller_id,
-        });
-      }
+      log('STALE_SENSORS', 'warn', `${staleControllers.length} controller(s) skipped due to stale sensor data`);
     }
 
     if (followedControllerIds.length === 0) {

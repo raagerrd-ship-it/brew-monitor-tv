@@ -1085,7 +1085,14 @@ Deno.serve(async (req) => {
       };
 
       // Health critical notification
-      if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical') {
+      const suppressHealthCriticalNotification =
+        healthResult &&
+        !healthResult.__error &&
+        healthResult.overall_status === 'critical' &&
+        (healthResult.summary?.duplicate_controller_sessions?.length ?? 0) === 0 &&
+        (healthResult.summary?.sessions_with_stale_controllers ?? 0) > 0;
+
+      if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical' && !suppressHealthCriticalNotification) {
         const issuesSummary = (healthResult.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data: recentHealthNotifs } = await supabase
