@@ -1,55 +1,44 @@
-## Bakgrund
+## Granskning av temperaturreglering — nuvarande status
 
-Sedan BLE-pillen skickar data varje minut (via `ingest-pill-ble`) skrivs `actual_temp` på controllern som blend `(pill + probe) / 2` när probe är fresh, annars `pill - offset/2`. Snapshot-historiken är nu omräknad till samma medel. Vid en genomgång av övrig kod hittade jag följande som inte hänger med den nya kadensen.
+### Vad som redan är stabilt (verifierat i kod + senaste logg 09:58)
 
----
+**Pill-data från RAPT är helt avstängt:**
+- `sync-rapt-data-quick` har `pillsViaBle = true` hårdkodat (rad 176). `shouldFetchPills = !pillsViaBle && ...` ⇒ ingen `fetchRaptPills`-anrop, ingen pill-telemetri, ingen pill-upsert.
+- När `pillsViaBle` är på byggs `pillTempMap`/`controllerToPillId` från `rapt_pills`-tabellen som BLE-sniffern uppdaterar via `ingest-pill-ble`.
+- PID läser `actual_temp` (skrivet av BLE) som SSOT, med pill_temp som fallback.
 
-## 1. Probe-staleness är osynlig (allvarligt)
+**Cirkulationsbrytaren fungerar end-to-end:**
+- Senaste cykeln (09:58:03) visade `CIRCUIT_OPEN_SKIP: Gul` ✔, `CIRCUIT_OPEN: skippar PWM OFF för Gul → deferred 2 min` ✔, samtidigt som Blå fick 100 % cooling och Kylare justerades till 6.8°C utan att Gul störde RAPT-quotan.
+- PWM-OFF defer ökar inte `attempts` (skyddar mot "dead row"-sopning av en pausad controller).
+- Heartbeat/revert i `executePwmDutyCycle` är också gated av `openCircuitControllerIds`, så vi spammar inte RAPT med Gul-reverts under cooldown.
 
-`ingest-pill-ble` läser `rapt_temp_controllers.last_update` för att avgöra om probe är fresh (PROBE_FRESH_MS = 30 min), men skriver **samma kolumn** med BLE-timestampen varje minut.
+**Reglerlogiken (PID + cooler) är stabil:**
+- `actualTemp` SSOT med pill-fallback förhindrar NaN→0 % duty.
+- Ramp-rate-limit + integral wind-up release + emergency override + capability guards är på plats.
+- Cooler-margin separat från PID-burst-flödet ⇒ kylaren regleras även när en tank har öppen krets.
 
-Resultat: probe ser alltid ut att vara fresh, även när RAPT-probe (current_temp) faktiskt är död. Blend används då för evigt med en fastfryst `current_temp`-värde, istället för att falla tillbaka till `pill_only` eller `delta_fallback`.
+### Kvarvarande små hårdvarings-möjligheter (inte kritiska, men ökar robusthet)
 
-**Åtgärd:**
-- Lägg till kolumn `current_temp_updated_at TIMESTAMPTZ` på `rapt_temp_controllers`.
-- `sync-rapt-data-quick`: sätt `current_temp_updated_at = now()` endast när `current_temp` faktiskt ändras från RAPT-pollen.
-- `ingest-pill-ble`: använd `current_temp_updated_at` (inte `last_update`) för PROBE_FRESH-checken.
-- Backfilla kolumnen till `last_update` engångsvis.
+1. **Probe-före-flod när kretsen stänger** — efter 10 min cooldown släpps **alla** bursts + alla pending reverts genom på en gång. Om Gul fortfarande är död rasar streaken upp till 6+ direkt. Bättre: tillåt **en enda revert (PWM OFF) som "probe"** först; om den lyckas → tillåt PID-bursts nästa cykel; om den failar → öppna kretsen igen utan att burnsa 3 RAPT-anrop.
 
-## 2. Logging i `auto-adjust-cooling` använder gammal källa
+2. **Bounded streak** — `rapt_write_fail_streak` växer ohotat (>100 om hårdvaran är död i ett dygn). Cappa vid `FAIL_THRESHOLD + 2` så `getCircuitState` aldrig läser nonsens-värden.
 
-`auto-adjust-cooling/index.ts:312-316` använder `current_temp ?? pill_temp` istället för `actual_temp` för loggraden `ctrl_temp` och flaggan `is_actively_cooling`. Strider mot SSOT-regeln och visar fel värde i decision-loggar (PID-besluten själva är korrekta — de använder `actual_temp` i `controller-adjustments.ts`).
+3. **Notifiering när krets öppnas** — idag skrivs bara `console.error`. Lägg en `pending_notifications`-rad första gången kretsen öppnas (dedupe 1 h) så vi får push:
+   > "RAPT-controller Gul svarar inte — PWM pausad i 10 min"
 
-**Åtgärd:** Byt till `actual_temp ?? current_temp ?? 0`. Påverkar bara logg/visning.
+4. **NaN-cleanup i log** — `RATE_LEARN: actual NaN°C/h` syns i loggen när rate ej kan beräknas (delning med 0). Bara kosmetiskt; logga `n/a` istället.
 
-## 3. Fermentationsmetriker är hårdkodade för 15-min RAPT-data
+### Förslag
 
-Filen `_shared/fermentation-metrics-logic.ts`:
+Vill du att jag bygger punkt 1–3 (probe-recovery, bounded streak, notifiering) i en build-runda? Punkt 4 kan jag ta på köpet. Annars är systemet stabilt som det är nu — Gul kommer fortsätta vara pausad var 10:e min utan att störa Blå/Kylare.
 
-- **`determineFermentationPhase`** (rad 33): kräver `hours >= 3` i 6h-fönstret innan fas detekteras. Med 1-min cadence räcker 1h för stabil derivata.
-- **`sgStable48h`** (rad 229): tröskel `< 0.002`. Smoothed BLE-SG har brusgolv runt 0.0003 — vi kan snäppa till `< 0.001` för snabbare crash-detektion utan falska positiva.
-- **`calculateActivityScore`** (rad 80): tar `deltas.slice(0, 6)`. `temp_delta_history` skrivs nu var minut → "recent" blir 6 min istället för avsedda ~1.5h. Byt till tidsfönster (senaste 90 min) istället för fast antal.
+### Tekniska detaljer (för punkt 1–3 om vi går vidare)
 
-## 4. Snapshot vid sync-rapt skriver `current_temp ?? pill_temp`
-
-`sync-rapt-data-quick/index.ts:1332` använder `c.current_temp ?? c.pill_temp` när den bygger history-poster. Bör vara `c.actual_temp ?? c.current_temp ?? c.pill_temp` så `temp_controller_history.current_temp` matchar dashboarden.
-
----
-
-## Genomförandeordning
-
-1. Migration: lägg till `current_temp_updated_at` på `rapt_temp_controllers`, backfilla från `last_update`.
-2. Patch `sync-rapt-data-quick`: sätt `current_temp_updated_at` när probe ändras + använd `actual_temp` i history-skrivningen.
-3. Patch `ingest-pill-ble`: läs `current_temp_updated_at` för probe-freshness.
-4. Patch `auto-adjust-cooling`: logga `actual_temp`.
-5. Patch `fermentation-metrics-logic`: lös upp 15-min-antaganden (1h fönsterkrav, 0.001 stabilitet, tidsbaserat aktivitetsfönster).
-6. Verifiera nästa BLE-cykel: kolla att probe-fallback triggar om RAPT-probe pausar (testbart genom att jämföra `current_temp_updated_at` vs `last_update` i en SQL-fråga efter 30 min).
-
-Ingen UI-ändring behövs — alla läsare hänger redan på `actual_temp` via SSOT-konventionen.
-
-## Punkter jag medvetet INTE rör
-
-- Dithering, PID-tuning, ramp-rate — fungerar på `actual_temp` redan och har egna memory-regler.
-- Cooler-management och `pid-compensation` — använder `actual_temp` korrekt.
-- `brew-snapshots.ts` — fixad i förra patchen.
-- `current_sg`-overwrite från RAPT-attenuation — separat ärende (behandlat tidigare).
+- `_shared/rapt-circuit-breaker.ts`:
+  - Lägg `PARAM_PROBE = 'rapt_circuit_probe_pending'` (0/1).
+  - I `recordWriteFailure`: cappa `newStreak = Math.min(current.failStreak + 1, FAIL_THRESHOLD + 2)`.
+  - Ny export `consumeProbe(controllerId)` — atomiskt sätt probe=0 och returnera true om den var 1.
+  - När `openUntilMs` löper ut: nästa `getOpenCircuits`-call sätter probe=1 för den controllern.
+- `execute-pwm-off/index.ts`: om controllern har probe=1, släpp **en** revert genom (inte alla pending för den controllern). Vid success → `recordWriteSuccess` (nollställer streak + probe). Vid fail → `recordWriteFailure` (öppnar krets igen).
+- `controller-adjustments.ts`: bursts blockeras tills probe=0 OCH krets stängd (dvs en lyckad revert måste ha gått igenom efter cooldown).
+- Notifiering i `recordWriteFailure` när `justOpened=true`: insert i `pending_notifications` med dedupe-check (`type='rapt_controller_dead', controller_id=X, created_at > now()-1h`).
