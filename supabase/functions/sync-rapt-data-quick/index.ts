@@ -394,6 +394,12 @@ Deno.serve(async (req) => {
           // on every successful poll so auto-cooling doesn't flag them as stale.
           if (!linkedPillId && currentTemp != null) {
             updateData.last_update = new Date().toISOString();
+          } else {
+            // BLE-linked controller: BLE-ingest owns last_update in DB. Round-trip the
+            // existing value into the in-memory payload so downstream consumers
+            // (auto-adjust-cooling via injected_controllers) see real freshness instead
+            // of `null`, which would falsely flag the controller as offline.
+            updateData.last_update = existing?.last_update ?? null;
           }
 
           // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
