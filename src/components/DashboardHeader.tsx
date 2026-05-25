@@ -358,7 +358,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                            <AlertTriangle
                              className="w-3 h-3 flex-shrink-0"
                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
-                             aria-label={`Pill ${Math.round(pillAgeMin)} min gammal`}
+                             aria-label={`${pillStale ? `Pill ${Math.round(pillAgeMin)} min` : ''}${pillStale && probeStale ? ' · ' : ''}${probeStale ? `Probe ${Math.round(probeAgeMin)} min` : ''}`}
                            />
                          )}
                          {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
