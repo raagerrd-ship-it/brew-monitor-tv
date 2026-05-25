@@ -332,7 +332,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                                  color: 'hsl(200 40% 50%)',
                                  opacity: 0.8,
                                }}>
-                                 › {targetTemp.toFixed(0)}°
+                                 › {targetTemp.toFixed(1)}°
                                </span>
                              )}
                            </div>
