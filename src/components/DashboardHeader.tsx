@@ -313,11 +313,12 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                     {/* Temp first (left) */}
                     {(() => {
-                       const displayTemp = controller.actual_temp;
                        const pillAgeMin = linkedPill?.last_update
                          ? (now - new Date(linkedPill.last_update).getTime()) / 60000
                          : Infinity;
                        const pillWarn = !!linkedPill && pillAgeMin > 5;
+                       const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
+                       const displayTemp = controller.actual_temp ?? pillTempVal ?? controller.current_temp ?? null;
                        if (controller.is_glycol_cooler) {
                          const targetTemp = controller.target_temp;
                          return (
