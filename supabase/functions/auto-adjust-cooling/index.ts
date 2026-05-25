@@ -324,6 +324,9 @@ Deno.serve(async (req) => {
 
       const details: Record<string, unknown> = {
         last_update: controller.last_update ? new Date(controller.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+        last_probe_update: (controller as any).current_temp_updated_at ? new Date((controller as any).current_temp_updated_at).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+        last_probe_update_raw: (controller as any).current_temp_updated_at || null,
+        last_update_raw: controller.last_update || null,
         pill_temp: pillTemp, ctrl_temp: currentTemp, ctrl_target: targetTemp,
         profile_target: originalTarget,
         cooling_enabled: controller.cooling_enabled, is_actively_cooling: isActivelyCooling,
