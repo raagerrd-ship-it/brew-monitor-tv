@@ -56,6 +56,8 @@ export interface ControllerAdjustmentContext {
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
   /** Cooler context for margin-aware PID gain scaling */
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null
+  /** Circuit-breaker: controllers vars RAPT-writes är pausade pga konsekutiva fel. */
+  openCircuitControllerIds?: Set<string>
 }
 
 /**
@@ -165,6 +167,13 @@ async function executePwmDutyCycle(
   }
   if (mode === 'heating' && !fc.heating_enabled) {
     log('MODE_GUARD', 'fail', `🚨 ${fc.name}: attempted heating burst but heating_enabled=false — BLOCKED`)
+    return
+  }
+
+  // Circuit-breaker: blockera nya bursts mot controllers med öppen krets.
+  // Skyddar RAPT-quota för övriga controllers tills den döda återhämtar sig.
+  if (ctx.openCircuitControllerIds?.has(fc.controller_id)) {
+    log('CIRCUIT_OPEN_SKIP', 'fail', `⏸️ ${fc.name}: RAPT-krets öppen (för många konsekutiva fel) — hoppar över PWM-burst denna cykel`, { mode })
     return
   }
 

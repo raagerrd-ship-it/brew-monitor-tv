@@ -1203,6 +1203,32 @@ Deno.serve(async (req) => {
       flushResults = await batch.flush();
       const failed = [...flushResults.entries()].filter(([, ok]) => !ok);
 
+      // ── Circuit-breaker: registrera success/fail per controller ──
+      try {
+        const { recordWriteSuccess, recordWriteFailure } = await import('../_shared/rapt-circuit-breaker.ts');
+        const ctrlNameForLog = new Map(controllerUpdatesForHistory.map(c => [c.controller_id, c.name as string]));
+        await Promise.all(
+          [...flushResults.entries()].map(async ([controllerId, ok]) => {
+            if (ok) {
+              await recordWriteSuccess(supabase, controllerId);
+            } else {
+              const res = await recordWriteFailure(supabase, controllerId);
+              if (res.justOpened) {
+                const name = ctrlNameForLog.get(controllerId) || controllerId;
+                console.error(`🚨 CIRCUIT_OPEN: ${name} — ${res.newStreak} konsekutiva fel, pausar RAPT-writes till ${new Date(res.openUntilMs).toISOString()}`);
+                automationDecisionLog.push({
+                  step: 'CIRCUIT_OPEN', result: 'fail',
+                  message: `${name}: ${res.newStreak} konsekutiva RAPT-fel — pausar writes i 10 min (skyddar quota för övriga controllers)`,
+                  details: { controller_id: controllerId, fail_streak: res.newStreak, open_until_ms: res.openUntilMs },
+                });
+              }
+            }
+          })
+        );
+      } catch (cbErr) {
+        console.error(`Circuit-breaker bokföring fail: ${cbErr}`);
+      }
+
       if (failed.length > 0) {
         console.error(`Phase 3a: ${failed.length} update(s) failed`);
 
