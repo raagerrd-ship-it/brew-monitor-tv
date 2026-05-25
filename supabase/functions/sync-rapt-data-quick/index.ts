@@ -408,7 +408,21 @@ Deno.serve(async (req) => {
           // Probe = drift sanity-check. When we have both pill and probe readings,
           // learn a running pill−probe offset (EMA, alpha=0.2). Alarm if the offset
           // drifts >1.0°C from its 24h baseline (pill floating, battery weak, etc.).
-          if (pillTemp != null && currentTemp != null) {
+          //
+          // PWM-guard: skip learning + drift-alarm while the controller's hw target
+          // sits at a PWM extreme (≤ min+0.5° or ≥ max−0.5°) or during the
+          // OFF-revert window (probe±2°). In both cases the probe is being driven
+          // toward an artificial target and pill−probe is meaningless.
+          const hwTarget = controller.targetTemperature != null ? Number(controller.targetTemperature) : null;
+          const minBound = existing?.min_target_temp != null ? Number(existing.min_target_temp) : -10;
+          const maxBound = existing?.max_target_temp != null ? Number(existing.max_target_temp) : 40;
+          const atColdExtreme = hwTarget != null && hwTarget <= minBound + 0.5;
+          const atHotExtreme = hwTarget != null && hwTarget >= maxBound - 0.5;
+          const inRevertWindow = hwTarget != null && currentTemp != null
+            && Math.abs(hwTarget - Number(currentTemp)) <= 2.5
+            && Math.abs(hwTarget - Number(currentTemp)) >= 1.5;
+          const pwmActive = atColdExtreme || atHotExtreme || inRevertWindow;
+          if (pillTemp != null && currentTemp != null && !pwmActive) {
             const rawOffset = pillTemp - Number(currentTemp);
             const prevOffset = existing?.pill_probe_offset != null ? Number(existing.pill_probe_offset) : null;
             const newOffset = prevOffset == null ? rawOffset : prevOffset * 0.8 + rawOffset * 0.2;
@@ -428,6 +442,8 @@ Deno.serve(async (req) => {
                 baseline,
               });
             }
+          } else if (pillTemp != null && currentTemp != null && pwmActive) {
+            console.log(`OFFSET_SKIP_PWM: ${existing?.name || controller.id} hwTarget=${hwTarget}° probe=${currentTemp}° (cold=${atColdExtreme} hot=${atHotExtreme} revert=${inRevertWindow})`);
           }
 
           if (linkedPillId) updateData.linked_pill_id = linkedPillId;
