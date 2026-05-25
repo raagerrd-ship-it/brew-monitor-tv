@@ -170,6 +170,13 @@ async function executePwmDutyCycle(
     return
   }
 
+  // Circuit-breaker: blockera nya bursts mot controllers med öppen krets.
+  // Skyddar RAPT-quota för övriga controllers tills den döda återhämtar sig.
+  if (ctx.openCircuitControllerIds?.has(fc.controller_id)) {
+    log('CIRCUIT_OPEN_SKIP', 'fail', `⏸️ ${fc.name}: RAPT-krets öppen (för många konsekutiva fel) — hoppar över PWM-burst denna cykel`, { mode })
+    return
+  }
+
   // 2-cycle model with dithering: achieves sub-10% effective duty over time.
   // E.g. dutyRaw=0.23 → alternates between 20% and 30% (30% used 3/10 cycles).
   const dutyLow = Math.floor(dutyRaw * 10) * 10   // e.g. 20
