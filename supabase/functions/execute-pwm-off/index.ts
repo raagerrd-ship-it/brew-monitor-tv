@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getOpenCircuits, recordWriteSuccess, recordWriteFailure } from "../_shared/rapt-circuit-breaker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,9 +79,24 @@ Deno.serve(async (req) => {
 
   console.log(`execute-pwm-off: ${pendingOffs.length} pending PWM OFF command(s) due`);
 
+  // ── Circuit-breaker: hoppa över controllers med öppen krets ──
+  const dueIds = [...new Set(pendingOffs.map(r => r.controller_id as string))];
+  const openCircuits = await getOpenCircuits(supabase, dueIds);
+  const deferUntil = new Date(Date.now() + 2 * 60 * 1000).toISOString(); // försök igen om 2 min
+
   const results: { controller_id: string; status: string; error?: string }[] = [];
 
   for (const retry of pendingOffs) {
+    if (openCircuits.has(retry.controller_id)) {
+      console.warn(`⏸️ CIRCUIT_OPEN: skippar PWM OFF för ${retry.controller_id} — skjuter upp till ${deferUntil}`);
+      // Skjut upp execute_at men öka INTE attempts (det är inte vårt fel)
+      await supabase.from("pending_rapt_retries")
+        .update({ execute_at: deferUntil })
+        .eq("id", retry.id);
+      results.push({ controller_id: retry.controller_id, status: "deferred_circuit_open" });
+      continue;
+    }
+
     const burstStart = Date.now();
     let offOk = false;
 
@@ -127,6 +143,9 @@ Deno.serve(async (req) => {
     if (offOk) {
       // Delete the pending retry
       await supabase.from("pending_rapt_retries").delete().eq("id", retry.id);
+
+      // Circuit-breaker: lyckat write → nollställ fail-streak
+      await recordWriteSuccess(supabase, retry.controller_id);
 
       // CRITICAL: Update DB target_temp to the revert value NOW that we've
       // confirmed the RAPT command succeeded. During the burst, DB was kept
@@ -191,6 +210,11 @@ Deno.serve(async (req) => {
         .from("pending_rapt_retries")
         .update({ attempts: (retry.attempts ?? 0) + 1 })
         .eq("id", retry.id);
+      // Circuit-breaker: räkna upp fail-streak
+      const cb = await recordWriteFailure(supabase, retry.controller_id);
+      if (cb.justOpened) {
+        console.error(`🚨 CIRCUIT_OPEN: ${retry.controller_id} — ${cb.newStreak} konsekutiva PWM-OFF fel, pausar i 10 min`);
+      }
       console.error(`PWM OFF failed for ${retry.controller_id} after 3 attempts`);
       results.push({ controller_id: retry.controller_id, status: "error", error: "All 3 attempts failed" });
     }
