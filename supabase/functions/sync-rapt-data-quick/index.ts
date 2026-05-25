@@ -389,16 +389,12 @@ Deno.serve(async (req) => {
             updateData.current_temp_updated_at = new Date().toISOString();
           }
 
-          // For controllers WITHOUT a linked pill (e.g. glycol cooler), BLE-ingest never
-          // touches last_update — so RAPT sync owns freshness for those. Stamp last_update
-          // on every successful poll so auto-cooling doesn't flag them as stale.
-          if (!linkedPillId && currentTemp != null) {
+          // No BLE ingest in this project — RAPT sync is the sole source of last_update.
+          // Stamp on every successful poll so downstream consumers (auto-adjust-cooling)
+          // see real freshness and don't flag the controller as offline.
+          if (currentTemp != null) {
             updateData.last_update = new Date().toISOString();
           } else {
-            // BLE-linked controller: BLE-ingest owns last_update in DB. Round-trip the
-            // existing value into the in-memory payload so downstream consumers
-            // (auto-adjust-cooling via injected_controllers) see real freshness instead
-            // of `null`, which would falsely flag the controller as offline.
             updateData.last_update = existing?.last_update ?? null;
           }
 
