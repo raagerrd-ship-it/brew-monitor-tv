@@ -173,12 +173,14 @@ async function executePwmDutyCycle(
   const dutyLow = Math.floor(dutyRaw * 10) * 10   // e.g. 20
   const dutyHigh = Math.ceil(dutyRaw * 10) * 10    // e.g. 30
   const fraction = dutyRaw * 100 - dutyLow          // e.g. 3.0 (how many tenths toward high)
-  // 10-slot dithering: over 50 min (10×5-min cycles), use high step for 'fraction' slots
-  const ditherSlot = Math.floor(Date.now() / 300000) % 10
+  // 5-min PWM cycle (matches sync cadence). 10-slot dithering across 50 min.
+  const SLOT_MS = 300_000
+  const currentSlot = Math.floor(Date.now() / SLOT_MS)
+  const ditherSlot = currentSlot % 10
   const dutyPct = ditherSlot < Math.round(fraction) ? dutyHigh : dutyLow
-  // Single consolidated burst per 10-min cycle (no split phases).
-  // burstSeconds = dutyPct% * 600s  →  10%=60s, 40%=240s, 100%=600s.
-  const burstSeconds = Math.round((dutyPct / 100) * 600)
+  // Single consolidated burst per 5-min cycle (no split phases).
+  // burstSeconds = dutyPct% * 300s  →  20%=60s, 40%=120s, 100%=300s.
+  const burstSeconds = Math.round((dutyPct / 100) * 300)
 
   const raptProbeTemp = fc.current_temp
   const minTemp = parseFloat(String(fc.min_target_temp ?? '-10'))
@@ -220,7 +222,22 @@ async function executePwmDutyCycle(
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: 300, duty_pct: 100, mode })
   } else if (burstSeconds > 0) {
-    // 10-90%: burst at extreme, schedule revert to suppress target
+    // 10-90%: burst at extreme, schedule revert to suppress target.
+    // Slot guard: only fire ONE burst per 5-min slot. Subsequent
+    // run-automation runs within the same slot leave the pending
+    // PWM OFF row untouched so the cycle completes naturally.
+    const slotParam = `pwm_last_slot:${mode}`
+    const { data: slotRow } = await supabase
+      .from('fermentation_learnings')
+      .select('learned_value')
+      .eq('controller_id', fc.controller_id)
+      .eq('parameter_name', slotParam)
+      .maybeSingle()
+    const lastSlot = slotRow ? Math.floor(parseFloat(String(slotRow.learned_value))) : -1
+    if (lastSlot === currentSlot) {
+      log('DUTY_BURST_SKIP', 'info', `${fc.name}: ${mode} ${dutyPct}% — burst redan schemalagd för 5-min-slot ${currentSlot}`, { duty_pct: dutyPct, mode, slot: currentSlot })
+      return
+    }
     log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% (raw=${Math.round(dutyRaw * 100)}%, dither=${ditherSlot}/${Math.round(fraction)}) → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
       duty_pct: dutyPct, duty_raw: Math.round(dutyRaw * 100), dither_slot: ditherSlot, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode,
     })
@@ -230,12 +247,14 @@ async function executePwmDutyCycle(
       await setControllerTargetTemp(ctx.supabaseUrl, ctx.serviceRoleKey, fc.controller_id, onTarget)
     }
     // CRITICAL: Keep DB target_temp at onTarget (matching actual hardware state).
-    // Align to minute boundary so the 1-min cron picks it up precisely
-    const minuteFloor = Math.floor(Date.now() / 60000) * 60000
-    const executeAt = new Date(minuteFloor + burstSeconds * 1000).toISOString()
+    // Anchor revert at the 5-min slot start so the OFF lands exactly
+    // burstSeconds into the slot regardless of when the cron fired.
+    const slotStartMs = currentSlot * SLOT_MS
+    const executeAt = new Date(slotStartMs + burstSeconds * 1000).toISOString()
+    const nowIso = new Date().toISOString()
     await Promise.all([
       supabase.from('rapt_temp_controllers')
-        .update({ target_temp: onTarget, updated_at: new Date().toISOString() })
+        .update({ target_temp: onTarget, updated_at: nowIso })
         .eq('controller_id', fc.controller_id),
       supabase.from('pending_rapt_retries')
         .delete().eq('controller_id', fc.controller_id).like('reason', '%PWM OFF%')
@@ -250,6 +269,11 @@ async function executePwmDutyCycle(
         .update({ latest_p_correction: 0, updated_at: new Date().toISOString() })
         .eq('controller_id', fc.controller_id)
         .eq('mode', mode),
+      // Persist slot marker so we don't re-fire this slot
+      supabase.from('fermentation_learnings').upsert(
+        { controller_id: fc.controller_id, parameter_name: slotParam, learned_value: currentSlot, sample_count: 1, last_updated_at: nowIso },
+        { onConflict: 'controller_id,parameter_name' },
+      ),
     ])
     adjustments.push({ cooler: fc.name, oldTarget: ctrlTarget, newTarget: onTarget })
     ctx.pwmBursts.push({ controller_id: fc.controller_id, controller_name: fc.name, on_target: onTarget, off_target: revertTarget, duty_seconds: burstSeconds, duty_pct: dutyPct, mode })
