@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getOpenCircuits, recordWriteSuccess, recordWriteFailure } from "../_shared/rapt-circuit-breaker.ts";
+import { getOpenCircuits, recordWriteSuccess, recordWriteFailure, consumeProbe, isProbePending } from "../_shared/rapt-circuit-breaker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,16 +85,28 @@ Deno.serve(async (req) => {
   const deferUntil = new Date(Date.now() + 2 * 60 * 1000).toISOString(); // försök igen om 2 min
 
   const results: { controller_id: string; status: string; error?: string }[] = [];
+  // Spåra vilka controllers som redan fått en probe-revert denna körning så vi
+  // inte släpper igenom flera revert-rader för samma controller i samma cykel.
+  const probeConsumedThisRun = new Set<string>();
 
   for (const retry of pendingOffs) {
     if (openCircuits.has(retry.controller_id)) {
-      console.warn(`⏸️ CIRCUIT_OPEN: skippar PWM OFF för ${retry.controller_id} — skjuter upp till ${deferUntil}`);
-      // Skjut upp execute_at men öka INTE attempts (det är inte vårt fel)
-      await supabase.from("pending_rapt_retries")
-        .update({ execute_at: deferUntil })
-        .eq("id", retry.id);
-      results.push({ controller_id: retry.controller_id, status: "deferred_circuit_open" });
-      continue;
+      // Probe-recovery: om en probe är armad (cooldown precis löpt ut) släpper vi
+      // igenom EXAKT EN revert som test. Övriga rader för samma controller
+      // skjuts upp tills probe-resultatet är känt.
+      const probeArmed = !probeConsumedThisRun.has(retry.controller_id) && await isProbePending(supabase, retry.controller_id);
+      if (probeArmed && await consumeProbe(supabase, retry.controller_id)) {
+        probeConsumedThisRun.add(retry.controller_id);
+        console.log(`🔎 CIRCUIT_PROBE: släpper en PWM OFF som probe för ${retry.controller_id}`);
+        // fall-through till normal execution nedan
+      } else {
+        console.warn(`⏸️ CIRCUIT_OPEN: skippar PWM OFF för ${retry.controller_id} — skjuter upp till ${deferUntil}`);
+        await supabase.from("pending_rapt_retries")
+          .update({ execute_at: deferUntil })
+          .eq("id", retry.id);
+        results.push({ controller_id: retry.controller_id, status: "deferred_circuit_open" });
+        continue;
+      }
     }
 
     const burstStart = Date.now();
