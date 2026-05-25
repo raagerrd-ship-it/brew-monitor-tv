@@ -477,14 +477,29 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // no interpolation, no probe fallback. If actual_temp is missing the
     // controller is skipped upstream by filterStaleControllers.
     // FALLBACK: if BLE-ingest hasn't written actual_temp yet (race vs auto-adjust
-    // at :00), use pill_temp directly — it's the same physical sensor that feeds
-    // actual_temp, so no SSOT violation. Avoids NaN → 0% duty → blocked PID.
+    // at :00), recompute the SSOT on-the-fly from the same inputs BLE-ingest uses.
+    // When dual_sensor is enabled, that means avg(pill, probe) — NOT just pill —
+    // otherwise PID sees a value 0.5–1°C off from reality and skips needed action
+    // (e.g. pill 18.2°, probe 17.1° → real SSOT 17.65°, but pill-only fallback
+    // would tell PID it's at 18.2° and brake cooling while the beer is undershooting).
     let actualTemp = parseFloat(String((fc as any).actual_temp))
     if (!Number.isFinite(actualTemp)) {
-      const pillFallback = parseFloat(String((fc as any).pill_temp))
-      if (Number.isFinite(pillFallback)) {
-        actualTemp = pillFallback
-        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder pill_temp=${round1(pillFallback)}° för PID`)
+      const pill = parseFloat(String((fc as any).pill_temp))
+      const probe = parseFloat(String((fc as any).current_temp))
+      const dualEnabled = !!(fc as any).dual_sensor_enabled
+      const preferred = (fc as any).preferred_sensor as string | undefined
+      if (dualEnabled && Number.isFinite(pill) && Number.isFinite(probe)) {
+        actualTemp = (pill + probe) / 2
+        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — räknar snitt(pill=${round1(pill)}°, probe=${round1(probe)}°) = ${round1(actualTemp)}° för PID`)
+      } else if (preferred === 'probe' && Number.isFinite(probe)) {
+        actualTemp = probe
+        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder probe=${round1(probe)}° för PID`)
+      } else if (Number.isFinite(pill)) {
+        actualTemp = pill
+        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder pill=${round1(pill)}° för PID`)
+      } else if (Number.isFinite(probe)) {
+        actualTemp = probe
+        log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder probe=${round1(probe)}° för PID (ingen pill)`)
       }
     }
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
