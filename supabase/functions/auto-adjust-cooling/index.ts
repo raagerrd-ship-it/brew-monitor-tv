@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       if (ids.length > 0) {
         const { data: ssotRows } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, pill_temp, actual_temp, profile_target_temp, current_temp_updated_at, last_hw_push_at, pill_probe_offset, pill_probe_offset_baseline, hysteresis_kick_active')
+          .select('controller_id, pill_temp, actual_temp, profile_target_temp, current_temp_updated_at, last_hw_push_at, pill_probe_offset, pill_probe_offset_baseline, hysteresis_kick_active, dual_sensor_enabled, preferred_sensor')
           .in('controller_id', ids);
         const ssotMap = new Map((ssotRows ?? []).map((r: any) => [r.controller_id, r]));
         allControllers = allControllers.map(c => {

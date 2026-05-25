@@ -377,6 +377,7 @@ Deno.serve(async (req) => {
             profile_target_temp: existing?.profile_target_temp ?? null,
             min_target_temp: existing?.min_target_temp ?? null,
             max_target_temp: existing?.max_target_temp ?? null,
+            actual_temp: existing?.actual_temp ?? null,
             updated_at: new Date().toISOString()
           };
 
@@ -398,7 +399,8 @@ Deno.serve(async (req) => {
             updateData.last_update = existing?.last_update ?? null;
           }
 
-          // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
+          // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. Preserve existing
+          // actual_temp for pill-linked controllers so sync upsert never nulls it out.
           // When NO pill is linked (e.g. glycol cooler), BLE-ingest never runs for this
           // controller — so actual_temp would otherwise be stuck at its cold-start seed.
           // Keep actual_temp = probe on every sync so the SSOT stays fresh.
