@@ -99,11 +99,19 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
         return vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
       };
 
+      const median = (key: string) => {
+        const vals = group.map((g: any) => g[key]).filter((v: any) => v != null).sort((a: number, b: number) => a - b);
+        if (vals.length === 1) return vals[0];
+        if (vals.length === 0) return null;
+        const mid = Math.floor(vals.length / 2);
+        return vals.length % 2 === 0 ? (vals[mid - 1] + vals[mid]) / 2 : vals[mid];
+      };
+
       const r2 = (v: number | null) => v == null ? null : Math.round(v * 100) / 100;
       const r4 = (v: number | null) => v == null ? null : Math.round(v * 10000) / 10000;
 
       const merged = {
-        sg: r4(avg('sg')),
+        sg: r4(median('sg')),
         pill_temp: r2(avg('pill_temp')),
         controller_temp: r2(avg('controller_temp')),
         profile_target_temp: r2(avg('profile_target_temp')),
