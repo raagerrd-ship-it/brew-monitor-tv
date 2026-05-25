@@ -227,40 +227,18 @@ Deno.serve(async (req) => {
         .eq('controller_id', controllerId)
         .maybeSingle();
 
+      // Always blend latest pill + latest probe regardless of probe age. UI shows
+      // a warning triangle when pill > 5 min or probe > 31 min stale; staleness
+      // is a presentation concern, not a fusion concern.
       const probeTemp = ctrlFull?.current_temp != null ? Number(ctrlFull.current_temp) : null;
-      // Use current_temp_updated_at (stamped only when probe actually changes) so BLE's
-      // per-minute writes to last_update can't mask a silent RAPT probe.
-      const probeStampSource = ctrlFull?.current_temp_updated_at ?? ctrlFull?.last_update;
-      const probeAgeMs = probeStampSource
-        ? Date.now() - new Date(probeStampSource).getTime()
-        : Infinity;
-      const PROBE_FRESH_MS = 30 * 60 * 1000;
-      const probeFresh =
-        probeTemp != null && Number.isFinite(probeTemp) && probeAgeMs < PROBE_FRESH_MS;
-
       let actualTemp: number;
       let fusionMode: string;
-      if (probeFresh) {
-        actualTemp = (smoothedTemp + probeTemp!) / 2;
+      if (probeTemp != null && Number.isFinite(probeTemp)) {
+        actualTemp = (smoothedTemp + probeTemp) / 2;
         fusionMode = 'blend';
       } else {
-        // Probe stale → use learned offset (pill - probe) to preserve midpoint.
-        // midpoint ≈ pill - offset/2 when probe was last seen.
-        const rawOffset = ctrlFull?.pill_probe_offset != null
-          ? Number(ctrlFull.pill_probe_offset)
-          : null;
-        const offsetValid =
-          rawOffset != null && Number.isFinite(rawOffset) && Math.abs(rawOffset) <= 5;
-        if (offsetValid) {
-          actualTemp = smoothedTemp - rawOffset / 2;
-          fusionMode = `delta_fallback(offset=${rawOffset.toFixed(2)})`;
-        } else {
-          if (rawOffset != null && Math.abs(rawOffset) > 5) {
-            console.warn(`[ingest-pill-ble] ${controllerId}: offset ${rawOffset} out of range, using pill`);
-          }
-          actualTemp = smoothedTemp;
-          fusionMode = 'pill_only';
-        }
+        actualTemp = smoothedTemp;
+        fusionMode = 'pill_only(no_probe)';
       }
       console.log(`[ingest-pill-ble] ${controllerId}: pill=${smoothedTemp.toFixed(2)} probe=${probeTemp ?? 'null'} actual=${actualTemp.toFixed(2)} mode=${fusionMode}`);
 

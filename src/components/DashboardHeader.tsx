@@ -316,7 +316,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                        const pillAgeMin = linkedPill?.last_update
                          ? (now - new Date(linkedPill.last_update).getTime()) / 60000
                          : Infinity;
-                       const pillWarn = !!linkedPill && pillAgeMin > 5;
+                       const probeStamp = (controller as any).current_temp_updated_at ?? controller.last_update;
+                       const probeAgeMin = probeStamp
+                         ? (now - new Date(probeStamp).getTime()) / 60000
+                         : Infinity;
+                       const pillStale = !!linkedPill && pillAgeMin > 5;
+                       const probeStale = controller.current_temp != null && probeAgeMin > 31;
+                       const pillWarn = pillStale || probeStale;
                        const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
                        const displayTemp = controller.actual_temp ?? pillTempVal ?? controller.current_temp ?? null;
                        if (controller.is_glycol_cooler) {
@@ -352,7 +358,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                            <AlertTriangle
                              className="w-3 h-3 flex-shrink-0"
                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
-                             aria-label={`Pill ${Math.round(pillAgeMin)} min gammal`}
+                             aria-label={`${pillStale ? `Pill ${Math.round(pillAgeMin)} min` : ''}${pillStale && probeStale ? ' · ' : ''}${probeStale ? `Probe ${Math.round(probeAgeMin)} min` : ''}`}
                            />
                          )}
                          {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
