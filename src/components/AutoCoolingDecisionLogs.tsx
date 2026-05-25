@@ -1184,6 +1184,8 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
           const pillDet = pillData?.details || {};
           const util = utilByName.get(name);
           const lastUpdate = det.last_update as string | null;
+          const lastProbeUpdate = det.last_probe_update as string | null;
+          const displayTime = lastProbeUpdate || lastUpdate;
           const isStale = !!det.stale;
           const isGlycol = !!det.glycol;
           const isInactive = !!det.inactive;
@@ -1356,7 +1358,18 @@ function PipelineView({ decisions, hideSync, hidePid, recentCoolerAdjs, logCreat
                   </span>
                 </td>
                 <td className="py-1 px-1.5 text-right text-muted-foreground font-mono whitespace-nowrap">
-                  {lastUpdate || '—'}
+                  {displayTime ? (
+                    <TooltipProvider delayDuration={200}><Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">{displayTime}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs max-w-[220px]">
+                        {lastProbeUpdate
+                          ? <>Senaste <b>nya</b> probe-värdet från RAPT.<br/>Senaste poll: {lastUpdate || '—'}</>
+                          : <>Senaste lyckade poll (RAPT-hårdvaran exponerar ingen device-sent-tid på controllers).</>}
+                      </TooltipContent>
+                    </Tooltip></TooltipProvider>
+                  ) : '—'}
                 </td>
               </tr>
               {pillData && (() => {
