@@ -490,11 +490,16 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   }
 
   // 6. PWM OFF decision logs → OFF
-  const isPwmOffLog = log.final_result.startsWith('⚡ PWM OFF:');
-  if (isPwmOffLog) {
-    const pwmOffDecision = log.decisions.find(d => d.step === 'PWM_OFF');
+  // Detect PWM-OFF independently of final_result text — any log with a PWM_OFF step is a revert cycle.
+  const pwmOffDecisions = log.decisions.filter(d => d.step === 'PWM_OFF');
+  const isPwmOffLog = pwmOffDecisions.length > 0;
+  for (const pwmOffDecision of pwmOffDecisions) {
     const det = pwmOffDecision?.details as Record<string, unknown> | undefined;
-    const controllerName = String(det?.controller_name || '');
+    let controllerName = String(det?.controller_name || '');
+    if (!controllerName) {
+      const m = pwmOffDecision.message?.match(/^([^:]+):/);
+      if (m) controllerName = m[1].trim();
+    }
     const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : 0;
     const mode = (det?.mode === 'heating' ? 'heating' : 'cooling') as 'heating' | 'cooling';
     if (controllerName) {
@@ -565,11 +570,11 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
-  // Fallback: no active controllers
+  // Fallback: no active controllers — show "Tom cykel" so it's clear there's nothing to inspect.
   if (raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle))) {
     raptBadges.push(
-      <Badge key="system" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary) / 0.3)' }}>
-        <Gauge className="h-2.5 w-2.5 mr-0.5" />System
+      <Badge key="empty" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--muted-foreground) / 0.15)', color: 'hsl(var(--muted-foreground))', borderColor: 'hsl(var(--muted-foreground) / 0.25)' }}>
+        <Gauge className="h-2.5 w-2.5 mr-0.5" />Tom cykel
       </Badge>
     );
   }
