@@ -399,9 +399,10 @@ Deno.serve(async (req) => {
           }
 
           // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. We do NOT touch them here.
-          // Cold-start safety: if no actual_temp has ever been written and no pill is linked,
-          // seed from the probe so the UI shows something.
-          if (existing?.actual_temp == null && pillTemp == null && currentTemp != null) {
+          // When NO pill is linked (e.g. glycol cooler), BLE-ingest never runs for this
+          // controller — so actual_temp would otherwise be stuck at its cold-start seed.
+          // Keep actual_temp = probe on every sync so the SSOT stays fresh.
+          if (pillTemp == null && currentTemp != null) {
             updateData.actual_temp = currentTemp;
           }
 
