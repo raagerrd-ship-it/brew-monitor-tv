@@ -272,22 +272,30 @@ export function AutoCoolingDecisionLogs() {
         ...(adj as unknown as AdjustmentLog), category: categorizeAdjustment(adj.reason),
       }));
 
-      // Build adjustment lookup by time for quick access in EntryRow
+      // Build adjustment lookup by time for quick access in EntryRow.
+      // Glykol-justeringar skrivs av cooler-management via orchestratorns batch-flush
+      // som triggas 60–90 s EFTER att decision_log redan postats. För att hålla allt
+      // som hör till samma 5-min-cykel på samma rad matchar vi mot NÄRMASTE decision
+      // inom ±150 s (asymmetriskt mer framåt eftersom adjusten alltid kommer efter).
+      const MATCH_WINDOW_BEFORE_MS = 30 * 1000;
+      const MATCH_WINDOW_AFTER_MS = 150 * 1000;
       const adjByTime = new Map<string, (AdjustmentLog & { category: AdjustmentCategory })[]>();
       for (const adj of adjustments) {
-        // Find closest decision log (within 15s)
-        let matched = false;
+        const adjTs = new Date(adj.created_at).getTime();
+        let bestDec: typeof decisions[number] | null = null;
+        let bestDelta = Infinity;
         for (const dec of decisions) {
-          if (Math.abs(new Date(adj.created_at).getTime() - new Date(dec.created_at).getTime()) < 15000) {
-            const list = adjByTime.get(dec.id) || [];
-            list.push(adj);
-            adjByTime.set(dec.id, list);
-            matched = true;
-            break;
-          }
+          const delta = adjTs - new Date(dec.created_at).getTime();
+          // dec måste ha varit FÖRE adjusten (eller max 30s efter för PID-typ adjusts)
+          if (delta < -MATCH_WINDOW_BEFORE_MS || delta > MATCH_WINDOW_AFTER_MS) continue;
+          const absDelta = Math.abs(delta);
+          if (absDelta < bestDelta) { bestDelta = absDelta; bestDec = dec; }
         }
-        if (!matched) {
-          // Orphan adjustment — create standalone entry
+        if (bestDec) {
+          const list = adjByTime.get(bestDec.id) || [];
+          list.push(adj);
+          adjByTime.set(bestDec.id, list);
+        } else {
           const orphanId = `orphan-${adj.id}`;
           adjByTime.set(orphanId, [adj]);
         }
