@@ -324,7 +324,16 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                        const probeStale = controller.current_temp != null && probeAgeMin > 31;
                        const pillWarn = pillStale || probeStale;
                        const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
-                       const displayTemp = controller.actual_temp ?? pillTempVal ?? controller.current_temp ?? null;
+                       const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
+                       const dualEnabled = !!(controller as any).dual_sensor_enabled;
+                       const preferredSensor = (controller as any).preferred_sensor === 'probe' ? 'probe' : 'pill';
+                       const displayTemp = controller.actual_temp ?? (
+                         dualEnabled && pillTempVal != null && probeTempVal != null
+                           ? (pillTempVal + probeTempVal) / 2
+                           : preferredSensor === 'probe'
+                             ? (probeTempVal ?? pillTempVal)
+                             : (pillTempVal ?? probeTempVal)
+                       );
                        if (controller.is_glycol_cooler) {
                          const targetTemp = controller.target_temp;
                          return (
