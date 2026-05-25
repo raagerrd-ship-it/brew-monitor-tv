@@ -5,7 +5,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle } from "lucide-react";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
 
@@ -313,13 +313,11 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                     {/* Temp first (left) */}
                     {(() => {
+                       const displayTemp = controller.actual_temp;
                        const pillAgeMin = linkedPill?.last_update
                          ? (now - new Date(linkedPill.last_update).getTime()) / 60000
                          : Infinity;
-                       const pillFreshFallback = pillAgeMin <= 5 && (controller as any).pill_temp != null
-                         ? Number((controller as any).pill_temp)
-                         : null;
-                       const displayTemp = controller.actual_temp ?? pillFreshFallback;
+                       const pillWarn = !!linkedPill && pillAgeMin > 5;
                        if (controller.is_glycol_cooler) {
                          const targetTemp = controller.target_temp;
                          return (
@@ -345,12 +343,19 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          );
                        }
                       return (
-                         <span className="font-semibold tabular-nums whitespace-nowrap" style={{
+                         <span className="font-semibold tabular-nums whitespace-nowrap inline-flex items-center gap-1" style={{
                           fontSize: isMobile ? '14px' : '16px',
                          ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
-                       }}>
-                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                      </span>
+                        }}>
+                         {pillWarn && (
+                           <AlertTriangle
+                             className="w-3 h-3 flex-shrink-0"
+                             style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                             aria-label={`Pill ${Math.round(pillAgeMin)} min gammal`}
+                           />
+                         )}
+                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                       </span>
                       );
                     })()}
 
