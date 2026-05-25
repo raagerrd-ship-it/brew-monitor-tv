@@ -717,10 +717,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
             </div>
           )}
 
-          {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
-          {adjs.filter(a => a.category !== 'pill-comp' && a.category !== 'pill-comp-db' && a.category !== 'glykol').map(adj => (
-            <AdjustmentCard key={adj.id} adj={adj} />
-          ))}
+          {/* Adjustment detail cards. PID-rader visas redan i pipeline; glykol normalt i
+              GLYKOL-KYLARE-sektionen — men orphan-rader (decisions=[]) saknar pipeline,
+              då måste vi rendera glykol-kortet här annars blir expansionen tom. */}
+          {adjs
+            .filter(a => {
+              if (a.category === 'pill-comp' || a.category === 'pill-comp-db') return false;
+              if (a.category === 'glykol' && log.decisions.length > 0) return false;
+              return true;
+            })
+            .map(adj => (
+              <AdjustmentCard key={adj.id} adj={adj} />
+            ))}
         </div>
       </CollapsibleContent>
     </Collapsible>
