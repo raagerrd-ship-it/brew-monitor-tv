@@ -570,13 +570,28 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
     );
   }
 
-  // Fallback: no active controllers — show "Tom cykel" so it's clear there's nothing to inspect.
-  if (raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle))) {
-    raptBadges.push(
-      <Badge key="empty" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--muted-foreground) / 0.15)', color: 'hsl(var(--muted-foreground))', borderColor: 'hsl(var(--muted-foreground) / 0.25)' }}>
-        <Gauge className="h-2.5 w-2.5 mr-0.5" />Tom cykel
-      </Badge>
-    );
+  // Fallback: no controller badges. Orphan-rader (cooler-adjustments som inte parades
+  // ihop med en 5-min decision-logg inom 15 s) har log.decisions=[] men har adjustments
+  // — visa då kategori-badge från adjustment istället för intetsägande "Tom cykel".
+  const onlyMetaBadges = raptBadges.length === 0 || (raptBadges.length === 1 && (hasError || showWarningTriangle));
+  if (onlyMetaBadges) {
+    if (adjs.length > 0) {
+      // Dedupera per kategori — visa varje kategori en gång
+      const seen = new Set<AdjustmentCategory>();
+      for (const adj of adjs) {
+        if (seen.has(adj.category)) continue;
+        seen.add(adj.category);
+        raptBadges.push(
+          <React.Fragment key={`orphan-${adj.id}`}>{getCategoryBadge(adj.category)}</React.Fragment>
+        );
+      }
+    } else {
+      raptBadges.push(
+        <Badge key="empty" variant="default" className="text-[10px] px-1.5" style={{ background: 'hsl(var(--muted-foreground) / 0.15)', color: 'hsl(var(--muted-foreground))', borderColor: 'hsl(var(--muted-foreground) / 0.25)' }}>
+          <Gauge className="h-2.5 w-2.5 mr-0.5" />Tom cykel
+        </Badge>
+      );
+    }
   }
 
   headerBadge = <div className="flex gap-1 items-center flex-wrap">{raptBadges}</div>;
