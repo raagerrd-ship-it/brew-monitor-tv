@@ -109,6 +109,22 @@ Deno.serve(async (req) => {
     if (reqBody?.injected_controllers) {
       allControllers = reqBody.injected_controllers as TempController[];
       log('CONTROLLERS', 'info', `Using ${allControllers.length} injected controller(s) from orchestrator`);
+      // Hydrate SSOT fields the orchestrator's sync payload doesn't include
+      // (pill_temp / actual_temp / profile_target_temp etc. are owned by
+      // BLE-ingest + profile engine, not by rapt sync). Without this the PID
+      // loop sees actual_temp=undefined → NaN duty → no bursts.
+      const ids = allControllers.map(c => c.controller_id);
+      if (ids.length > 0) {
+        const { data: ssotRows } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, pill_temp, actual_temp, profile_target_temp, current_temp_updated_at, last_hw_push_at, pill_probe_offset, pill_probe_offset_baseline, hysteresis_kick_active')
+          .in('controller_id', ids);
+        const ssotMap = new Map((ssotRows ?? []).map((r: any) => [r.controller_id, r]));
+        allControllers = allControllers.map(c => {
+          const s = ssotMap.get(c.controller_id);
+          return s ? { ...c, ...s } as TempController : c;
+        });
+      }
     } else {
       const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
       allControllers = (allControllersData || []) as TempController[];
