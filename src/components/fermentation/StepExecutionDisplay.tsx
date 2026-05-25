@@ -74,9 +74,12 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
       color: tempDone ? 'hsl(142 70% 50%)' : 'hsl(38 92% 55%)',
     });
   } else {
-    // Standard temp display for non-gradual steps
+    // Standard temp display for non-gradual steps.
+    // Skip for active ramp steps — the "Rampar upp/ner" row below already shows
+    // start → end and live progress, so a separate "Mål" line is redundant/confusing.
     const displayTarget = effectiveTarget ?? currentStep.target_temp;
-    if (displayTarget != null) {
+    const skipForRamp = stepType === 'ramp' && isRamping;
+    if (displayTarget != null && !skipForRamp) {
       const tempItem: ExecutionItem = {
         label: 'Mål',
         icon: <Thermometer className={iconClass} />,
