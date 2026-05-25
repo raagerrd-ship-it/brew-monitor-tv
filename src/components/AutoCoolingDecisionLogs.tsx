@@ -661,6 +661,47 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
             <PipelineView decisions={log.decisions} hideSync={hideSync} hidePid={hidePid} recentCoolerAdjs={recentCoolerAdjs} logCreatedAt={log.created_at} />
           )}
 
+          {/* PWM revert details — render for any log containing PWM_OFF steps */}
+          {isPwmOffLog && (
+            <div className="flex flex-col gap-1 text-[11px]">
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Zap className="h-3 w-3" />
+                <span className="font-medium text-[10px] uppercase tracking-wide">PWM-revert</span>
+              </div>
+              {pwmOffDecisions.map((d, idx) => {
+                const det = (d.details ?? {}) as Record<string, unknown>;
+                const name = String(det.controller_name || (d.message?.match(/^([^:]+):/)?.[1] ?? '—'));
+                const shortName = name.replace('Temp Controller ', '');
+                const dutyPct = det.duty_pct != null ? Number(det.duty_pct) : null;
+                const dutySec = det.duty_seconds != null ? Number(det.duty_seconds) : null;
+                const offTarget = det.off_target != null ? Number(det.off_target) : null;
+                const mode = det.mode === 'heating' ? '🔥' : '❄️';
+                const ctrlColor = controllerColors[name];
+                // Find matching RAPT_SEND (PWM revert) for status
+                const revertSend = log.decisions.find(s =>
+                  s.step === 'RAPT_SEND' &&
+                  s.message?.includes('PWM revert') &&
+                  ((s.details as any)?.controller_id === (det as any)?.controller_id || s.message?.includes(shortName))
+                );
+                const sendOk = revertSend?.result === 'action';
+                const sendMs = (revertSend?.details as any)?.duration_ms;
+                return (
+                  <div key={idx} className="flex items-center gap-2 pl-4 flex-wrap">
+                    <span style={{ color: ctrlColor || 'inherit' }}>{mode} {name}</span>
+                    <span className="text-muted-foreground">
+                      burst {dutySec != null ? `${dutySec}s` : '—'} ({dutyPct != null ? `${dutyPct}%` : '—'} duty) → mål {offTarget != null ? `${offTarget}°C` : '—'}
+                    </span>
+                    {revertSend && (
+                      <span className={`tabular-nums ${sendOk ? 'text-emerald-500' : 'text-destructive'}`}>
+                        {sendOk ? '✅' : '❌'} {sendMs != null ? `${sendMs}ms` : ''}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Adjustment detail cards (manuell, passthrough only — PID is in pipeline, glykol in GLYKOL-KYLARE section) */}
           {adjs.filter(a => a.category !== 'pill-comp' && a.category !== 'pill-comp-db' && a.category !== 'glykol').map(adj => (
             <AdjustmentCard key={adj.id} adj={adj} />
