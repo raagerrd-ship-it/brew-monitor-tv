@@ -56,6 +56,8 @@ export interface ControllerAdjustmentContext {
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
   /** Cooler context for margin-aware PID gain scaling */
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null
+  /** Circuit-breaker: controllers vars RAPT-writes är pausade pga konsekutiva fel. */
+  openCircuitControllerIds?: Set<string>
 }
 
 /**
