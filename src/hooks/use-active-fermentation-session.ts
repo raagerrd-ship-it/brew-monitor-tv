@@ -292,7 +292,9 @@ export function useActiveFermentationSession({
       }
     } else {
       const newStepStartedAt = new Date().toISOString();
-      const newStepStartTemp = controllerData?.target_temp ?? null;
+      // Use profile_target_temp as ramp start anchor, not the hardware target_temp.
+      // target_temp can be a PWM-burst value (-5°C cool, 40°C heat) at the moment of skip.
+      const newStepStartTemp = controllerData?.profile_target_temp ?? controllerData?.target_temp ?? null;
       const { error } = await supabase
         .from('fermentation_sessions')
         .update({ current_step_index: nextStepIndex, step_started_at: newStepStartedAt, step_start_temp: newStepStartTemp })
@@ -356,7 +358,7 @@ export function useActiveFermentationSession({
       }
     } else {
       const newStepStartedAt = new Date().toISOString();
-      const newStepStartTemp = controllerData?.target_temp ?? null;
+      const newStepStartTemp = controllerData?.profile_target_temp ?? controllerData?.target_temp ?? null;
       const { error } = await supabase
         .from('fermentation_sessions')
         .update({ current_step_index: nextStepIndex, step_started_at: newStepStartedAt, step_start_temp: newStepStartTemp })
@@ -385,7 +387,7 @@ export function useActiveFermentationSession({
     if (!session) return;
     setActionLoading(true);
     const newStepStartedAt = new Date().toISOString();
-    const newStepStartTemp = controllerData?.target_temp ?? null;
+    const newStepStartTemp = controllerData?.profile_target_temp ?? controllerData?.target_temp ?? null;
     const { error } = await supabase
       .from('fermentation_sessions')
       .update({
