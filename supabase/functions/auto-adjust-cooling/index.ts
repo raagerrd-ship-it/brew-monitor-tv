@@ -317,8 +317,10 @@ Deno.serve(async (req) => {
     // Log sync data per controller (post-sync state from DB) — ALL controllers for visibility
     for (const controller of allControllers) {
       const pillTemp = round1(controller.pill_temp);
-      // SSOT: actual_temp is the blended pill+probe value used by PID.
-      const currentTemp = round1((controller as any).actual_temp ?? controller.current_temp ?? controller.pill_temp) ?? 0;
+      // SSOT: actual_temp is the only truth for fermenter beer temp.
+      // No fallback to current_temp/pill_temp — if actual_temp is null, treat as missing.
+      const actualTempRaw = (controller as any).actual_temp;
+      const currentTemp = actualTempRaw != null ? round1(actualTempRaw)! : 0;
       const targetTemp = round1(controller.target_temp) ?? 999;
       const hysteresis = parseFloat(String(controller.cooling_hysteresis ?? '0.2'));
       const isActivelyCooling = controller.cooling_enabled && currentTemp > (targetTemp + hysteresis);
