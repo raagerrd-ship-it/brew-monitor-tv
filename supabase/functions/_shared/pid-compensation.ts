@@ -444,12 +444,17 @@ export async function calculateCompensatedTarget(
 
       // ── Settling guard (cooling only) ──
       if (isCooling && integral < 0.15 && need > 0.3) {
-        const maxInitialP = 0.30
+        // Scale cap with error magnitude — large overshoots need real action,
+        // not a 30% throttle that lets the brew drift for hours.
+        // need 0.3°C → 0.30 cap (unchanged)
+        // need 0.5°C → 0.50 cap
+        // need ≥0.7°C → 0.70 cap (hard ceiling, still respects saturation)
+        const maxInitialP = Math.min(0.70, Math.max(0.30, 0.30 + (need - 0.3) * 1.0))
         if (pCorrection > maxInitialP) {
           const uncappedP = pCorrection
           pCorrection = maxInitialP
           constraints.push('settling')
-          console.log(`🛡️ Settling guard ${controllerName}: I=${integral.toFixed(3)} < 0.15, capping P ${uncappedP.toFixed(2)} → ${maxInitialP} (väntar på feedback)`)
+          console.log(`🛡️ Settling guard ${controllerName}: I=${integral.toFixed(3)} < 0.15, need=${need.toFixed(2)}°, capping P ${uncappedP.toFixed(2)} → ${maxInitialP.toFixed(2)} (väntar på feedback)`)
         }
       }
     }
