@@ -144,6 +144,25 @@ export function useBrewChartData({
       if (filtered.length > 0) basePoints = filtered;
     }
 
+    // SG-only median filter (5-pt window) to suppress per-bucket Pill BLE jitter
+    // without touching temperatures or 5-min bucket cadence.
+    if (basePoints.length >= 3) {
+      const W = 5;
+      const half = Math.floor(W / 2);
+      const smoothedSg = basePoints.map((_, i) => {
+        const slice: number[] = [];
+        for (let j = Math.max(0, i - half); j <= Math.min(basePoints.length - 1, i + half); j++) {
+          const v = basePoints[j].value;
+          if (v != null && !isNaN(v)) slice.push(v);
+        }
+        if (slice.length === 0) return basePoints[i].value;
+        slice.sort((a, b) => a - b);
+        const mid = Math.floor(slice.length / 2);
+        return slice.length % 2 === 0 ? (slice[mid - 1] + slice[mid]) / 2 : slice[mid];
+      });
+      basePoints = basePoints.map((p, i) => ({ ...p, value: smoothedSg[i] }));
+    }
+
     // Apply smoothing for visual presentation (raw values preserved for tooltips)
     const windowSize = getOptimalWindowSize(basePoints.length);
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
