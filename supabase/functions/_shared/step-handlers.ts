@@ -462,20 +462,43 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
   const backendAlreadyRamping = currentProfileTarget !== null && currentProfileTarget > baseTemp + 0.05
 
-  const triggered = backendAlreadyRamping || activityScore <= safeActivityTrigger
+  // Sustained-low-activity gate: require last 3 ticks (≈last 30 min at 10-min
+  // cron, last 15 min at 5-min cron) to all be ≤ trigger. Prevents a single
+  // noisy dip in activity from locking the ramp during peak fermentation.
+  let sustainedLow = false
+  let recentActivities: number[] = []
+  if (!backendAlreadyRamping && !session.ramp_triggered_at) {
+    const { data: recentLogs } = await supabase
+      .from('fermentation_step_log')
+      .select('details, created_at')
+      .eq('session_id', session.id)
+      .eq('step_index', session.current_step_index)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    recentActivities = (recentLogs || [])
+      .map((l: any) => l?.details?.activity_score)
+      .filter((s: any) => typeof s === 'number')
+    // Include current tick as the most recent sample
+    const samples = [activityScore, ...recentActivities].slice(0, 3)
+    sustainedLow = samples.length >= 3 && samples.every(s => s <= safeActivityTrigger)
+  }
+
+  const triggered = backendAlreadyRamping || session.ramp_triggered_at != null || sustainedLow
 
   if (!triggered) {
     if (effectiveTarget !== null) {
       await setProfileTarget(supabase, session.controller_id, effectiveTarget)
     }
+    const samplesPreview = [activityScore, ...recentActivities].slice(0, 3).map(s => Math.round(s)).join(',')
     actionDetails = {
       phase: 'waiting_for_trigger',
       activity_score: activityScore,
       activity_trigger: activityTrigger,
+      recent_activities: [activityScore, ...recentActivities].slice(0, 3),
       fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
-      wait_reason: `activity ${Math.round(activityScore)}% > ${activityTrigger}%`,
+      wait_reason: `sustained activity not yet ≤${activityTrigger}% (last 3: ${samplesPreview}%)`,
     }
-    console.log(`Gradual ramp: waiting - activity ${Math.round(activityScore)}% > ${activityTrigger}%`)
+    console.log(`Gradual ramp: waiting - last 3 activity ticks [${samplesPreview}]% not all ≤${activityTrigger}%`)
     return { stepCompleted, actionTaken, actionDetails }
   }
 
@@ -484,9 +507,10 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   if (session.ramp_triggered_at) {
     rampTriggeredAt = new Date(session.ramp_triggered_at)
   } else {
-    // First trigger — save ramp_triggered_at, step_start_temp and ramp_start_sg
+    // First trigger — save ramp_triggered_at, step_start_temp and ramp_start_sg.
+    // Use 30-min median for ramp_start_sg so the baseline isn't a noisy single sample.
     rampTriggeredAt = new Date()
-    const startSgSnap = getLatestSg(brewData.sg_data)?.value ?? null
+    const startSgSnap = getSmoothedSg(brewData.sg_data, 30) ?? getLatestSg(brewData.sg_data)?.value ?? null
     await supabase
       .from('fermentation_sessions')
       .update({
