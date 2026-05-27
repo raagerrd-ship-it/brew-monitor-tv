@@ -74,7 +74,7 @@ export async function fetchSgDataBatch(
   const result = new Map<string, SgDataPoint[]>()
   if (brewIds.length === 0) return result
 
-  // Fetch all snapshots for all brews in one query (thinning caps at ~500 per brew)
+  // Fetch all snapshots for all brews in one query (thinned to 1/hour beyond 6h)
   const allRows: { brew_id: string; recorded_at: string; sg: number | null; pill_temp: number | null }[] = []
   let offset = 0
   const batchSize = 1000
