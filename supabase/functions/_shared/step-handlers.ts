@@ -539,10 +539,10 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     // Normal operation — no notification needed
   }
 
-  // Phase 2: Ramping — SG-driven progress with time as a safety floor.
-  // SG mirrors actual fermentation; time-floor guarantees progress if SG stalls.
-  const rampStartSg = session.ramp_start_sg ?? getLatestSg(brewData.sg_data)?.value ?? null
-  const currentSg = getLatestSg(brewData.sg_data)?.value ?? null
+  // Phase 2: Ramping — SG-driven progress, time as brake (cap).
+  // Use 30-min median for current SG so progress is robust to bucket noise.
+  const rampStartSg = session.ramp_start_sg ?? getSmoothedSg(brewData.sg_data, 30) ?? null
+  const currentSg = getSmoothedSg(brewData.sg_data, 30)
   const expectedFg = brewData.final_gravity && brewData.final_gravity > 0
     ? brewData.final_gravity
     : null
