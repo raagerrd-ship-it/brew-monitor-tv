@@ -100,8 +100,10 @@ Deno.serve(async (req) => {
     if (c.linked_pill_id) pillToController.set(c.linked_pill_id, c.controller_id);
   }
 
-  // Layer 1 — Batch average per MAC: average all readings for the same pill
-  // in this upload (typically 2/min from Pi). Reduces minute-scale noise ~½.
+  // Layer 1 — Robust aggregation per MAC: Hampel-filter outliers, then median.
+  // Median is more robust than mean against BLE glitches (single bad packet
+  // can swing mean by 0.5°C / 0.005 SG). Hampel pre-filter removes samples
+  // more than 3·MAD from the median before aggregation.
   // Timestamp = most recent recorded_at in the group.
   type Avg = {
     mac: string;
@@ -122,6 +124,29 @@ Deno.serve(async (req) => {
     groups.set(key, arr);
   }
   const avgByMac = new Map<string, Avg>();
+  // Median of a numeric array (assumes non-empty).
+  const median = (xs: number[]): number => {
+    const s = [...xs].sort((a, b) => a - b);
+    const n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  };
+  // Hampel filter: drop samples > 3·MAD from median. Falls back to all
+  // samples if MAD is 0 (constant signal) or fewer than 3 samples.
+  const hampel = (xs: number[]): number[] => {
+    if (xs.length < 3) return xs;
+    const m = median(xs);
+    const mad = median(xs.map((x) => Math.abs(x - m)));
+    if (mad === 0) return xs;
+    const threshold = 3 * 1.4826 * mad; // 1.4826 = MAD→σ scale (Gaussian)
+    const kept = xs.filter((x) => Math.abs(x - m) <= threshold);
+    return kept.length ? kept : xs;
+  };
+  const robust = (vals: (number | null | undefined)[]): number | null => {
+    const xs = vals.filter((v): v is number => typeof v === 'number');
+    if (!xs.length) return null;
+    const filtered = hampel(xs);
+    return median(filtered);
+  };
   for (const [mac, arr] of groups) {
     const sorted = [...arr].sort(
       (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
@@ -133,8 +158,8 @@ Deno.serve(async (req) => {
     };
     avgByMac.set(mac, {
       mac,
-      temp_c: mean(sorted.map((s) => s.temp_c)),
-      gravity_sg: mean(sorted.map((s) => s.gravity_sg)),
+      temp_c: robust(sorted.map((s) => s.temp_c)),
+      gravity_sg: robust(sorted.map((s) => s.gravity_sg)),
       battery_pct: mean(sorted.map((s) => s.battery_pct)),
       recorded_at: latest.recorded_at,
       sample_count: sorted.length,
