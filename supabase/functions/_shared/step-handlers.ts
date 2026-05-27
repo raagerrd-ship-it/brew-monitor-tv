@@ -23,6 +23,22 @@ function getLatestSg(sgData: SgDataPoint[]): { value: number; date: string } | n
   return sorted[0]
 }
 
+/** Median of SG values within the last `windowMinutes` (default 30 min).
+ *  Falls back to latest single value if no points in window. */
+function getSmoothedSg(sgData: SgDataPoint[], windowMinutes: number = 30): number | null {
+  if (!sgData || sgData.length === 0) return null
+  const cutoff = Date.now() - windowMinutes * 60 * 1000
+  const inWindow = sgData
+    .filter(p => new Date(p.date).getTime() >= cutoff)
+    .map(p => p.value)
+    .sort((a, b) => a - b)
+  if (inWindow.length === 0) return getLatestSg(sgData)?.value ?? null
+  const mid = Math.floor(inWindow.length / 2)
+  return inWindow.length % 2 === 1
+    ? inWindow[mid]
+    : (inWindow[mid - 1] + inWindow[mid]) / 2
+}
+
 /** Sort SG data newest first (returns new array) */
 function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
   return [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
