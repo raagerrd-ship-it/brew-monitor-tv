@@ -139,26 +139,17 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
 }
 
 /**
- * Progressive snapshot thinning — reduces storage while preserving recent detail.
+ * Snapshot thinning — preserves recent detail, caps long-term resolution at 1/hour.
  *
  * Age bands:
- *   < 24h    → keep all (~15 min resolution)
- *   1–7 d    → keep every 2nd (~30 min)
- *   7–30 d   → keep every 4th (~1h)
- *   30+ d    → keep every 8th (~2h)
+ *   < 6h     → keep all (5-min resolution, untouched)
+ *   6h+      → thin to ~1 row per hour (never denser, never sparser)
  *
- * Only runs when a brew exceeds 500 snapshots. First & last record in each
- * band are always preserved to maintain graph bounds.
+ * Runs every write. The 500-row cap is intentionally ignored: 1/hour is the
+ * hard floor even if the total exceeds 500. First & last rows are always kept.
  */
 export async function thinSnapshots(supabase: any, brewId: string): Promise<void> {
   try {
-    const { count } = await supabase
-      .from('brew_data_snapshots')
-      .select('*', { count: 'exact', head: true })
-      .eq('brew_id', brewId);
-
-    if (!count || count <= 500) return;
-
     // Fetch all ids + timestamps sorted oldest-first (paginated)
     const allRows: { id: string; recorded_at: string }[] = [];
     let offset = 0;
@@ -179,45 +170,33 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
       }
     }
 
-    if (allRows.length <= 500) return;
+    if (allRows.length < 3) return;
 
     const now = Date.now();
-    const MS_24H = 24 * 60 * 60 * 1000;
-    const cutoff24h = now - MS_24H;
+    const MS_6H = 6 * 60 * 60 * 1000;
+    const MS_1H = 60 * 60 * 1000;
+    const cutoff6h = now - MS_6H;
 
-    // Split: recent (last 24h) vs older
-    // Always protect the very first row
+    // Always protect first & last rows to preserve graph bounds
     const protectedIds = new Set<string>();
-    protectedIds.add(allRows[0].id); // first ever snapshot
-    protectedIds.add(allRows[allRows.length - 1].id); // last snapshot
+    protectedIds.add(allRows[0].id);
+    protectedIds.add(allRows[allRows.length - 1].id);
 
-    const recentRows: typeof allRows = [];
-    const olderRows: typeof allRows = [];
+    // For rows older than 6h, keep at most one per hourly bucket (oldest in bucket wins).
+    // Floor of 1/hour is enforced — never thin denser than that.
+    const idsToDelete: string[] = [];
+    const seenHourBuckets = new Set<number>();
 
     for (const row of allRows) {
-      if (new Date(row.recorded_at).getTime() >= cutoff24h) {
-        recentRows.push(row);
+      const ts = new Date(row.recorded_at).getTime();
+      if (ts >= cutoff6h) continue; // recent 6h: keep all
+      if (protectedIds.has(row.id)) continue;
+
+      const hourBucket = Math.floor(ts / MS_1H);
+      if (seenHourBuckets.has(hourBucket)) {
+        idsToDelete.push(row.id);
       } else {
-        olderRows.push(row);
-      }
-    }
-
-    // Budget: keep all recent rows, thin older rows to fit within ~500 total
-    const budget = Math.max(10, 500 - recentRows.length);
-
-    const idsToDelete: string[] = [];
-
-    if (olderRows.length > budget) {
-      // Calculate keepEvery dynamically so we end up with ~budget rows
-      const keepEvery = Math.max(2, Math.round(olderRows.length / budget));
-
-      for (let i = 0; i < olderRows.length; i++) {
-        const row = olderRows[i];
-        if (protectedIds.has(row.id)) continue;
-        // Keep every Nth row (0-indexed: keep i=0, i=keepEvery, i=2*keepEvery, ...)
-        if (i % keepEvery !== 0) {
-          idsToDelete.push(row.id);
-        }
+        seenHourBuckets.add(hourBucket);
       }
     }
 
@@ -230,7 +209,7 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
     }
 
     const kept = allRows.length - idsToDelete.length;
-    console.log(`[Snapshots] Thinned ${idsToDelete.length} snapshots for brew ${brewId} (${allRows.length} → ${kept}, recent24h: ${recentRows.length}, older kept: ${kept - recentRows.length})`);
+    console.log(`[Snapshots] Thinned ${idsToDelete.length} for brew ${brewId} (${allRows.length} → ${kept}, 1/hour floor beyond 6h)`);
   } catch (err) {
     console.error('Error in thinSnapshots:', err);
   }
