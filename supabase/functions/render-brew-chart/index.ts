@@ -501,7 +501,7 @@ Deno.serve(async (req) => {
     const bc = brewCount ?? 2;
 
     // ── Step 1: Fetch brew metadata + snapshots in parallel ──
-    // Thinning policy caps snapshots at ~500 rows, so no pagination needed
+    // Snapshots are thinned to 1/hour beyond 6h; no pagination needed
     const [brewResult, snapshotsResult] = await Promise.all([
       supabase.from('brew_readings')
         .select('id, original_gravity, final_gravity, pill_compensation')

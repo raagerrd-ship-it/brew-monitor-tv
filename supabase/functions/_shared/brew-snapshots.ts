@@ -145,8 +145,7 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
  *   < 6h     → keep all (5-min resolution, untouched)
  *   6h+      → thin to ~1 row per hour (never denser, never sparser)
  *
- * Runs every write. The 500-row cap is intentionally ignored: 1/hour is the
- * hard floor even if the total exceeds 500. First & last rows are always kept.
+ * No row-count ceiling. First & last rows are always kept.
  */
 export async function thinSnapshots(supabase: any, brewId: string): Promise<void> {
   try {
