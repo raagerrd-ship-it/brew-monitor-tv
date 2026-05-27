@@ -910,6 +910,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
+      pill_eta_min: pillEtaHours != null ? Math.round(pillEtaHours * 60) : null,
       mode: pidMode,
       step_type: stepType,
       duty_cycle: pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : undefined,
