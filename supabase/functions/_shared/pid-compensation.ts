@@ -403,9 +403,17 @@ export async function calculateCompensatedTarget(
       // 2.0× (RAPT-jitter-buffert) till 1.5× för mindre överbroms.
       const CYCLE_HOURS = 0.25
       const bleFresh = !isStaleData && !isInterpolated && pillRate != null
-      const SAFETY = bleFresh ? 1.5 : 2.0
+      // SAFETY = how many PID-cycles ahead we predict. BLE-fresh gets longer
+      // lead (≈37 min @ 2.5×) because we have a confirmed real-time rate and
+      // thermal lag means actions need to start well before crossing target.
+      const SAFETY = bleFresh ? 2.5 : 2.0
       const ratePrediction = pillRate != null ? Math.abs(pillRate) * CYCLE_HOURS * SAFETY : 0
-      const BRAKE_ZONE = Math.max(BRAKE_ZONE_STATIC, ratePrediction)
+      // Predictive handbrake: when fast approach (>1.5°/h toward target) lets
+      // the brake zone grow up to 1.5° instead of being capped by the static
+      // floor — so brake kicks in 30+ min before overshoot during ramps.
+      const FAST_APPROACH = bleFresh && Math.abs(pillRate ?? 0) > 1.5
+      const BRAKE_ZONE_MAX = FAST_APPROACH ? 1.5 : Number.POSITIVE_INFINITY
+      const BRAKE_ZONE = Math.min(BRAKE_ZONE_MAX, Math.max(BRAKE_ZONE_STATIC, ratePrediction))
       const prevNeed = isCooling ? -prevAvgError : prevAvgError // previous "need" in same sign convention
       const errorDecreasing = need < prevNeed - 0.03 // only brake when error is clearly shrinking
       // Pill-confirmed approach: pillRate is from an independent sensor and is NOT
@@ -430,7 +438,8 @@ export async function calculateCompensatedTarget(
           blendedI = integral * (0.50 + 0.50 * proximity)
         }
         if (blendedI < integral) {
-          constraints.push(`brake=${(proximity * 100).toFixed(0)}%${isInterpolated ? '-pill' : ''}`)
+          const brakeTag = FAST_APPROACH ? 'pred-brake' : 'brake'
+          constraints.push(`${brakeTag}=${(proximity * 100).toFixed(0)}%${isInterpolated ? '-pill' : ''}`)
           console.log(`🛑 ${modeLabel} braking ${controllerName}: need=${need.toFixed(2)}°, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (floor=${ssFloor.toFixed(3)})`)
           integral = blendedI
         }
