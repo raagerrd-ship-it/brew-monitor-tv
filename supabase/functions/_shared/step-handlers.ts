@@ -23,6 +23,22 @@ function getLatestSg(sgData: SgDataPoint[]): { value: number; date: string } | n
   return sorted[0]
 }
 
+/** Median of SG values within the last `windowMinutes` (default 30 min).
+ *  Falls back to latest single value if no points in window. */
+function getSmoothedSg(sgData: SgDataPoint[], windowMinutes: number = 30): number | null {
+  if (!sgData || sgData.length === 0) return null
+  const cutoff = Date.now() - windowMinutes * 60 * 1000
+  const inWindow = sgData
+    .filter(p => new Date(p.date).getTime() >= cutoff)
+    .map(p => p.value)
+    .sort((a, b) => a - b)
+  if (inWindow.length === 0) return getLatestSg(sgData)?.value ?? null
+  const mid = Math.floor(inWindow.length / 2)
+  return inWindow.length % 2 === 1
+    ? inWindow[mid]
+    : (inWindow[mid - 1] + inWindow[mid]) / 2
+}
+
 /** Sort SG data newest first (returns new array) */
 function sortSgDataDesc(sgData: SgDataPoint[]): SgDataPoint[] {
   return [...sgData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -446,20 +462,43 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   const currentProfileTarget = controller?.profile_target_temp ? parseFloat(String(controller.profile_target_temp)) : null
   const backendAlreadyRamping = currentProfileTarget !== null && currentProfileTarget > baseTemp + 0.05
 
-  const triggered = backendAlreadyRamping || activityScore <= safeActivityTrigger
+  // Sustained-low-activity gate: require last 3 ticks (≈last 30 min at 10-min
+  // cron, last 15 min at 5-min cron) to all be ≤ trigger. Prevents a single
+  // noisy dip in activity from locking the ramp during peak fermentation.
+  let sustainedLow = false
+  let recentActivities: number[] = []
+  if (!backendAlreadyRamping && !session.ramp_triggered_at) {
+    const { data: recentLogs } = await supabase
+      .from('fermentation_step_log')
+      .select('details, created_at')
+      .eq('session_id', session.id)
+      .eq('step_index', session.current_step_index)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    recentActivities = (recentLogs || [])
+      .map((l: any) => l?.details?.activity_score)
+      .filter((s: any) => typeof s === 'number')
+    // Include current tick as the most recent sample
+    const samples = [activityScore, ...recentActivities].slice(0, 3)
+    sustainedLow = samples.length >= 3 && samples.every(s => s <= safeActivityTrigger)
+  }
+
+  const triggered = backendAlreadyRamping || session.ramp_triggered_at != null || sustainedLow
 
   if (!triggered) {
     if (effectiveTarget !== null) {
       await setProfileTarget(supabase, session.controller_id, effectiveTarget)
     }
+    const samplesPreview = [activityScore, ...recentActivities].slice(0, 3).map(s => Math.round(s)).join(',')
     actionDetails = {
       phase: 'waiting_for_trigger',
       activity_score: activityScore,
       activity_trigger: activityTrigger,
+      recent_activities: [activityScore, ...recentActivities].slice(0, 3),
       fermentation_phase: metrics?.fermentation_phase ?? 'unknown',
-      wait_reason: `activity ${Math.round(activityScore)}% > ${activityTrigger}%`,
+      wait_reason: `sustained activity not yet ≤${activityTrigger}% (last 3: ${samplesPreview}%)`,
     }
-    console.log(`Gradual ramp: waiting - activity ${Math.round(activityScore)}% > ${activityTrigger}%`)
+    console.log(`Gradual ramp: waiting - last 3 activity ticks [${samplesPreview}]% not all ≤${activityTrigger}%`)
     return { stepCompleted, actionTaken, actionDetails }
   }
 
@@ -468,9 +507,10 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
   if (session.ramp_triggered_at) {
     rampTriggeredAt = new Date(session.ramp_triggered_at)
   } else {
-    // First trigger — save ramp_triggered_at, step_start_temp and ramp_start_sg
+    // First trigger — save ramp_triggered_at, step_start_temp and ramp_start_sg.
+    // Use 30-min median for ramp_start_sg so the baseline isn't a noisy single sample.
     rampTriggeredAt = new Date()
-    const startSgSnap = getLatestSg(brewData.sg_data)?.value ?? null
+    const startSgSnap = getSmoothedSg(brewData.sg_data, 30) ?? getLatestSg(brewData.sg_data)?.value ?? null
     await supabase
       .from('fermentation_sessions')
       .update({
@@ -499,10 +539,10 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     // Normal operation — no notification needed
   }
 
-  // Phase 2: Ramping — SG-driven progress with time as a safety floor.
-  // SG mirrors actual fermentation; time-floor guarantees progress if SG stalls.
-  const rampStartSg = session.ramp_start_sg ?? getLatestSg(brewData.sg_data)?.value ?? null
-  const currentSg = getLatestSg(brewData.sg_data)?.value ?? null
+  // Phase 2: Ramping — SG-driven progress, time as brake (cap).
+  // Use 30-min median for current SG so progress is robust to bucket noise.
+  const rampStartSg = session.ramp_start_sg ?? getSmoothedSg(brewData.sg_data, 30) ?? null
+  const currentSg = getSmoothedSg(brewData.sg_data, 30)
   const expectedFg = brewData.final_gravity && brewData.final_gravity > 0
     ? brewData.final_gravity
     : null
