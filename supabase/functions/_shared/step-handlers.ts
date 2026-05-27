@@ -524,18 +524,21 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     timeBasedTarget = baseTemp + tempIncrease * timeProgress
   }
 
-  // SG drives; time is the floor underneath.
-  const floored = Math.max(sgBasedTarget, timeBasedTarget)
+  // SG drives progress; time acts as a BRAKE (cap) so we never ramp faster
+  // than min_ramp_hours allows even if SG drops quickly.
+  // When min_ramp_hours is not set, time cap = full tempIncrease (no brake).
+  const timeCap = (minRampHours && minRampHours > 0) ? timeBasedTarget : baseTemp + tempIncrease
+  const braked = Math.min(sgBasedTarget, timeCap)
   const calculatedTarget = Math.round(
-    Math.min(baseTemp + tempIncrease, Math.max(baseTemp, floored)) * 10,
+    Math.min(baseTemp + tempIncrease, Math.max(baseTemp, braked)) * 10,
   ) / 10
 
-  const driver = sgBasedTarget >= timeBasedTarget ? 'sg' : 'time-floor'
+  const driver = sgBasedTarget <= timeCap ? 'sg' : 'time-brake'
   console.log(
     `⏱️ Ramp (${driver}): sg=${sgBasedTarget.toFixed(2)}°C ` +
     `(progress=${sgProgress != null ? sgProgress.toFixed(2) : 'n/a'}, ` +
     `start=${rampStartSg ?? 'n/a'} → cur=${currentSg ?? 'n/a'} → fg=${expectedFg ?? 'n/a'}), ` +
-    `time=${timeBasedTarget.toFixed(2)}°C ` +
+    `time_cap=${timeCap.toFixed(2)}°C ` +
     `(${elapsedSinceTrigger != null ? elapsedSinceTrigger.toFixed(1) : 'n/a'}h / ${minRampHours ?? 'n/a'}h) ` +
     `→ ${calculatedTarget}°C`,
   )
