@@ -839,9 +839,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // cooling (calculateCompensatedTarget uses Math.abs(pillRate) symmetrically).
     // Without this, a heating ramp landing on its target has no momentum signal
     // and the heater keeps gassing while afterheat carries temp past setpoint.
+    // BLE-linked controllers: ALWAYS compute pillRate (every minute) so the
+    // predictive brake has a momentum signal also during ramps/temp-adjustments
+    // — not just within 0.3° of target. Lets us "pull the handbrake" before
+    // overshoot is baked in by thermal lag.
     const isNearCoolingTarget = pidMode === 'cooling' && (actualTemp - actualTarget) > 0.3
     const isNearHeatingTarget = pidMode === 'heating' && (actualTarget - actualTemp) > 0.3
-    if (isNearCoolingTarget || isNearHeatingTarget) {
+    const shouldFetchPillRate = isBleLinked || isNearCoolingTarget || isNearHeatingTarget
+    let pillEtaHours: number | null = null
+    if (shouldFetchPillRate) {
       const { data: deltaHistory } = await supabase
         .from('temp_delta_history')
         .select('pill_temp, recorded_at')
@@ -858,6 +864,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
         if (timeDiffHours > minSpanHours) {
           pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
+        }
+      }
+      // ETA-to-target — only meaningful when rate moves toward target.
+      if (pillRate != null && Math.abs(pillRate) > 0.1) {
+        const distance = pidMode === 'cooling' ? (actualTemp - actualTarget) : (actualTarget - actualTemp)
+        const approaching = (pidMode === 'cooling' && pillRate < 0) || (pidMode === 'heating' && pillRate > 0)
+        if (approaching && distance > 0) {
+          pillEtaHours = distance / Math.abs(pillRate)
         }
       }
     }
