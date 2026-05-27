@@ -142,8 +142,10 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
  * Snapshot thinning — preserves recent detail, caps long-term resolution at 1/hour.
  *
  * Age bands:
- *   < 6h     → keep all (5-min resolution, untouched)
- *   6h+      → thin to ~1 row per hour (never denser, never sparser)
+ *   0–6h     → keep all (5-min resolution, untouched)
+ *   6–48h    → 15-min resolution
+ *   48–168h  → 30-min resolution
+ *   168h+    → 60-min resolution
  *
  * No row-count ceiling. First & last rows are always kept.
  */
@@ -172,30 +174,36 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
     if (allRows.length < 3) return;
 
     const now = Date.now();
-    const MS_6H = 6 * 60 * 60 * 1000;
-    const MS_1H = 60 * 60 * 1000;
-    const cutoff6h = now - MS_6H;
+    const MS_MIN = 60 * 1000;
+    const MS_HOUR = 60 * MS_MIN;
+    const cutoff6h   = now - 6   * MS_HOUR;
+    const cutoff48h  = now - 48  * MS_HOUR;
+    const cutoff168h = now - 168 * MS_HOUR;
 
     // Always protect first & last rows to preserve graph bounds
     const protectedIds = new Set<string>();
     protectedIds.add(allRows[0].id);
     protectedIds.add(allRows[allRows.length - 1].id);
 
-    // For rows older than 6h, keep at most one per hourly bucket (oldest in bucket wins).
-    // Floor of 1/hour is enforced — never thin denser than that.
+    // Bucket size depends on age band. Keep oldest row per bucket; drop the rest.
     const idsToDelete: string[] = [];
-    const seenHourBuckets = new Set<number>();
+    const seenBuckets = new Set<string>();
 
     for (const row of allRows) {
       const ts = new Date(row.recorded_at).getTime();
-      if (ts >= cutoff6h) continue; // recent 6h: keep all
+      if (ts >= cutoff6h) continue; // 0–6h: keep all
       if (protectedIds.has(row.id)) continue;
 
-      const hourBucket = Math.floor(ts / MS_1H);
-      if (seenHourBuckets.has(hourBucket)) {
+      let bucketMs: number;
+      if (ts >= cutoff48h)       bucketMs = 15 * MS_MIN; // 6–48h
+      else if (ts >= cutoff168h) bucketMs = 30 * MS_MIN; // 48–168h
+      else                       bucketMs = 60 * MS_MIN; // 168h+
+
+      const key = `${bucketMs}:${Math.floor(ts / bucketMs)}`;
+      if (seenBuckets.has(key)) {
         idsToDelete.push(row.id);
       } else {
-        seenHourBuckets.add(hourBucket);
+        seenBuckets.add(key);
       }
     }
 
@@ -208,7 +216,7 @@ export async function thinSnapshots(supabase: any, brewId: string): Promise<void
     }
 
     const kept = allRows.length - idsToDelete.length;
-    console.log(`[Snapshots] Thinned ${idsToDelete.length} for brew ${brewId} (${allRows.length} → ${kept}, 1/hour floor beyond 6h)`);
+    console.log(`[Snapshots] Thinned ${idsToDelete.length} for brew ${brewId} (${allRows.length} → ${kept}, bands: 5m/15m/30m/60m)`);
   } catch (err) {
     console.error('Error in thinSnapshots:', err);
   }
