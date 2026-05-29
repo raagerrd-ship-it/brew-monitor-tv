@@ -490,6 +490,7 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
       await setProfileTarget(supabase, session.controller_id, effectiveTarget)
     }
     const samplesPreview = [activityScore, ...recentActivities].slice(0, 3).map(s => Math.round(s)).join(',')
+    actionTaken = 'waiting_for_trigger'
     actionDetails = {
       phase: 'waiting_for_trigger',
       activity_score: activityScore,
