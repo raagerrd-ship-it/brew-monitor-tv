@@ -622,10 +622,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // far över target, FLOOR_BLOCK skriver om suggestedMode→heating, onWrongSide blir
     // false, PID kör 0% och systemet är blint för rusningen).
     const rawDistanceToTarget = Math.abs(actualTemp - actualTarget)
+    // Hold-steg har trög termisk massa men 0.8° drift är redan en stor överskjutning.
+    // Sänk emergency-tröskeln så MODE_FLOOR_BLOCK inte låser oss i fel läge när
+    // temp redan tydligt passerat target (t.ex. 20.43° vid mål 20.0° → blockad
+    // i heating med 0% duty och kylan startar aldrig).
+    const emergencyThreshold = isHoldStep ? 0.3 : 0.8
     const emergencyOverride =
       prevMode != null &&
       suggestedMode !== prevMode &&
-      rawDistanceToTarget > 0.8 &&
+      rawDistanceToTarget > emergencyThreshold &&
       fc.heating_enabled && fc.cooling_enabled
 
     if (!emergencyOverride) {
@@ -641,7 +646,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     } else {
       log('MODE_FLOOR_BLOCK_BYPASS', 'info',
-        `${fc.name}: hoppar över floor-block, Δ${rawDistanceToTarget.toFixed(2)}° > 0.8° kräver omedelbart läge=${suggestedMode}`)
+        `${fc.name}: hoppar över floor-block, Δ${rawDistanceToTarget.toFixed(2)}° > ${emergencyThreshold}° kräver omedelbart läge=${suggestedMode}`)
     }
 
     // During active profile ramp, force mode to match ramp direction
