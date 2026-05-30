@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_step_log DROP CONSTRAINT IF EXISTS fermentation_step_log_action_check;
