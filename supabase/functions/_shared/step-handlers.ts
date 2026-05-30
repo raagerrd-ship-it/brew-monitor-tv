@@ -565,21 +565,21 @@ export async function processGradualRampStep(ctx: StepContext): Promise<StepResu
     timeBasedTarget = baseTemp + tempIncrease * timeProgress
   }
 
-  // SG drives progress; time acts as a BRAKE (cap) so we never ramp faster
-  // than min_ramp_hours allows even if SG drops quickly.
-  // When min_ramp_hours is not set, time cap = full tempIncrease (no brake).
-  const timeCap = (minRampHours && minRampHours > 0) ? timeBasedTarget : baseTemp + tempIncrease
-  const braked = Math.min(sgBasedTarget, timeCap)
+  // Once the gradual ramp is triggered, temperature must continue climbing even
+  // if SG temporarily stalls. Time therefore becomes the minimum ramp pace,
+  // while SG can still accelerate the ramp further if fermentation keeps moving.
+  const timeFloor = (minRampHours && minRampHours > 0) ? timeBasedTarget : baseTemp
+  const progressed = Math.max(sgBasedTarget, timeFloor)
   const calculatedTarget = Math.round(
-    Math.min(baseTemp + tempIncrease, Math.max(baseTemp, braked)) * 10,
+    Math.min(baseTemp + tempIncrease, Math.max(baseTemp, progressed)) * 10,
   ) / 10
 
-  const driver = sgBasedTarget <= timeCap ? 'sg' : 'time-brake'
+  const driver = sgBasedTarget >= timeFloor ? 'sg' : 'time-floor'
   console.log(
     `⏱️ Ramp (${driver}): sg=${sgBasedTarget.toFixed(2)}°C ` +
     `(progress=${sgProgress != null ? sgProgress.toFixed(2) : 'n/a'}, ` +
     `start=${rampStartSg ?? 'n/a'} → cur=${currentSg ?? 'n/a'} → fg=${expectedFg ?? 'n/a'}), ` +
-    `time_cap=${timeCap.toFixed(2)}°C ` +
+    `time_floor=${timeFloor.toFixed(2)}°C ` +
     `(${elapsedSinceTrigger != null ? elapsedSinceTrigger.toFixed(1) : 'n/a'}h / ${minRampHours ?? 'n/a'}h) ` +
     `→ ${calculatedTarget}°C`,
   )
