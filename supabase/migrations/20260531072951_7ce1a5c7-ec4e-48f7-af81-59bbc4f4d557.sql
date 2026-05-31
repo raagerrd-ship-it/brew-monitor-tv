@@ -1,0 +1,1 @@
+UPDATE brew_data_snapshots SET profile_target_temp = 21.5 WHERE brew_id = '9af25c2c-0cef-445c-a7d6-6b622cacd861' AND recorded_at IN ('2026-05-31 02:00:00+00', '2026-05-31 02:05:00+00');
