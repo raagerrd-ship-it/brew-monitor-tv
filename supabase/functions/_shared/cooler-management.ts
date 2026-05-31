@@ -319,7 +319,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const boostedMargin = baseMargin * rateBoostFactor
   const hystAdjustedMargin = boostedMargin + halfHyst
   const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
-  const cappedMargin = Math.min(flooredMargin, MAX_COOLER_MARGIN)
+  // Under ramp ska marginalen bara få ÖKA — vi capar inte boostad marginal eftersom
+  // det skulle motverka kylningen. Capen gäller bara hold-läget.
+  const cappedMargin = isRamp ? flooredMargin : Math.min(flooredMargin, MAX_COOLER_MARGIN)
   const effectiveMargin = Math.round(cappedMargin * 10) / 10
   const worstCaseMargin = Math.round((effectiveMargin - halfHyst) * 10) / 10
   const bestCaseMargin = Math.round((effectiveMargin + halfHyst) * 10) / 10
@@ -645,13 +647,18 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   }
 
   // Rate-limit: 5 min between adjustments (bypassed for hysteresis revert)
-  if (!previousWasKick) {
+  // Bypass rate-limit during active downward ramps when LOWERING cooler — vi vill hjälpa
+  // tanken att nå sin ramp och får inte vänta 5 min mellan justeringar.
+  const rampLoweringBypass = effectiveTarget.isRampingDown && clampedTarget < currentCoolerTarget - 0.05
+  if (!previousWasKick && !rampLoweringBypass) {
     const timeSinceLastAdjust = Date.now() - await getLastAdjustTime()
 
     if (timeSinceLastAdjust < 5 * 60 * 1000) {
       log('RATE_LIMIT', 'info', `Väntar ${Math.ceil((5 * 60 * 1000 - timeSinceLastAdjust) / 60000)}min till nästa justering`)
       return adjustments
     }
+  } else if (rampLoweringBypass) {
+    log('RATE_LIMIT_BYPASS', 'info', `Ramp nedåt — hoppar 5-min rate-limit för att sänka kylare ${round1(currentCoolerTarget)}°→${round1(clampedTarget)}°`)
   }
 
   // ── Block raising cooler during active downward ramps ─────
