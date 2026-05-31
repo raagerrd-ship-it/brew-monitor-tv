@@ -319,7 +319,9 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const boostedMargin = baseMargin * rateBoostFactor
   const hystAdjustedMargin = boostedMargin + halfHyst
   const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
-  const cappedMargin = Math.min(flooredMargin, MAX_COOLER_MARGIN)
+  // Under ramp ska marginalen bara få ÖKA — vi capar inte boostad marginal eftersom
+  // det skulle motverka kylningen. Capen gäller bara hold-läget.
+  const cappedMargin = isRamp ? flooredMargin : Math.min(flooredMargin, MAX_COOLER_MARGIN)
   const effectiveMargin = Math.round(cappedMargin * 10) / 10
   const worstCaseMargin = Math.round((effectiveMargin - halfHyst) * 10) / 10
   const bestCaseMargin = Math.round((effectiveMargin + halfHyst) * 10) / 10
