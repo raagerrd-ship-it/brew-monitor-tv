@@ -437,7 +437,7 @@ Deno.serve(async (req) => {
               : null;
             if (baseline == null) {
               updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
-            } else if (Math.abs(newOffset - baseline) > 1.0) {
+            } else if (Math.abs(newOffset - baseline) > 1.0 && hasActiveSession) {
               driftAlerts.push({
                 controllerId: controller.id,
                 controllerName: existing?.name || controller.name || controller.id,
