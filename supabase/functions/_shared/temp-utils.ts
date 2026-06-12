@@ -236,6 +236,8 @@ export class RaptUpdateBatch {
   private preAuthToken: string | null = null
   /** Controllers where target should be sent to hardware but NOT persisted to DB */
   private hwOnlyIds: Set<string> = new Set()
+  /** Last error message per controller — survives flush() so circuit-breaker can log reason */
+  private lastErrors: Map<string, string> = new Map()
 
   /**
    * Optionally provide a pre-fetched RAPT access token to avoid
@@ -298,6 +300,11 @@ export class RaptUpdateBatch {
   /** Look up the target temp that was queued (and applied) for a controller */
   getAppliedTarget(controllerId: string): number | undefined {
     return this.applied.get(controllerId)
+  }
+
+  /** Look up the last error message for a failed flush (survives flush). */
+  getLastError(controllerId: string): string | undefined {
+    return this.lastErrors.get(controllerId)
   }
 
   /**
@@ -412,6 +419,7 @@ export class RaptUpdateBatch {
       } else {
         resultMap.set(p.controllerId, false)
         const errMsg = r.status === 'rejected' ? String(r.reason) : 'API returned false'
+        this.lastErrors.set(p.controllerId, errMsg)
         console.error(`❌ ${p.controllerId}: ${errMsg}`)
       }
     }
