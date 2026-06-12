@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
 
     const burstStart = Date.now();
     let offOk = false;
+    let lastOffErr: string | undefined;
 
     // Extract burst metadata from reason string
     // Reason format: "⚡ PWM OFF: hw → X° (Ys burst, Z% duty)"
@@ -143,8 +144,10 @@ Deno.serve(async (req) => {
           break;
         }
         const errText = await offResp.text();
+        lastOffErr = `HTTP ${offResp.status}: ${errText.slice(0, 140)}`;
         console.error(`PWM OFF attempt ${attempt}/3 failed for ${retry.controller_id}: ${offResp.status}: ${errText}`);
       } catch (retryErr) {
+        lastOffErr = String(retryErr).slice(0, 180);
         console.error(`PWM OFF attempt ${attempt}/3 error for ${retry.controller_id}: ${retryErr}`);
       }
       if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
@@ -223,7 +226,7 @@ Deno.serve(async (req) => {
         .update({ attempts: (retry.attempts ?? 0) + 1 })
         .eq("id", retry.id);
       // Circuit-breaker: räkna upp fail-streak
-      const cb = await recordWriteFailure(supabase, retry.controller_id);
+      const cb = await recordWriteFailure(supabase, retry.controller_id, lastOffErr);
       if (cb.justOpened) {
         console.error(`🚨 CIRCUIT_OPEN: ${retry.controller_id} — ${cb.newStreak} konsekutiva PWM-OFF fel, pausar i 10 min`);
       }
