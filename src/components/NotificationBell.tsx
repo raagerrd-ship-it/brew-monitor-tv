@@ -30,6 +30,7 @@ const TYPE_ICONS: Record<string, string> = {
   // stall_boost removed
   delta_alert: "⚠️",
   rapt_api_degraded: "📡",
+  rapt_controller_dead: "🔌",
   stale_sensor: "📴",
   unknown_step_type: "❓",
   cooler_high_utilization: "🧊",
