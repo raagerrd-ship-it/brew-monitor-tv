@@ -1215,7 +1215,8 @@ Deno.serve(async (req) => {
             if (ok) {
               await recordWriteSuccess(supabase, controllerId);
             } else {
-              const res = await recordWriteFailure(supabase, controllerId);
+              const lastErr = batch.getLastError(controllerId);
+              const res = await recordWriteFailure(supabase, controllerId, lastErr);
               if (res.justOpened) {
                 const name = ctrlNameForLog.get(controllerId) || controllerId;
                 console.error(`🚨 CIRCUIT_OPEN: ${name} — ${res.newStreak} konsekutiva fel, pausar RAPT-writes till ${new Date(res.openUntilMs).toISOString()}`);
