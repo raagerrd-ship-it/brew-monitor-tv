@@ -61,8 +61,24 @@ export async function getOpenCircuits(
   }
   // Controllers med aktiv probe räknas också som "öppna" mot PID-bursts —
   // bara PWM-OFF (revert) får passera, och bara EN åt gången.
-  for (const [ctrl, probe] of probeByCtrl.entries()) {
-    if (probe > 0) open.add(ctrl)
+  // BUGFIX: probe konsumeras endast av execute-pwm-off via pending_rapt_retries.
+  // Om probe är armad men ingen pending revert finns, fastnar kretsen för evigt
+  // (inga nya bursts → ingen revert → probe konsumeras aldrig). Auto-clear då.
+  const armedProbes = Array.from(probeByCtrl.entries()).filter(([, v]) => v > 0).map(([c]) => c)
+  if (armedProbes.length > 0) {
+    const { data: pendingRows } = await supabase
+      .from('pending_rapt_retries')
+      .select('controller_id')
+      .in('controller_id', armedProbes)
+    const hasPending = new Set<string>(((pendingRows ?? []) as Array<{ controller_id: string }>).map(r => r.controller_id))
+    for (const ctrl of armedProbes) {
+      if (hasPending.has(ctrl)) {
+        open.add(ctrl)
+      } else {
+        // Stranded probe → städa upp så bursts kan återupptas.
+        await upsertParam(supabase, ctrl, PARAM_PROBE, 0)
+      }
+    }
   }
   return open
 }
