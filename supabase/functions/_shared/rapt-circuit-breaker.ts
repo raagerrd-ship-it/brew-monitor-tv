@@ -166,6 +166,7 @@ export async function recordWriteSuccess(
 export async function recordWriteFailure(
   supabase: SupabaseClient,
   controllerId: string,
+  lastError?: string,
 ): Promise<{ newStreak: number; justOpened: boolean; openUntilMs: number }> {
   const current = await getCircuitState(supabase, controllerId)
   const newStreak = Math.min(current.failStreak + 1, STREAK_CAP)
@@ -200,10 +201,11 @@ export async function recordWriteFailure(
           .eq('controller_id', controllerId)
           .maybeSingle()
         const name = (ctrl as { name?: string } | null)?.name ?? controllerId
+        const reasonSuffix = lastError ? ` Orsak: ${lastError.slice(0, 180)}` : ''
         await supabase.from('pending_notifications').insert({
           type: 'rapt_controller_dead',
           title: 'RAPT-controller svarar inte',
-          body: `${name}: ${newStreak} konsekutiva fel mot RAPT — PWM pausad i 10 min.`,
+          body: `${name}: ${newStreak} konsekutiva fel mot RAPT — PWM-bursts pausade i 10 min.${reasonSuffix}`,
           controller_id: controllerId,
         })
       }
