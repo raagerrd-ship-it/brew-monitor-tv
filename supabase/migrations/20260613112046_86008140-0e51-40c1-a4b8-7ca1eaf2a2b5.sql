@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_readings ADD COLUMN IF NOT EXISTS recipe jsonb;
