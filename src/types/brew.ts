@@ -1,6 +1,7 @@
 // Re-export fermentation DTO types for backward compatibility
 export type { FermentationSessionData, FermentationStepData } from "./fermentation";
 import type { FermentationSessionData } from "./fermentation";
+import type { RecipeData } from "@/components/RecipeEditor";
 
 export interface BrewEvent {
   id: string;
@@ -37,6 +38,7 @@ export interface BrewData {
   label_image_url: string | null;
   description: string | null;
   pill_compensation?: boolean;
+  recipe?: RecipeData | null;
   fermentationEnd: string | null;
   overshootReason: string | null;
   originalTarget: number | null;
