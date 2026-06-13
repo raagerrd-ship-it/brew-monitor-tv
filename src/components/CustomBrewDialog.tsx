@@ -512,7 +512,7 @@ export function CustomBrewDialog({
         // Insert into brew_readings
         const { error: insertError } = await supabase
           .from("brew_readings")
-          .insert({
+          .insert([{
             batch_id: customBatchId,
             name: name.trim(),
             style: style.trim() || "Custom",
@@ -530,8 +530,8 @@ export function CustomBrewDialog({
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
             pill_compensation: true, // legacy field
-            recipe: recipe as unknown as never,
-          });
+            recipe: recipe,
+          } as never]);
 
         if (insertError) throw insertError;
 
