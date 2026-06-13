@@ -311,6 +311,116 @@ export function RecipeEditor({ value, onChange }: Props) {
         ))}
       </div>
 
+      {/* Water volumes & adjustments */}
+      <div className="grid gap-2">
+        <Label className="text-xs text-muted-foreground">Vattenmängd</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-1">
+            <Label className="text-[11px] text-muted-foreground">Mäskkärl (L)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              placeholder="t.ex. 18"
+              value={value.mash_water_liters}
+              onChange={(e) => patch({ mash_water_liters: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label className="text-[11px] text-muted-foreground">Lakkärl (L)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              placeholder="t.ex. 14"
+              value={value.sparge_water_liters}
+              onChange={(e) => patch({ sparge_water_liters: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <Label className="text-xs text-muted-foreground">Vattenjustering (salter/syra)</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() =>
+              patch({
+                water_adjustments: [
+                  ...value.water_adjustments,
+                  { name: "", amount: "", unit: "g", target: "mäskkärl" },
+                ],
+              })
+            }
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till
+          </Button>
+        </div>
+        {value.water_adjustments.map((adj, i) => (
+          <div key={i} className="grid grid-cols-[1fr_70px_70px_100px_32px] gap-1.5 items-center">
+            <Input
+              placeholder="Ex: Gips (CaSO₄)"
+              value={adj.name}
+              onChange={(e) => {
+                const next = [...value.water_adjustments];
+                next[i] = { ...next[i], name: e.target.value };
+                patch({ water_adjustments: next });
+              }}
+            />
+            <Input
+              placeholder="Mängd"
+              type="number"
+              step="0.1"
+              value={adj.amount}
+              onChange={(e) => {
+                const next = [...value.water_adjustments];
+                next[i] = { ...next[i], amount: e.target.value };
+                patch({ water_adjustments: next });
+              }}
+            />
+            <Select
+              value={adj.unit}
+              onValueChange={(v) => {
+                const next = [...value.water_adjustments];
+                next[i] = { ...next[i], unit: v };
+                patch({ water_adjustments: next });
+              }}
+            >
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {WATER_ADJ_UNITS.map((u) => (
+                  <SelectItem key={u} value={u}>{u}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={adj.target}
+              onValueChange={(v) => {
+                const next = [...value.water_adjustments];
+                next[i] = { ...next[i], target: v as RecipeWaterAdjustment["target"] };
+                patch({ water_adjustments: next });
+              }}
+            >
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mäskkärl">Mäskkärl</SelectItem>
+                <SelectItem value="lakkärl">Lakkärl</SelectItem>
+                <SelectItem value="kokkärl">Kokkärl</SelectItem>
+                <SelectItem value="övrigt">Övrigt</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => patch({ water_adjustments: value.water_adjustments.filter((_, j) => j !== i) })}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
       {/* Notes */}
       <div className="grid gap-2">
         <Label className="text-xs text-muted-foreground">Anteckningar (jäsning, vatten, övrigt)</Label>
