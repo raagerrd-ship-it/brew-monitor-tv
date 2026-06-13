@@ -26,6 +26,7 @@ import { AttenuationStat } from "./AttenuationStat";
 import { SyncedDataDialog } from "./SyncedDataDialog";
 import { PrintLabelDialog } from "../PrintLabelDialog";
 import { StartFermentationSessionDialog } from "../fermentation";
+import { RecipeView } from "./RecipeView";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
@@ -74,6 +75,7 @@ function BrewCardComponent({
   }, [brew.id, onEventsChange]);
   const { smoothLines, setSmoothLines, timeRange, setTimeRange } = useChartSettings();
   const [labelExpanded, setLabelExpanded] = useState(false);
+  const [recipeExpanded, setRecipeExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { isTvMode } = useTvMode();
@@ -159,12 +161,14 @@ function BrewCardComponent({
             {/* Title row */}
             <div className="flex items-center gap-2">
               <h2 
-                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0"
+                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary transition-colors"
                 style={{ 
                   fontSize: '18px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
                   letterSpacing: '-0.02em'
                 }}
+                onClick={() => { setRecipeExpanded(v => !v); setLabelExpanded(false); }}
+                title="Visa recept"
               >
                 {brew.name}
               </h2>
@@ -355,6 +359,8 @@ function BrewCardComponent({
                   className="max-h-full max-w-full object-contain rounded-lg"
                 />
               </div>
+            ) : recipeExpanded ? (
+              <RecipeView recipe={brew.recipe} onClose={() => setRecipeExpanded(false)} />
             ) : (
               <LazyBrewChart 
                 data={brew.sgData} 
