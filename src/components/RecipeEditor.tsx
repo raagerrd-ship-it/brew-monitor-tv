@@ -25,11 +25,21 @@ export interface RecipeBoilAddition {
   minutes: string;
 }
 
+export interface RecipeWaterAdjustment {
+  name: string;
+  amount: string;
+  unit: string;
+  target: "mäskkärl" | "lakkärl" | "kokkärl" | "övrigt";
+}
+
 export interface RecipeData {
   ingredients: RecipeIngredient[];
   mash_steps: RecipeMashStep[];
   boil_minutes: string;
   boil_additions: RecipeBoilAddition[];
+  mash_water_liters: string;
+  sparge_water_liters: string;
+  water_adjustments: RecipeWaterAdjustment[];
   notes: string;
 }
 
@@ -38,6 +48,9 @@ export const emptyRecipe = (): RecipeData => ({
   mash_steps: [],
   boil_minutes: "",
   boil_additions: [],
+  mash_water_liters: "",
+  sparge_water_liters: "",
+  water_adjustments: [],
   notes: "",
 });
 
@@ -48,6 +61,7 @@ interface Props {
 
 const INGREDIENT_UNITS = ["kg", "g", "l"];
 const BOIL_UNITS = ["g", "kg", "tabletter", "st"];
+const WATER_ADJ_UNITS = ["g", "ml", "tsk", "msk"];
 
 export function RecipeEditor({ value, onChange }: Props) {
   const patch = (p: Partial<RecipeData>) => onChange({ ...value, ...p });
