@@ -34,6 +34,7 @@ import { Loader2, X, ImageIcon } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { RecipeEditor, emptyRecipe, type RecipeData } from "./RecipeEditor";
 
 
 export interface CustomBrewData {
@@ -51,6 +52,7 @@ export interface CustomBrewData {
   linked_pill_id: string | null;
   linked_controller_id: string | null;
   pill_compensation: boolean;
+  recipe?: unknown;
 }
 
 interface PillOption {
@@ -114,6 +116,7 @@ export function CustomBrewDialog({
   const [fermentationStart, setFermentationStart] = useState("");
   const [labelImageUrl, setLabelImageUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
+  const [recipe, setRecipe] = useState<RecipeData>(emptyRecipe());
   const [uploadingLabel, setUploadingLabel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -231,6 +234,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
+        setRecipe({ ...emptyRecipe(), ...((editBrew.recipe as Partial<RecipeData>) || {}) });
         // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
@@ -263,6 +267,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(prefill?.label_image_url || null);
         setDescription(prefill?.description || "");
         setLinkedPillId(null);
+        setRecipe(emptyRecipe());
         // pillCompensation removed
         // Default to now for new brews
         const now = new Date();
@@ -415,6 +420,7 @@ export function CustomBrewDialog({
           linked_pill_id: linkedPillId,
           linked_controller_id: resolvedControllerId,
           pill_compensation: true, // legacy field, kept for backward compat
+          recipe: recipe as unknown as never,
         };
 
         // If leaving fermentation and user selected an endpoint, trim snapshots
@@ -506,7 +512,7 @@ export function CustomBrewDialog({
         // Insert into brew_readings
         const { error: insertError } = await supabase
           .from("brew_readings")
-          .insert({
+          .insert([{
             batch_id: customBatchId,
             name: name.trim(),
             style: style.trim() || "Custom",
@@ -524,7 +530,8 @@ export function CustomBrewDialog({
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
             pill_compensation: true, // legacy field
-          });
+            recipe: recipe,
+          } as never]);
 
         if (insertError) throw insertError;
 
@@ -812,6 +819,9 @@ export function CustomBrewDialog({
               className="resize-none"
             />
           </div>
+
+          {/* Recipe */}
+          <RecipeEditor value={recipe} onChange={setRecipe} />
         </div>
 
         <DialogFooter>

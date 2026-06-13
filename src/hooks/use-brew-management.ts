@@ -63,7 +63,7 @@ export function useBrewManagement() {
       const [selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.from('selected_brews').select('batch_id').eq('is_visible', true),
         supabase.from('brew_readings')
-          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation')
+          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation, recipe')
           .like('batch_id', 'custom_%'),
         supabase.from('rapt_pills').select('id, pill_id, name, color, battery_level, last_update, paired_device_id'),
         supabase.from('rapt_temp_controllers')
