@@ -259,7 +259,21 @@ export async function calculateCompensatedTarget(
 
       console.log(`🌬️ ${modeLabel} deadband-coast ${controllerName}: err=${avgError.toFixed(2)}° (past target), I→${integral.toFixed(3)}, duty=0% (single-sided hold)`)
     } else if (ssFloor > 0) {
-      if (integral > ssFloor) {
+      // ASYMMETRIC STEADY-STATE TRIM — when temp is persistently on the
+      // "wrong" side of setpoint inside the deadband (warm-side for cooling,
+      // cool-side for heating), allow integral to build slightly ABOVE
+      // ssFloor instead of dragging it back down. This closes the residual
+      // 0.1–0.2° offset that ssFloor alone can't resolve (floor = duty that
+      // *holds* current temp, not duty that *reaches* setpoint).
+      // Cap trim per cycle so we can't overshoot the other way.
+      const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
+      if (wrongSide) {
+        // +0.3% to +1.0% duty per cycle, scaled by remaining error.
+        const trim = Math.max(0.003, Math.min(0.010, Math.abs(avgError) * 0.05))
+        const base = Math.max(integral, ssFloor)
+        integral = Math.min(ssFloor + 0.15, base + trim)  // hard cap +15% above floor
+        constraints.push('deadband-trim')
+      } else if (integral > ssFloor) {
         // Above floor: blend down at 10% per cycle
         integral = integral * 0.90 + ssFloor * 0.10
       } else {
