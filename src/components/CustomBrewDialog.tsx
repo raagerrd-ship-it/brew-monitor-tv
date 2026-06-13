@@ -52,7 +52,7 @@ export interface CustomBrewData {
   linked_pill_id: string | null;
   linked_controller_id: string | null;
   pill_compensation: boolean;
-  recipe?: RecipeData | null;
+  recipe?: unknown;
 }
 
 interface PillOption {
@@ -234,7 +234,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
-        setRecipe({ ...emptyRecipe(), ...(editBrew.recipe || {}) });
+        setRecipe({ ...emptyRecipe(), ...((editBrew.recipe as Partial<RecipeData>) || {}) });
         // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
