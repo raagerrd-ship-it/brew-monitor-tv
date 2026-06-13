@@ -690,8 +690,8 @@ export function CustomBrewDialog({
             </Select>
           </div>
 
-          {/* Pill / Controller linking */}
-          {pills.length > 0 && (
+          {/* Pill / Controller linking — only relevant from Jäsning onward */}
+          {pills.length > 0 && status !== "Planering" && status !== "Bryggning" && (
             <div className="grid gap-2">
               <Label>Kopplad RAPT Pill</Label>
               <Select
