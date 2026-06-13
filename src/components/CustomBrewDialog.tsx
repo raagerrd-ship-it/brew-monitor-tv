@@ -591,7 +591,7 @@ export function CustomBrewDialog({
       </AlertDialogContent>
     </AlertDialog>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Redigera öl" : "Skapa egen öl"}</DialogTitle>
           <DialogDescription>
@@ -662,15 +662,17 @@ export function CustomBrewDialog({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="fermentationStart">Jäsningsstart</Label>
-            <Input
-              id="fermentationStart"
-              type="datetime-local"
-              value={fermentationStart}
-              onChange={(e) => setFermentationStart(e.target.value)}
-            />
-          </div>
+          {status !== "Planering" && status !== "Bryggning" && (
+            <div className="grid gap-2">
+              <Label htmlFor="fermentationStart">Jäsningsstart</Label>
+              <Input
+                id="fermentationStart"
+                type="datetime-local"
+                value={fermentationStart}
+                onChange={(e) => setFermentationStart(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label>Status</Label>
