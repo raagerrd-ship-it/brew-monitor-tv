@@ -156,6 +156,7 @@ export function useBrewPage(brewId: string | undefined) {
           fermentationSession,
           label_image_url: reading.label_image_url || null,
           description: reading.description || null,
+          recipe: (reading.recipe as any) || null,
           fermentationEnd: reading.fermentation_end || null,
           overshootReason: null,
           originalTarget: null,
