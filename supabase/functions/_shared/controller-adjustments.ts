@@ -474,19 +474,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
     const dualEnabled = !!(fc as any).dual_sensor_enabled
     const preferred = (fc as any).preferred_sensor as string | undefined
-    // LIVE pill-probe delta when both sensors are fresh — falls back to learned
-    // baseline only when pill missing. Stale baseline (often >2°) caused PID
-    // to overcompensate and lock at 100% even after probe reached target.
-    const _pillRaw = parseFloat(String((fc as any).pill_temp))
-    const _probeRaw = parseFloat(String((fc as any).current_temp))
-    const liveOffset = Number.isFinite(_pillRaw) && Number.isFinite(_probeRaw)
-      ? (_pillRaw - _probeRaw)
-      : null
-    const baselineOffset = (fc as any).pill_probe_offset ?? (fc as any).pill_probe_offset_baseline ?? null
-    const probeOffsetRaw = liveOffset != null ? liveOffset : (baselineOffset != null ? Number(baselineOffset) : null)
-    const probeCompOffset = !dualEnabled && preferred === 'probe' && Number.isFinite(probeOffsetRaw) && Math.abs(probeOffsetRaw!) <= 5
-      ? probeOffsetRaw
-      : null
+    // Probe-only mode: control purely on probe reading toward target, no pill comp.
+    const probeCompOffset: number | null = null
 
     // SSOT: pill (via BLE-ingest) writes actual_temp every minute. No fusion,
     // no interpolation, no probe fallback. If actual_temp is missing the
