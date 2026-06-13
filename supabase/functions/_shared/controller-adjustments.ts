@@ -472,6 +472,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Actual target from SSOT (already bootstrapped)
     const actualTarget = parseFloat(String((fc as any).profile_target_temp))
+    const dualEnabled = !!(fc as any).dual_sensor_enabled
+    const preferred = (fc as any).preferred_sensor as string | undefined
+    const probeOffsetCandidate = (fc as any).pill_probe_offset ?? (fc as any).pill_probe_offset_baseline ?? null
+    const probeOffset = probeOffsetCandidate != null ? Number(probeOffsetCandidate) : null
+    const probeCompOffset = !dualEnabled && preferred === 'probe' && Number.isFinite(probeOffset) && Math.abs(probeOffset) <= 5
+      ? probeOffset
+      : null
 
     // SSOT: pill (via BLE-ingest) writes actual_temp every minute. No fusion,
     // no interpolation, no probe fallback. If actual_temp is missing the
@@ -486,8 +493,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (!Number.isFinite(actualTemp)) {
       const pill = parseFloat(String((fc as any).pill_temp))
       const probe = parseFloat(String((fc as any).current_temp))
-      const dualEnabled = !!(fc as any).dual_sensor_enabled
-      const preferred = (fc as any).preferred_sensor as string | undefined
       if (dualEnabled && Number.isFinite(pill) && Number.isFinite(probe)) {
         actualTemp = (pill + probe) / 2
         log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — räknar snitt(pill=${round1(pill)}°, probe=${round1(probe)}°) = ${round1(actualTemp)}° för PID`)
@@ -501,6 +506,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         actualTemp = probe
         log('ACTUAL_TEMP_FALLBACK', 'info', `${fc.name}: actual_temp saknas — använder probe=${round1(probe)}° för PID (ingen pill)`)
       }
+    }
+    const sensorActualTemp = actualTemp
+    if (probeCompOffset != null) {
+      actualTemp = actualTemp + probeCompOffset
     }
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
@@ -908,7 +917,12 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name} [${pidMode}]`, {
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
-      actual_temp: Math.round(actualTemp * 100) / 100,
+      actual_temp: Math.round(sensorActualTemp * 100) / 100,
+      ...(probeCompOffset != null ? {
+        control_temp: Math.round(actualTemp * 100) / 100,
+        probe_offset: round1(probeCompOffset),
+        sensor_mode: 'probe_compensated',
+      } : {}),
       actual_target: round1(actualTarget),
       ctrl_target: round1(ctrlTarget),
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
