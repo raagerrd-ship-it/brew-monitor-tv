@@ -218,13 +218,51 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
         actionDetails = { target_temp: currentStep.target_temp, current_temp: rampCheckTemp }
 
         if (timeComplete) {
-          stepCompleted = true
-          actionDetails = {
-            ...actionDetails,
-            time_complete: true,
-            temp_reached: true,
+          // Optional stability gate: require recent max/min within ±deviation of actual_temp
+          const winMin = currentStep.stability_window_minutes ?? null
+          const maxDev = currentStep.stability_max_deviation ?? null
+          let stabilityOk = true
+          let stabilityDetails: any = null
+          if (winMin && maxDev != null && rampCheckTemp !== null) {
+            const since = new Date(Date.now() - winMin * 60_000).toISOString()
+            const { data: hist } = await supabase
+              .from('temp_controller_history')
+              .select('actual_temp, current_temp, recorded_at')
+              .eq('controller_id', session.controller_id)
+              .gte('recorded_at', since)
+              .order('recorded_at', { ascending: false })
+              .limit(500)
+            const samples: number[] = (hist ?? [])
+              .map((r: any) => r.actual_temp != null ? parseFloat(r.actual_temp) : (r.current_temp != null ? parseFloat(r.current_temp) : NaN))
+              .filter((n: number) => Number.isFinite(n))
+            if (samples.length >= 3) {
+              const maxT = Math.max(...samples)
+              const minT = Math.min(...samples)
+              const upDev = maxT - rampCheckTemp
+              const downDev = rampCheckTemp - minT
+              stabilityOk = upDev <= maxDev && downDev <= maxDev
+              stabilityDetails = { window_min: winMin, max_dev: maxDev, max: maxT, min: minT, current: rampCheckTemp, up: upDev, down: downDev }
+              if (!stabilityOk) {
+                console.log(`Ramp waiting for stability: max=${maxT.toFixed(2)} min=${minT.toFixed(2)} cur=${rampCheckTemp.toFixed(2)} (±${maxDev}°C over ${winMin}min)`)
+              }
+            } else {
+              stabilityOk = false
+              stabilityDetails = { window_min: winMin, max_dev: maxDev, samples: samples.length, reason: 'not_enough_samples' }
+              console.log(`Ramp waiting for stability: only ${samples.length} samples in last ${winMin}min`)
+            }
           }
-          console.log(`Ramp complete: time elapsed and temp reached ${currentStep.target_temp}°C`)
+          if (stabilityOk) {
+            stepCompleted = true
+            actionDetails = {
+              ...actionDetails,
+              time_complete: true,
+              temp_reached: true,
+              stability: stabilityDetails,
+            }
+            console.log(`Ramp complete: time elapsed and temp reached ${currentStep.target_temp}°C`)
+          } else {
+            actionDetails = { ...actionDetails, time_complete: true, temp_reached: true, stability: stabilityDetails, waiting_for: 'stability' }
+          }
         }
       } else {
         const newTarget = calculateRampTemp(startTemp, currentStep.target_temp, currentStep.duration_hours, elapsedHours)
