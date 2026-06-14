@@ -52,6 +52,8 @@ export function FermentationStepEditor({
   const [activityTrigger, setActivityTrigger] = useState<string>("35");
   const [tempIncrease, setTempIncrease] = useState<string>("3");
   const [minRampHours, setMinRampHours] = useState<string>("");
+  const [stabilityWindowMin, setStabilityWindowMin] = useState<string>("");
+  const [stabilityMaxDev, setStabilityMaxDev] = useState<string>("");
 
   useEffect(() => {
     if (step) {
@@ -68,6 +70,8 @@ export function FermentationStepEditor({
       setActivityTrigger(step.activity_trigger?.toString() || "35");
       setTempIncrease(step.temp_increase?.toString() || "3");
       setMinRampHours(step.min_ramp_hours?.toString() || "");
+      setStabilityWindowMin(step.stability_window_minutes?.toString() || "");
+      setStabilityMaxDev(step.stability_max_deviation?.toString() || "");
       // Determine hold end condition based on existing step_type
       if (step.step_type === "wait_for_gravity_stable") {
         setStepType("hold");
@@ -103,6 +107,8 @@ export function FermentationStepEditor({
     setAttenuationTrigger("75");
     setTempIncrease("3");
     setMinRampHours("");
+    setStabilityWindowMin("");
+    setStabilityMaxDev("");
   };
 
   const handleSave = () => {
@@ -140,6 +146,8 @@ export function FermentationStepEditor({
         const hours = durationHours ? parseInt(durationHours) : 0;
         stepData.ramp_type = hours === 0 ? "immediate" : "linear";
         stepData.duration_hours = hours === 0 ? null : hours;
+        stepData.stability_window_minutes = stabilityWindowMin ? parseInt(stabilityWindowMin) : null;
+        stepData.stability_max_deviation = stabilityMaxDev ? parseFloat(stabilityMaxDev) : null;
         break;
       case "wait_for_acknowledgement":
         break;
@@ -291,6 +299,30 @@ export function FermentationStepEditor({
             </div>
             <p className="text-xs text-muted-foreground">
               Ange 0 timmar för omedelbar temperaturändring.
+            </p>
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label>Stabilitet: fönster (min)</Label>
+                <Input
+                  type="number"
+                  value={stabilityWindowMin}
+                  onChange={(e) => setStabilityWindowMin(e.target.value)}
+                  placeholder="60"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max avvikelse (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={stabilityMaxDev}
+                  onChange={(e) => setStabilityMaxDev(e.target.value)}
+                  placeholder="2"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Valfritt. Steget slutförs först när max/min i fönstret ligger inom ±avvikelse från aktuell temp (lugnar svängningar innan nästa steg). Lämna tomt för att stänga av.
             </p>
           </>
         );

@@ -30,6 +30,8 @@ export interface FermentationProfileStep {
   temp_increase: number | null;
   min_ramp_hours: number | null;
   ramp_curve: string | null;
+  stability_window_minutes: number | null;
+  stability_max_deviation: number | null;
   created_at: string;
   updated_at: string;
 }

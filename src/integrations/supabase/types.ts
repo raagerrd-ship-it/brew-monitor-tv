@@ -716,6 +716,8 @@ export type Database = {
           ramp_curve: string | null
           ramp_type: string | null
           sg_comparison: string | null
+          stability_max_deviation: number | null
+          stability_window_minutes: number | null
           step_order: number
           step_type: string
           target_sg: number | null
@@ -737,6 +739,8 @@ export type Database = {
           ramp_curve?: string | null
           ramp_type?: string | null
           sg_comparison?: string | null
+          stability_max_deviation?: number | null
+          stability_window_minutes?: number | null
           step_order: number
           step_type: string
           target_sg?: number | null
@@ -758,6 +762,8 @@ export type Database = {
           ramp_curve?: string | null
           ramp_type?: string | null
           sg_comparison?: string | null
+          stability_max_deviation?: number | null
+          stability_window_minutes?: number | null
           step_order?: number
           step_type?: string
           target_sg?: number | null
