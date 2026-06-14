@@ -607,15 +607,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const heatingFloorSamples = sampleCountMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
 
     // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
-    // små över-/undershoots passivt. Vidga neutralzonen så vi inte föreslår
-    // motsatt läge på 0.1-0.2° brus runt setpoint (annars börjar krypande-fel
-    // pressuren ackumulera direkt och triggar onödiga mode-byten efter 15 min).
+    // små över-/undershoots passivt. Asymmetriskt:
+    //   • Övershoot (för varmt): snäv tolerans — jäsning genererar värme, måste
+    //     brytas snabbt annars rusar den.
+    //   • Undershoot (för kallt): bred tolerans — efter en kyl-burst ligger
+    //     glykol/jacka under wort, så wort fortsätter sjunka av tröghet medan
+    //     ambient/kammare oftast ligger över setpoint och lyfter tillbaka temp
+    //     passivt. Att byta till heating här skulle bara motverka den naturliga
+    //     återhämtningen och slösa energi.
     const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
-    const NEUTRAL_BAND = isHoldStep ? 0.20 : 0.05
+    const NEUTRAL_BAND_HOT = isHoldStep ? 0.20 : 0.05
+    const NEUTRAL_BAND_COLD = isHoldStep ? 0.50 : 0.05
     let suggestedMode: 'heating' | 'cooling'
-    if (actualTemp > actualTarget + NEUTRAL_BAND) {
+    if (actualTemp > actualTarget + NEUTRAL_BAND_HOT) {
       suggestedMode = 'cooling'
-    } else if (actualTemp < actualTarget - NEUTRAL_BAND) {
+    } else if (actualTemp < actualTarget - NEUTRAL_BAND_COLD) {
       suggestedMode = 'heating'
     } else {
       // Inom neutralzonen: behåll föregående läge (eller default cooling om okänt)
@@ -632,7 +638,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Sänk emergency-tröskeln så MODE_FLOOR_BLOCK inte låser oss i fel läge när
     // temp redan tydligt passerat target (t.ex. 20.43° vid mål 20.0° → blockad
     // i heating med 0% duty och kylan startar aldrig).
-    const emergencyThreshold = isHoldStep ? 0.3 : 0.8
+    // Emergency-tröskel också asymmetrisk under hold: överskjutning åt det
+    // varma hållet är farlig (jäsningsvärme), men en kall undershoot ska få
+    // återhämtas passivt innan vi tvingar heating.
+    const isUndershoot = actualTemp < actualTarget
+    const emergencyThreshold = isHoldStep ? (isUndershoot ? 0.6 : 0.3) : 0.8
     const emergencyOverride =
       prevMode != null &&
       suggestedMode !== prevMode &&
