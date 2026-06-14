@@ -300,6 +300,30 @@ export function FermentationStepEditor({
             <p className="text-xs text-muted-foreground">
               Ange 0 timmar för omedelbar temperaturändring.
             </p>
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label>Stabilitet: fönster (min)</Label>
+                <Input
+                  type="number"
+                  value={stabilityWindowMin}
+                  onChange={(e) => setStabilityWindowMin(e.target.value)}
+                  placeholder="60"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max avvikelse (°C)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={stabilityMaxDev}
+                  onChange={(e) => setStabilityMaxDev(e.target.value)}
+                  placeholder="2"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Valfritt. Steget slutförs först när max/min i fönstret ligger inom ±avvikelse från aktuell temp (lugnar svängningar innan nästa steg). Lämna tomt för att stänga av.
+            </p>
           </>
         );
 
