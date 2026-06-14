@@ -616,7 +616,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     //     passivt. Att byta till heating här skulle bara motverka den naturliga
     //     återhämtningen och slösa energi.
     const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
-    const NEUTRAL_BAND_HOT = isHoldStep ? 0.20 : 0.05
+    // Övershoot: noll tolerans — så fort vi ligger över target ska vi sluta värma.
+    // Undershoot: bred tolerans under hold (termisk massa + ambient lyfter passivt).
+    const NEUTRAL_BAND_HOT = isHoldStep ? 0.00 : 0.05
     const NEUTRAL_BAND_COLD = isHoldStep ? 0.50 : 0.05
     let suggestedMode: 'heating' | 'cooling'
     if (actualTemp > actualTarget + NEUTRAL_BAND_HOT) {
