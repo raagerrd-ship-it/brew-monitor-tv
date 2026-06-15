@@ -210,10 +210,20 @@ export async function calculateCompensatedTarget(
     integral = 0
     constraints.push('mode-switch-softstart')
     console.log(`🌱 ${controllerName}: mode-switch soft-start (err=${avgError.toFixed(2)}°) — I→0, capping duty for observation`)
-  } else if (!!modeJustSwitched && Math.abs(avgError) < SOFT_START_NEAR_TARGET && need > 0) {
-    // Mode-switch on action-needed side: seed integral with a sensible base so
-    // we don't crawl from 0%. Use ssFloor if mature, otherwise a conservative
-    // 8% seed so P+I lands near a reasonable starting duty within 1-2 cycles.
+  }
+  const warmSeedActive = !!modeJustSwitched
+    && Math.abs(avgError) < SOFT_START_NEAR_TARGET
+    && need > 0
+
+  // ── Steady-state duty floor ──────────────────────────────
+  const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
+  const ssFloorSamples = ssParamResolved.sampleCount
+
+  // Mode-switch warm-seed: when we just switched modes and we're already on
+  // the action-needed side of setpoint, seed integral with a sensible base so
+  // we don't crawl from 0%. Floor if mature, else conservative 8% so P+I
+  // lands near a reasonable starting duty within 1-2 cycles.
+  if (warmSeedActive) {
     const seed = ssFloorSamples >= 5 && ssFloorRaw > 0 ? ssFloorRaw : 0.08
     if (integral < seed) {
       integral = seed
@@ -221,10 +231,6 @@ export async function calculateCompensatedTarget(
       console.log(`🌶️ ${controllerName}: mode-switch warm-seed (err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°) — I→${seed.toFixed(3)} för snabb respons`)
     }
   }
-
-  // ── Steady-state duty floor ──────────────────────────────
-  const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
-  const ssFloorSamples = ssParamResolved.sampleCount
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Skala ssFloor-utdata bidirektionellt baserat på faktisk glykolmarginal vs lärd referens.
