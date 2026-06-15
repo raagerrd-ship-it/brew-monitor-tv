@@ -341,13 +341,15 @@ export async function calculateCompensatedTarget(
       // capture the right value before integral is killed.
       integral *= 0.95
 
-      // PROBE-KICK — when no floor exists AND we're on the wrong side of
-      // setpoint inside the deadband (warm-side for cooling, cool-side for
-      // heating), seed a small duty so the system actually actuates and
-      // ssFloor learning can start collecting samples. Without this we sit
-      // at 0% forever (integral=0 → duty=0 → no learning → no duty).
-      const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
-      if (stepType === 'hold' && wrongSide) {
+      // PROBE-KICK — when no floor exists AND we're on the action-needed side
+      // of setpoint inside deadband, seed a small duty so the system actually
+      // actuates and ssFloor learning can start collecting samples. Without
+      // this we sit at 0% forever (integral=0 → duty=0 → no learning → no duty).
+      // Use `need` as the sign source here; it is already normalized so
+      // positive always means "this mode needs to act now" for both cooling
+      // and heating.
+      const actionNeededInDeadband = need > 0.02
+      if (stepType === 'hold' && actionNeededInDeadband) {
         const PROBE_DUTY = 0.06 // 6% — small enough to be safe, large enough to learn
         integral = Math.max(integral, PROBE_DUTY)
         constraints.push('deadband-no-floor-probe')
