@@ -195,17 +195,42 @@ export async function calculateCompensatedTarget(
   // floor. Instead reset the integral and cap actuation so the new mode's
   // effect can be observed before more energy is committed. If we're far
   // from target the regular path runs (need to actually act).
+  //
+  // IMPORTANT: only soft-start when we're on the COASTING side of setpoint
+  // (need ≤ 0). If we just switched modes BECAUSE we're on the action-needed
+  // side (e.g. heating overshot → temp is over target → cooling kicks in and
+  // we still need to cool), nuking the integral makes the new mode crawl up
+  // from 0% while temp keeps drifting further from target. That was the
+  // root cause of multi-hour +0.5–0.75° excursions on Gul.
   const SOFT_START_NEAR_TARGET = 0.5
-  const softStartActive = !!modeJustSwitched && Math.abs(avgError) < SOFT_START_NEAR_TARGET
+  const softStartActive = !!modeJustSwitched
+    && Math.abs(avgError) < SOFT_START_NEAR_TARGET
+    && need <= 0  // only mjukstart when already past setpoint (coasting in)
   if (softStartActive) {
     integral = 0
     constraints.push('mode-switch-softstart')
     console.log(`🌱 ${controllerName}: mode-switch soft-start (err=${avgError.toFixed(2)}°) — I→0, capping duty for observation`)
   }
+  const warmSeedActive = !!modeJustSwitched
+    && Math.abs(avgError) < SOFT_START_NEAR_TARGET
+    && need > 0
 
   // ── Steady-state duty floor ──────────────────────────────
   const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
   const ssFloorSamples = ssParamResolved.sampleCount
+
+  // Mode-switch warm-seed: when we just switched modes and we're already on
+  // the action-needed side of setpoint, seed integral with a sensible base so
+  // we don't crawl from 0%. Floor if mature, else conservative 8% so P+I
+  // lands near a reasonable starting duty within 1-2 cycles.
+  if (warmSeedActive) {
+    const seed = ssFloorSamples >= 5 && ssFloorRaw > 0 ? ssFloorRaw : 0.08
+    if (integral < seed) {
+      integral = seed
+      constraints.push('mode-switch-warmseed')
+      console.log(`🌶️ ${controllerName}: mode-switch warm-seed (err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°) — I→${seed.toFixed(3)} för snabb respons`)
+    }
+  }
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Skala ssFloor-utdata bidirektionellt baserat på faktisk glykolmarginal vs lärd referens.
