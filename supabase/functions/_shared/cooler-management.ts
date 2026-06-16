@@ -314,6 +314,26 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // Hard cap: lärd marginal får aldrig dra iväg över denna nivå även om historiken
   // har förorenats av tidigare över-defensiva formler eller tillfälliga boosts.
   const MAX_COOLER_MARGIN = 6.0
+  // SATURATION BOOST: när en följande controller bevisligen är saturerad
+  // (≥95% duty/util OCH faktisk temp drar iväg över mål) räcker inte den
+  // normala marginalen — kylaren måste få gå kallare för att öka ΔT över
+  // växlaren. Vi tillåter då marginal upp till MAX_EMERGENCY (slutligt
+  // mål clampas ändå av coolerMinTemp = säkerhetsgolv för glykolen).
+  const MAX_COOLER_MARGIN_EMERGENCY = 12.0
+  let saturationBoost = 0
+  if (!isRamp) {
+    const effUtil = utilizations.find(u => u.controllerId === effectiveTarget.controllerId)
+    if (effUtil && effUtil.utilization != null && effUtil.utilization >= 0.95) {
+      const overshoot = effUtil.probeTemp - effUtil.targetTemp
+      if (overshoot > 0.3) {
+        // Skala boost med faktisk avdrift: 0.3° → +1°, 3°+ → +6° extra över taket
+        saturationBoost = Math.max(0.5, Math.min(6.0, overshoot * 2))
+        log('MARGIN_SATURATION_BOOST', 'action',
+          `${effUtil.controllerName} saturerad (${Math.round((effUtil.utilization ?? 0) * 100)}% util, probe ${round1(effUtil.probeTemp)}° vs mål ${round1(effUtil.targetTemp)}° = +${overshoot.toFixed(2)}° drift) — utökar margin-tak ${MAX_COOLER_MARGIN}°C → ${(MAX_COOLER_MARGIN + saturationBoost).toFixed(1)}°C`)
+      }
+    }
+  }
+  const effectiveMaxMargin = MAX_COOLER_MARGIN + saturationBoost
   const coolerHysteresisForMargin = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
   const halfHyst = coolerHysteresisForMargin / 2
   const boostedMargin = baseMargin * rateBoostFactor
@@ -321,7 +341,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
   // Under ramp ska marginalen bara få ÖKA — vi capar inte boostad marginal eftersom
   // det skulle motverka kylningen. Capen gäller bara hold-läget.
-  const cappedMargin = isRamp ? flooredMargin : Math.min(flooredMargin, MAX_COOLER_MARGIN)
+  const cappedMargin = isRamp ? flooredMargin : Math.min(flooredMargin, effectiveMaxMargin)
   const effectiveMargin = Math.round(cappedMargin * 10) / 10
   const worstCaseMargin = Math.round((effectiveMargin - halfHyst) * 10) / 10
   const bestCaseMargin = Math.round((effectiveMargin + halfHyst) * 10) / 10
@@ -329,7 +349,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C under golv ${MIN_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   if (cappedMargin < flooredMargin) {
-    log('MARGIN_CAP', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C över tak ${MAX_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+    log('MARGIN_CAP', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C över tak ${effectiveMaxMargin.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
