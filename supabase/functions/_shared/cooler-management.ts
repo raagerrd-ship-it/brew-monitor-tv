@@ -349,7 +349,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     log('MARGIN_FLOOR', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C under golv ${MIN_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   if (cappedMargin < flooredMargin) {
-    log('MARGIN_CAP', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C över tak ${MAX_COOLER_MARGIN.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
+    log('MARGIN_CAP', 'info', `Lärd marginal ${boostedMargin.toFixed(1)}°C + halvHyst ${halfHyst.toFixed(1)}°C över tak ${effectiveMaxMargin.toFixed(1)}°C — använder ${effectiveMargin.toFixed(1)}°C`)
   }
   const desiredCoolerTarget = Math.round((effectiveTarget.temp - effectiveMargin) * 10) / 10
   let clampedTarget = Math.max(coolerMinTemp, Math.min(coolerMaxTemp, desiredCoolerTarget))
