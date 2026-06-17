@@ -107,27 +107,32 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Row 1 — status, matches Clock time row (25px) */}
-      <div className="flex items-center h-[25px]">
+      <div className="flex items-center h-[25px] gap-2">
+        <span className="relative flex h-1.5 w-1.5">
+          {isOn && (
+            <span
+              className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+              style={{ background: stateColor }}
+            />
+          )}
+          <span
+            className="relative inline-flex rounded-full h-1.5 w-1.5"
+            style={{
+              background: stateColor,
+              boxShadow: isOn ? `0 0 8px ${stateColor}` : "none",
+            }}
+          />
+        </span>
         <span
-          className="text-[13px] font-bold tracking-[0.15em] uppercase flex items-center gap-1.5 transition-colors duration-300"
+          className="text-[10px] font-medium tracking-[0.22em] uppercase text-white/40"
+        >
+          Plugg
+        </span>
+        <span
+          className="text-[15px] font-semibold tracking-tight leading-none transition-colors duration-300 tabular-nums"
           style={{ color: stateColor }}
         >
-          <span className="relative flex h-2 w-2">
-            {isOn && (
-              <span
-                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                style={{ background: stateColor }}
-              />
-            )}
-            <span
-              className="relative inline-flex rounded-full h-2 w-2"
-              style={{
-                background: stateColor,
-                boxShadow: isOn ? `0 0 6px ${stateColor}` : "none",
-              }}
-            />
-          </span>
-          Plugg <span className="opacity-40">·</span> {stateLabel}
+          {stateLabel}
         </span>
       </div>
 
