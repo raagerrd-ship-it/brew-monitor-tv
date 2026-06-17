@@ -123,16 +123,8 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
             }}
           />
         </span>
-        <span
-          className="text-[10px] font-medium tracking-[0.22em] uppercase text-white/40"
-        >
+        <span className="text-[10px] font-medium tracking-[0.22em] uppercase text-white/40">
           Plugg
-        </span>
-        <span
-          className="text-[15px] font-semibold tracking-tight leading-none transition-colors duration-300 tabular-nums"
-          style={{ color: stateColor }}
-        >
-          {stateLabel}
         </span>
       </div>
 
