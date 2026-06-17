@@ -106,28 +106,14 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
       className="flex flex-col items-end justify-between h-[52px]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
-      {/* Row 1 — status, matches Clock time row (25px) */}
-      <div className="flex items-center h-[25px] gap-[7px] leading-none">
-        <span className="relative flex h-[7px] w-[7px] items-center justify-center">
-          {isOn && (
-            <span
-              className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
-              style={{ background: stateColor }}
-            />
-          )}
-          <span
-            className="relative inline-flex rounded-full h-[7px] w-[7px]"
-            style={{
-              background: stateColor,
-              boxShadow: isOn ? `0 0 8px ${stateColor}, 0 0 2px ${stateColor}` : "none",
-            }}
-          />
-        </span>
+      {/* Row 1 — label, centered over segmented control */}
+      <div className="flex items-center justify-center h-[18px] w-full leading-none">
         <span
           className="text-[10px] font-semibold tracking-[0.28em] uppercase"
           style={{
-            color: isOn ? "hsl(0 0% 92%)" : "hsl(0 0% 50%)",
+            color: isOn ? "hsl(0 0% 88%)" : "hsl(0 0% 50%)",
             transition: "color 300ms",
+            paddingRight: "0.28em",
           }}
         >
           Plugg
