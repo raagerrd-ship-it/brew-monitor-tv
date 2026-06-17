@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Power, PowerOff, ShieldAlert, Plug } from "lucide-react";
+import { Power, PowerOff, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -89,7 +89,7 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
     toast.success("Kommando skickat till pluggen");
   };
 
-  const stateLabel = isOn === true ? "PÅ" : isOn === false ? "AV" : "—";
+  const stateLabel = isOn === true ? "På" : isOn === false ? "Av" : "—";
   const stateColor =
     isOn === true
       ? "hsl(142 70% 45%)"
@@ -102,95 +102,97 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
     Date.now() - new Date(events[0].created_at).getTime() < 60 * 60 * 1000;
 
   return (
-    <div className="flex flex-col items-end justify-center h-full gap-1">
-      {/* Row 1 — status */}
-      <div className="flex items-center gap-1.5">
-        <Plug
-          className="w-3 h-3"
-          style={{ color: stateColor, opacity: isOn ? 1 : 0.6 }}
-        />
+    <div
+      className="flex flex-col items-end justify-between h-[52px]"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
+      {/* Row 1 — status, matches Clock time row (25px) */}
+      <div className="flex items-center h-[25px]">
         <span
-          className="text-[10px] font-semibold uppercase tracking-[0.12em] tabular-nums"
+          className="text-[13px] font-bold tracking-[0.15em] uppercase flex items-center gap-1.5 transition-colors duration-300"
           style={{ color: stateColor }}
         >
-          Plugg
-        </span>
-        <span
-          className="rounded-full"
-          style={{
-            width: 5,
-            height: 5,
-            background: stateColor,
-            boxShadow: isOn ? `0 0 6px ${stateColor}` : "none",
-          }}
-        />
-        <span
-          className="text-[10px] font-semibold tracking-wider"
-          style={{ color: stateColor }}
-        >
-          {stateLabel}
+          <span className="relative flex h-2 w-2">
+            {isOn && (
+              <span
+                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                style={{ background: stateColor }}
+              />
+            )}
+            <span
+              className="relative inline-flex rounded-full h-2 w-2"
+              style={{
+                background: stateColor,
+                boxShadow: isOn ? `0 0 6px ${stateColor}` : "none",
+              }}
+            />
+          </span>
+          Plugg <span className="opacity-40">·</span> {stateLabel}
         </span>
       </div>
 
-      {/* Row 2 — segmented controls */}
-      <div
-        className="inline-flex items-center rounded-md overflow-hidden"
-        style={{
-          background: "hsl(0 0% 100% / 0.04)",
-          border: "1px solid hsl(0 0% 100% / 0.08)",
-          height: 22,
-        }}
-      >
-        <button
-          type="button"
-          disabled={sending || isOn === true}
-          onClick={() => sendCommand("on")}
-          className="h-full px-2 inline-flex items-center justify-center transition-colors disabled:opacity-30 hover:bg-white/5"
-          style={{ color: "hsl(142 70% 60%)" }}
-          title="Sätt på pluggen"
-          aria-label="Sätt på pluggen"
-        >
-          <Power className="w-3 h-3" strokeWidth={2.5} />
-        </button>
-        <div className="w-px self-stretch" style={{ background: "hsl(0 0% 100% / 0.08)" }} />
-        <button
-          type="button"
-          disabled={sending || isOn === false}
-          onClick={() => sendCommand("off")}
-          className="h-full px-2 inline-flex items-center justify-center transition-colors disabled:opacity-30 hover:bg-white/5"
-          style={{ color: "hsl(0 0% 70%)" }}
-          title="Stäng av pluggen"
-          aria-label="Stäng av pluggen"
-        >
-          <PowerOff className="w-3 h-3" strokeWidth={2.5} />
-        </button>
-        <div className="w-px self-stretch" style={{ background: "hsl(0 0% 100% / 0.08)" }} />
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="h-full px-2 inline-flex items-center justify-center transition-colors hover:bg-white/5"
-              style={{
-                color: hasRecentEvent ? "hsl(38 92% 60%)" : "hsl(0 0% 55%)",
-              }}
-              title="Watchdog-händelser"
-              aria-label="Watchdog-händelser"
-            >
-              <ShieldAlert className="w-3 h-3" strokeWidth={2.5} />
-              {hasRecentEvent && (
-                <span
-                  className="absolute -mt-3 ml-3 rounded-full"
-                  style={{
-                    width: 5,
-                    height: 5,
-                    background: "hsl(38 92% 55%)",
-                    boxShadow: "0 0 4px hsl(38 92% 55%)",
-                  }}
-                />
-              )}
-            </button>
-          </PopoverTrigger>
-        <PopoverContent
+      {/* Row 2 — segmented glass control, matches Clock date row (15px) */}
+      <div className="flex items-center h-[15px]">
+        <div className="flex items-center bg-white/5 rounded-full p-[1px] border border-white/10 backdrop-blur-md">
+          {/* Power On */}
+          <button
+            type="button"
+            disabled={sending || isOn === true}
+            onClick={() => sendCommand("on")}
+            className="flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/15 disabled:cursor-default"
+            style={{
+              background: isOn === true ? "hsl(142 70% 45% / 0.18)" : "transparent",
+              color: isOn === true ? "hsl(142 70% 55%)" : "hsl(142 60% 50% / 0.7)",
+            }}
+            title="Sätt på pluggen"
+            aria-label="Sätt på pluggen"
+          >
+            <Power className="w-2.5 h-2.5" strokeWidth={3} />
+          </button>
+
+          {/* Power Off */}
+          <button
+            type="button"
+            disabled={sending || isOn === false}
+            onClick={() => sendCommand("off")}
+            className="flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/10 disabled:cursor-default"
+            style={{
+              background: isOn === false ? "hsl(0 0% 100% / 0.1)" : "transparent",
+              color: isOn === false ? "hsl(0 0% 85%)" : "hsl(0 0% 55%)",
+            }}
+            title="Stäng av pluggen"
+            aria-label="Stäng av pluggen"
+          >
+            <PowerOff className="w-2.5 h-2.5" strokeWidth={3} />
+          </button>
+
+          {/* Watchdog */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="relative flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/10"
+                style={{
+                  color: hasRecentEvent ? "hsl(38 92% 60%)" : "hsl(0 0% 45%)",
+                }}
+                title="Watchdog-händelser"
+                aria-label="Watchdog-händelser"
+              >
+                <Shield className="w-2.5 h-2.5" strokeWidth={3} />
+                {hasRecentEvent && (
+                  <span
+                    className="absolute top-0.5 right-1 rounded-full"
+                    style={{
+                      width: 4,
+                      height: 4,
+                      background: "hsl(38 92% 55%)",
+                      boxShadow: "0 0 4px hsl(38 92% 55%)",
+                    }}
+                  />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
           align="end"
           className="w-80 p-3"
           style={{ background: "hsl(222 20% 10%)", border: "1px solid hsl(0 0% 100% / 0.1)" }}
@@ -249,8 +251,9 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
               })}
             </ul>
           )}
-        </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
     </div>
   );
