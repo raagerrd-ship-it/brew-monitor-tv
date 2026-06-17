@@ -16,6 +16,7 @@ import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
+import { PlugControl } from "./PlugControl";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -125,6 +126,8 @@ export function DashboardHeader({
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
               <Clock />
+
+              {!isTvMode && <PlugControl />}
 
               {!isTvMode && (
                 <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
