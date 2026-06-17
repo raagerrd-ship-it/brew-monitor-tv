@@ -103,7 +103,7 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
 
   return (
     <div
-      className="flex flex-col items-end justify-between h-[52px]"
+      className="flex flex-col items-center justify-center h-[52px] gap-[3px]"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Row 1 — label, centered over segmented control */}
