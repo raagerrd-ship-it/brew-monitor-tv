@@ -1025,6 +1025,51 @@ export type Database = {
         }
         Relationships: []
       }
+      plug_commands: {
+        Row: {
+          command: string
+          created_at: string
+          executed_at: string | null
+          id: string
+          source: string
+          status: string
+        }
+        Insert: {
+          command: string
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          source?: string
+          status?: string
+        }
+        Update: {
+          command?: string
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      plug_state: {
+        Row: {
+          id: number
+          is_on: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: number
+          is_on?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: number
+          is_on?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
