@@ -1835,6 +1835,33 @@ export type Database = {
         }
         Relationships: []
       }
+      watchdog_log: {
+        Row: {
+          action: string | null
+          age_minutes: number | null
+          controller: string | null
+          created_at: string
+          id: string
+          last_reading_at: string | null
+        }
+        Insert: {
+          action?: string | null
+          age_minutes?: number | null
+          controller?: string | null
+          created_at?: string
+          id?: string
+          last_reading_at?: string | null
+        }
+        Update: {
+          action?: string | null
+          age_minutes?: number | null
+          controller?: string | null
+          created_at?: string
+          id?: string
+          last_reading_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
