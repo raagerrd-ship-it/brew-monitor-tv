@@ -1,0 +1,16 @@
+[Unit]
+Description=Tuya plug poller (Supabase → local LAN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/plug-poller
+ExecStart=/home/pi/plug-poller/.venv/bin/python /home/pi/plug-poller/poller.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
