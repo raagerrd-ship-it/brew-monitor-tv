@@ -107,8 +107,8 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Row 1 — status, matches Clock time row (25px) */}
-      <div className="flex items-center h-[25px] gap-2">
-        <span className="relative flex h-1.5 w-1.5">
+      <div className="flex items-center h-[25px] gap-[7px] leading-none">
+        <span className="relative flex h-[7px] w-[7px] items-center justify-center">
           {isOn && (
             <span
               className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
@@ -116,35 +116,57 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
             />
           )}
           <span
-            className="relative inline-flex rounded-full h-1.5 w-1.5"
+            className="relative inline-flex rounded-full h-[7px] w-[7px]"
             style={{
               background: stateColor,
-              boxShadow: isOn ? `0 0 8px ${stateColor}` : "none",
+              boxShadow: isOn ? `0 0 8px ${stateColor}, 0 0 2px ${stateColor}` : "none",
             }}
           />
         </span>
-        <span className="text-[10px] font-medium tracking-[0.22em] uppercase text-white/40">
+        <span
+          className="text-[10px] font-semibold tracking-[0.28em] uppercase"
+          style={{
+            color: isOn ? "hsl(0 0% 92%)" : "hsl(0 0% 50%)",
+            transition: "color 300ms",
+          }}
+        >
           Plugg
         </span>
       </div>
 
       {/* Row 2 — segmented glass control, matches Clock date row (15px) */}
       <div className="flex items-center h-[15px]">
-        <div className="flex items-center bg-white/5 rounded-full p-[1px] border border-white/10 backdrop-blur-md">
+        <div
+          className="flex items-center rounded-full p-[1.5px] backdrop-blur-md"
+          style={{
+            background: "hsl(0 0% 100% / 0.04)",
+            border: "1px solid hsl(0 0% 100% / 0.08)",
+            boxShadow:
+              "inset 0 1px 0 hsl(0 0% 100% / 0.04), 0 1px 2px hsl(0 0% 0% / 0.4)",
+          }}
+        >
           {/* Power On */}
           <button
             type="button"
             disabled={sending || isOn === true}
             onClick={() => sendCommand("on")}
-            className="flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/15 disabled:cursor-default"
+            className="flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06] disabled:cursor-default"
             style={{
-              background: isOn === true ? "hsl(142 70% 45% / 0.18)" : "transparent",
-              color: isOn === true ? "hsl(142 70% 55%)" : "hsl(142 60% 50% / 0.7)",
+              background:
+                isOn === true
+                  ? "radial-gradient(circle at 50% 40%, hsl(142 70% 50% / 0.32), hsl(142 70% 40% / 0.12))"
+                  : "transparent",
+              color:
+                isOn === true ? "hsl(142 75% 70%)" : "hsl(142 30% 55% / 0.55)",
+              boxShadow:
+                isOn === true
+                  ? "inset 0 0 0 1px hsl(142 70% 50% / 0.35), 0 0 8px hsl(142 70% 45% / 0.25)"
+                  : "none",
             }}
             title="Sätt på pluggen"
             aria-label="Sätt på pluggen"
           >
-            <Power className="w-2.5 h-2.5" strokeWidth={3} />
+            <Power className="w-2.5 h-2.5" strokeWidth={2.75} />
           </button>
 
           {/* Power Off */}
@@ -152,15 +174,23 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
             type="button"
             disabled={sending || isOn === false}
             onClick={() => sendCommand("off")}
-            className="flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/10 disabled:cursor-default"
+            className="flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06] disabled:cursor-default"
             style={{
-              background: isOn === false ? "hsl(0 0% 100% / 0.1)" : "transparent",
-              color: isOn === false ? "hsl(0 0% 85%)" : "hsl(0 0% 55%)",
+              background:
+                isOn === false
+                  ? "hsl(0 0% 100% / 0.08)"
+                  : "transparent",
+              color:
+                isOn === false ? "hsl(0 0% 92%)" : "hsl(0 0% 100% / 0.35)",
+              boxShadow:
+                isOn === false
+                  ? "inset 0 0 0 1px hsl(0 0% 100% / 0.12)"
+                  : "none",
             }}
             title="Stäng av pluggen"
             aria-label="Stäng av pluggen"
           >
-            <PowerOff className="w-2.5 h-2.5" strokeWidth={3} />
+            <PowerOff className="w-2.5 h-2.5" strokeWidth={2.75} />
           </button>
 
           {/* Watchdog */}
@@ -168,22 +198,24 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="relative flex items-center justify-center w-8 h-[18px] rounded-full transition-colors hover:bg-white/10"
+                className="relative flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06]"
                 style={{
-                  color: hasRecentEvent ? "hsl(38 92% 60%)" : "hsl(0 0% 45%)",
+                  color: hasRecentEvent
+                    ? "hsl(38 92% 65%)"
+                    : "hsl(0 0% 100% / 0.32)",
                 }}
                 title="Watchdog-händelser"
                 aria-label="Watchdog-händelser"
               >
-                <Shield className="w-2.5 h-2.5" strokeWidth={3} />
+                <Shield className="w-2.5 h-2.5" strokeWidth={2.75} />
                 {hasRecentEvent && (
                   <span
-                    className="absolute top-0.5 right-1 rounded-full"
+                    className="absolute top-[3px] right-[6px] rounded-full"
                     style={{
                       width: 4,
                       height: 4,
-                      background: "hsl(38 92% 55%)",
-                      boxShadow: "0 0 4px hsl(38 92% 55%)",
+                      background: "hsl(38 92% 60%)",
+                      boxShadow: "0 0 5px hsl(38 92% 55%)",
                     }}
                   />
                 )}
