@@ -1,0 +1,16 @@
+[Unit]
+Description=RAPT watchdog — auto-restart plug when controller is stale
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/plug-poller
+ExecStart=/home/pi/plug-poller/.venv/bin/python /home/pi/plug-poller/watchdog.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

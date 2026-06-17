@@ -55,3 +55,24 @@ Adjust paths in the service file if you didn't install to `/home/pi/plug-poller`
 | Restart | `RESTART_OFF_SECONDS` (8s) | off → wait → on |
 
 Outbound only: HTTPS to Supabase + UDP/TCP to the plug's LAN IP.
+
+## Watchdog
+
+`watchdog.py` runs alongside the poller. Every `WATCHDOG_INTERVAL_SEC`
+(default 5 min) it checks the freshest `last_update` across all
+`rapt_temp_controllers`. If older than `WATCHDOG_STALE_MIN` (default 31)
+it inserts a `restart` command with `source='watchdog'`. A
+`WATCHDOG_COOLDOWN_MIN` (default 20) guard prevents repeated restarts
+while the controller is rebooting.
+
+Install as a second service:
+
+```bash
+sudo cp systemd/plug-watchdog.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now plug-watchdog
+journalctl -u plug-watchdog -f
+```
+
+Test by stopping the poller and manually setting a controller's
+`last_update` to >31 min ago, or just watch the log for the next real outage.
