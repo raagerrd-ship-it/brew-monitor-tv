@@ -88,7 +88,7 @@ export async function calculateCompensatedTarget(
   const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
   const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
   const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
-  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
+  const [{ data: learnedRow }, phaseParam, modeParam, warmingParam, coolingRateParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
       .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
@@ -101,6 +101,12 @@ export async function calculateCompensatedTarget(
       ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
       : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
     getLearnedParam(supabase, controllerId, modeKeyedName, 0),
+    mode === 'cooling'
+      ? getLearnedParam(supabase, controllerId, `warming_rate:${ssBucket}`, 0)
+      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
+    mode === 'cooling'
+      ? getLearnedParam(supabase, controllerId, 'thermal_rate_cooling', 0)
+      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
   ])
 
   // Resolve floor with fallback chain:
