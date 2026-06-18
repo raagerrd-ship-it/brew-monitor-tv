@@ -88,7 +88,7 @@ export async function calculateCompensatedTarget(
   const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
   const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
   const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
-  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
+  const [{ data: learnedRow }, phaseParam, modeParam, warmingParam, coolingRateParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
       .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
@@ -101,6 +101,12 @@ export async function calculateCompensatedTarget(
       ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
       : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
     getLearnedParam(supabase, controllerId, modeKeyedName, 0),
+    mode === 'cooling'
+      ? getLearnedParam(supabase, controllerId, `warming_rate:${ssBucket}`, 0)
+      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
+    mode === 'cooling'
+      ? getLearnedParam(supabase, controllerId, 'thermal_rate_cooling', 0)
+      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
   ])
 
   // Resolve floor with fallback chain:
@@ -572,6 +578,36 @@ export async function calculateCompensatedTarget(
     dutyCycle = capped
     iCorrection = Math.min(iCorrection, capped)
     integral = Math.min(integral, capped)
+  }
+
+  // ── Physics-derived hold floor (cooling only) ─────────────────
+  // When EMA-learned ssFloor drifts to 0 because PWM-off cycles dominate the
+  // dataset, the integral has no anchor and the loop swings: passive warming
+  // drifts temp above target → small P-burst cools below → integral drains
+  // → repeat. Compute a physics floor from learned rates:
+  //     physicsFloor = warming_rate / thermal_rate_cooling  (both °C/h)
+  // i.e. the duty fraction needed to exactly offset ambient pull. Apply 0.7×
+  // safety factor (conservative — undershoot OK, overshoot bad), clamp 0–0.40,
+  // and only enforce when at/near target during a hold step. This does NOT
+  // touch DB-learned values — purely a runtime minimum on the emitted duty.
+  if (
+    isCooling
+    && stepType === 'hold'
+    && !isSaturated
+    && !softStartActive
+    && need >= -0.05
+    && warmingParam.sampleCount >= 5
+    && coolingRateParam.sampleCount >= 5
+    && coolingRateParam.value > 0.1
+  ) {
+    const physicsFloor = Math.min(0.40, Math.max(0, (warmingParam.value / coolingRateParam.value) * 0.7))
+    if (physicsFloor > dutyCycle + 0.005) {
+      const before = dutyCycle
+      dutyCycle = physicsFloor
+      integral = Math.max(integral, physicsFloor)
+      constraints.push(`phys-floor=${(physicsFloor * 100).toFixed(0)}%`)
+      console.log(`⚖️ ${modeLabel} physics-floor ${controllerName}: warm=${warmingParam.value.toFixed(2)}/cool=${coolingRateParam.value.toFixed(2)} °C/h → floor ${(physicsFloor * 100).toFixed(0)}%, duty ${(before * 100).toFixed(0)}% → ${(physicsFloor * 100).toFixed(0)}%`)
+    }
   }
 
   // Defer persist — caller can batch this with other DB writes
