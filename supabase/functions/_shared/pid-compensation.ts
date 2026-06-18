@@ -580,35 +580,12 @@ export async function calculateCompensatedTarget(
     integral = Math.min(integral, capped)
   }
 
-  // ── Physics-derived hold floor (cooling only) ─────────────────
-  // When EMA-learned ssFloor drifts to 0 because PWM-off cycles dominate the
-  // dataset, the integral has no anchor and the loop swings: passive warming
-  // drifts temp above target → small P-burst cools below → integral drains
-  // → repeat. Compute a physics floor from learned rates:
-  //     physicsFloor = warming_rate / thermal_rate_cooling  (both °C/h)
-  // i.e. the duty fraction needed to exactly offset ambient pull. Apply 0.7×
-  // safety factor (conservative — undershoot OK, overshoot bad), clamp 0–0.40,
-  // and only enforce when at/near target during a hold step. This does NOT
-  // touch DB-learned values — purely a runtime minimum on the emitted duty.
-  if (
-    isCooling
-    && stepType === 'hold'
-    && !isSaturated
-    && !softStartActive
-    && need >= -0.05
-    && warmingParam.sampleCount >= 5
-    && coolingRateParam.sampleCount >= 5
-    && coolingRateParam.value > 0.1
-  ) {
-    const physicsFloor = Math.min(0.40, Math.max(0, (warmingParam.value / coolingRateParam.value) * 0.7))
-    if (physicsFloor > dutyCycle + 0.005) {
-      const before = dutyCycle
-      dutyCycle = physicsFloor
-      integral = Math.max(integral, physicsFloor)
-      constraints.push(`phys-floor=${(physicsFloor * 100).toFixed(0)}%`)
-      console.log(`⚖️ ${modeLabel} physics-floor ${controllerName}: warm=${warmingParam.value.toFixed(2)}/cool=${coolingRateParam.value.toFixed(2)} °C/h → floor ${(physicsFloor * 100).toFixed(0)}%, duty ${(before * 100).toFixed(0)}% → ${(physicsFloor * 100).toFixed(0)}%`)
-    }
-  }
+  // ── Physics-derived hold floor — DISABLED 2026-06-18 ──────────
+  // Drove Gul into undershoot → mode flip to heating (hardware target
+  // jumped to max_target_temp). 0.7× factor was still too aggressive;
+  // gate (`need >= -0.05`) allowed forcing duty even when already at target.
+  // Reverted to integral-only learning; ±0.1°C swing accepted.
+  void warmingParam; void coolingRateParam;
 
   // Defer persist — caller can batch this with other DB writes
   const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
