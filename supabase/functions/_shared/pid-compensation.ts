@@ -549,6 +549,18 @@ export async function calculateCompensatedTarget(
       }
     }
 
+    // ── Low-error duty cap (no learned floor) ──
+    // When ssFloor is unknown/zero and we are still near setpoint (need ≤ 0.5°C),
+    // cap duty at 30% so a single cycle can't blow past target. Prevents the
+    // "0% → 58% → undershoot to -0.4°C" oscillation seen on tanks where
+    // historical hold-duty has averaged to zero but real bursts are large.
+    if (stepType === 'hold' && ssFloorRaw === 0 && !isSaturated && need <= 0.5 && raw > 0.30) {
+      const uncapped = raw
+      raw = 0.30
+      constraints.push('lowerr-cap')
+      console.log(`🧯 ${modeLabel} low-error cap ${controllerName}: need=${need.toFixed(2)}°, no ssFloor → duty ${(uncapped*100).toFixed(0)}% → 30%`)
+    }
+
     dutyCycle = Math.max(0, Math.min(1.0, raw))
     console.log(`🎯 ${modeLabel} ${controllerName}: need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}, duty=${(dutyCycle * 100).toFixed(0)}%${isSaturated ? ' [SAT]' : ''}`)
   }
