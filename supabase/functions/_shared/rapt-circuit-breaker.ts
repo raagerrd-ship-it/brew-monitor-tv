@@ -212,6 +212,34 @@ export async function recordWriteFailure(
     } catch (notifErr) {
       console.error(`circuit-breaker notify fail: ${notifErr}`)
     }
+    // Trigga plug-restart (samma mekanism som rapt-watchdog), respektera 35 min cooldown.
+    try {
+      const COOLDOWN_MIN = 35
+      const cooldownCutoff = new Date(Date.now() - COOLDOWN_MIN * 60_000).toISOString()
+      const { data: recentRestart } = await supabase
+        .from('plug_commands')
+        .select('id')
+        .eq('source', 'watchdog')
+        .eq('command', 'restart')
+        .gte('created_at', cooldownCutoff)
+        .limit(1)
+      const inCooldown = ((recentRestart as unknown[]) ?? []).length > 0
+      const action = inCooldown ? 'cooldown_skipped' : 'restart_triggered'
+      await supabase.from('watchdog_log').insert({
+        controller: controllerId,
+        last_reading_at: null,
+        age_minutes: null,
+        action,
+      })
+      if (!inCooldown) {
+        await supabase.from('plug_commands').insert({ command: 'restart', source: 'watchdog' })
+        console.log(`🔌 CIRCUIT_OPEN → plug restart queued for ${controllerId}`)
+      } else {
+        console.log(`🔌 CIRCUIT_OPEN för ${controllerId} — restart i cooldown, hoppar över`)
+      }
+    } catch (restartErr) {
+      console.error(`circuit-breaker restart trigger fail: ${restartErr}`)
+    }
   }
   return { newStreak, justOpened, openUntilMs }
 }
