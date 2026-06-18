@@ -230,7 +230,6 @@ export async function recordWriteFailure(
         last_reading_at: null,
         age_minutes: null,
         action,
-        reason: `circuit_open: ${newStreak} consecutive RAPT write failures`,
       })
       if (!inCooldown) {
         await supabase.from('plug_commands').insert({ command: 'restart', source: 'watchdog' })
