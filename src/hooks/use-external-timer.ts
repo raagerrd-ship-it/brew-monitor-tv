@@ -10,6 +10,7 @@ export interface TimerMilestone {
   pauseForTemperature?: boolean;
   targetTemperature?: number;
   whirlpoolTime?: number;
+  description?: string;
 }
 
 export interface NextConfig {
@@ -128,6 +129,7 @@ export function useExternalTimer() {
       pauseForTemperature: typeof milestone.pauseForTemperature === 'boolean' ? milestone.pauseForTemperature : undefined,
       targetTemperature: typeof milestone.targetTemperature === 'number' ? milestone.targetTemperature : undefined,
       whirlpoolTime: typeof milestone.whirlpoolTime === 'number' ? milestone.whirlpoolTime : undefined,
+      description: typeof milestone.description === 'string' ? milestone.description : undefined,
     };
   }, []);
 

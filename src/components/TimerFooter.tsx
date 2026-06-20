@@ -243,6 +243,11 @@ export const TimerFooter = memo(function TimerFooter() {
             <div className="text-orange-100 text-5xl md:text-7xl font-bold text-center leading-tight">
               {label}
             </div>
+            {justTriggered.description && (
+              <div className="text-orange-300/80 text-xl md:text-2xl mt-4 text-center font-medium max-w-2xl">
+                {justTriggered.description}
+              </div>
+            )}
             <div className="text-orange-300/80 text-lg mt-4 font-medium">
               Kvittera i bryggappen
             </div>
