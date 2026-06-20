@@ -123,6 +123,15 @@ Deno.serve(async (req) => {
       ? timerData.milestones
       : [];
 
+    // Infer paused_by_milestone when the upstream endpoint omits it but the
+    // timer is paused at a pauseForTemperature milestone (orange-glow signal).
+    const remainingSeconds = timerData?.remainingSeconds || 0;
+    const inferredPausedByMilestone =
+      timerData?.isPaused === true &&
+      milestones.some(
+        (m) => m?.pauseForTemperature === true && typeof m?.time === 'number' && m.time >= remainingSeconds,
+      );
+
     const timerRecord = {
       external_user_id: userId,
       is_active: timerData?.isActive || false,
@@ -130,7 +139,7 @@ Deno.serve(async (req) => {
       remaining_seconds: timerData?.remainingSeconds || 0,
       total_seconds: timerData?.totalSeconds || 0,
       is_paused: timerData?.isPaused || false,
-      paused_by_milestone: timerData?.pausedByMilestone || false,
+      paused_by_milestone: timerData?.pausedByMilestone || inferredPausedByMilestone || false,
       paused_at: timerData?.pausedAt ? (typeof timerData.pausedAt === 'number' ? new Date(timerData.pausedAt).toISOString() : timerData.pausedAt) : null,
       milestones: milestones,
       next_milestone: timerData?.nextMilestone || null,
