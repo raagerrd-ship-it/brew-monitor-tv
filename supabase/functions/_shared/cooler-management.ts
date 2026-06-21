@@ -307,13 +307,21 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
 
   // Use learned margin directly — min_effective is logged as reference only (no hard floor)
   const baseMargin = learnedMargin.value
+  // ── LOAD BOOST: extra marginal per aktivt jäsande tank ────
+  // Lärd margin per loadBucket reagerar långsamt. När antalet aktiva tankar ökar
+  // måste glykolmålet sänkas omedelbart, annars hinner ölet drifta upp innan
+  // learning hinner uppdatera bucket. activeTankCount=1 → 0, 2 → +1.5°C, 3+ → +3°C.
+  const loadBoost = activeTankCount >= 3 ? 3.0 : activeTankCount === 2 ? 1.5 : 0
+  if (loadBoost > 0) {
+    log('LOAD_BOOST', 'action', `${activeTankCount} tankar aktivt jäser → +${loadBoost.toFixed(1)}°C marginal (omedelbart, inväntar ej learning)`)
+  }
   // Hard floor: 5.0°C AVERAGE marginal (mittvärde) — glykolen pendlar ±halv hysteres
   // runt kommanderad target, så vi lägger på halva hysteresen för att mittvärdet ska
   // hamna på lärt värde. Worst case = mittvärde − halvHyst, best case = mittvärde + halvHyst.
   const MIN_COOLER_MARGIN = 5.0
   // Hard cap: lärd marginal får aldrig dra iväg över denna nivå även om historiken
   // har förorenats av tidigare över-defensiva formler eller tillfälliga boosts.
-  const MAX_COOLER_MARGIN = 6.0
+  const MAX_COOLER_MARGIN = 6.0 + loadBoost
   // SATURATION BOOST: när en följande controller bevisligen är saturerad
   // (≥95% duty/util OCH faktisk temp drar iväg över mål) räcker inte den
   // normala marginalen — kylaren måste få gå kallare för att öka ΔT över
@@ -336,7 +344,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   const effectiveMaxMargin = MAX_COOLER_MARGIN + saturationBoost
   const coolerHysteresisForMargin = parseFloat(String(coolerController.cooling_hysteresis ?? '0.2'))
   const halfHyst = coolerHysteresisForMargin / 2
-  const boostedMargin = baseMargin * rateBoostFactor
+  const boostedMargin = baseMargin * rateBoostFactor + loadBoost
   const hystAdjustedMargin = boostedMargin + halfHyst
   const flooredMargin = Math.max(hystAdjustedMargin, MIN_COOLER_MARGIN)
   // Under ramp ska marginalen bara få ÖKA — vi capar inte boostad marginal eftersom
@@ -368,6 +376,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     current_cooler: currentCoolerTarget,
     required_rate: effectiveTarget.requiredRatePerHour,
     load_bucket: loadBucket,
+    active_tank_count: activeTankCount,
+    load_boost: loadBoost,
   })
 
   // ── Log margin history snapshot ───────────────────────────
