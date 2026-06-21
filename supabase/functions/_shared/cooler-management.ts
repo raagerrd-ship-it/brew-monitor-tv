@@ -376,6 +376,8 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
     current_cooler: currentCoolerTarget,
     required_rate: effectiveTarget.requiredRatePerHour,
     load_bucket: loadBucket,
+    active_tank_count: activeTankCount,
+    load_boost: loadBoost,
   })
 
   // ── Log margin history snapshot ───────────────────────────
