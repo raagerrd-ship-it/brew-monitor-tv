@@ -333,18 +333,35 @@ export const TimerFooter = memo(function TimerFooter() {
                   ? currentMilestone.label.replace(/🔥\s*/g, '') 
                   : timer.label || 'Pågår'}
               </span>
-              {/* Temperature target for whirlpool/pauseForTemperature milestones */}
-              {currentMilestone?.pauseForTemperature && currentMilestone.targetTemperature && (
-                <div className={cn(
-                  "flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold",
-                  isWhirlpool 
-                    ? "bg-cyan-500/20 text-cyan-300" 
-                    : "bg-orange-500/20 text-orange-300"
-                )}>
-                  <Thermometer className="w-3.5 h-3.5" />
-                  <span>Kyl till {currentMilestone.targetTemperature}°C</span>
-                </div>
-              )}
+              {/* Temperature target badge — action-driven (heat/cool/hold) */}
+              {(() => {
+                const action =
+                  currentMilestone?.action ??
+                  (currentMilestone?.pauseForTemperature ? timer.timerAction : undefined);
+                const target =
+                  currentMilestone?.targetTemperature ??
+                  (currentMilestone?.pauseForTemperature ? timer.timerTargetTemperature ?? undefined : undefined);
+                if (!target || (!currentMilestone?.pauseForTemperature && !action)) return null;
+                const isHeat = action === 'heat';
+                const isCool = action === 'cool';
+                const verb = isHeat ? 'Värm till' : isCool ? 'Kyl till' : 'Håll vid';
+                const palette = isHeat
+                  ? 'bg-orange-500/20 text-orange-300'
+                  : isWhirlpool
+                    ? 'bg-cyan-500/20 text-cyan-300'
+                    : isCool
+                      ? 'bg-cyan-500/20 text-cyan-300'
+                      : 'bg-emerald-500/20 text-emerald-300';
+                return (
+                  <div className={cn(
+                    "flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold",
+                    palette,
+                  )}>
+                    {isHeat ? <Flame className="w-3.5 h-3.5" /> : <Thermometer className="w-3.5 h-3.5" />}
+                    <span>{verb} {target}°C</span>
+                  </div>
+                );
+              })()}
               {currentMilestone?.whirlpoolTime && (
                 <div className={cn(
                   "flex items-center gap-1 flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold",
