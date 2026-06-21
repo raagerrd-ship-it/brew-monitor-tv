@@ -465,6 +465,8 @@ export type Database = {
           recipe_name: string | null
           remaining_seconds: number
           time_to_next_milestone: number | null
+          timer_action: string | null
+          timer_target_temperature: number | null
           total_seconds: number
           updated_at: string
           wizard_started_at: string | null
@@ -488,6 +490,8 @@ export type Database = {
           recipe_name?: string | null
           remaining_seconds?: number
           time_to_next_milestone?: number | null
+          timer_action?: string | null
+          timer_target_temperature?: number | null
           total_seconds?: number
           updated_at?: string
           wizard_started_at?: string | null
@@ -511,6 +515,8 @@ export type Database = {
           recipe_name?: string | null
           remaining_seconds?: number
           time_to_next_milestone?: number | null
+          timer_action?: string | null
+          timer_target_temperature?: number | null
           total_seconds?: number
           updated_at?: string
           wizard_started_at?: string | null
