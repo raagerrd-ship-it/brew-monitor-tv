@@ -207,13 +207,29 @@ export async function processAllSessions(
       const MAX_STEP_HOURS = 7 * 24
       if (elapsedHours > MAX_STEP_HOURS && currentStep.step_type !== 'wait_for_acknowledgement') {
         console.error(`🚨 Session ${session.id}: Step ${session.current_step_index} (${currentStep.step_type}) has been running for ${Math.round(elapsedHours)}h — exceeds ${MAX_STEP_HOURS}h safety limit`)
-        await supabase.from('pending_notifications').insert({
-          type: 'step_timeout',
-          title: 'Steg fastnat',
-          body: `Steg ${session.current_step_index} (${currentStep.step_type}) har körts i ${Math.round(elapsedHours / 24)} dagar utan att slutföras. Kontrollera manuellt.`,
-          controller_id: session.controller_id,
-          brew_id: session.brew_id,
-        })
+        let existingWarningQuery = supabase
+          .from('pending_notifications')
+          .select('id')
+          .eq('type', 'step_timeout')
+          .eq('controller_id', session.controller_id)
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .limit(1)
+
+        existingWarningQuery = session.brew_id
+          ? existingWarningQuery.eq('brew_id', session.brew_id)
+          : existingWarningQuery.is('brew_id', null)
+
+        const { data: existingWarning } = await existingWarningQuery
+
+        if (!existingWarning || existingWarning.length === 0) {
+          await supabase.from('pending_notifications').insert({
+            type: 'step_timeout',
+            title: 'Steg fastnat',
+            body: `Steg ${session.current_step_index} (${currentStep.step_type}) har körts i ${Math.round(elapsedHours / 24)} dagar utan att slutföras. Kontrollera manuellt.`,
+            controller_id: session.controller_id,
+            brew_id: session.brew_id,
+          })
+        }
         results.push({ sessionId: session.id, action: 'step_timeout_warning', details: { elapsed_hours: Math.round(elapsedHours), step_type: currentStep.step_type } })
       }
 
