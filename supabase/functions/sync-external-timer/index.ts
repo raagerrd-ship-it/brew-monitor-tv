@@ -14,6 +14,7 @@ interface TimerMilestone {
   pauseForTemperature?: boolean;
   targetTemperature?: number;
   whirlpoolTime?: number;
+  action?: string;
 }
 
 interface NextConfig {
@@ -146,6 +147,8 @@ Deno.serve(async (req) => {
       time_to_next_milestone: timerData?.timeToNextMilestone || null,
       progress: timerData?.progress || 0,
       next_config: timerData?.nextConfig || null,
+      timer_action: typeof timerData?.action === 'string' ? timerData.action : null,
+      timer_target_temperature: typeof timerData?.targetTemperature === 'number' ? timerData.targetTemperature : null,
       wizard_step: wizardData?.step || null,
       wizard_started_at: wizardData?.startedAt ? (typeof wizardData.startedAt === 'number' ? new Date(wizardData.startedAt).toISOString() : wizardData.startedAt) : null,
       recipe_name: responseData?.recipeName || null,

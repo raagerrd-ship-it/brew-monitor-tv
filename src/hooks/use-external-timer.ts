@@ -11,6 +11,7 @@ export interface TimerMilestone {
   targetTemperature?: number;
   whirlpoolTime?: number;
   description?: string;
+  action?: 'heat' | 'cool' | 'hold' | string;
 }
 
 export interface NextConfig {
@@ -35,6 +36,8 @@ export interface ExternalTimerState {
   wizardStep: string | null;
   recipeName: string | null;
   beerStyle: string | null;
+  timerAction: 'heat' | 'cool' | 'hold' | string | null;
+  timerTargetTemperature: number | null;
 }
 
 const initialState: ExternalTimerState = {
@@ -53,6 +56,8 @@ const initialState: ExternalTimerState = {
   wizardStep: null,
   recipeName: null,
   beerStyle: null,
+  timerAction: null,
+  timerTargetTemperature: null,
 };
 
 // Interval constants
@@ -130,6 +135,7 @@ export function useExternalTimer() {
       targetTemperature: typeof milestone.targetTemperature === 'number' ? milestone.targetTemperature : undefined,
       whirlpoolTime: typeof milestone.whirlpoolTime === 'number' ? milestone.whirlpoolTime : undefined,
       description: typeof milestone.description === 'string' ? milestone.description : undefined,
+      action: typeof milestone.action === 'string' ? milestone.action : undefined,
     };
   }, []);
 
@@ -261,6 +267,8 @@ export function useExternalTimer() {
         wizardStep: data.wizard_step ?? null,
         recipeName: data.recipe_name ?? null,
         beerStyle: data.beer_style ?? null,
+        timerAction: (data as Record<string, unknown>).timer_action as string | null ?? null,
+        timerTargetTemperature: (data as Record<string, unknown>).timer_target_temperature as number | null ?? null,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);
