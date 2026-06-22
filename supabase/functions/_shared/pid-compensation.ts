@@ -269,8 +269,6 @@ export function computeDutyV3(input: {
   prevAvgError: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
-  wBottom?: number            // bulk weight (default 0.5)
-  wPill?: number              // bulk weight (default 0.5)
 }): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
