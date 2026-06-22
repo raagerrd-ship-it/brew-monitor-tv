@@ -20,18 +20,8 @@ async function persistPidState(
   }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
 }
 
-/** Compute updated integral: decay + accumulate (or hold if stale) */
-function computeIntegral(
-  persistedIntegral: number, avgError: number, isStaleData: boolean,
-  iDecay: number, iGain: number, iClamp: number,
-): number {
-  if (isStaleData) return persistedIntegral
-  const newIntegral = persistedIntegral * iDecay + avgError * iGain
-  return Math.max(-iClamp, Math.min(iClamp, newIntegral))
-}
-
 // ============================================================
-// PID Control & Thermal Learning
+// PID Control & Thermal Learning (V2: PI + rate-feedforward)
 //
 // SSOT Naming Convention:
 //   actualTarget  = user's desired temperature (profile_target_temp)
@@ -39,10 +29,9 @@ function computeIntegral(
 //   ctrlTarget    = current hardware target (target_temp before PID)
 //   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
 //
-// PID error = actualTarget - actualTemp (same domain user sees)
-//
-// Pure PI regulator — no D-term. Slow thermal systems don't benefit
-// from derivative action, and sensor noise gets amplified.
+// V2 model (computeDutyV2): single PI loop around ssFloor with a quadratic
+// pill-rate brake (D-term) and pill-fused realtime estimate when bottom
+// probe is stale. Tuned for 60L thermal mass + 1-min loop + 15-min probe.
 // ============================================================
 
 /**
