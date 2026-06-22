@@ -125,8 +125,6 @@ export function DashboardHeader({
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
-              <Clock />
-
               {!isTvMode && <PlugControl />}
 
               {!isTvMode && (
@@ -146,6 +144,8 @@ export function DashboardHeader({
                   </Button>
                 </div>
               )}
+
+              <Clock />
             </div>
           </>
         )}
