@@ -273,6 +273,29 @@ export async function calculateCompensatedTarget(
   }
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
 
+  // ── HOLD-DRIFT MICRO-ACTUATION ───────────────────────────
+  // I `hold`-steg: om temperaturen driver mot fel sida med >0.03°/cykel
+  // (~15 min) medan vi fortfarande är nära target, kicka upp integral till
+  // en liten "mikro-duty" (60% av lärt floor, eller 8% om okänt) innan err
+  // hinner gå utanför deadbanden. Förhindrar 0% → hård reaktion-pendel.
+  const HOLD_DRIFT_THRESHOLD = 0.03
+  const prevNeedHold = isCooling ? -prevAvgError : prevAvgError
+  const needDrift = need - prevNeedHold
+  if (
+    stepType === 'hold'
+    && Math.abs(avgError) <= 0.15
+    && needDrift > HOLD_DRIFT_THRESHOLD
+    && need > -0.10
+  ) {
+    const baseDuty = ssFloor > 0 ? ssFloor : 0.08
+    const microDuty = baseDuty * 0.60
+    if (integral < microDuty) {
+      integral = microDuty
+      constraints.push(`hold-drift-micro=${Math.round(needDrift * 1000)}m°/cyc`)
+      console.log(`💧 ${modeLabel} hold-drift micro ${controllerName}: drift=${needDrift.toFixed(3)}°/cyc, err=${avgError.toFixed(2)}°, I→${integral.toFixed(3)} (base=${baseDuty.toFixed(3)})`)
+    }
+  }
+
   if (Math.abs(avgError) <= 0.10) {
     const shouldCoastInDeadband = stepType !== 'hold'
     // DEADBAND — single-sided behaviour:
