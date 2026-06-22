@@ -739,51 +739,56 @@ export function computeDutyV2(input: {
   const avgError = input.actualTarget - input.actualTemp
   const need = isCooling ? -avgError : avgError
 
-  // ── Gains (hold = lugnare, ramp/wait = mer aktiv) ──
-  const Kp   = isHold ? 0.30 : 0.50
-  const Ki   = isHold ? 0.04 : 0.12
-  const Kd   = isHold ? 0.12 : 0.15
-  const Imax = isHold ? 0.50 : 0.85
+  // ── Gains: tuned for 60L thermal mass (lower Ki, higher Kd) ──
+  const Kp   = isHold ? 0.35 : 0.60
+  const Ki   = isHold ? 0.02 : 0.08
+  const Kd   = isHold ? 0.20 : 0.30
+  const Imax = isHold ? 0.40 : 0.70
 
   // ── Integral init ──
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
-  // Mode-flip: seed från lärt floor (eller 8% fallback för snabb respons)
+  // Mode-flip: coast en cykel — 60L tank har restenergi i mantel/probe,
+  // hoppa inte direkt till ssFloor (krockar med restvärme/kyla).
   if (input.modeJustSwitched) {
-    integral = input.ssFloor > 0 ? input.ssFloor : 0.08
-    constraints.push('mode-flip-seed')
+    integral = 0
+    constraints.push('mass-coast')
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
   // ── P-term ──
   const uP = Kp * need
 
-  // ── D-term: pill-rate broms ──
-  // approachRate > 0 = vi närmar oss target i mode-riktning. Bromsa bara när
-  // vi närmar oss OCH är nära target (≤ 0.5°C kvar) → undviker att D motverkar
-  // när vi faktiskt behöver actuera långt från target.
+  // ── D-term: kvadratisk pill-broms ──
+  // 60L har stor rörelseenergi när det väl rör sig → linjär broms räcker inte.
+  // approachRate > 0 = närmar oss target i mode-riktning. Bromsa progressivt.
   const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
-  const uD = (approachRate > 0 && need < 0.5) ? Math.max(-0.35, -Kd * approachRate) : 0
-  if (uD < 0) constraints.push('d-brake')
+  let uD = 0
+  if (approachRate > 0 && need > 0) {
+    uD = Math.max(-0.45, -Kd * (approachRate * approachRate))
+    constraints.push('pill-brake')
+  }
 
-  // ── Integrate (conditional integration: freeze när stale eller djupt förbi target) ──
+  // ── Integration zone: integrera bara nära target (skydd mot transport-delay windup) ──
+  // Långt från target gör P-termen + ssFloor jobbet. Integralen finjusterar slutet.
   let nextI = integral
+  const INTEGRATION_ZONE = 0.35
   if (input.isStaleData) {
     constraints.push('stale-hold')
-  } else if (need > -0.05) {
-    // Normal integration zone: före target och småmarginalen förbi
+  } else if (Math.abs(avgError) <= INTEGRATION_ZONE) {
     nextI += Ki * need
+    constraints.push('i-zone')
   }
-  // Mjuk decay endast vid markant överskott (> 0.10°C förbi target i mode-riktning)
-  if (need < -0.10) {
-    nextI *= isHold ? 0.90 : 0.95
-    constraints.push('overshoot-decay')
+  // Dränera integralen progressivt vid överskott
+  if (need < -0.02) {
+    nextI *= isHold ? 0.80 : 0.90
+    constraints.push('overshoot-bleed')
   }
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Sammanställ duty ──
-  const uFf = input.ssFloor > 0 ? input.ssFloor : 0
-  let raw = uFf + uP + nextI + uD
+  const uFf = (input.ssFloor > 0 && input.ssFloorSamples >= 3) ? input.ssFloor : 0
+  const raw = uFf + uP + nextI + uD
   let duty = Math.max(0, Math.min(1, raw))
 
   // ── Util saturation: kapa till nextI+0.1 (mer än så är meningslöst när hw är maxad) ──
@@ -791,6 +796,12 @@ export function computeDutyV2(input: {
   if (isSaturated) {
     duty = Math.min(duty, nextI + 0.1)
     constraints.push('util-sat-cap')
+  }
+
+  // ── Past-target coast: stäng ner när vi passerat (i hold: håll 20% av ssFloor som mjuk catch) ──
+  if (need <= 0) {
+    duty = (isHold && uFf > 0) ? uFf * 0.20 : 0
+    constraints.push('past-target-coast')
   }
 
   // ── Panik: > 2°C error → full action ──
