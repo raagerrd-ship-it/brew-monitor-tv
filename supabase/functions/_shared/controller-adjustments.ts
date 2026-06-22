@@ -862,7 +862,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
 
     // Build ramp context for PID rate-aware boost
-    let rampContext: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null = null
+    let rampContext:
+      | { requiredRatePerHour: number; tempBucket: string; loadBucket: string;
+          learnedHoldI?: number; etaMin?: number; endTarget?: number }
+      | null = null
     if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
       const tempBucket = getTempBucket(ctrlTarget)
       const activeCoolingCount = followedControllersFullData.filter(c => c.cooling_enabled).length
