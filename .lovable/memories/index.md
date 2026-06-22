@@ -7,7 +7,7 @@
 - Hardware suppressions: +2°C above probe to suppress cooling, -2°C below probe to suppress heating during PWM off phases.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
-- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Focus automation/AI on these.
+- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run probe-SSOT (`dual_sensor_enabled=false`, `preferred_sensor=probe`) so V3 observer + k-learning + stratification guards are fully active. Focus automation/AI on these.
 - PID is V3 (observer + mode-keyed gradient k + asymmetric gains + cooling-only predictive brake + stratification guards). Per-minute loop, no V2 stale-branch.
 
 ## Memories
