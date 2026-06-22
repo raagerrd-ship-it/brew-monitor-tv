@@ -736,14 +736,25 @@ export function computeDutyV2(input: {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
   const isHold = input.stepType === 'hold'
-  const avgError = input.actualTarget - input.actualTemp
-  const need = isCooling ? -avgError : avgError
+  const baseAvgError = input.actualTarget - input.actualTemp
+  let need = isCooling ? -baseAvgError : baseAvgError
 
-  // ── Gains: tuned for 60L thermal mass (lower Ki, higher Kd) ──
-  const Kp   = isHold ? 0.35 : 0.60
-  const Ki   = isHold ? 0.02 : 0.08
-  const Kd   = isHold ? 0.20 : 0.30
-  const Imax = isHold ? 0.40 : 0.70
+  // approachRate > 0 = pill rör sig mot target i mode-riktning (1-min upplösning)
+  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
+
+  // ── Fused sensor: när bottenproben är stale (15-min lucka) använd pill för att
+  // virtuellt uppdatera 'need' baserat på rörelsen sedan förra cykeln (~1 min) ──
+  if (input.isStaleData && input.pillRate != null) {
+    const CYCLE_TIME_HOURS = 1 / 60
+    need -= approachRate * CYCLE_TIME_HOURS
+    constraints.push('pill-fused-estimate')
+  }
+
+  // ── Gains: 60L mass + 1-min loop, Pill ger ren derivata ──
+  const Kp   = isHold ? 0.30 : 0.55
+  const Ki   = isHold ? 0.015 : 0.06
+  const Kd   = isHold ? 0.25 : 0.35
+  const Imax = isHold ? 0.35 : 0.65
 
   // ── Integral init ──
   let integral = input.persistedIntegral
@@ -756,32 +767,28 @@ export function computeDutyV2(input: {
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
-  // ── P-term ──
-  const uP = Kp * need
+  // ── P-term med stale-dämpning (undvik dubbel-stöt under 15-min tystnad) ──
+  const pScale = input.isStaleData ? 0.40 : 1.00
+  if (input.isStaleData) constraints.push('p-scaled-40pct')
+  const uP = Kp * need * pScale
 
-  // ── D-term: kvadratisk pill-broms ──
-  // 60L har stor rörelseenergi när det väl rör sig → linjär broms räcker inte.
-  // approachRate > 0 = närmar oss target i mode-riktning. Bromsa progressivt.
-  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
+  // ── D-term: kvadratisk pill-broms (matas av 1-min realtidsdata) ──
   let uD = 0
   if (approachRate > 0 && need > 0) {
-    uD = Math.max(-0.45, -Kd * (approachRate * approachRate))
-    constraints.push('pill-brake')
+    uD = Math.max(-0.40, -Kd * (approachRate * approachRate))
+    constraints.push('realtime-brake')
   }
 
-  // ── Integration zone: integrera bara nära target (skydd mot transport-delay windup) ──
-  // Långt från target gör P-termen + ssFloor jobbet. Integralen finjusterar slutet.
+  // ── Integration: bara nära target OCH med färsk data ──
   let nextI = integral
-  const INTEGRATION_ZONE = 0.35
-  if (input.isStaleData) {
-    constraints.push('stale-hold')
-  } else if (Math.abs(avgError) <= INTEGRATION_ZONE) {
+  const INTEGRATION_ZONE = 0.30
+  if (!input.isStaleData && Math.abs(need) <= INTEGRATION_ZONE) {
     nextI += Ki * need
     constraints.push('i-zone')
   }
-  // Dränera integralen progressivt vid överskott
-  if (need < -0.02) {
-    nextI *= isHold ? 0.80 : 0.90
+  // Snabb urladdning vid överskott (skydd mot 60L undershoot)
+  if (need < -0.01) {
+    nextI *= 0.85
     constraints.push('overshoot-bleed')
   }
   nextI = Math.max(0, Math.min(Imax, nextI))
@@ -798,9 +805,9 @@ export function computeDutyV2(input: {
     constraints.push('util-sat-cap')
   }
 
-  // ── Past-target coast: stäng ner när vi passerat (i hold: håll 20% av ssFloor som mjuk catch) ──
+  // ── Past-target coast: stäng ner när vi passerat (i hold: håll 15% av ssFloor som mjuk catch) ──
   if (need <= 0) {
-    duty = (isHold && uFf > 0) ? uFf * 0.20 : 0
+    duty = (isHold && uFf > 0) ? uFf * 0.15 : 0
     constraints.push('past-target-coast')
   }
 
