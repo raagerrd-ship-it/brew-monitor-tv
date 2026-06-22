@@ -76,6 +76,8 @@ export async function calculateCompensatedTarget(
   phaseBucket?: 'active' | 'tail' | 'clean' | null,
   floorLookupTarget?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
+  // Capture original inputs for v2 shadow at end of function
+  const _v2In = { actualTarget, actualTemp, mode, stepType, pillRate, isStaleData, coolingUtilization, modeJustSwitched }
   const constraints: string[] = []
 
   // === Adaptive PI-term ===
