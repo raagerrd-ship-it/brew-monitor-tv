@@ -539,6 +539,7 @@ export type Database = {
           latest_p_correction: number
           learned_pi_correction: number
           mode: string
+          sensor_anchor: Json | null
           step_type: string
           style_key: string | null
           updated_at: string
@@ -557,6 +558,7 @@ export type Database = {
           latest_p_correction?: number
           learned_pi_correction?: number
           mode?: string
+          sensor_anchor?: Json | null
           step_type?: string
           style_key?: string | null
           updated_at?: string
@@ -575,6 +577,7 @@ export type Database = {
           latest_p_correction?: number
           learned_pi_correction?: number
           mode?: string
+          sensor_anchor?: Json | null
           step_type?: string
           style_key?: string | null
           updated_at?: string

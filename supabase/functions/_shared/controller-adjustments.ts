@@ -968,6 +968,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       modeJustSwitched,
       phaseBucket,
       floorLookupTarget,
+      (fc as any).pill_temp != null ? parseFloat(String((fc as any).pill_temp)) : null,
     )
 
     // Log PID status
@@ -1033,19 +1034,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // ssFloor represents the duty needed to MAINTAIN the target, so learning
       // should happen during all near-target states, not just "pure" deadband.
       if (!ctx.skipLearning) {
-        // V2 constraint tags: `i-zone` = near setpoint (|need| ≤ 0.30°C, fresh
-        // data). That's the steady-state condition where ssFloor learning is
-        // meaningful. `stale` allows seeding through 15-min probe gaps.
-        const isInZone = pidResult.constraints?.includes('i-zone')
-        const isStale = pidResult.constraints?.includes('stale')
-        const isMildOvershoot = pidResult.constraints?.includes('overshoot-bleed')
+        // V3 constraint tags: `steady-state` = |need| ≤ 0.30°C, observer-fused,
+        // not mode-switching. That's the only window ssFloor learning is
+        // meaningful. Skip when any guard/brake/cap was active (signal is
+        // contaminated by transient hardware action).
+        const tags = pidResult.constraints ?? []
+        const isSteady = tags.includes('steady-state')
+        const isMildOvershoot = tags.includes('overshoot-bleed')
+        const conflictTags = new Set([
+          'predictive-brake', 'bottom-undershoot-guard', 'top-overshoot-guard',
+          'past-target-coast', 'full-action', 'mass-coast', 'util-sat-cap',
+        ])
+        const hasConflict = tags.some(t => conflictTags.has(t) || t.startsWith('margin-scale=') || t.startsWith('ramp-boost='))
         const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-        // Freeze floor seeding/EMA during ramps — the live target crawls
-        // through buckets and would fragment learning into many half-converged
-        // floors.
-        const canLearnSsFloor = hasDutyData && !isRampStep && (
-          isInZone || isStale || isMildOvershoot
-        )
+        const canLearnSsFloor = hasDutyData && !isRampStep && !hasConflict && (isSteady || isMildOvershoot)
         if (canLearnSsFloor) {
           const dutyBucket = getTempBucket(actualTarget)
           // Phase-keyed write key when phase is known, otherwise mode-keyed
