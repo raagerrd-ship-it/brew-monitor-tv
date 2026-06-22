@@ -2,7 +2,19 @@ import { useEffect, useState } from "react";
 import { Power, PowerOff, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface WatchdogEvent {
   id: string;
@@ -17,6 +29,7 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
   const [isOn, setIsOn] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
   const [events, setEvents] = useState<WatchdogEvent[]>([]);
+  const [watchdogOpen, setWatchdogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,119 +115,83 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
     Date.now() - new Date(events[0].created_at).getTime() < 60 * 60 * 1000;
 
   return (
-    <div
-      className="flex flex-col items-center justify-center h-[52px] gap-[3px]"
-      style={{ fontFamily: "Inter, sans-serif" }}
-    >
-      {/* Row 1 — label, centered over segmented control */}
-      <div className="flex items-center justify-center h-[18px] w-full leading-none">
-        <span
-          className="text-[10px] font-semibold tracking-[0.28em] uppercase"
-          style={{
-            color: isOn ? "hsl(0 0% 88%)" : "hsl(0 0% 50%)",
-            transition: "color 300ms",
-            paddingRight: "0.28em",
-          }}
-        >
-          Plugg
-        </span>
-      </div>
-
-      {/* Row 2 — segmented glass control, matches Clock date row (15px) */}
-      <div className="flex items-center h-[15px]">
-        <div
-          className="flex items-center rounded-full p-[1.5px] backdrop-blur-md"
-          style={{
-            background: "hsl(0 0% 100% / 0.04)",
-            border: "1px solid hsl(0 0% 100% / 0.08)",
-            boxShadow:
-              "inset 0 1px 0 hsl(0 0% 100% / 0.04), 0 1px 2px hsl(0 0% 0% / 0.4)",
-          }}
-        >
-          {/* Power On */}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <button
             type="button"
-            disabled={sending || isOn === true}
-            onClick={() => sendCommand("on")}
-            className="flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06] disabled:cursor-default"
-            style={{
-              background:
-                isOn === true
-                  ? "radial-gradient(circle at 50% 40%, hsl(142 70% 50% / 0.32), hsl(142 70% 40% / 0.12))"
-                  : "transparent",
-              color:
-                isOn === true ? "hsl(142 75% 70%)" : "hsl(142 30% 55% / 0.55)",
-              boxShadow:
-                isOn === true
-                  ? "inset 0 0 0 1px hsl(142 70% 50% / 0.35), 0 0 8px hsl(142 70% 45% / 0.25)"
-                  : "none",
-            }}
-            title="Sätt på pluggen"
-            aria-label="Sätt på pluggen"
+            disabled={sending}
+            className="relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 hover:bg-white/[0.06] focus:outline-none disabled:cursor-default disabled:opacity-60"
+            style={{ color: stateColor }}
+            title={`Plugg: ${stateLabel}`}
+            aria-label={`Plugg: ${stateLabel}`}
           >
-            <Power className="w-2.5 h-2.5" strokeWidth={2.75} />
-          </button>
-
-          {/* Power Off */}
-          <button
-            type="button"
-            disabled={sending || isOn === false}
-            onClick={() => sendCommand("off")}
-            className="flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06] disabled:cursor-default"
-            style={{
-              background:
-                isOn === false
-                  ? "hsl(0 0% 100% / 0.08)"
-                  : "transparent",
-              color:
-                isOn === false ? "hsl(0 0% 92%)" : "hsl(0 0% 100% / 0.35)",
-              boxShadow:
-                isOn === false
-                  ? "inset 0 0 0 1px hsl(0 0% 100% / 0.12)"
-                  : "none",
-            }}
-            title="Stäng av pluggen"
-            aria-label="Stäng av pluggen"
-          >
-            <PowerOff className="w-2.5 h-2.5" strokeWidth={2.75} />
-          </button>
-
-          {/* Watchdog */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="relative flex items-center justify-center w-7 h-[18px] rounded-full transition-all duration-200 hover:bg-white/[0.06]"
+            <Power className="w-5 h-5" strokeWidth={2} />
+            {hasRecentEvent && (
+              <span
+                className="absolute top-2 right-2 rounded-full"
                 style={{
-                  color: hasRecentEvent
-                    ? "hsl(38 92% 65%)"
-                    : "hsl(0 0% 100% / 0.32)",
+                  width: 6,
+                  height: 6,
+                  background: "hsl(38 92% 60%)",
+                  boxShadow: "0 0 5px hsl(38 92% 55%)",
                 }}
-                title="Watchdog-händelser"
-                aria-label="Watchdog-händelser"
-              >
-                <Shield className="w-2.5 h-2.5" strokeWidth={2.75} />
-                {hasRecentEvent && (
-                  <span
-                    className="absolute top-[3px] right-[6px] rounded-full"
-                    style={{
-                      width: 4,
-                      height: 4,
-                      background: "hsl(38 92% 60%)",
-                      boxShadow: "0 0 5px hsl(38 92% 55%)",
-                    }}
-                  />
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
+              />
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
           align="end"
-          className="w-80 p-3"
-          style={{ background: "hsl(222 20% 10%)", border: "1px solid hsl(0 0% 100% / 0.1)" }}
+          className="w-56"
+          style={{
+            background: "hsl(222 20% 10%)",
+            border: "1px solid hsl(0 0% 100% / 0.1)",
+          }}
         >
-          <div className="text-[11px] font-semibold mb-2 text-foreground/80 uppercase tracking-wider">
-            Senaste watchdog-händelser
+          <div className="px-2 py-1.5 text-[11px] font-semibold text-foreground/50 uppercase tracking-wider">
+            Plugg: {stateLabel}
           </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => sendCommand("on")}
+            disabled={isOn === true}
+            className="text-xs gap-2 cursor-pointer"
+          >
+            <Power className="w-4 h-4 text-emerald-500" />
+            Sätt på pluggen
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => sendCommand("off")}
+            disabled={isOn === false}
+            className="text-xs gap-2 cursor-pointer"
+          >
+            <PowerOff className="w-4 h-4" />
+            Stäng av pluggen
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setWatchdogOpen(true)}
+            className="text-xs gap-2 cursor-pointer"
+          >
+            <Shield className="w-4 h-4" />
+            Watchdog-händelser
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={watchdogOpen} onOpenChange={setWatchdogOpen}>
+        <DialogContent
+          className="w-80 p-3"
+          style={{
+            background: "hsl(222 20% 10%)",
+            border: "1px solid hsl(0 0% 100% / 0.1)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wider">
+              Senaste watchdog-händelser
+            </DialogTitle>
+          </DialogHeader>
           {events.length === 0 ? (
             <div className="text-[11px] text-foreground/50 py-2">
               Inga händelser ännu.
@@ -256,7 +233,11 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
                           ? `Senaste data ${Number(e.age_minutes).toFixed(0)} min sedan`
                           : "—"}
                         {" · "}
-                        <span style={{ color: triggered ? "hsl(0 70% 65%)" : "hsl(38 80% 60%)" }}>
+                        <span
+                          style={{
+                            color: triggered ? "hsl(0 70% 65%)" : "hsl(38 80% 60%)",
+                          }}
+                        >
                           {triggered ? "Restart skickad" : "Cooldown – hoppades över"}
                         </span>
                       </div>
@@ -266,10 +247,8 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
               })}
             </ul>
           )}
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
