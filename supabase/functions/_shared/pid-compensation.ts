@@ -97,6 +97,7 @@ export async function calculateCompensatedTarget(
   phaseBucket?: 'active' | 'tail' | 'clean' | null,
   floorLookupTarget?: number | null,
   pillTempNow?: number | null,
+  probeTempRaw?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -177,6 +178,7 @@ export async function calculateCompensatedTarget(
   const v3 = computeDutyV3({
     mode, stepType,
     actualTarget, actualTemp,
+    probeTempRaw: probeTempRaw ?? null,
     probeIsFresh: !isStaleData,
     pillTempNow: pillTempNow ?? null,
     pillRate: pillRate ?? null,
@@ -210,9 +212,11 @@ export async function calculateCompensatedTarget(
   console.log(`🎯 ${mode} ${controllerName} [${floorSource}] k=${kLearned.toFixed(2)} bulk=${v3.controlTemp.toFixed(2)}°: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
 
   // ── Gradient-k learning: when probe is fresh AND we had an anchor from
-  //    the SAME mode, compute realized k from observed deltas and EMA-learn.
-  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null) {
-    const probeDelta = actualTemp - prevAnchor.probeTemp
+  //    the SAME mode, compute realized k from RAW probe/pill deltas (gradient
+  //    physics — never from the SSOT, which may be an avg of probe+pill).
+  const probeForLearn = probeTempRaw ?? null
+  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null && probeForLearn != null) {
+    const probeDelta = probeForLearn - prevAnchor.probeTemp
     const pillDelta = pillTempNow - prevAnchor.pillTemp
     if (Math.abs(pillDelta) >= 0.05) {
       const realized = probeDelta / pillDelta
