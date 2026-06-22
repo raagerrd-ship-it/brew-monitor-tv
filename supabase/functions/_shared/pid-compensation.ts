@@ -97,6 +97,7 @@ export async function calculateCompensatedTarget(
   phaseBucket?: 'active' | 'tail' | 'clean' | null,
   floorLookupTarget?: number | null,
   pillTempNow?: number | null,
+  probeTempRaw?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -177,6 +178,7 @@ export async function calculateCompensatedTarget(
   const v3 = computeDutyV3({
     mode, stepType,
     actualTarget, actualTemp,
+    probeTempRaw: probeTempRaw ?? null,
     probeIsFresh: !isStaleData,
     pillTempNow: pillTempNow ?? null,
     pillRate: pillRate ?? null,
@@ -210,9 +212,11 @@ export async function calculateCompensatedTarget(
   console.log(`🎯 ${mode} ${controllerName} [${floorSource}] k=${kLearned.toFixed(2)} bulk=${v3.controlTemp.toFixed(2)}°: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
 
   // ── Gradient-k learning: when probe is fresh AND we had an anchor from
-  //    the SAME mode, compute realized k from observed deltas and EMA-learn.
-  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null) {
-    const probeDelta = actualTemp - prevAnchor.probeTemp
+  //    the SAME mode, compute realized k from RAW probe/pill deltas (gradient
+  //    physics — never from the SSOT, which may be an avg of probe+pill).
+  const probeForLearn = probeTempRaw ?? null
+  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null && probeForLearn != null) {
+    const probeDelta = probeForLearn - prevAnchor.probeTemp
     const pillDelta = pillTempNow - prevAnchor.pillTemp
     if (Math.abs(pillDelta) >= 0.05) {
       const realized = probeDelta / pillDelta
@@ -252,7 +256,8 @@ export function computeDutyV3(input: {
   mode: 'heating' | 'cooling'
   stepType: string
   actualTarget: number
-  actualTemp: number          // bottom probe (SSOT)
+  actualTemp: number          // SSOT (avg/probe/pill per controller config) — PID error source
+  probeTempRaw: number | null // RAW bottom probe — observer + bottom-guard + k-learning
   probeIsFresh: boolean
   pillTempNow: number | null  // floating pill (top), null if not linked
   pillRate: number | null
@@ -264,27 +269,25 @@ export function computeDutyV3(input: {
   prevAvgError: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
-  wBottom?: number            // bulk weight (default 0.5)
-  wPill?: number              // bulk weight (default 0.5)
 }): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
   const isHold = input.stepType === 'hold'
-  const wBottom = input.wBottom ?? 0.5
-  const wPill = input.wPill ?? 0.5
 
   // ── Observer: fresh bulk estimate every cycle ──
+  // Always uses RAW probe (bottom) — observer models physical stratification,
+  // not user-facing SSOT. If no raw probe is available, fall back to actualTemp.
+  const probeForObs = input.probeTempRaw ?? input.actualTemp
   const obs = estimateBottomTemp(
-    input.actualTemp, input.probeIsFresh, input.pillTempNow,
+    probeForObs, input.probeIsFresh, input.pillTempNow,
     input.anchor, input.k, input.mode,
   )
   const bottomEst = obs.estimate
-  // Bulk control temp: weighted mix of bottom estimate + live pill.
-  // Falls back to bottomEst when no pill is available.
-  const controlTemp = input.pillTempNow != null
-    ? wBottom * bottomEst + wPill * input.pillTempNow
-    : bottomEst
-  const avgError = input.actualTarget - controlTemp
+  // PID error: against SSOT (= actual_temp), which the user configures per
+  // controller via dual_sensor_enabled + preferred_sensor. Observer/guards/
+  // k-learning still use raw probe + raw pill below.
+  const controlTemp = input.actualTemp
+  const avgError = input.actualTarget - input.actualTemp
   const need = isCooling ? -avgError : avgError
 
   // approachRate > 0 = pill rör sig mot target i mode-riktning

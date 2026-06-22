@@ -969,6 +969,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       phaseBucket,
       floorLookupTarget,
       (fc as any).pill_temp != null ? parseFloat(String((fc as any).pill_temp)) : null,
+      raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
     )
 
     // Log PID status
