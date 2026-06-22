@@ -569,6 +569,28 @@ export async function calculateCompensatedTarget(
         }
       }
 
+      // ── Fallback ramp-end brake (proximity by degrees, no ETA needed) ──
+      // When pillRate is too noisy/zero, etaMin is null and the predictive brake
+      // above never triggers. Use absolute distance-to-target instead: within
+      // 0.30°C of the ramp target on the approach side, blend integral toward
+      // learned hold-I proportional to closeness. This prevents 50–70% duty at
+      // <0.2°C from target during ramp finish.
+      const BRAKE_DEG_ZONE = 0.30
+      if (
+        rampContext &&
+        (etaMin == null) &&
+        learnedHoldI != null && learnedHoldI > 0.05 && learnedHoldI < integral &&
+        need > -0.10 && need < BRAKE_DEG_ZONE
+      ) {
+        const proximity = 1 - Math.max(0, need) / BRAKE_DEG_ZONE
+        const blendedI = integral * (1 - proximity) + learnedHoldI * proximity
+        if (blendedI < integral) {
+          constraints.push(`ramp-deg-brake=${Math.round(proximity * 100)}%`)
+          console.log(`🛑 ${modeLabel} ramp-deg-brake ${controllerName}: need=${need.toFixed(2)}° (no ETA), proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (holdI=${learnedHoldI.toFixed(3)})`)
+          integral = blendedI
+        }
+      }
+
       // ── Settling guard (cooling only) ──
       if (isCooling && integral < 0.15 && need > 0.3) {
         // Scale cap with error magnitude — large overshoots need real action,
