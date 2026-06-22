@@ -1,48 +1,48 @@
-## Problem
+## Mål
+Minska överskjut när en profilramp landar genom att börja sänka duty `X` minuter före rampslut. Brom-nivån härleds från **lärd integral för hold-bucketen** vid rampens slut-target (samma `(mode, delta_bucket=low, step_type=hold)`-nyckel som används när rampen är klar och vi går in i hold-fasen).
 
-"System"-raderna i Synkroniseringshistorik (Settings → Historik) är PWM-OFF-cykler från `execute-pwm-off`. De har bara två steg (`PWM_OFF` + `RAPT_SEND` med "PWM revert"-meddelande) och:
+## Hur det fungerar
 
-1. **Badgen visar "System"** — den dedikerade `isPwmOffLog`-pathen i `EntryRow` (rad 492–504) skapar visserligen en `❄️ Gul 10% – OFF`-badge, men `final_result` skrivs som `⚡ PWM OFF: Gul → 19.6° (10%)` så detektionen via `final_result.startsWith('⚡ PWM OFF:')` borde fungera. Trots det visar UI:t "System", troligen för att vissa rader saknar `controller_name` i `details` eller har annat case.
-2. **Innehållet är tomt vid expansion** — `PWM_OFF` ligger i `PIPELINE_STEPS` (undanträngd från "Övrigt") och `RAPT_SEND` med "PWM revert" filtreras bort från `raptSends`. Ingen sektion renderar något för dessa rader, så expansionen visar bara meta-headern (Steg/Tid/Resultat) på en nästan tom kort.
+Under en aktiv ramp (`step_type ∈ {ramp, gradual_ramp}`) räknar vi ut hur nära vi är rampens slut-target och bromsar in integralen mot den lärda hold-integralen redan **innan** rampen är klar — istället för dagens reaktiva nollställning *efter* `rampJustFinished`.
 
-## Lösning
-
-Endast i `src/components/AutoCoolingDecisionLogs.tsx`:
-
-### 1. Robust PWM-OFF badge
-
-- Detektera PWM-OFF-rader oberoende av `final_result`-text: om `log.decisions` innehåller ett `PWM_OFF`-steg, behandla som PWM-cykel.
-- Fallback för controller-namn: om `details.controller_name` saknas, parsa ut det från `message` (`/^([^:]+):/`).
-- Garantera att badge alltid blir `❄️/🔥 {Name} {duty}% – OFF` (aldrig "System" för PWM-cykler).
-
-### 2. Dedikerad PWM-OFF-sektion i expansionen
-
-Lägg till en liten sektion direkt under meta-headern när `log.decisions` innehåller `PWM_OFF`:
-
-```
-PWM-revert
-└── ❄️ Temp Controller Gul: burst 30s (10% duty) → mål 19.6 °C   [✅ 366 ms]
+```text
+ETA till rampens slut-target (min)
+  ├─ > LEAD_MIN           → ingen prediktiv broms (normal PID)
+  ├─ LEAD_MIN → 0         → blendar integral mot lärd hold-I (proximity 0→1)
+  └─ ≤ 0 (rampen klar)    → befintlig wind-up-release tar över
 ```
 
-Visar:
-- Controllernamn + mode-ikon
-- Burst-tid och duty %
-- Revert-temperatur
-- Status från tillhörande `RAPT_SEND` (success/fail + duration_ms)
+Lead-tiden `LEAD_MIN` = 20 minuter (≈1.3 PID-cykler — säker buffert utan att kapa rampens momentum för tidigt).
 
-### 3. Cosmetic: byt fallback-label från "System" till "Tom cykel"
+Blend-formeln matchar redan befintlig braking-logik (rad 488–505 i pid-compensation.ts):
+```
+proximity = 1 - clamp(etaMin / LEAD_MIN, 0, 1)
+blendedI  = integral * (1 - proximity) + learnedHoldI * proximity
+```
+— bara om `blendedI < integral` (broms, aldrig boost).
 
-Om en rad verkligen saknar både controller-aktivitet, PWM-OFF och fel — märk den "Tom cykel" istället för "System" så att det blir tydligare att det inte är något att titta på.
+ETA beräknas från `pillRate` (oberoende sensor, redan hämtad för ramper när BLE-länkad). Krav: `pillRate` finns och rör sig mot target med ≥ 0.05°C/h. Ingen pillRate → ingen prediktiv broms (fall tillbaka på dagens reaktiva).
 
-## Tekniska detaljer
+Hold-bucket-uppslag återanvänder befintlig `getLearnedParam(controller, "steady_state_duty:{mode}:{bucket}{:phase}")` när den finns — annars `latest_i_correction` från `controller_learned_compensation` för `(controller, low, mode, "hold")`. Lärd I < 0.05 → skip (för osäkert minne).
 
-- Allt sker i `src/components/AutoCoolingDecisionLogs.tsx` (`EntryRow` runt rad 492–620).
-- Inga databas- eller edge function-ändringar.
-- Inget API-anrop läggs till; data finns redan i `log.decisions`.
-- Hjälpfunktion `parsePwmOff(log)` returnerar `{ controllerName, mode, dutyPct, dutySeconds, revertTarget, raptSendOk, raptSendMs } | null`.
+## Filändringar
+
+### `supabase/functions/_shared/controller-adjustments.ts`
+- I sektionen som bygger `rampContext` (rad ~864–875): utöka till att även köra för `pidMode === 'heating'` när vi är i ramp (idag bara cooling).
+- Lägg till hämtning av `learnedHoldI` (latest_i_correction för hold-bucket vid `rampEndTarget`) och `rampEtaMin` (från pillRate + distance till `rampEndTarget`). Skicka båda vidare i `rampContext`.
+
+### `supabase/functions/_shared/pid-compensation.ts`
+- Utöka `rampContext`-typen med `learnedHoldI?: number; etaMin?: number; endTarget?: number`.
+- I `NEEDS ACTION`-grenen (efter befintlig braking-zon, före raw-clamp): om `rampContext.etaMin != null && etaMin <= LEAD_MIN && learnedHoldI > 0.05`, beräkna `proximity` och `blendedI` enligt ovan. Applicera bara om mindre än nuvarande integral. Lägg till `constraints.push('ramp-pred-brake=XX%')` och en `console.log`-rad i samma stil som befintlig `🛑 brake`-rad.
+- Påverkar inte hold/deadband/coast-grenarna och ändrar inte floor-learning (förblir fryst under ramp per gällande regel).
 
 ## Verifiering
+1. Deploya berörda edge functions (`process-profiles`, `auto-adjust-cooling`).
+2. Kolla nästa körning för Gul (Gyllene Harmoni — heating gradual_ramp pågår) i `ai_audit_log` / function-logs: leta `ramp-pred-brake=` i `limits` när `pill_eta_min <= 20`.
+3. Bekräfta att `latest_avg_error` i `controller_learned_compensation` för `heating/hold/low` trendar mot mindre overshoot över nästa 2–3 ramper.
 
-1. Expandera en `25 maj 11:33`-liknande rad → ska visa en PWM-revert-sektion med Gul + duty.
-2. Kolla att collapsed-badgen visar `❄️ Gul 10% – OFF` (aldrig "System") för PWM-rader.
-3. Vanliga 5-min-cykler ska se oförändrade ut.
+## Det jag *inte* gör
+- Ingen ny tabell, ingen migration — återanvänder `controller_learned_compensation`.
+- Ingen ändring av `rampJustFinished` wind-up-release eller mode-switch-logik.
+- Ingen prediktiv boost (broms aldrig boost).
+- Ingen ändring av ssFloor-frysning under ramp.
