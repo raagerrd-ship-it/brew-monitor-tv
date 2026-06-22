@@ -126,7 +126,7 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
             title={`Plugg: ${stateLabel}`}
             aria-label={`Plugg: ${stateLabel}`}
           >
-            <Power className="w-5 h-5" strokeWidth={2} />
+            <Plug className="w-5 h-5" strokeWidth={2} />
             {hasRecentEvent && (
               <span
                 className="absolute top-2 right-2 rounded-full"
