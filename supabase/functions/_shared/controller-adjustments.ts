@@ -930,6 +930,36 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
     const rampEndTarget = isRampStep ? (profileStatus?.profileTarget ?? null) : null
     const floorLookupTarget = rampEndTarget != null ? rampEndTarget : null
+
+    // ── Predictive ramp brake context ──
+    // Beräkna ETA till rampens slut-target och hämta lärd hold-integral för
+    // slutbucketen, så PID kan börja sänka duty X min före rampslut istället
+    // för att enbart förlita sig på reaktiv wind-up-release efter rampJustFinished.
+    if (isRampStep && rampEndTarget != null && pillRate != null) {
+      const approachingEnd = (pidMode === 'cooling' && pillRate < -0.05) ||
+                             (pidMode === 'heating' && pillRate > 0.05)
+      const distanceToEnd = pidMode === 'cooling'
+        ? (actualTemp - rampEndTarget)
+        : (rampEndTarget - actualTemp)
+      if (approachingEnd && distanceToEnd > 0) {
+        const etaMin = (distanceToEnd / Math.abs(pillRate)) * 60
+        const endBucket = getTempBucket(rampEndTarget)
+        const { data: holdRow } = await supabase
+          .from('controller_learned_compensation')
+          .select('latest_i_correction')
+          .eq('controller_id', fc.controller_id)
+          .eq('delta_bucket', 'low')
+          .eq('mode', pidMode)
+          .eq('step_type', 'hold')
+          .maybeSingle()
+        const learnedHoldI = holdRow ? parseFloat(String(holdRow.latest_i_correction ?? '0')) : 0
+        rampContext = {
+          ...(rampContext ?? { requiredRatePerHour: 0, tempBucket: endBucket, loadBucket: 'load_0' }),
+          learnedHoldI, etaMin, endTarget: rampEndTarget,
+        }
+      }
+    }
+
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
