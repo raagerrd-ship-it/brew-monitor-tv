@@ -67,7 +67,8 @@ export async function calculateCompensatedTarget(
   actualTemp: number,
   isStaleData: boolean,
   coolingUtilization?: number | null,
-  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
+  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string;
+                  learnedHoldI?: number; etaMin?: number; endTarget?: number } | null,
   pillRate?: number | null,
   isInterpolated?: boolean,
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
