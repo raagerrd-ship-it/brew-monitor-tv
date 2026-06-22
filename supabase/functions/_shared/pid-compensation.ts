@@ -67,7 +67,8 @@ export async function calculateCompensatedTarget(
   actualTemp: number,
   isStaleData: boolean,
   coolingUtilization?: number | null,
-  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
+  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string;
+                  learnedHoldI?: number; etaMin?: number; endTarget?: number } | null,
   pillRate?: number | null,
   isInterpolated?: boolean,
   coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
@@ -509,6 +510,23 @@ export async function calculateCompensatedTarget(
       } else if (need < BRAKE_ZONE && isInterpolated && !pillConfirmsApproach) {
         constraints.push('brake-interp-skip')
         console.log(`⏩ ${modeLabel} brake skipped (interpolated, pill ej bekräftar) ${controllerName}: need=${need.toFixed(2)}°, pillRate=${pillRate}`)
+      }
+
+      // ── Predictive ramp-end brake ──
+      // X min före rampslut: blenda integral mot lärd hold-I för slutbucketen
+      // så vi minskar duty proaktivt istället för att förlita oss på reaktiv
+      // wind-up-release efter att rampen passerat target.
+      const LEAD_MIN = 20
+      const learnedHoldI = rampContext?.learnedHoldI
+      const etaMin = rampContext?.etaMin
+      if (etaMin != null && etaMin <= LEAD_MIN && learnedHoldI != null && learnedHoldI > 0.05 && learnedHoldI < integral) {
+        const proximity = 1 - Math.max(0, Math.min(1, etaMin / LEAD_MIN))
+        const blendedI = integral * (1 - proximity) + learnedHoldI * proximity
+        if (blendedI < integral) {
+          constraints.push(`ramp-pred-brake=${Math.round(proximity * 100)}%`)
+          console.log(`🛑 ${modeLabel} ramp-pred-brake ${controllerName}: eta=${etaMin.toFixed(1)}min, proximity=${proximity.toFixed(2)}, I ${integral.toFixed(3)} → ${blendedI.toFixed(3)} (holdI=${learnedHoldI.toFixed(3)})`)
+          integral = blendedI
+        }
       }
 
       // ── Settling guard (cooling only) ──
