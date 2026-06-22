@@ -1,13 +1,23 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { updateLearnedParam, getLearnedParam, getTempBucket } from './learning-utils.ts'
 
+// ============================================================
+// SensorAnchor — observer reference point persisted between cycles
+// ============================================================
+export interface SensorAnchor {
+  probeTemp: number
+  pillTemp: number
+  anchoredAt: string // ISO8601
+  mode: 'heating' | 'cooling'
+}
+
 /** Persist PID state to controller_learned_compensation */
 async function persistPidState(
   supabase: any,
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
   dutyCycle: number,
-  extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string },
+  extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string; sensor_anchor?: SensorAnchor | null },
 ): Promise<void> {
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -21,29 +31,51 @@ async function persistPidState(
 }
 
 // ============================================================
-// PID Control & Thermal Learning (V2: PI + rate-feedforward)
+// PID Control & Thermal Learning (V3: observer + mode-k + asymmetric gains)
 //
 // SSOT Naming Convention:
 //   actualTarget  = user's desired temperature (profile_target_temp)
-//   actualTemp    = fused sensor reading (avg or probe-only)
+//   actualTemp    = bottom probe reading (SSOT)
+//   pillTempNow   = current floating pill reading (top, fast updates)
 //   ctrlTarget    = current hardware target (target_temp before PID)
 //   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
 //
-// V2 model (computeDutyV2): single PI loop around ssFloor with a quadratic
-// pill-rate brake (D-term) and pill-fused realtime estimate when bottom
-// probe is stale. Tuned for 60L thermal mass + 1-min loop + 15-min probe.
+// V3 model (computeDutyV3): observer fuses bottom probe (slow, 15-min)
+// with floating pill (fast, 1-min) to a bulk-temp estimate every minute.
+// Mode-dependent gradient k accounts for cooling-coil-from-below geometry
+// (k_cooling > 1, k_heating < 1). Asymmetric gains: aggressive heating
+// (no brake), gentle cooling with predictive pill-brake. Stratification
+// guards on the leading sensor.
 // ============================================================
+
+// ── Observer: extrapolate stale bottom probe using pill movement ──
+export function estimateBottomTemp(
+  probeTemp: number,
+  probeIsFresh: boolean,
+  pillTempNow: number | null,
+  anchor: SensorAnchor | null,
+  k: number,
+  mode: 'heating' | 'cooling',
+): { estimate: number; anchor: SensorAnchor | null; pillDelta: number } {
+  const now = new Date().toISOString()
+  // Fresh probe (or no pill / no anchor): re-anchor and use probe directly
+  if (probeIsFresh || anchor == null || pillTempNow == null) {
+    const newAnchor = pillTempNow != null
+      ? { probeTemp, pillTemp: pillTempNow, anchoredAt: now, mode }
+      : null
+    return { estimate: probeTemp, anchor: newAnchor, pillDelta: 0 }
+  }
+  const pillDelta = pillTempNow - anchor.pillTemp
+  const minutesSince = (Date.now() - new Date(anchor.anchoredAt).getTime()) / 60000
+  // Cap pill-driven correction: a broken/runaway pill cannot drag us off
+  const maxCorr = Math.min(0.10 * Math.max(0, minutesSince), 2.0)
+  const bounded = Math.max(-maxCorr, Math.min(maxCorr, k * pillDelta))
+  return { estimate: anchor.probeTemp + bounded, anchor, pillDelta }
+}
 
 /**
  * Calculate PID duty cycle for temperature control.
- *
- * PID error = actualTarget - actualTemp (same domain user sees).
- * Output is a duty cycle (0–1), not a temperature offset.
- *
- * @param actualTarget   User's desired temperature (profile_target_temp)
- * @param ctrlTarget     The current hardware target (target_temp before PID)
- * @param actualTemp     Pre-computed fused sensor reading (avg or probe-only)
- * @param isStaleData    Whether sensor data is stale (no new readings since last PID run)
+ * V3: observer-fused bulk temp + asymmetric PI(D) + stratification guards.
  */
 export async function calculateCompensatedTarget(
   supabase: any,
@@ -64,20 +96,22 @@ export async function calculateCompensatedTarget(
   modeJustSwitched?: boolean,
   phaseBucket?: 'active' | 'tail' | 'clean' | null,
   floorLookupTarget?: number | null,
+  pillTempNow?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
   void ctrlTarget; void isInterpolated // legacy params kept for caller compat
 
-  // ── Parallel fetch: PID state + ssFloor (phase / mode / legacy chain) ──
+  // ── Parallel fetch: PID state + ssFloor + gradient_k ──
   const ssBucket = getTempBucket(floorLookupTarget ?? actualTarget)
   const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
   const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
   const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
-  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
+  const kDefault = mode === 'cooling' ? 1.3 : 0.7
+  const [{ data: learnedRow }, phaseParam, modeParam, kParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
-      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at')
+      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at, sensor_anchor')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
@@ -87,6 +121,7 @@ export async function calculateCompensatedTarget(
       ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
       : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
     getLearnedParam(supabase, controllerId, modeKeyedName, 0),
+    getLearnedParam(supabase, controllerId, `gradient_k:${mode}`, kDefault),
   ])
 
   // Floor resolution: phase → mode → legacy (cooling only) → mode-seed
@@ -116,6 +151,14 @@ export async function calculateCompensatedTarget(
   const prevAvgError = learnedRow ? parseFloat(String(learnedRow.latest_avg_error ?? '0')) : 0
   // One-time clamp: legacy °C-domain integrals (>1.0) reset to 0
   if (!Number.isFinite(persistedIntegral) || Math.abs(persistedIntegral) > 1.0) persistedIntegral = 0
+  const prevAnchor: SensorAnchor | null = (() => {
+    const raw = learnedRow?.sensor_anchor
+    if (!raw || typeof raw !== 'object') return null
+    const a = raw as any
+    if (typeof a.probeTemp !== 'number' || typeof a.pillTemp !== 'number' || typeof a.anchoredAt !== 'string') return null
+    return { probeTemp: a.probeTemp, pillTemp: a.pillTemp, anchoredAt: a.anchoredAt, mode: a.mode === 'heating' ? 'heating' : 'cooling' }
+  })()
+  const kLearned = kParam.value
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Större faktisk marginal (kallare glykol) → skala NED. Mindre marginal → skala UPP.
@@ -129,23 +172,26 @@ export async function calculateCompensatedTarget(
   }
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
   if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
-  if (isStaleData) constraints.push('stale')
 
-  // ── V2 PI-core + rate-feedforward ──
-  const v2 = computeDutyV2({
+  // ── V3 observer + asymmetric PI(D) ──
+  const v3 = computeDutyV3({
     mode, stepType,
     actualTarget, actualTemp,
+    probeIsFresh: !isStaleData,
+    pillTempNow: pillTempNow ?? null,
     pillRate: pillRate ?? null,
+    anchor: prevAnchor,
+    k: kLearned,
     ssFloor, ssFloorSamples,
     persistedIntegral, prevAvgError,
     modeJustSwitched: !!modeJustSwitched,
-    isStaleData,
     coolingUtilization: coolingUtilization ?? null,
   })
-  let dutyCycle = v2.duty
-  const integral = v2.integral
-  const pCorrection = v2.p
-  for (const c of v2.constraints) constraints.push(c)
+  let dutyCycle = v3.duty
+  const integral = v3.integral
+  const pCorrection = v3.p
+  const nextAnchor = v3.anchor
+  for (const c of v3.constraints) constraints.push(c)
 
   // ── Ramp boost (cooling): top up duty when observed rate lags required ──
   if (mode === 'cooling' && rampContext && pillRate != null && (coolingUtilization == null || coolingUtilization < 0.90)) {
@@ -161,11 +207,28 @@ export async function calculateCompensatedTarget(
 
   const avgError = actualTarget - actualTemp
   const need = mode === 'cooling' ? -avgError : avgError
-  console.log(`🎯 ${mode} ${controllerName} [${floorSource}]: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
+  console.log(`🎯 ${mode} ${controllerName} [${floorSource}] k=${kLearned.toFixed(2)} bulk=${v3.controlTemp.toFixed(2)}°: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
+
+  // ── Gradient-k learning: when probe is fresh AND we had an anchor from
+  //    the SAME mode, compute realized k from observed deltas and EMA-learn.
+  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null) {
+    const probeDelta = actualTemp - prevAnchor.probeTemp
+    const pillDelta = pillTempNow - prevAnchor.pillTemp
+    if (Math.abs(pillDelta) >= 0.05) {
+      const realized = probeDelta / pillDelta
+      if (Number.isFinite(realized) && realized >= 0.2 && realized <= 4.0) {
+        // Fire-and-forget; nothing downstream depends on this update.
+        updateLearnedParam(supabase, controllerId, `gradient_k:${mode}`, realized, 0.2, 4.0)
+          .catch((e) => console.warn(`gradient_k learn failed: ${e}`))
+        constraints.push(`gradient-k=${realized.toFixed(2)}`)
+      }
+    }
+  }
 
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError, dutyCycle,
+    { sensor_anchor: nextAnchor },
   )
 
   return {
@@ -183,83 +246,96 @@ export async function calculateCompensatedTarget(
 }
 
 // ============================================================
-// V2: Simplified PI-core + rate-feedforward (SHADOW MODE)
+// V3: Observer + asymmetric PI(D) — pure function, no DB access
 // ============================================================
-//
-// Replaces the 15+ branches of v1 with: feedforward (ssFloor) + Kp*need
-// + clamped integral + Kd*pillRate brake. One anti-windup rule. Three
-// modifiers (mode-flip seed, util-sat cap, large-error full-on).
-//
-// Pure function: no DB reads/writes. Called by v1 with already-resolved
-// state so we can compare outputs side-by-side without doubling DB load.
-//
-export function computeDutyV2(input: {
+export function computeDutyV3(input: {
   mode: 'heating' | 'cooling'
   stepType: string
   actualTarget: number
-  actualTemp: number
+  actualTemp: number          // bottom probe (SSOT)
+  probeIsFresh: boolean
+  pillTempNow: number | null  // floating pill (top), null if not linked
   pillRate: number | null
+  anchor: SensorAnchor | null
+  k: number                   // mode-keyed gradient (cooling>1, heating<1)
   ssFloor: number
   ssFloorSamples: number
   persistedIntegral: number
   prevAvgError: number
   modeJustSwitched: boolean
-  isStaleData: boolean
   coolingUtilization: number | null
-}): { duty: number; integral: number; p: number; constraints: string[] } {
+  wBottom?: number            // bulk weight (default 0.5)
+  wPill?: number              // bulk weight (default 0.5)
+}): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
   const isHold = input.stepType === 'hold'
-  const baseAvgError = input.actualTarget - input.actualTemp
-  let need = isCooling ? -baseAvgError : baseAvgError
+  const wBottom = input.wBottom ?? 0.5
+  const wPill = input.wPill ?? 0.5
 
-  // approachRate > 0 = pill rör sig mot target i mode-riktning (1-min upplösning)
+  // ── Observer: fresh bulk estimate every cycle ──
+  const obs = estimateBottomTemp(
+    input.actualTemp, input.probeIsFresh, input.pillTempNow,
+    input.anchor, input.k, input.mode,
+  )
+  const bottomEst = obs.estimate
+  // Bulk control temp: weighted mix of bottom estimate + live pill.
+  // Falls back to bottomEst when no pill is available.
+  const controlTemp = input.pillTempNow != null
+    ? wBottom * bottomEst + wPill * input.pillTempNow
+    : bottomEst
+  const avgError = input.actualTarget - controlTemp
+  const need = isCooling ? -avgError : avgError
+
+  // approachRate > 0 = pill rör sig mot target i mode-riktning
   const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
 
-  // ── Fused sensor: när bottenproben är stale (15-min lucka) använd pill för att
-  // virtuellt uppdatera 'need' baserat på rörelsen sedan förra cykeln (~1 min) ──
-  if (input.isStaleData && input.pillRate != null) {
-    const CYCLE_TIME_HOURS = 1 / 60
-    need -= approachRate * CYCLE_TIME_HOURS
-    constraints.push('pill-fused-estimate')
-  }
+  // ── Asymmetric gains: cooling = gentle+braked, heating ≈ bang-bang ──
+  const Kp = isCooling
+    ? (isHold ? 0.30 : 0.55)
+    : (isHold ? 0.45 : 0.80)
+  const KiPerHour = isCooling
+    ? (isHold ? 0.9 : 3.6)
+    : (isHold ? 1.2 : 4.5)
+  const Kd = isCooling ? (isHold ? 0.25 : 0.35) : 0   // heating: ingen broms
+  const Imax = isCooling
+    ? (isHold ? 0.35 : 0.65)
+    : (isHold ? 0.40 : 0.70)
 
-  // ── Gains: 60L mass + 1-min loop, Pill ger ren derivata ──
-  const Kp   = isHold ? 0.30 : 0.55
-  const Ki   = isHold ? 0.015 : 0.06
-  const Kd   = isHold ? 0.25 : 0.35
-  const Imax = isHold ? 0.35 : 0.65
-
-  // ── Integral init ──
+  // ── Integral state: mode-flip soft-decay or hard reset ──
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
-  // Mode-flip: coast en cykel — 60L tank har restenergi i mantel/probe,
-  // hoppa inte direkt till ssFloor (krockar med restvärme/kyla).
   if (input.modeJustSwitched) {
-    integral = 0
-    constraints.push('mass-coast')
+    if (Math.abs(need) > 0.5) {
+      integral = 0
+      constraints.push('mass-coast')
+    } else {
+      integral *= 0.5
+      constraints.push('mode-soft-decay')
+    }
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
-  // ── P-term med stale-dämpning (undvik dubbel-stöt under 15-min tystnad) ──
-  const pScale = input.isStaleData ? 0.40 : 1.00
-  if (input.isStaleData) constraints.push('p-scaled-40pct')
-  const uP = Kp * need * pScale
+  // ── P-term: observer ger färsk data varje cykel, ingen stale-dämpning ──
+  const uP = Kp * need
 
-  // ── D-term: kvadratisk pill-broms (matas av 1-min realtidsdata) ──
+  // ── D-term: predictive brake — cooling only (heating för svag att överskjuta) ──
   let uD = 0
-  if (approachRate > 0 && need > 0) {
-    uD = Math.max(-0.40, -Kd * (approachRate * approachRate))
-    constraints.push('realtime-brake')
+  if (isCooling && approachRate > 0 && need > 0) {
+    // tauLag ≈ 6 min transport-tid från spiral till probe (60L mass)
+    const tauLagHours = 0.10
+    const overshoot = approachRate * tauLagHours - need
+    if (overshoot > 0) {
+      uD = -Math.min(0.5, Kd * overshoot)
+      constraints.push('predictive-brake')
+    }
   }
 
-  // ── Integration: bara nära target OCH med färsk data ──
+  // ── Integration: every minute, dt = 1/60 h ──
   let nextI = integral
-  const INTEGRATION_ZONE = 0.30
-  if (!input.isStaleData && Math.abs(need) <= INTEGRATION_ZONE) {
-    nextI += Ki * need
-    constraints.push('i-zone')
-  }
+  nextI += KiPerHour * need / 60
+  // Mark steady-state for ssFloor learning gate (near-target hold)
+  if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
   // Snabb urladdning vid överskott (skydd mot 60L undershoot)
   if (need < -0.01) {
     nextI *= 0.85
@@ -268,9 +344,21 @@ export function computeDutyV2(input: {
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Sammanställ duty ──
-  const uFf = (input.ssFloor > 0 && input.ssFloorSamples >= 3) ? input.ssFloor : 0
+  const uFf = (input.ssFloor > 0 && input.ssFloorSamples >= 5) ? input.ssFloor : 0
   const raw = uFf + uP + nextI + uD
   let duty = Math.max(0, Math.min(1, raw))
+
+  // ── Stratifierings-guard: ledande sensor får inte rusa förbi target ──
+  // Kyla: botten leder (kall vätska sjunker) → bottenEst < target − 0.3 = STOP
+  // Värme: topp leder (varm vätska stiger) → pillTempNow > target + 0.3 = STOP
+  if (isCooling && bottomEst < input.actualTarget - 0.3) {
+    duty = Math.min(duty, 0.2)
+    constraints.push('bottom-undershoot-guard')
+  }
+  if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
+    duty = Math.min(duty, 0.2)
+    constraints.push('top-overshoot-guard')
+  }
 
   // ── Util saturation: kapa till nextI+0.1 (mer än så är meningslöst när hw är maxad) ──
   const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
@@ -291,7 +379,7 @@ export function computeDutyV2(input: {
     constraints.push('full-action')
   }
 
-  return { duty, integral: nextI, p: uP, constraints }
+  return { duty, integral: nextI, p: uP, anchor: obs.anchor, controlTemp, constraints }
 }
 
 // ============================================================
