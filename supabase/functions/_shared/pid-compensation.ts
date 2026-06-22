@@ -196,6 +196,23 @@ export async function calculateCompensatedTarget(
 
   let dutyCycle = 0
 
+  // ── Mode-flip integral cap ──────────────────────────────
+  // When mode just flipped, the persisted integral comes from the new mode's
+  // last run (possibly a ramp with I≈0.64). Inheriting that wholesale slams
+  // the new mode with 60%+ duty immediately and causes oscillation. Cap the
+  // inherited integral to max(ssFloor, 0.25) so the controller starts firm
+  // but not violent; P+I can climb from there.
+  if (modeJustSwitched && integral > 0.25) {
+    const ssFloorRawEarly = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
+    const cap = Math.max(ssFloorRawEarly, 0.25)
+    if (integral > cap) {
+      const before = integral
+      integral = cap
+      constraints.push(`mode-flip-cap=${(cap * 100).toFixed(0)}%`)
+      console.log(`🛑 ${controllerName}: mode-flip integral cap I ${before.toFixed(3)} → ${cap.toFixed(3)} (avoid inherited overshoot)`)
+    }
+  }
+
   // ── Soft-start after mode switch when near target ──
   // When the system just flipped mode (e.g. heating → cooling) and we're
   // already close to the setpoint, don't blast full P+I from the inherited
