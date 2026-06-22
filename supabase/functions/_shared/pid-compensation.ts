@@ -59,7 +59,7 @@ export function estimateBottomTemp(
 ): { estimate: number; anchor: SensorAnchor | null; pillDelta: number } {
   const now = new Date().toISOString()
   // Fresh probe (or no pill / no anchor): re-anchor and use probe directly
-  if (probeIsFresh || anchor == null || pillTempNow == null) {
+  if (probeIsFresh || anchor == null || pillTempNow == null || anchor.mode !== mode) {
     const newAnchor = pillTempNow != null
       ? { probeTemp, pillTemp: pillTempNow, anchoredAt: now, mode }
       : null
@@ -283,11 +283,13 @@ export function computeDutyV3(input: {
     input.anchor, input.k, input.mode,
   )
   const bottomEst = obs.estimate
-  // PID error: against SSOT (= actual_temp), which the user configures per
-  // controller via dual_sensor_enabled + preferred_sensor. Observer/guards/
-  // k-learning still use raw probe + raw pill below.
-  const controlTemp = input.actualTemp
-  const avgError = input.actualTarget - input.actualTemp
+  // Regulate against the fresh bulk average: observer-corrected probe + live
+  // pill, same definition as UI but at 1-minute resolution. When the probe is
+  // fresh bottomEst equals probe, so UI and regulator coincide at samples.
+  const controlTemp = input.pillTempNow != null
+    ? 0.5 * bottomEst + 0.5 * input.pillTempNow
+    : bottomEst
+  const avgError = input.actualTarget - controlTemp
   const need = isCooling ? -avgError : avgError
 
   // approachRate > 0 = pill rör sig mot target i mode-riktning
@@ -334,9 +336,13 @@ export function computeDutyV3(input: {
     }
   }
 
-  // ── Integration: every minute, dt = 1/60 h ──
+  // ── Integration: every minute, dt = 1/60 h, with windup zone guard ──
   let nextI = integral
-  nextI += KiPerHour * need / 60
+  const IZONE = isCooling ? 0.4 : 0.6
+  if (Math.abs(need) <= IZONE && !input.modeJustSwitched) {
+    nextI += KiPerHour * need / 60
+    constraints.push('i-zone')
+  }
   // Mark steady-state for ssFloor learning gate (near-target hold)
   if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
   // Snabb urladdning vid överskott (skydd mot 60L undershoot)

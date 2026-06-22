@@ -7,7 +7,7 @@
 - Hardware suppressions: +2°C above probe to suppress cooling, -2°C below probe to suppress heating during PWM off phases.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
-- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run probe-SSOT (`dual_sensor_enabled=false`, `preferred_sensor=probe`) so V3 observer + k-learning + stratification guards are fully active. Focus automation/AI on these.
+- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average, while the V3 PID regulates against the fresh observer-corrected bulk average every minute. Focus automation/AI on these.
 - PID is V3 (observer + mode-keyed gradient k + asymmetric gains + cooling-only predictive brake + stratification guards). Per-minute loop, no V2 stale-branch.
 
 ## Memories
@@ -44,7 +44,7 @@
 - [Manual Override](mem://architecture/automation/manual-override-detection-guards) — Ignore PWM bursts (0°C/max), 0.25°C tolerance.
 - [Three-Phase Sync](mem://architecture/automation/three-phase-sync-model) — Metadata, Analyze (inline sub-funcs), Flush/History.
 - [PWM Execution](mem://architecture/automation/pwm-execution-and-scheduling) — Fixed hardware targets: -5°C/40°C. 2-cycle A/B model.
-- [Control Loop](mem://architecture/automation/control-loop-layering) — PID runs on `actualTarget` and `actualTemp`.
+- [Control Loop](mem://architecture/automation/control-loop-layering) — PID runs on `actualTarget` and the fresh observer bulk average (`controlTemp`), not raw `actualTemp`.
 - [Hardware Guards](mem://architecture/automation/hardware-command-integrity-guards) — 6 layers of protection for commands.
 - [Performance](mem://architecture/automation/performance-and-batching) — Batch fermentation fetches, parallel utilisation eval.
 - [Temp Interpolation](mem://architecture/automation/temperature-interpolation) — Interpolate temps based on duty ratio and ambient drift.
