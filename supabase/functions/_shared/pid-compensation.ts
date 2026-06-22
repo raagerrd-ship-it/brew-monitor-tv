@@ -76,6 +76,8 @@ export async function calculateCompensatedTarget(
   phaseBucket?: 'active' | 'tail' | 'clean' | null,
   floorLookupTarget?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
+  // Capture original inputs for v2 shadow at end of function
+  const _v2In = { actualTarget, actualTemp, mode, stepType, pillRate, isStaleData, coolingUtilization, modeJustSwitched }
   const constraints: string[] = []
 
   // === Adaptive PI-term ===
@@ -671,12 +673,134 @@ export async function calculateCompensatedTarget(
   const persistPromise = persistPidState(supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError, dutyCycle)
 
+  // ── V2 SHADOW (no DB writes, no hardware action) ──
+  // Simplified PI-core + rate-feedforward. Logged side-by-side with v1 so we
+  // can compare behaviour for one night before switching the call site.
+  let v2Shadow: { duty: number; integral: number; p: number; constraints: string[] } | null = null
+  try {
+    v2Shadow = computeDutyV2({
+      mode: _v2In.mode,
+      stepType: _v2In.stepType,
+      actualTarget: _v2In.actualTarget,
+      actualTemp: _v2In.actualTemp,
+      pillRate: _v2In.pillRate ?? null,
+      ssFloor,
+      ssFloorSamples,
+      persistedIntegral,
+      prevAvgError,
+      modeJustSwitched: !!_v2In.modeJustSwitched,
+      isStaleData: _v2In.isStaleData,
+      coolingUtilization: _v2In.coolingUtilization ?? null,
+    })
+    const dv1 = Math.round((dutyCycle ?? 0) * 100)
+    const dv2 = Math.round(v2Shadow.duty * 100)
+    console.log(`👯 V2-shadow ${controllerName}: v1=${dv1}% v2=${dv2}% Δ=${dv2 - dv1}pp | v1=[${(constraints).join(',')}] v2=[${v2Shadow.constraints.join(',')}]`)
+    constraints.push(`v2=${dv2}%`)
+  } catch (e) {
+    console.log(`⚠️ V2-shadow error ${controllerName}: ${(e as Error).message}`)
+  }
+
   return {
     ctrlTargetPid: Math.round(actualTarget * 10) / 10, dutyCycle,
     pillRate: pillRate ?? null, pCorrection, iCorrection: integral,
     learnedBaseline, deltaBucket, convergenceCount, constraints,
     persistPromise,
   }
+}
+
+// ============================================================
+// V2: Simplified PI-core + rate-feedforward (SHADOW MODE)
+// ============================================================
+//
+// Replaces the 15+ branches of v1 with: feedforward (ssFloor) + Kp*need
+// + clamped integral + Kd*pillRate brake. One anti-windup rule. Three
+// modifiers (mode-flip seed, util-sat cap, large-error full-on).
+//
+// Pure function: no DB reads/writes. Called by v1 with already-resolved
+// state so we can compare outputs side-by-side without doubling DB load.
+//
+export function computeDutyV2(input: {
+  mode: 'heating' | 'cooling'
+  stepType: string
+  actualTarget: number
+  actualTemp: number
+  pillRate: number | null
+  ssFloor: number
+  ssFloorSamples: number
+  persistedIntegral: number
+  prevAvgError: number
+  modeJustSwitched: boolean
+  isStaleData: boolean
+  coolingUtilization: number | null
+}): { duty: number; integral: number; p: number; constraints: string[] } {
+  const constraints: string[] = []
+  const isCooling = input.mode === 'cooling'
+  const isHold = input.stepType === 'hold'
+  const avgError = input.actualTarget - input.actualTemp
+  const need = isCooling ? -avgError : avgError
+  // Signed approach-rate: >0 when moving toward target in mode direction.
+  // cooling: temp falling (pillRate<0) → approachRate>0
+  // heating: temp rising (pillRate>0) → approachRate>0
+  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
+
+  // Gains
+  const Kp    = isHold ? 0.25 : 0.50
+  const Ki    = isHold ? 0.04 : 0.12
+  const Imax  = isHold ? 0.50 : 0.85
+  const Kd    = isHold ? 0.10 : 0.15
+  const decay = isHold ? 0.85 : 0.95
+
+  // Initialize integral (one-shot legacy migration + clamp)
+  let integral = input.persistedIntegral
+  if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
+  integral = Math.max(0, Math.min(Imax, integral))
+
+  // Mode-flip: seed integral from learned floor (replaces 3 v1 branches)
+  if (input.modeJustSwitched) {
+    integral = input.ssFloor > 0 ? input.ssFloor : 0
+    constraints.push('mode-flip-seed')
+  }
+
+  // Util saturation flag
+  const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
+  if (isSaturated) constraints.push('util-sat')
+
+  // Integrate (held when stale)
+  let nextI = input.isStaleData ? integral : (integral + Ki * need)
+  if (input.isStaleData) constraints.push('stale')
+  nextI = Math.max(0, Math.min(Imax, nextI))
+
+  // Compute duty terms
+  const uFf = input.ssFloor > 0 ? input.ssFloor : 0
+  const uP  = Kp * need
+  const uD  = Math.max(-0.40, Math.min(0, -Kd * approachRate)) // brake-only
+
+  let raw = uFf + uP + nextI + uD
+
+  // Anti-windup: freeze + decay when saturated or past target in mode dir
+  const sat = raw >= 1 || raw <= 0
+  const pastTarget = need < -0.05
+  if (sat || pastTarget) {
+    nextI = integral * decay
+    raw = uFf + uP + nextI + uD
+    constraints.push(pastTarget ? 'awu-past' : 'awu-sat')
+  }
+
+  let duty = Math.max(0, Math.min(1, raw))
+
+  // Util saturation cap (mirrors v1 'duty-sat')
+  if (isSaturated && duty > nextI + 0.1) {
+    duty = nextI + 0.1
+    constraints.push('duty-sat')
+  }
+
+  // Large-error full action
+  if (need > 2.0) {
+    duty = Math.max(duty, 1.0)
+    constraints.push(isCooling ? 'full-cool' : 'full-heat')
+  }
+
+  return { duty, integral: nextI, p: uP, constraints }
 }
 
 // ============================================================
