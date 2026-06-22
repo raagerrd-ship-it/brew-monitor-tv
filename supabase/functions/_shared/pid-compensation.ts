@@ -738,66 +738,65 @@ export function computeDutyV2(input: {
   const isHold = input.stepType === 'hold'
   const avgError = input.actualTarget - input.actualTemp
   const need = isCooling ? -avgError : avgError
-  // Signed approach-rate: >0 when moving toward target in mode direction.
-  // cooling: temp falling (pillRate<0) → approachRate>0
-  // heating: temp rising (pillRate>0) → approachRate>0
-  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
 
-  // Gains
-  const Kp    = isHold ? 0.25 : 0.50
-  const Ki    = isHold ? 0.04 : 0.12
-  const Imax  = isHold ? 0.50 : 0.85
-  const Kd    = isHold ? 0.10 : 0.15
-  const decay = isHold ? 0.85 : 0.95
+  // ── Gains (hold = lugnare, ramp/wait = mer aktiv) ──
+  const Kp   = isHold ? 0.30 : 0.50
+  const Ki   = isHold ? 0.04 : 0.12
+  const Kd   = isHold ? 0.12 : 0.15
+  const Imax = isHold ? 0.50 : 0.85
 
-  // Initialize integral (one-shot legacy migration + clamp)
+  // ── Integral init ──
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
-  integral = Math.max(0, Math.min(Imax, integral))
-
-  // Mode-flip: seed integral from learned floor (replaces 3 v1 branches)
+  // Mode-flip: seed från lärt floor (eller 8% fallback för snabb respons)
   if (input.modeJustSwitched) {
-    integral = input.ssFloor > 0 ? input.ssFloor : 0
+    integral = input.ssFloor > 0 ? input.ssFloor : 0.08
     constraints.push('mode-flip-seed')
   }
+  integral = Math.max(0, Math.min(Imax, integral))
 
-  // Util saturation flag
-  const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
-  if (isSaturated) constraints.push('util-sat')
+  // ── P-term ──
+  const uP = Kp * need
 
-  // Integrate (held when stale)
-  let nextI = input.isStaleData ? integral : (integral + Ki * need)
-  if (input.isStaleData) constraints.push('stale')
+  // ── D-term: pill-rate broms ──
+  // approachRate > 0 = vi närmar oss target i mode-riktning. Bromsa bara när
+  // vi närmar oss OCH är nära target (≤ 0.5°C kvar) → undviker att D motverkar
+  // när vi faktiskt behöver actuera långt från target.
+  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
+  const uD = (approachRate > 0 && need < 0.5) ? Math.max(-0.35, -Kd * approachRate) : 0
+  if (uD < 0) constraints.push('d-brake')
+
+  // ── Integrate (conditional integration: freeze när stale eller djupt förbi target) ──
+  let nextI = integral
+  if (input.isStaleData) {
+    constraints.push('stale-hold')
+  } else if (need > -0.05) {
+    // Normal integration zone: före target och småmarginalen förbi
+    nextI += Ki * need
+  }
+  // Mjuk decay endast vid markant överskott (> 0.10°C förbi target i mode-riktning)
+  if (need < -0.10) {
+    nextI *= isHold ? 0.90 : 0.95
+    constraints.push('overshoot-decay')
+  }
   nextI = Math.max(0, Math.min(Imax, nextI))
 
-  // Compute duty terms
+  // ── Sammanställ duty ──
   const uFf = input.ssFloor > 0 ? input.ssFloor : 0
-  const uP  = Kp * need
-  const uD  = Math.max(-0.40, Math.min(0, -Kd * approachRate)) // brake-only
-
   let raw = uFf + uP + nextI + uD
-
-  // Anti-windup: freeze + decay when saturated or past target in mode dir
-  const sat = raw >= 1 || raw <= 0
-  const pastTarget = need < -0.05
-  if (sat || pastTarget) {
-    nextI = integral * decay
-    raw = uFf + uP + nextI + uD
-    constraints.push(pastTarget ? 'awu-past' : 'awu-sat')
-  }
-
   let duty = Math.max(0, Math.min(1, raw))
 
-  // Util saturation cap (mirrors v1 'duty-sat')
-  if (isSaturated && duty > nextI + 0.1) {
-    duty = nextI + 0.1
-    constraints.push('duty-sat')
+  // ── Util saturation: kapa till nextI+0.1 (mer än så är meningslöst när hw är maxad) ──
+  const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
+  if (isSaturated) {
+    duty = Math.min(duty, nextI + 0.1)
+    constraints.push('util-sat-cap')
   }
 
-  // Large-error full action
+  // ── Panik: > 2°C error → full action ──
   if (need > 2.0) {
-    duty = Math.max(duty, 1.0)
-    constraints.push(isCooling ? 'full-cool' : 'full-heat')
+    duty = 1.0
+    constraints.push('full-action')
   }
 
   return { duty, integral: nextI, p: uP, constraints }
