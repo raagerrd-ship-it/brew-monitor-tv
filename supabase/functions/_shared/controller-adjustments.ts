@@ -1033,20 +1033,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       // ssFloor represents the duty needed to MAINTAIN the target, so learning
       // should happen during all near-target states, not just "pure" deadband.
       if (!ctx.skipLearning) {
-        const isRecovery = pidResult.constraints?.includes('deadband-recovery')
-        const isMildOvershoot = pidResult.constraints?.includes('mild-overshoot')
-        const isTargetHold = pidResult.constraints?.includes('target-hold')
-        const isTargetHoldWarm = pidResult.constraints?.includes('target-hold-warm')
-        const isInDeadband = pidResult.constraints?.includes('deadband')
+        // V2 constraint tags: `i-zone` = near setpoint (|need| ≤ 0.30°C, fresh
+        // data). That's the steady-state condition where ssFloor learning is
+        // meaningful. `stale` allows seeding through 15-min probe gaps.
+        const isInZone = pidResult.constraints?.includes('i-zone')
         const isStale = pidResult.constraints?.includes('stale')
+        const isMildOvershoot = pidResult.constraints?.includes('overshoot-bleed')
         const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
         // Freeze floor seeding/EMA during ramps — the live target crawls
         // through buckets and would fragment learning into many half-converged
-        // floors. Erosion writes inside calculateCompensatedTarget still run
-        // (those are guarded by their own conditions and protect against
-        // over-actuation during the ramp).
+        // floors.
         const canLearnSsFloor = hasDutyData && !isRampStep && (
-          isInDeadband || isTargetHold || isTargetHoldWarm || isMildOvershoot || isStale
+          isInZone || isStale || isMildOvershoot
         )
         if (canLearnSsFloor) {
           const dutyBucket = getTempBucket(actualTarget)
