@@ -256,7 +256,8 @@ export function computeDutyV3(input: {
   mode: 'heating' | 'cooling'
   stepType: string
   actualTarget: number
-  actualTemp: number          // bottom probe (SSOT)
+  actualTemp: number          // SSOT (avg/probe/pill per controller config) — PID error source
+  probeTempRaw: number | null // RAW bottom probe — observer + bottom-guard + k-learning
   probeIsFresh: boolean
   pillTempNow: number | null  // floating pill (top), null if not linked
   pillRate: number | null
@@ -274,21 +275,21 @@ export function computeDutyV3(input: {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
   const isHold = input.stepType === 'hold'
-  const wBottom = input.wBottom ?? 0.5
-  const wPill = input.wPill ?? 0.5
 
   // ── Observer: fresh bulk estimate every cycle ──
+  // Always uses RAW probe (bottom) — observer models physical stratification,
+  // not user-facing SSOT. If no raw probe is available, fall back to actualTemp.
+  const probeForObs = input.probeTempRaw ?? input.actualTemp
   const obs = estimateBottomTemp(
-    input.actualTemp, input.probeIsFresh, input.pillTempNow,
+    probeForObs, input.probeIsFresh, input.pillTempNow,
     input.anchor, input.k, input.mode,
   )
   const bottomEst = obs.estimate
-  // Bulk control temp: weighted mix of bottom estimate + live pill.
-  // Falls back to bottomEst when no pill is available.
-  const controlTemp = input.pillTempNow != null
-    ? wBottom * bottomEst + wPill * input.pillTempNow
-    : bottomEst
-  const avgError = input.actualTarget - controlTemp
+  // PID error: against SSOT (= actual_temp), which the user configures per
+  // controller via dual_sensor_enabled + preferred_sensor. Observer/guards/
+  // k-learning still use raw probe + raw pill below.
+  const controlTemp = input.actualTemp
+  const avgError = input.actualTarget - input.actualTemp
   const need = isCooling ? -avgError : avgError
 
   // approachRate > 0 = pill rör sig mot target i mode-riktning
