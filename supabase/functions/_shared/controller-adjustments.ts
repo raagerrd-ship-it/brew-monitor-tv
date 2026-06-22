@@ -505,6 +505,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
     const sensorActualTemp = actualTemp
+    const raptProbeTemp = fc.current_temp
     if (probeCompOffset != null) {
       actualTemp = actualTemp + probeCompOffset
     }

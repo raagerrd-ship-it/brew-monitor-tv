@@ -1,6 +1,6 @@
 ---
 name: PID V3 Observer Architecture
-description: V3 PID core with observer-fused bulk temp, mode-keyed gradient k, asymmetric gains, predictive cooling brake, stratification guards. Replaces V2 in pid-compensation.ts.
+description: V3 PID core with observer-fused fresh bulk average, mode-keyed gradient k, asymmetric gains, predictive cooling brake, stratification guards, i-zone anti-windup, and mode-aware anchor reset.
 type: feature
 ---
 
@@ -12,22 +12,22 @@ type: feature
 
 - `uFf` = `ssFloor` when `ssFloorSamples >= 5`, else 0.
 - `uP` = `Kp * need` where `need = ±(target - controlTemp)`.
-- `nextI` += `KiPerHour * need / 60` every cycle (no i-zone gate, no stale-block).
+- `controlTemp` = fresh bulk average: `0.5 * bottomEst + 0.5 * pillTempNow` when a pill is linked, else `bottomEst`. Same definition as the UI `actual_temp` average but at 1-minute resolution, using the observer-corrected probe instead of the raw 15-minute probe.
+- `nextI` only accumulates inside the integration zone: `|need| <= IZONE` (`IZONE = 0.4` cooling, `0.6` heating) and not after a mode switch. Outside the zone the integral is frozen (anti-windup during ramps).
 - `uD` = predictive pill-brake, **cooling only**.
 
-`controlTemp = wBottom * bottomEst + wPill * pillTempNow` (default 0.5/0.5). Falls back to `bottomEst` when no pill is linked.
-
 ## Observer (`estimateBottomTemp`)
-Extrapolates the slow probe-domain SSOT between fresh probe samples using floating pill movement.
-- Fresh probe (or no pill / no anchor): re-anchor; `bottomEst = probeTemp`.
-- Stale probe + valid anchor: `bottomEst = anchor.probeTemp + clamp(k * (pillNow - anchor.pillTemp), ±0.10 * minutesSince, ±2.0)`.
+Extrapolates the slow bottom probe between fresh probe samples using the floating pill movement.
+- Fresh probe, no pill, no anchor, or **anchor from a different mode**: re-anchor; `bottomEst = probeTemp`. Mode-change guard prevents extrapolation with stale `k` / wrong geometry.
+- Stale probe + valid same-mode anchor: `bottomEst = anchor.probeTemp + clamp(k * (pillNow - anchor.pillTemp), ±0.10 * minutesSince, ±2.0)`.
 - Anchor persists in `controller_learned_compensation.sensor_anchor` (jsonb: `{ probeTemp, pillTemp, anchoredAt, mode }`).
 
 ## Mode-keyed gradient `k`
 - `gradient_k:cooling` default **1.3** (kall vätska sjunker, botten leder).
-- `gradient_k:heating` default **0.7** (varm vätska stiger, topp leder).
+- `gradient_k:heating` default **0.7** (varm vätska stiger, toppen leder).
 - Learned via `updateLearnedParam` (alpha 0.2, clamp 0.2..4.0) when a fresh probe arrives AND prior anchor was from the same mode AND `|pillDelta| >= 0.05`.
 - Stored in `fermentation_learnings` like other PID params.
+- **Uses raw probe/pill deltas only** — never the averaged controlTemp.
 
 ## Asymmetric gains (cooling vs heating)
 | Mode    | Step  | Kp   | KiPerHour | Kd   | Imax |
@@ -60,11 +60,11 @@ Learn ssFloor only when:
 ## Preserved from V2
 `margin-scale` (cooler-margin-aware floor scaling), `ramp-boost`, `util-sat-cap`, `past-target-coast`, `full-action` (>2°C panic), `overshoot-bleed` (nextI *= 0.85 when need < -0.01), one-time legacy integral clamp.
 
-## SSOT caveat
-`actualTemp` passed in is whatever the BLE-ingest wrote (avg/pill/probe per `dual_sensor_enabled` + `preferred_sensor`). Observer's `bottomEst` and `controlTemp` are **internal-only** — never written back to `actual_temp` / `current_temp`. Gradient-k and stratification guards have full physical meaning only when `preferred_sensor === 'probe'`; in pill-only/dual modes they degrade gracefully (observer becomes near-pass-through).
+## SSOT policy
+- DB `actual_temp` is the user-facing SSOT, configured per controller via `dual_sensor_enabled` + `preferred_sensor`. For the active fermentation controllers it is set to the **average of probe and pill** (`dual_sensor_enabled = true`).
+- The PID does **not** regulate against the raw DB average directly, because it lags ~14 minutes. Instead it computes a fresh bulk average every minute from the observer-corrected bottom probe + live pill.
+- Observer, bottom-undershoot guard, top-overshoot guard, and gradient-`k` learning operate on raw probe/pill temperatures (physical stratification), not the SSOT average.
 
-## Removed tags (V2 → V3)
-`pill-fused-estimate`, `p-scaled-40pct`, `stale`, `i-zone`, `realtime-brake` — all gone.
-
-## New tags (V3)
-`steady-state`, `predictive-brake`, `bottom-undershoot-guard`, `top-overshoot-guard`, `mode-soft-decay`, `gradient-k=<n.nn>` (emitted on a learning hit).
+## Tags
+- **Removed (V2 → V3):** `pill-fused-estimate`, `p-scaled-40pct`, `stale`, `realtime-brake`.
+- **Added (V3):** `i-zone`, `steady-state`, `predictive-brake`, `bottom-undershoot-guard`, `top-overshoot-guard`, `mode-soft-decay`, `gradient-k=<n.nn>` (emitted on a learning hit).
