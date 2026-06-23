@@ -56,7 +56,8 @@ export function estimateBottomTemp(
   anchor: SensorAnchor | null,
   k: number,
   mode: 'heating' | 'cooling',
-): { estimate: number; anchor: SensorAnchor | null; pillDelta: number } {
+  pillProbeOffset: number | null = null,
+): { estimate: number; anchor: SensorAnchor | null; pillDelta: number; offsetBlend?: number } {
   const now = new Date().toISOString()
   // Fresh probe (or no pill / no anchor): re-anchor and use probe directly
   if (probeIsFresh || anchor == null || pillTempNow == null || anchor.mode !== mode) {
@@ -70,7 +71,23 @@ export function estimateBottomTemp(
   // Cap pill-driven correction: a broken/runaway pill cannot drag us off
   const maxCorr = Math.min(0.10 * Math.max(0, minutesSince), 2.0)
   const bounded = Math.max(-maxCorr, Math.min(maxCorr, k * pillDelta))
-  return { estimate: anchor.probeTemp + bounded, anchor, pillDelta }
+  const extrapolated = anchor.probeTemp + bounded
+
+  // ── Offset-anchored fallback: when probe is stale and we have a learned
+  //    static pill−probe offset, blend in (pill − offset) as an absolute
+  //    estimate. Extrapolation drifts with k×pillDelta from an old anchor;
+  //    (pill − offset) is anchored to the *current* pill reading and
+  //    cancels known stratification. Weight grows with staleness so fresh-ish
+  //    anchors stay dominant and the absolute term takes over as the
+  //    extrapolation becomes less trustworthy.
+  if (pillProbeOffset == null) {
+    return { estimate: extrapolated, anchor, pillDelta }
+  }
+  const absolute = pillTempNow - pillProbeOffset
+  // 0 at 0 min stale → 0.5 at 30+ min stale
+  const w = Math.max(0, Math.min(0.5, minutesSince / 60))
+  const estimate = (1 - w) * extrapolated + w * absolute
+  return { estimate, anchor, pillDelta, offsetBlend: w }
 }
 
 /**
@@ -98,6 +115,7 @@ export async function calculateCompensatedTarget(
   floorLookupTarget?: number | null,
   pillTempNow?: number | null,
   probeTempRaw?: number | null,
+  pillProbeOffset?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -188,6 +206,7 @@ export async function calculateCompensatedTarget(
     persistedIntegral, prevAvgError,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
+    pillProbeOffset: pillProbeOffset ?? null,
   })
   let dutyCycle = v3.duty
   const integral = v3.integral
@@ -269,6 +288,7 @@ export function computeDutyV3(input: {
   prevAvgError: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
+  pillProbeOffset?: number | null
 }): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
@@ -280,9 +300,12 @@ export function computeDutyV3(input: {
   const probeForObs = input.probeTempRaw ?? input.actualTemp
   const obs = estimateBottomTemp(
     probeForObs, input.probeIsFresh, input.pillTempNow,
-    input.anchor, input.k, input.mode,
+    input.anchor, input.k, input.mode, input.pillProbeOffset ?? null,
   )
   const bottomEst = obs.estimate
+  if (obs.offsetBlend != null && obs.offsetBlend > 0) {
+    constraints.push(`offset-blend=${obs.offsetBlend.toFixed(2)}`)
+  }
   // Regulate against the fresh bulk average: observer-corrected probe + live
   // pill, same definition as UI but at 1-minute resolution. When the probe is
   // fresh bottomEst equals probe, so UI and regulator coincide at samples.
