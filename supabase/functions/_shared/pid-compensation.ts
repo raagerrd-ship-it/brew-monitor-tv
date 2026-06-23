@@ -491,6 +491,24 @@ export function computeDutyV3(input: {
     constraints.push('top-overshoot-guard')
   }
 
+  // ── SSOT-golv: bulken är källan-till-sanning ──────────────────────────
+  // Stratifieringsskyddet ovan kan hålla duty på uP+uFf när probe ligger
+  // under target medan pill (top) är klart varmare. Då växer bulkfelet
+  // (actualTemp = SSOT) utan att PID svarar, eftersom controlTemp viktas
+  // 70/30 mot kall botten. Om SSOT visar att bulken faktiskt är ≥0.3°C
+  // för varm under kylning, golva duty på Kp·ssotErr + uFf (max 35%) så
+  // vi får en mild, proportionell respons utan att äventyra botten.
+  if (isCooling) {
+    const ssotErr = input.actualTemp - input.actualTarget
+    if (ssotErr > 0.3) {
+      const floor = Math.min(0.35, Kp * ssotErr + uFf)
+      if (floor > duty) {
+        duty = floor
+        constraints.push(`ssot-floor(err=${ssotErr.toFixed(2)},duty=${(floor * 100).toFixed(0)})`)
+      }
+    }
+  }
+
   // ── Util saturation: kapa till nextI+0.1 (mer än så är meningslöst när hw är maxad) ──
   const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
   if (isSaturated) {
