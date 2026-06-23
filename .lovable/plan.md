@@ -1,100 +1,58 @@
-## Bakgrund
+## Granskning: V4 PID (pid-compensation.ts) mot historik
 
-Processen är dödtidsdominerad (15 min probe-latens, 60L termisk massa, glykol-transportlag). Klassisk PID-litteratur säger entydigt: när dödtid > 2 × tidskonstant, **gör loopen långsam och bred**, annars oscillerar den oundvikligen. Allt vi byggt (observer, k-learning, stratifierings-guard, dithering, SSOT-golv, mode-soft-decay, PWM-burst med slots) är försök att kompensera för att vi tunat snabbare än processen tål.
+### Vad är solitt
+- **SSOT-regulering korrekt**: PI körs direkt på `actualTemp` (bulk-probe). `actualTarget` skickas tillbaka orört som `ctrlTargetPid` — `profile_target_temp` rörs inte. Bra mot SSOT-regeln.
+- **Slow-PI-värden rimliga för dödtid**: Kp=0.20, Ki=0.30/h, Imax=0.35, dödband ±0.10°C. Stämmer med BrewPi/Inkbird-praxis för 60 L massa med 15 min probe-latens.
+- **Pill korrekt utanför PI-felet**: bara top-cap (+0.7°C → ≥12% duty) och bottom-stop (−0.7°C → 0% + I-bleed). Matchar "pill måste vara med, men inte i fusion".
+- **Min-off 5 min för kyla**: skyddar kompressor/glykolmix. Bokföringen via `lastZeroDutyAt` är korrekt (verifierat: dutyPct beräknas EFTER min-off-blocket, så state speglar verkligen utskickad duty).
+- **Peak-detect 0.85×/1.15× med 0.4–2.5 clamp**: säker självtuning, kommer konvergera ~2 dygn.
+- **ssFloor + margin-scale 0.6–1.8×** bevaras → kall-glykol drar ned duty proaktivt. Rör inte `ssFloorRaw` i DB.
+- **Past-target-coast + overshoot-bleed (0.85×)** dämpar windup vid undershoot.
 
-Pill behålls i alla tre förslagen — men som **säkerhetstak**, inte som del av fusion-matematiken.
+### Konkreta risker (måste fixas innan vi kan lova ±0.10°C hold)
 
----
+1. **dt hårdkodad till 1 min — extra triggers över-integrerar.**
+   `nextI += KiPerHour * need / 60` antar exakt 1 cykel/min. Men `auto-adjust-cooling` triggas av tre källor:
+   - cron `* * * * *` (1 min)
+   - RAPT-update trigger (var 15 min, drar in extra cykel direkt efter cron)
+   - `ingest-pill-ble` (när BLE-paket landar)
+   
+   En 15-min RAPT-burst kan ge 2 cykler inom samma minut → dubbel integration. **Fix:** byt till `dt = clamp((now − lastSsotAt)/60000, 0.25, 5.0)` minuter; använd `KiPerHour * need * dt/60`. Använder redan `lastSsotAt` i V4PidState.
 
-## Alternativ A — Minimal städning (lägst risk)
+2. **Mode-flip mjuk reset blandar mode-integraler.**
+   Vid cool→heat flip: `integral = |need|>0.5 ? 0 : integral*0.5`. Men cooling-I och heating-I har motsatta semantiska riktningar (båda är ≥0 men driver olika hårdvara). Att behålla halva cooling-I som heating-I ger en falsk varmstart. **Fix:** hård `integral = 0` på varje mode-flip (`lastMode !== mode`). Mode-switching-logiken ute i caller har redan 3-stable-cykler-guard, så flip-flop är inte ett bekymmer.
 
-Behåll PID-strukturen, men ta bort lagren som motverkar varandra.
+3. **Pill top-cap för svag i sommarvärme.** 12% duty vid pill +0.7°C kan inte kyla bort en varm topp om ambient är 25°C. **Fix:** gör capen progressiv:
+   ```
+   excess = pill − target
+   if excess > 0.7: floor = clamp(0.12 + (excess − 0.7) * 0.25, 0.12, 0.40)
+   ```
+   Vid +1.5°C topp → 32% duty. Behåller "saktare" karaktär men respekterar fysik.
 
-**Tar bort:**
-- Observer (`estimateBottomTemp`) + k-learning + anchor-tracking
-- 70/30 controlTemp-viktning, IIR-smooth
-- Stratifierings-guard (cap + I-bleed)
-- SSOT-golv (blir överflödigt)
-- Mode-soft-decay, mass-coast, overshoot-bleed, util-sat-cap
-- Dithering / 10-slot rotation
+4. **Bottom-stop nollställer för svagt I.** `nextI *= 0.5` när pill < target − 0.7. Om systemet är i kraftig undershoot (kall glykol slår igenom till pill), halv I = vi kommer behöva bygga upp samma I igen → svängningar. **Fix:** `nextI = 0` när bottom-stop triggar. Den efterföljande cykeln startar rent.
 
-**Behåller:**
-- PI på SSOT (`actualTemp` direkt) med Kp=0.30, Ki=0.5/h, Imax=0.4
-- Asymmetri: heating-sidan oförändrad
-- PWM-burst-systemet (60s minimum) som det är
-- ssFloor som lärd feedforward
+### Småsaker (rör vi ej nu — dokumentera bara)
+- `inDeadband` använder konstanten `COOL.Deadband` även för värme. Funktionellt rätt (±0.10°C för båda), men namnet vilseledande. Lämna.
+- `deadbandGainScale`-variabeln gäller `uFf`, inte dödband. Namn confusing. Lämna.
+- Heating har varken min-on/off eller peak-detect. För Mjöd/Skogens Sus är heating sällsynt (ambient ofta varmare än setpoint) — riskerar inte stabilitet.
 
-**Pill som säkerhet:** om `pill > target + 0.7`, golva duty på 12%. Om `pill < target − 0.7`, kapa duty till 0. Inget mer.
+### Verdikt
+**Med fix 1–4: ja, kärlen kommer hålla ±0.10–0.15°C efter ~2 dygns självtuning.**
+**Som koden står nu: ja men ±0.20–0.30°C med ojämn cykling, särskilt direkt efter RAPT-bursts.** Fix #1 är den enda som påverkar dagligt beteende; #2–4 är edge-case-härdning.
 
-**Förväntat beteende:** ~10-15 min för att svara på störning, ±0.15°C i hold. Mycket förutsägbart att felsöka. ~80% mindre kod i `pid-compensation.ts`.
+### Implementationsplan (4 små edits i `pid-compensation.ts`)
 
----
-
-## Alternativ B — BrewPi-stil (rekommendation)
-
-Beprövat i hundratusentals fermentorer. Två tidsskalor:
-
-**Slow loop (1 min cadence):** PI på SSOT-bulk
-- Kp = 0.20 (mild)
-- Ki = 0.3/h (mycket långsam — bygger 10% baskylning över ~30 min)
-- Imax = 0.35
-- Dödband ±0.1°C: ingen integration i bandet
-- Inget D, ingen observer
-
-**Peak-detection (BrewPi-kärnan):** efter att duty gått från positivt till 0%, vänta tills SSOT slutar falla. Om botten-peak ligger ≥0.2°C under target → minska Ki tillfälligt (vi är för aggressiva). Om peak ligger över target → öka Ki. Detta är självtuning utan extern lärning.
-
-**Min on/off:** kylning får inte slå på inom 5 min efter senaste off (skyddar kompressor + ger glykolen tid att blandas). Heating får på inom 1 min.
-
-**Pill som säkerhet:** samma som A — top-cap vid pill > target+0.7, bottom-stop vid pill < target−0.7.
-
-**Förväntat:** ~15-20 min till svar, ±0.1°C i hold efter ~2 dygns inkörning (peak-detection självtunar). Stabilast långsiktigt.
-
-**Komplexitet:** ungefär samma kodmängd som A, men en ny `peak-detect.ts` (~80 rader) som följer toppar/bottnar i SSOT.
-
----
-
-## Alternativ C — Bang-bang med dödband (enklast)
-
-Klassisk Inkbird/STC-1000-logik. Ingen PID alls.
-
-**Logik:**
-- Om SSOT > target + 0.2 i ≥3 min → kyla med fast 15% duty
-- Om SSOT < target − 0.2 i ≥3 min → värma med fast 25% duty
-- Annars: coast (0%)
-- Min 8 min mellan kyl-cykler, min 4 min mellan värme-cykler
-
-**Pill som säkerhet:** hård gräns. Pill > target+0.7 → tvinga kyla. Pill < target−0.7 → tvinga stop.
-
-**Förväntat:** sågtandsmönster ±0.25°C runt target i hold. Aldrig overshoot mer än ~0.4°C. Garanterat stabilt.
-
-**Komplexitet:** ~150 rader i `pid-compensation.ts` (mot dagens 759). Trivialt att resonera om.
-
----
-
-## Jämförelse
-
-```
-                   A (minimal PID)   B (BrewPi)      C (bang-bang)
-Kodrader (est)         ~250            ~330             ~150
-Tid till svar         10-15 min       15-20 min        5-12 min
-Hold-precision       ±0.15 °C        ±0.10 °C         ±0.25 °C
-Overshoot-risk        låg              mycket låg       låg
-Tuning krävs          en gång          självtunar       en gång
-Pill-roll             säkerhet         säkerhet         säkerhet
-Felsökbart            ja               ja               mycket lätt
-Risk vid deploy       låg              medel            mycket låg
+```text
+1. dt från lastSsotAt        → integration använder verklig minuter
+   verify: log "dt=2.3m" syns i bursts efter RAPT
+2. Hård integral=0 vid mode-flip
+   verify: log "mode-reset(hard)" + I=0.000 vid första flip
+3. Progressiv pill-top-cap
+   verify: vid pill=target+1.5 → duty ≥ 0.32, constraint "pill-top-cap(1.50→32%)"
+4. Bottom-stop nollställer I
+   verify: efter bottom-stop, nästa cykel börjar med I=0.000
 ```
 
-## Gemensamt för alla tre
+Inga ändringar i `auto-adjust-cooling`, PWM, plug, mode-switching eller DB-schema. Backwards-compat på V4PidState (alla fält redan finns).
 
-- `pid-compensation.ts` skrivs om från grunden (säkrare än att plocka bort lager för lager)
-- `auto-adjust-cooling/index.ts` rörs minimalt — bara anropet till compensation ändras
-- PWM-execution, plug-styrning, marginal-hantering, mode-switching i caller — allt orört
-- Värmesidan rörs inte (eller minimalt) i alla tre
-- Memory-filer för observer/k-learning/stratifierings-guard markeras som arkiverade
-
-## Förslag
-
-**B (BrewPi-stil)** matchar bäst "hellre långsamt mot målet bara vi håller det". Det är dessutom det enda alternativet som självjusterar — du behöver inte tuna om för olika brygder/tankvolymer.
-
-Vill du att jag skriver en konkret implementations-plan för ett av dem (eller alla tre i sekvens, med A först som säkerhetsnät)?
+Vill du att jag implementerar alla fyra, eller bara fix #1 (störst impact)?
