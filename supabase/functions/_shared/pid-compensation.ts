@@ -1,102 +1,86 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateLearnedParam, getLearnedParam, getTempBucket } from './learning-utils.ts'
+import { getLearnedParam, getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
-// SensorAnchor — observer reference point persisted between cycles
+// PID Control & Thermal Learning (V4: BrewPi-stil)
+//
+// Designprinciper (dödtidsdominerad process: ~15 min probe-latens, 60L massa):
+//   • Långsam PI på SSOT (actualTemp). Inget D. Ingen observer.
+//   • Brett dödband (±0.10°C) → ingen mikrojustering runt setpoint.
+//   • Peak-detection självtuner cooling-Ki: undershoot sänker, overshoot höjer.
+//   • Pill bara som säkerhetstak (top-cap / bottom-stop), inte i PID-felet.
+//   • Min-off (kylning 5 min) skyddar glykol-mixing och kompressor.
+//   • Värmesidan oförändrad i karaktär (snabb, hög Kp/Ki).
+//
+// SSOT Naming Convention:
+//   actualTarget  = användarens önskemål (profile_target_temp)
+//   actualTemp    = bulk-temp (probe eller probe+pill-snitt — kallaren styr)
+//   pillTempNow   = flytande pill (top), null om ej parad
+//   ctrlTarget    = nuvarande HW-mål (legacy)
+//   ctrlTargetPid = actualTarget (PID-output är duty)
+//
+// Persistent state lever i controller_learned_compensation:
+//   accumulated_integral → I-termen
+//   sensor_anchor (JSONB) → V4PidState (peak-detect + min-off-bokföring)
 // ============================================================
-export interface SensorAnchor {
-  probeTemp: number
-  pillTemp: number
-  anchoredAt: string // ISO8601
-  mode: 'heating' | 'cooling'
-  // Optional smoothing state for IIR filter on controlTemp.
-  // Stored on the same JSONB blob to avoid a schema change.
-  lastControlTemp?: number
-  lastControlTempAt?: string
+
+/** Persistent PID-tillstånd mellan cykler (lagras i sensor_anchor JSONB). */
+interface V4PidState {
+  // Senaste SSOT-bokföring för peak-detection
+  lastSsot?: number
+  lastSsotAt?: string
+  // Senaste duty + tidpunkt då vi gick till 0 (för min-off)
+  lastDutyPct?: number
+  lastZeroDutyAt?: string
+  // Peak-detection (cooling, hold): armas när duty 0 → spårar peak/undershoot
+  peakArmed?: boolean
+  peakArmedTarget?: number
+  peakArmedAt?: string
+  peakMinTemp?: number
+  // Självtunings-multiplikator på cooling-Ki (clampas 0.4..2.5)
+  kiAdjCooling?: number
+  // Mode-vid-senaste-cykel (för soft-reset vid mode-flip)
+  lastMode?: 'heating' | 'cooling'
 }
+
+// ── Tuning constants ─────────────────────────────────────────────────────
+const COOL = {
+  Kp: 0.20,
+  KiPerHour: 0.30, // mycket långsam — bygger ~5%/16 min
+  Imax: 0.35,
+  Deadband: 0.10,
+  IZone: 0.4,
+  MinOffMin: 5,    // min minuter sedan duty=0 innan kylning får återstarta
+}
+const HEAT = {
+  KpHold: 0.45, KpRamp: 0.80,
+  KiHold: 1.2,  KiRamp: 4.5,
+  Imax: 0.40,
+  IZone: 0.6,
+}
+const PILL_TOP_CAP = 0.7   // pill > target + denna → tvinga minst 12% duty
+const PILL_BOTTOM_STOP = 0.7 // pill < target − denna → stoppa kylning
 
 /** Persist PID state to controller_learned_compensation */
 async function persistPidState(
   supabase: any,
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
-  dutyCycle: number,
-  extra?: { learned_pi_correction?: number; convergence_count?: number; last_converged_at?: string; sensor_anchor?: SensorAnchor | null },
+  dutyCycle: number, nextState: V4PidState,
 ): Promise<void> {
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
     latest_p_correction: pCorrection, latest_i_correction: iCorrection,
-    latest_d_damping: dutyCycle, // Repurposed: stores total duty cycle (P+I clamped)
+    latest_d_damping: dutyCycle, // legacy fält — total duty
     latest_avg_error: avgError,
     accumulated_integral: iCorrection,
+    sensor_anchor: nextState,
     updated_at: new Date().toISOString(),
-    ...extra,
   }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
-}
-
-// ============================================================
-// PID Control & Thermal Learning (V3: observer + mode-k + asymmetric gains)
-//
-// SSOT Naming Convention:
-//   actualTarget  = user's desired temperature (profile_target_temp)
-//   actualTemp    = bottom probe reading (SSOT)
-//   pillTempNow   = current floating pill reading (top, fast updates)
-//   ctrlTarget    = current hardware target (target_temp before PID)
-//   ctrlTargetPid = actualTarget (reference, PID output is duty cycle)
-//
-// V3 model (computeDutyV3): observer fuses bottom probe (slow, 15-min)
-// with floating pill (fast, 1-min) to a bulk-temp estimate every minute.
-// Mode-dependent gradient k accounts for cooling-coil-from-below geometry
-// (k_cooling > 1, k_heating < 1). Asymmetric gains: aggressive heating
-// (no brake), gentle cooling with predictive pill-brake. Stratification
-// guards on the leading sensor.
-// ============================================================
-
-// ── Observer: extrapolate stale bottom probe using pill movement ──
-export function estimateBottomTemp(
-  probeTemp: number,
-  probeIsFresh: boolean,
-  pillTempNow: number | null,
-  anchor: SensorAnchor | null,
-  k: number,
-  mode: 'heating' | 'cooling',
-  pillProbeOffset: number | null = null,
-): { estimate: number; anchor: SensorAnchor | null; pillDelta: number; offsetBlend?: number } {
-  const now = new Date().toISOString()
-  // Fresh probe (or no pill / no anchor): re-anchor and use probe directly
-  if (probeIsFresh || anchor == null || pillTempNow == null || anchor.mode !== mode) {
-    const newAnchor = pillTempNow != null
-      ? { probeTemp, pillTemp: pillTempNow, anchoredAt: now, mode }
-      : null
-    return { estimate: probeTemp, anchor: newAnchor, pillDelta: 0 }
-  }
-  const pillDelta = pillTempNow - anchor.pillTemp
-  const minutesSince = (Date.now() - new Date(anchor.anchoredAt).getTime()) / 60000
-  // Cap pill-driven correction: a broken/runaway pill cannot drag us off
-  const maxCorr = Math.min(0.10 * Math.max(0, minutesSince), 2.0)
-  const bounded = Math.max(-maxCorr, Math.min(maxCorr, k * pillDelta))
-  const extrapolated = anchor.probeTemp + bounded
-
-  // ── Offset-anchored fallback: when probe is stale and we have a learned
-  //    static pill−probe offset, blend in (pill − offset) as an absolute
-  //    estimate. Extrapolation drifts with k×pillDelta from an old anchor;
-  //    (pill − offset) is anchored to the *current* pill reading and
-  //    cancels known stratification. Weight grows with staleness so fresh-ish
-  //    anchors stay dominant and the absolute term takes over as the
-  //    extrapolation becomes less trustworthy.
-  if (pillProbeOffset == null) {
-    return { estimate: extrapolated, anchor, pillDelta }
-  }
-  const absolute = pillTempNow - pillProbeOffset
-  // 0 at 0 min stale → 0.5 at 30+ min stale
-  const w = Math.max(0, Math.min(0.5, minutesSince / 60))
-  const estimate = (1 - w) * extrapolated + w * absolute
-  return { estimate, anchor, pillDelta, offsetBlend: w }
 }
 
 /**
  * Calculate PID duty cycle for temperature control.
- * V3: observer-fused bulk temp + asymmetric PI(D) + stratification guards.
+ * V4: långsam PI på SSOT + peak-detection (cooling) + pill-safety.
  */
 export async function calculateCompensatedTarget(
   supabase: any,
@@ -124,18 +108,18 @@ export async function calculateCompensatedTarget(
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
-  void ctrlTarget; void isInterpolated // legacy params kept for caller compat
+  void ctrlTarget; void isInterpolated; void probeTempRaw; void pillProbeOffset
+  void controllerName
 
-  // ── Parallel fetch: PID state + ssFloor + gradient_k ──
+  // ── Parallel fetch: PID state + ssFloor ──
   const ssBucket = getTempBucket(floorLookupTarget ?? actualTarget)
   const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
   const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
   const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
-  const kDefault = mode === 'cooling' ? 1.3 : 0.7
-  const [{ data: learnedRow }, phaseParam, modeParam, kParam] = await Promise.all([
+  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
     supabase
       .from('controller_learned_compensation')
-      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, style_key, updated_at, sensor_anchor')
+      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, sensor_anchor')
       .eq('controller_id', controllerId)
       .eq('delta_bucket', deltaBucket)
       .eq('mode', mode)
@@ -145,7 +129,6 @@ export async function calculateCompensatedTarget(
       ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
       : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
     getLearnedParam(supabase, controllerId, modeKeyedName, 0),
-    getLearnedParam(supabase, controllerId, `gradient_k:${mode}`, kDefault),
   ])
 
   // Floor resolution: phase → mode → legacy (cooling only) → mode-seed
@@ -168,28 +151,29 @@ export async function calculateCompensatedTarget(
   }
 
   const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
-  const ssFloorSamples = ssParamResolved.sampleCount
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
   let persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
-  const prevAvgError = learnedRow ? parseFloat(String(learnedRow.latest_avg_error ?? '0')) : 0
   // One-time clamp: legacy °C-domain integrals (>1.0) reset to 0
   if (!Number.isFinite(persistedIntegral) || Math.abs(persistedIntegral) > 1.0) persistedIntegral = 0
-  const prevAnchor: SensorAnchor | null = (() => {
+  // Hämta V4-state ur sensor_anchor JSONB (gamla anchor-fält ignoreras tyst).
+  const prevState: V4PidState = (() => {
     const raw = learnedRow?.sensor_anchor
-    if (!raw || typeof raw !== 'object') return null
+    if (!raw || typeof raw !== 'object') return {}
     const a = raw as any
-    if (typeof a.probeTemp !== 'number' || typeof a.pillTemp !== 'number' || typeof a.anchoredAt !== 'string') return null
     return {
-      probeTemp: a.probeTemp,
-      pillTemp: a.pillTemp,
-      anchoredAt: a.anchoredAt,
-      mode: a.mode === 'heating' ? 'heating' : 'cooling',
-      lastControlTemp: typeof a.lastControlTemp === 'number' ? a.lastControlTemp : undefined,
-      lastControlTempAt: typeof a.lastControlTempAt === 'string' ? a.lastControlTempAt : undefined,
+      lastSsot: typeof a.lastSsot === 'number' ? a.lastSsot : undefined,
+      lastSsotAt: typeof a.lastSsotAt === 'string' ? a.lastSsotAt : undefined,
+      lastDutyPct: typeof a.lastDutyPct === 'number' ? a.lastDutyPct : undefined,
+      lastZeroDutyAt: typeof a.lastZeroDutyAt === 'string' ? a.lastZeroDutyAt : undefined,
+      peakArmed: typeof a.peakArmed === 'boolean' ? a.peakArmed : undefined,
+      peakArmedTarget: typeof a.peakArmedTarget === 'number' ? a.peakArmedTarget : undefined,
+      peakArmedAt: typeof a.peakArmedAt === 'string' ? a.peakArmedAt : undefined,
+      peakMinTemp: typeof a.peakMinTemp === 'number' ? a.peakMinTemp : undefined,
+      kiAdjCooling: typeof a.kiAdjCooling === 'number' ? a.kiAdjCooling : undefined,
+      lastMode: a.lastMode === 'heating' || a.lastMode === 'cooling' ? a.lastMode : undefined,
     }
   })()
-  const kLearned = kParam.value
 
   // ── Margin-aware floor scaling (cooling only) ──
   // Större faktisk marginal (kallare glykol) → skala NED. Mindre marginal → skala UPP.
@@ -201,63 +185,28 @@ export async function calculateCompensatedTarget(
       deadbandGainScale = Math.max(0.6, Math.min(1.8, coolerMarginContext.learnedMargin / actualMargin))
     }
   }
-  const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
+  const uFf = ssFloorRaw > 0 && ssParamResolved.sampleCount >= 5
+    ? ssFloorRaw * deadbandGainScale
+    : 0
   if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
 
-  // ── Stall-override detection (moved out of computeDutyV3 so the inner
-  //    function stays synchronous and DB-free). When bulk has stalled above
-  //    target while the bottom probe is cold, we will allow a weak cooling
-  //    pulse instead of hard-stopping. Query is best-effort: any failure
-  //    leaves stallOverride=false and the guard behaves normally.
-  let stallOverride = false
-  if (
-    mode === 'cooling'
-    && actualTemp > actualTarget + 0.15
-    && (probeTempRaw ?? actualTemp) < actualTarget - 0.3
-  ) {
-    try {
-      const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      const { data: hist } = await supabase
-        .from('temp_controller_history')
-        .select('recorded_at, actual_temp')
-        .eq('controller_id', controllerId)
-        .gte('recorded_at', since)
-        .order('recorded_at', { ascending: false })
-        .limit(40)
-      if (Array.isArray(hist) && hist.length >= 15) {
-        const aboveAll = hist.every((r: any) =>
-          r.actual_temp != null && parseFloat(String(r.actual_temp)) > actualTarget + 0.10
-        )
-        const oldestAgeMin = (Date.now() - new Date(hist[hist.length - 1].recorded_at).getTime()) / 60000
-        if (aboveAll && oldestAgeMin >= 20) stallOverride = true
-      }
-    } catch (e) {
-      console.warn(`stall-override query failed: ${e}`)
-    }
-  }
-
-  // ── V3 observer + asymmetric PI(D) ──
-  const v3 = computeDutyV3({
+  // ── Core PI ──
+  void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
+  const r = computeDutyV4({
     mode, stepType,
     actualTarget, actualTemp,
-    probeTempRaw: probeTempRaw ?? null,
-    probeIsFresh: !isStaleData,
     pillTempNow: pillTempNow ?? null,
     pillRate: pillRate ?? null,
-    anchor: prevAnchor,
-    k: kLearned,
-    ssFloor, ssFloorSamples,
-    persistedIntegral, prevAvgError,
+    uFf,
+    persistedIntegral,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
-    pillProbeOffset: pillProbeOffset ?? null,
-    stallOverride,
+    prevState,
   })
-  let dutyCycle = v3.duty
-  const integral = v3.integral
-  const pCorrection = v3.p
-  const nextAnchor = v3.anchor
-  for (const c of v3.constraints) constraints.push(c)
+  let dutyCycle = r.duty
+  const integral = r.integral
+  const pCorrection = r.p
+  for (const c of r.constraints) constraints.push(c)
 
   // ── Ramp boost (cooling): top up duty when observed rate lags required ──
   if (mode === 'cooling' && rampContext && pillRate != null && (coolingUtilization == null || coolingUtilization < 0.90)) {
@@ -273,30 +222,11 @@ export async function calculateCompensatedTarget(
 
   const avgError = actualTarget - actualTemp
   const need = mode === 'cooling' ? -avgError : avgError
-  console.log(`🎯 ${mode} ${controllerName} [${floorSource}] k=${kLearned.toFixed(2)} bulk=${v3.controlTemp.toFixed(2)}°: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, floor=${ssFloor.toFixed(3)}${deadbandGainScale !== 1.0 ? ` (raw=${ssFloorRaw.toFixed(3)}×${deadbandGainScale.toFixed(2)})` : ''}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
-
-  // ── Gradient-k learning: when probe is fresh AND we had an anchor from
-  //    the SAME mode, compute realized k from RAW probe/pill deltas (gradient
-  //    physics — never from the SSOT, which may be an avg of probe+pill).
-  const probeForLearn = probeTempRaw ?? null
-  if (!isStaleData && prevAnchor != null && prevAnchor.mode === mode && pillTempNow != null && probeForLearn != null) {
-    const probeDelta = probeForLearn - prevAnchor.probeTemp
-    const pillDelta = pillTempNow - prevAnchor.pillTemp
-    if (Math.abs(pillDelta) >= 0.05) {
-      const realized = probeDelta / pillDelta
-      if (Number.isFinite(realized) && realized >= 0.2 && realized <= 4.0) {
-        // Fire-and-forget; nothing downstream depends on this update.
-        updateLearnedParam(supabase, controllerId, `gradient_k:${mode}`, realized, 0.2, 4.0)
-          .catch((e) => console.warn(`gradient_k learn failed: ${e}`))
-        constraints.push(`gradient-k=${realized.toFixed(2)}`)
-      }
-    }
-  }
+  console.log(`🎯 ${mode} ${controllerName} [${floorSource}]: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, uFf=${uFf.toFixed(3)}, kiAdj=${(r.nextState.kiAdjCooling ?? 1).toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
 
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
-    pCorrection, integral, avgError, dutyCycle,
-    { sensor_anchor: nextAnchor },
+    pCorrection, integral, avgError, dutyCycle, r.nextState,
   )
 
   return {
@@ -310,142 +240,80 @@ export async function calculateCompensatedTarget(
     convergenceCount,
     constraints,
     persistPromise,
-    // ── PWM aggregation window (minutes). Duty should be averaged/applied
-    //    over this window by the caller (e.g. execute-pwm-off cron) rather
-    //    than toggling the pump every minute, so injected glycol has time to
-    //    mix into the bulk before the next regulator decision. Returned for
-    //    the caller to respect — this file does not toggle the pump itself.
     coolingPwmWindowMin,
   }
 }
 
 // ============================================================
-// V3: Observer + asymmetric PI(D) — pure function, no DB access
+// V4: BrewPi-stil — pure function, no DB access
 // ============================================================
-export function computeDutyV3(input: {
+function computeDutyV4(input: {
   mode: 'heating' | 'cooling'
   stepType: string
   actualTarget: number
-  actualTemp: number          // SSOT (avg/probe/pill per controller config) — PID error source
-  probeTempRaw: number | null // RAW bottom probe — observer + bottom-guard + k-learning
-  probeIsFresh: boolean
-  pillTempNow: number | null  // floating pill (top), null if not linked
+  actualTemp: number             // SSOT (bulk) — PID error source
+  pillTempNow: number | null     // pill (top) — endast säkerhetstak
   pillRate: number | null
-  anchor: SensorAnchor | null
-  k: number                   // mode-keyed gradient (cooling>1, heating<1)
-  ssFloor: number
-  ssFloorSamples: number
+  uFf: number                    // feedforward från ssFloor (0 om olärd)
   persistedIntegral: number
-  prevAvgError: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
-  pillProbeOffset?: number | null
-  stallOverride?: boolean      // detected in caller (DB query); enables weak pulse in bottom-guard
-}): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
+  prevState: V4PidState
+}): { duty: number; integral: number; p: number; constraints: string[]; nextState: V4PidState } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
   const isHold = input.stepType === 'hold'
+  const now = new Date().toISOString()
+  const nowMs = Date.now()
 
-  // ── Observer: fresh bulk estimate every cycle ──
-  // Always uses RAW probe (bottom) — observer models physical stratification,
-  // not user-facing SSOT. If no raw probe is available, fall back to actualTemp.
-  const probeForObs = input.probeTempRaw ?? input.actualTemp
-  const obs = estimateBottomTemp(
-    probeForObs, input.probeIsFresh, input.pillTempNow,
-    input.anchor, input.k, input.mode, input.pillProbeOffset ?? null,
-  )
-  const bottomEst = obs.estimate
-  if (obs.offsetBlend != null && obs.offsetBlend > 0) {
-    constraints.push(`offset-blend=${obs.offsetBlend.toFixed(2)}`)
-  }
-  // Regulate against a bottom-weighted bulk estimate. Pill is fast but noisy
-  // (BLE jitter, wave motion, top-of-tank dynamics), so we weight the
-  // observer-corrected bottom 70/30 against the live pill. When the probe is
-  // fresh bottomEst equals probe.
-  const controlTempRaw = input.pillTempNow != null
-    ? 0.7 * bottomEst + 0.3 * input.pillTempNow
-    : bottomEst
-
-  // ── IIR low-pass on controlTemp: dampens sub-cycle pill noise without
-  //    chasing it. α=0.2 → ~5-min effective time constant at 1-min cadence.
-  //    Bypassed on mode-flip (fresh response) and on stale state (>5 min).
-  const SMOOTH_ALPHA = 0.2
-  const prevCT = input.anchor?.lastControlTemp
-  const prevCTAt = input.anchor?.lastControlTempAt
-  const prevCTAgeMin = prevCTAt
-    ? (Date.now() - new Date(prevCTAt).getTime()) / 60000
-    : Infinity
-  const canSmooth = !input.modeJustSwitched
-    && prevCT != null
-    && Number.isFinite(prevCT)
-    && prevCTAgeMin < 5
-  const controlTemp = canSmooth
-    ? (1 - SMOOTH_ALPHA) * (prevCT as number) + SMOOTH_ALPHA * controlTempRaw
-    : controlTempRaw
-  if (canSmooth) constraints.push('iir-smooth')
-  const avgError = input.actualTarget - controlTemp
+  const avgError = input.actualTarget - input.actualTemp
   const need = isCooling ? -avgError : avgError
 
-  // approachRate previously fed the cooling D-brake (now removed). Kept here
-  // as a no-op reference; pillRate is still consumed by hold-deadband below.
+  // ── Self-tuning Ki-justering (cooling) ──
+  // peak-detect armas när duty går till 0 vid hold; nästa peak/dal jämförs
+  // mot target och justerar kiAdjCooling 0.4..2.5.
+  let kiAdj = isCooling && input.prevState.kiAdjCooling != null
+    ? Math.max(0.4, Math.min(2.5, input.prevState.kiAdjCooling))
+    : 1.0
 
-  // ── Asymmetric gains: cooling = gentle (no D-brake), heating ≈ bang-bang ──
-  // Cooling Ki/Imax lowered: the loop is dead-time dominated (15-min probe
-  // latency + transport lag through the coil) so a high integral builds
-  // commitment we can't unwind in time → undershoot oscillation.
-  const Kp = isCooling
-    ? (isHold ? 0.30 : 0.55)
-    : (isHold ? 0.45 : 0.80)
-  const KiPerHour = isCooling
-    ? (isHold ? 1.0 : 1.8)
-    : (isHold ? 1.2 : 4.5)
-  // D-brake removed for cooling: it was driven by pillRate (the lagging
-  // surface sensor), so it braked after the slug had already arrived.
-  const Kd = 0
-  const Imax = isCooling
-    ? 0.55
-    : (isHold ? 0.40 : 0.70)
+  // ── Gains ──
+  let Kp: number, KiPerHour: number, Imax: number, IZone: number
+  if (isCooling) {
+    Kp = COOL.Kp
+    KiPerHour = COOL.KiPerHour * kiAdj
+    Imax = COOL.Imax
+    IZone = COOL.IZone
+  } else {
+    Kp = isHold ? HEAT.KpHold : HEAT.KpRamp
+    KiPerHour = isHold ? HEAT.KiHold : HEAT.KiRamp
+    Imax = HEAT.Imax
+    IZone = HEAT.IZone
+  }
 
-  // ── Integral state: mode-flip soft-decay or hard reset ──
-  // TODO(mode-switching): the actual cooling/heating mode decision lives in
-  // the caller (auto-adjust-cooling). To stop integral thrashing it MUST
-  // apply a wide deadband + dwell before flipping mode:
-  //   • cool only when actualTemp > target + 0.3
-  //   • heat only when actualTemp < target − 0.3
-  //   • coast (no PWM) in the band, and require ≥15 min dwell in current
-  //     mode before any flip. Without this, modeJustSwitched fires too often
-  //     and the integral is reset/decayed repeatedly.
+  // ── Integral state ──
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
-  if (input.modeJustSwitched) {
-    if (Math.abs(need) > 0.5) {
-      integral = 0
-      constraints.push('mass-coast')
-    } else {
-      integral *= 0.5
-      constraints.push('mode-soft-decay')
-    }
+  // Mode-flip: mjuk reset
+  if (input.modeJustSwitched || (input.prevState.lastMode && input.prevState.lastMode !== input.mode)) {
+    integral = Math.abs(need) > 0.5 ? 0 : integral * 0.5
+    constraints.push('mode-reset')
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
-  // ── P-term: observer ger färsk data varje cykel, ingen stale-dämpning ──
-  const uP = Kp * need
+  // ── P-term ──
+  const uP = Math.max(0, Kp * need)
 
-  // ── D-term: disabled. Cooling brake driven by lagging pill led to late
-  //    braking; heating is bang-bang. Kept as 0 for traceability. ──
-  const uD = 0
-  void Kd
-
-  // ── Integration: every minute, dt = 1/60 h, with windup zone guard ──
+  // ── Integration (1-min dt = 1/60 h) ──
   let nextI = integral
-  const IZONE = isCooling ? 0.4 : 0.6
-  if (Math.abs(need) <= IZONE && !input.modeJustSwitched) {
+  // Brett dödband: i ±0.10°C händer inget med I.
+  const inDeadband = Math.abs(avgError) <= COOL.Deadband
+  if (!inDeadband && Math.abs(need) <= IZone && !input.modeJustSwitched) {
     nextI += KiPerHour * need / 60
     constraints.push('i-zone')
   }
-  // Mark steady-state for ssFloor learning gate (near-target hold)
+  // Steady-state-flagga för ssFloor-lärning (caller läser denna).
   if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
-  // Snabb urladdning vid överskott (skydd mot 60L undershoot)
+  // Bleed I när vi passerat mål — skyddar mot windup vid undershoot.
   if (need < -0.01) {
     nextI *= 0.85
     constraints.push('overshoot-bleed')
@@ -453,76 +321,12 @@ export function computeDutyV3(input: {
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Sammanställ duty ──
-  const uFf = (input.ssFloor > 0 && input.ssFloorSamples >= 5) ? input.ssFloor : 0
-  const raw = uFf + uP + nextI + uD
+  const raw = input.uFf + uP + nextI
   let duty = Math.max(0, Math.min(1, raw))
 
-  // ── Stratifierings-guard (unified, offset-based) ──────────────────────
-  // The bottom probe is *expected* to read colder than the bulk during
-  // cooling — that's tank geometry (coil-from-below), not overshoot.
-  // pillProbeOffset (= pill_temp − probe_temp at steady state, positive
-  // when bulk is stratified normally) tells us how much colder. The guard
-  // fires only when the bottom is colder than its stratified position by
-  // more than a small slack:
-  //   stratGap = (actualTarget − stratOffset) − bottomEst
-  //   stratOffset ≈ max(0, pillProbeOffset)  (fallback 0.15°C if unlearned)
-  //   stratGap > 0     → cap duty at uP + uFf, bleed I (single guard)
-  //   stallOverride    → weak pulse 8% instead of cap (stale bulk above target)
-  if (isCooling) {
-    const stratOffset = input.pillProbeOffset != null && input.pillProbeOffset > 0
-      ? input.pillProbeOffset
-      : 0.15
-    const stratGap = (input.actualTarget - stratOffset) - bottomEst
-    const ssotErrForGuard = input.actualTemp - input.actualTarget
-    if (stratGap > 0) {
-      if (input.stallOverride) {
-        duty = Math.max(duty, 0.08)
-        if (ssotErrForGuard <= 0) nextI = Math.max(0, nextI * 0.5)
-        constraints.push(`stratified-guard:stall-pulse(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
-      } else {
-        const cap = Math.max(0, uP + uFf)
-        duty = Math.min(duty, cap)
-        // Bleed integral only when SSOT (bulk) is at/under target. If the
-        // bulk is actually too warm we must keep our cooling budget so the
-        // baseline can build, even though the bottom probe looks cold.
-        if (ssotErrForGuard <= 0) nextI = Math.max(0, nextI * 0.5)
-        constraints.push(`stratified-guard(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
-      }
-    }
-  }
-  if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
-    duty = Math.min(duty, 0.2)
-    constraints.push('top-overshoot-guard')
-  }
-
-  // ── SSOT-golv: bulken är källan-till-sanning ──────────────────────────
-  // Stratifieringsskyddet ovan kan hålla duty på uP+uFf när probe ligger
-  // under target medan pill (top) är klart varmare. Då växer bulkfelet
-  // (actualTemp = SSOT) utan att PID svarar, eftersom controlTemp viktas
-  // 70/30 mot kall botten. Om SSOT visar att bulken faktiskt är ≥0.3°C
-  // för varm under kylning, golva duty på Kp·ssotErr + uFf (max 35%) så
-  // vi får en mild, proportionell respons utan att äventyra botten.
-  if (isCooling) {
-    const ssotErr = input.actualTemp - input.actualTarget
-    if (ssotErr > 0.15) {
-      const floor = Math.min(0.35, Kp * ssotErr + uFf)
-      if (floor > duty) {
-        duty = floor
-        constraints.push(`ssot-floor(err=${ssotErr.toFixed(2)},duty=${(floor * 100).toFixed(0)})`)
-      }
-    }
-  }
-
-  // ── Util saturation: kapa till nextI+0.1 (mer än så är meningslöst när hw är maxad) ──
-  const isSaturated = isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90
-  if (isSaturated) {
-    duty = Math.min(duty, nextI + 0.1)
-    constraints.push('util-sat-cap')
-  }
-
-  // ── Past-target coast: stäng ner när vi passerat (i hold: håll 15% av ssFloor som mjuk catch) ──
+  // ── Past-target coast ──
   if (need <= 0) {
-    duty = (isHold && uFf > 0) ? uFf * 0.15 : 0
+    duty = (isHold && input.uFf > 0) ? input.uFf * 0.15 : 0
     constraints.push('past-target-coast')
   }
 
@@ -532,28 +336,123 @@ export function computeDutyV3(input: {
     constraints.push('full-action')
   }
 
-  // ── Hold-deadband: när tanken faktiskt är på mål (|error| < 0.10°C) och
-  //    pillen inte rör sig (|rate| < 0.05°/h) → klampa duty till 0 och frys
-  //    integralen. Eliminerar onödiga mikropulser (0/1/3/5/7%) runt setpoint.
-  const HOLD_DEADBAND = 0.10
-  const HOLD_RATE_LIMIT = 0.05
+  // ── Hold-deadband: på mål och inget driver → 0, frys I ──
   if (
-    isHold
-    && !input.modeJustSwitched
-    && Math.abs(avgError) < HOLD_DEADBAND
-    && Math.abs(input.pillRate ?? 0) < HOLD_RATE_LIMIT
+    isHold && !input.modeJustSwitched && inDeadband
+    && Math.abs(input.pillRate ?? 0) < 0.05
   ) {
     duty = 0
-    nextI = integral // freeze, no accumulation this cycle
+    nextI = integral
     constraints.push('hold-deadband')
   }
 
-  // ── Persistera smoothing-state på anchor (JSONB, ingen schema-ändring) ──
-  const nextAnchor = obs.anchor
-    ? { ...obs.anchor, lastControlTemp: controlTemp, lastControlTempAt: new Date().toISOString() }
-    : obs.anchor
+  // ── Pill-säkerhet (cooling): top-cap och bottom-stop ──
+  if (isCooling && input.pillTempNow != null) {
+    if (input.pillTempNow > input.actualTarget + PILL_TOP_CAP) {
+      duty = Math.max(duty, 0.12)
+      constraints.push(`pill-top-cap(${(input.pillTempNow - input.actualTarget).toFixed(2)})`)
+    } else if (input.pillTempNow < input.actualTarget - PILL_BOTTOM_STOP) {
+      duty = 0
+      nextI = Math.max(0, nextI * 0.5)
+      constraints.push(`pill-bottom-stop(${(input.actualTarget - input.pillTempNow).toFixed(2)})`)
+    }
+  }
 
-  return { duty, integral: nextI, p: uP, anchor: nextAnchor, controlTemp, constraints }
+  // ── Heating-säkerhet: top-overshoot-guard ──
+  if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
+    duty = Math.min(duty, 0.2)
+    constraints.push('top-overshoot-guard')
+  }
+
+  // ── Util saturation ──
+  if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
+    duty = Math.min(duty, nextI + 0.1)
+    constraints.push('util-sat-cap')
+  }
+
+  // ── Min-off (cooling): efter duty=0 måste 5 min passera innan vi får på igen ──
+  if (isCooling && duty > 0 && input.prevState.lastZeroDutyAt) {
+    const minutesSinceOff = (nowMs - new Date(input.prevState.lastZeroDutyAt).getTime()) / 60000
+    if (minutesSinceOff < COOL.MinOffMin) {
+      duty = 0
+      constraints.push(`min-off(${minutesSinceOff.toFixed(1)}m)`)
+    }
+  }
+
+  // ── Peak-detection (cooling, hold): självtunar Ki ──
+  // Arm: när duty just gick till 0 vid hold och vi var nära mål → börja
+  // söka efter peak (lägsta SSOT efter off).
+  // Detect: när SSOT börjar stiga igen (delta ≥ +0.02 över förra cykeln).
+  // Justering:
+  //   peak < target − 0.20  → undershoot, vi var för aggressiva: kiAdj *= 0.85
+  //   peak > target + 0.10  → vi nådde aldrig mål: kiAdj *= 1.15
+  const dutyPct = Math.round(duty * 100)
+  let peakArmed = input.prevState.peakArmed ?? false
+  let peakArmedTarget = input.prevState.peakArmedTarget
+  let peakArmedAt = input.prevState.peakArmedAt
+  let peakMinTemp = input.prevState.peakMinTemp
+  if (isCooling && isHold) {
+    const wasPositiveDuty = (input.prevState.lastDutyPct ?? 0) > 0
+    if (wasPositiveDuty && dutyPct === 0 && Math.abs(avgError) < 0.5) {
+      peakArmed = true
+      peakArmedTarget = input.actualTarget
+      peakArmedAt = now
+      peakMinTemp = input.actualTemp
+      constraints.push('peak-arm')
+    } else if (peakArmed && peakMinTemp != null) {
+      // Spåra nya lägsta värdet
+      if (input.actualTemp < peakMinTemp) {
+        peakMinTemp = input.actualTemp
+      } else if (input.actualTemp >= peakMinTemp + 0.02) {
+        // Vändning hittad
+        const tgt = peakArmedTarget ?? input.actualTarget
+        const under = tgt - peakMinTemp
+        if (under > 0.20) {
+          kiAdj = Math.max(0.4, kiAdj * 0.85)
+          constraints.push(`peak-tune-down(under=${under.toFixed(2)},ki=${kiAdj.toFixed(2)})`)
+        } else if (under < -0.10) {
+          kiAdj = Math.min(2.5, kiAdj * 1.15)
+          constraints.push(`peak-tune-up(over=${(-under).toFixed(2)},ki=${kiAdj.toFixed(2)})`)
+        } else {
+          constraints.push(`peak-ok(under=${under.toFixed(2)})`)
+        }
+        peakArmed = false
+        peakArmedTarget = undefined
+        peakArmedAt = undefined
+        peakMinTemp = undefined
+      }
+      // Timeout: 60 min utan vändning → släpp arm (inkonklusiv)
+      if (peakArmed && peakArmedAt) {
+        const armAgeMin = (nowMs - new Date(peakArmedAt).getTime()) / 60000
+        if (armAgeMin > 60) {
+          peakArmed = false
+          peakArmedTarget = undefined
+          peakArmedAt = undefined
+          peakMinTemp = undefined
+        }
+      }
+    }
+  }
+
+  // ── Bygg nextState ──
+  const lastZeroDutyAt = dutyPct === 0
+    ? (input.prevState.lastDutyPct === 0 && input.prevState.lastZeroDutyAt ? input.prevState.lastZeroDutyAt : now)
+    : input.prevState.lastZeroDutyAt
+
+  const nextState: V4PidState = {
+    lastSsot: input.actualTemp,
+    lastSsotAt: now,
+    lastDutyPct: dutyPct,
+    lastZeroDutyAt,
+    peakArmed,
+    peakArmedTarget,
+    peakArmedAt,
+    peakMinTemp,
+    kiAdjCooling: isCooling ? kiAdj : input.prevState.kiAdjCooling,
+    lastMode: input.mode,
+  }
+
+  return { duty, integral: nextI, p: uP, constraints, nextState }
 }
 
 // ============================================================

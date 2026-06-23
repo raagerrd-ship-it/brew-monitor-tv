@@ -7,8 +7,8 @@
 - Hardware suppressions: +2°C above probe to suppress cooling, -2°C below probe to suppress heating during PWM off phases.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
-- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average, while the V3 PID regulates against the fresh observer-corrected bulk average every minute. Focus automation/AI on these.
-- PID is V3 (observer + mode-keyed gradient k + asymmetric gains + cooling-only predictive brake + stratification guards). Per-minute loop, no V2 stale-branch.
+- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average. PID V4 regulerar direkt mot SSOT.
+- PID är V4 (BrewPi-stil): långsam PI på SSOT, brett dödband ±0.10°C, peak-detection självtuner cooling-Ki, pill enbart som säkerhetstak. Ingen observer/k-learning/stratifierings-guard.
 
 ## Memories
 
@@ -39,13 +39,12 @@
 - [Config Sync](mem://architecture/rapt/configuration-synchronization) — Read hysteresis daily via API.
 
 ### Automation & PID
-- [PID V3 Observer](mem://architecture/automation/pid-v3-observer) — V3 core: observer-fused bulk temp, mode-keyed gradient k (cooling 1.3 / heating 0.7), asymmetric gains, cooling-only predictive brake, stratification guards. Replaces V2.
-- [V3 Stability Pack](mem://architecture/automation/pid-v3-stability-pack) — Drift-watchdog under ramp-override (0.15°C/60min), hold-deadband (|err|<0.10°C, |rate|<0.05°/h), 3-min IIR (α=0.4) on controlTemp.
+- [PID V4 BrewPi](mem://architecture/automation/pid-v4-brewpi) — Långsam PI på SSOT, dödband ±0.10°C, peak-detection självtuning, pill = säkerhet, min-off 5 min. Ersätter V3.
 - [Safety Hardening](mem://architecture/automation/safety-and-integrity-hardening) — MODE_GUARD bounds, hardware revert fallback.
 - [Manual Override](mem://architecture/automation/manual-override-detection-guards) — Ignore PWM bursts (0°C/max), 0.25°C tolerance.
 - [Three-Phase Sync](mem://architecture/automation/three-phase-sync-model) — Metadata, Analyze (inline sub-funcs), Flush/History.
 - [PWM Execution](mem://architecture/automation/pwm-execution-and-scheduling) — Fixed hardware targets: -5°C/40°C. 2-cycle A/B model.
-- [Control Loop](mem://architecture/automation/control-loop-layering) — PID runs on `actualTarget` and the fresh observer bulk average (`controlTemp`), not raw `actualTemp`.
+- [Control Loop](mem://architecture/automation/control-loop-layering) — PID runs on `actualTarget` and SSOT `actualTemp` direct (V4: no observer).
 - [Hardware Guards](mem://architecture/automation/hardware-command-integrity-guards) — 6 layers of protection for commands.
 - [Performance](mem://architecture/automation/performance-and-batching) — Batch fermentation fetches, parallel utilisation eval.
 - [Temp Interpolation](mem://architecture/automation/temperature-interpolation) — Interpolate temps based on duty ratio and ambient drift.
