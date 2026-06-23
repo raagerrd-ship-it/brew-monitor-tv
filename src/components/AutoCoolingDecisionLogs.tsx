@@ -218,6 +218,7 @@ export function AutoCoolingDecisionLogs() {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
+  const [controllerIdToName, setControllerIdToName] = useState<Record<string, string>>({});
   const [lastSuccessfulRaptSync, setLastSuccessfulRaptSync] = useState<string | null>(null);
   const hideSync = false;
   const hidePid = false;
@@ -226,7 +227,7 @@ export function AutoCoolingDecisionLogs() {
     // Fetch controller→pill color map + last RAPT sync
     (async () => {
       const [{ data: controllers }, { data: pills }, { data: syncSettings }] = await Promise.all([
-        supabase.from('rapt_temp_controllers').select('name, linked_pill_id'),
+        supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id'),
         supabase.from('rapt_pills').select('pill_id, color'),
         supabase.from('sync_settings').select('last_successful_rapt_sync_at').limit(1).maybeSingle(),
       ]);
@@ -236,11 +237,14 @@ export function AutoCoolingDecisionLogs() {
       if (controllers && pills) {
         const pillColorMap = Object.fromEntries(pills.map(p => [p.pill_id, p.color]));
         const map: Record<string, string> = {};
+        const idMap: Record<string, string> = {};
         for (const c of controllers) {
           const color = c.linked_pill_id ? pillColorMap[c.linked_pill_id] : null;
           if (color && color !== '#000000') map[c.name] = color;
+          if ((c as any).controller_id && c.name) idMap[(c as any).controller_id] = c.name;
         }
         setControllerColors(map);
+        setControllerIdToName(idMap);
       }
     })();
     loadAll();
@@ -346,7 +350,7 @@ export function AutoCoolingDecisionLogs() {
         return (
           <>
             {visible.map((entry) => (
-              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} lastSuccessfulRaptSync={lastSuccessfulRaptSync} />
+              <EntryRow key={entry.log.id} entry={entry} hideSync={hideSync} hidePid={hidePid} formatTime={formatTime} recentCoolerAdjs={allCoolerAdjs} controllerColors={controllerColors} controllerIdToName={controllerIdToName} lastSuccessfulRaptSync={lastSuccessfulRaptSync} />
             ))}
             {hasMore && (
               <button
@@ -365,10 +369,11 @@ export function AutoCoolingDecisionLogs() {
 
 // --- Entry Row ---
 
-function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, controllerColors, lastSuccessfulRaptSync }: {
+function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, controllerColors, controllerIdToName, lastSuccessfulRaptSync }: {
   entry: UnifiedEntry; hideSync: boolean; hidePid: boolean; formatTime: (ts: string) => string;
   recentCoolerAdjs: (AdjustmentLog & { category: AdjustmentCategory })[];
   controllerColors: Record<string, string>;
+  controllerIdToName: Record<string, string>;
   lastSuccessfulRaptSync: string | null;
 }) {
   const { log, adjustments: adjs } = entry;
@@ -425,6 +430,18 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   const badgeMap = new Map<string, ControllerBadgeInfo>();
 
+  // Resolve canonical controller name: prefer details.controller_id → DB name,
+  // then details.controller_name, finally fall back to message regex.
+  // This guarantees bursts can never be mislabeled to another controller in the UI.
+  const resolveName = (details: Record<string, unknown> | undefined, message: string | undefined): string | null => {
+    const cid = details?.controller_id as string | undefined;
+    if (cid && controllerIdToName[cid]) return controllerIdToName[cid];
+    const cname = details?.controller_name as string | undefined;
+    if (cname) return cname;
+    const m = message?.match(/^([^:]+):/);
+    return m ? m[1].trim() : null;
+  };
+
   const ensureEntry = (fullName: string, mode: 'heating' | 'cooling', dutyPct: number): ControllerBadgeInfo => {
     const existing = badgeMap.get(fullName);
     if (existing) return existing;
@@ -442,10 +459,14 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // 1. Seed from PILL_COMP_STATUS (all active controllers with mode + duty)
   for (const d of log.decisions.filter(d => d.step === 'PILL_COMP_STATUS')) {
-    const nameMatch = d.message.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
-    if (!nameMatch) continue;
-    const fullName = nameMatch[1].trim();
     const det = d.details as Record<string, unknown> | undefined;
+    const cid = det?.controller_id as string | undefined;
+    let fullName: string | null = cid && controllerIdToName[cid] ? controllerIdToName[cid] : (det?.controller_name as string | undefined) ?? null;
+    if (!fullName) {
+      const nameMatch = d.message.match(/Controller:\s*(.+?)(?:\s*\[|$)/);
+      if (!nameMatch) continue;
+      fullName = nameMatch[1].trim();
+    }
     const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
     const dutyPct = det?.duty_cycle != null ? Number(det.duty_cycle) : 0;
     ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
@@ -453,10 +474,9 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // 2. DUTY_BURST / DUTY_FULL → ON
   for (const d of log.decisions.filter(d => d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL')) {
-    const m = d.message.match(/^([^:]+):/);
-    if (!m) continue;
-    const fullName = m[1].trim();
     const det = d.details as Record<string, unknown> | undefined;
+    const fullName = resolveName(det, d.message);
+    if (!fullName) continue;
     const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
     const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : (d.step === 'DUTY_FULL' ? 100 : 0);
     const entry = ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
@@ -467,20 +487,19 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
 
   // 3. DUTY_ZERO → SKIP (0% duty)
   for (const d of log.decisions.filter(d => d.step === 'DUTY_ZERO')) {
-    const m = d.message.match(/^([^:]+):/);
-    if (!m) continue;
-    const fullName = m[1].trim();
-    const isHeating = d.message.toLowerCase().includes('heating') || d.message.includes('uppvärmning');
+    const det = d.details as Record<string, unknown> | undefined;
+    const fullName = resolveName(det, d.message);
+    if (!fullName) continue;
+    const isHeating = det?.mode === 'heating' || d.message.toLowerCase().includes('heating') || d.message.includes('uppvärmning');
     const entry = ensureEntry(fullName, isHeating ? 'heating' : 'cooling', 0);
     if (entry.priority < 1) { entry.dutyPct = 0; entry.status = 'SKIP'; entry.priority = 1; }
   }
 
   // 4. DUTY_PHASE_B → SKIP (has duty but phase B skips)
   for (const d of log.decisions.filter(d => d.step === 'DUTY_PHASE_B')) {
-    const m = d.message.match(/^([^:]+):/);
-    if (!m) continue;
-    const fullName = m[1].trim();
     const det = d.details as Record<string, unknown> | undefined;
+    const fullName = resolveName(det, d.message);
+    if (!fullName) continue;
     const mode = det?.mode === 'heating' ? 'heating' : 'cooling';
     const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : 0;
     const entry = ensureEntry(fullName, mode as 'heating' | 'cooling', dutyPct);
@@ -503,11 +522,7 @@ function EntryRow({ entry, hideSync, hidePid, formatTime, recentCoolerAdjs, cont
   const isPwmOffLog = pwmOffDecisions.length > 0;
   for (const pwmOffDecision of pwmOffDecisions) {
     const det = pwmOffDecision?.details as Record<string, unknown> | undefined;
-    let controllerName = String(det?.controller_name || '');
-    if (!controllerName) {
-      const m = pwmOffDecision.message?.match(/^([^:]+):/);
-      if (m) controllerName = m[1].trim();
-    }
+    const controllerName = resolveName(det, pwmOffDecision.message) || '';
     const dutyPct = det?.duty_pct != null ? Number(det.duty_pct) : 0;
     const mode = (det?.mode === 'heating' ? 'heating' : 'cooling') as 'heating' | 'cooling';
     if (controllerName) {

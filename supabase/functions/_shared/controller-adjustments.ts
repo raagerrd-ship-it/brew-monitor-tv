@@ -214,7 +214,7 @@ async function executePwmDutyCycle(
 
   if (dutyPct >= 100) {
     // 100%: hold extreme target entire cycle (no revert needed)
-    log('DUTY_FULL', 'action', `${fc.name}: ${mode} duty 100% → ${onTarget}°C hela cykeln`, { duty_pct: 100, mode })
+    log('DUTY_FULL', 'action', `${fc.name}: ${mode} duty 100% → ${onTarget}°C hela cykeln`, { controller_id: fc.controller_id, controller_name: fc.name, duty_pct: 100, mode })
     if (ctx.updateBatch) {
       ctx.updateBatch.addHardwareOnly(fc.controller_id, onTarget, revertTarget)
     } else {
@@ -248,6 +248,7 @@ async function executePwmDutyCycle(
       return
     }
     log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% (raw=${Math.round(dutyRaw * 100)}%, dither=${ditherSlot}/${Math.round(fraction)}) → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
+      controller_id: fc.controller_id, controller_name: fc.name,
       duty_pct: dutyPct, duty_raw: Math.round(dutyRaw * 100), dither_slot: ditherSlot, duty_seconds: burstSeconds, on_target: onTarget, off_target: revertTarget, mode,
     })
     if (ctx.updateBatch) {
@@ -289,7 +290,7 @@ async function executePwmDutyCycle(
   } else {
     // 0% or phase B idle
     if (dutyPct === 0) {
-      log('DUTY_ZERO', 'info', `${fc.name}: ${mode} duty 0% — ingen ${mode === 'cooling' ? 'kylning' : 'uppvärmning'}`)
+      log('DUTY_ZERO', 'info', `${fc.name}: ${mode} duty 0% — ingen ${mode === 'cooling' ? 'kylning' : 'uppvärmning'}`, { controller_id: fc.controller_id, controller_name: fc.name, mode })
 
       // Heating-specific: suppress unwanted heating when actual > target but probe < hw target
       if (mode === 'heating') {
@@ -348,7 +349,7 @@ async function executePwmDutyCycle(
         }
       }
     } else {
-      log('DUTY_PHASE_B', 'info', `${fc.name}: ${mode} PWM ${dutyPct}% fas B — ingen burst denna cykel`, { duty_pct: dutyPct, mode })
+      log('DUTY_PHASE_B', 'info', `${fc.name}: ${mode} PWM ${dutyPct}% fas B — ingen burst denna cykel`, { controller_id: fc.controller_id, controller_name: fc.name, duty_pct: dutyPct, mode })
     }
   }
 }
@@ -1027,6 +1028,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
     log('PILL_COMP_STATUS', 'info', `Controller: ${fc.name} [${pidMode}]`, {
+      controller_id: fc.controller_id,
+      controller_name: fc.name,
       pill_temp: round1(fc.pill_temp ?? 0),
       probe_temp: round1(fc.current_temp ?? 0),
       actual_temp: Math.round(sensorActualTemp * 100) / 100,
