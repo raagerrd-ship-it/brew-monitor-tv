@@ -313,9 +313,27 @@ export function computeDutyV3(input: {
   // Regulate against the fresh bulk average: observer-corrected probe + live
   // pill, same definition as UI but at 1-minute resolution. When the probe is
   // fresh bottomEst equals probe, so UI and regulator coincide at samples.
-  const controlTemp = input.pillTempNow != null
+  const controlTempRaw = input.pillTempNow != null
     ? 0.5 * bottomEst + 0.5 * input.pillTempNow
     : bottomEst
+
+  // ── 3-min IIR on controlTemp: dampens sub-cycle pill noise (BLE jitter,
+  //    wave motion) without adding visible lag. Bypassed on mode-flip so
+  //    fresh response isn't held back, and on stale state (>5 min gap).
+  const SMOOTH_ALPHA = 0.4
+  const prevCT = input.anchor?.lastControlTemp
+  const prevCTAt = input.anchor?.lastControlTempAt
+  const prevCTAgeMin = prevCTAt
+    ? (Date.now() - new Date(prevCTAt).getTime()) / 60000
+    : Infinity
+  const canSmooth = !input.modeJustSwitched
+    && prevCT != null
+    && Number.isFinite(prevCT)
+    && prevCTAgeMin < 5
+  const controlTemp = canSmooth
+    ? (1 - SMOOTH_ALPHA) * (prevCT as number) + SMOOTH_ALPHA * controlTempRaw
+    : controlTempRaw
+  if (canSmooth) constraints.push('iir-smooth')
   const avgError = input.actualTarget - controlTemp
   const need = isCooling ? -avgError : avgError
 
@@ -415,7 +433,28 @@ export function computeDutyV3(input: {
     constraints.push('full-action')
   }
 
-  return { duty, integral: nextI, p: uP, anchor: obs.anchor, controlTemp, constraints }
+  // ── Hold-deadband: när tanken faktiskt är på mål (|error| < 0.10°C) och
+  //    pillen inte rör sig (|rate| < 0.05°/h) → klampa duty till 0 och frys
+  //    integralen. Eliminerar onödiga mikropulser (0/1/3/5/7%) runt setpoint.
+  const HOLD_DEADBAND = 0.10
+  const HOLD_RATE_LIMIT = 0.05
+  if (
+    isHold
+    && !input.modeJustSwitched
+    && Math.abs(avgError) < HOLD_DEADBAND
+    && Math.abs(input.pillRate ?? 0) < HOLD_RATE_LIMIT
+  ) {
+    duty = 0
+    nextI = integral // freeze, no accumulation this cycle
+    constraints.push('hold-deadband')
+  }
+
+  // ── Persistera smoothing-state på anchor (JSONB, ingen schema-ändring) ──
+  const nextAnchor = obs.anchor
+    ? { ...obs.anchor, lastControlTemp: controlTemp, lastControlTempAt: new Date().toISOString() }
+    : obs.anchor
+
+  return { duty, integral: nextI, p: uP, anchor: nextAnchor, controlTemp, constraints }
 }
 
 // ============================================================
