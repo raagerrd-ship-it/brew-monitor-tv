@@ -17,6 +17,7 @@ Designprinciper för dödtidsdominerad process (~15 min probe-latens, 60L massa)
 ## Tuning
 
 **Cooling:** Kp=0.20, KiPerHour=0.30×kiAdj, Imax=0.35, Deadband=0.10, IZone=0.4, MinOff=5min.
+Integration använder verklig `dt` från `lastSsotAt` (clampad 0.25–5 min) — undviker över-integration när RAPT-trigger eller BLE-ingest skjuter in extra cykler mellan cron-tickar.
 **Heating:** Kp=0.45/0.80 (hold/ramp), KiPerHour=1.2/4.5, Imax=0.40/0.70, IZone=0.6.
 
 ## Persistent state
@@ -29,7 +30,12 @@ Gamla anchor-fält (`probeTemp`/`pillTemp`/`lastControlTemp`) ignoreras tyst vid
 
 ## Constraint-taggar
 
-**Aktiva (V4):** `i-zone`, `steady-state`, `overshoot-bleed`, `past-target-coast`, `full-action`, `hold-deadband`, `mode-reset`, `top-overshoot-guard`, `util-sat-cap`, `margin-scale=…`, `ramp-boost=…`, `pill-top-cap(…)`, `pill-bottom-stop(…)`, `min-off(…m)`, `peak-arm`, `peak-tune-down(…)`, `peak-tune-up(…)`, `peak-ok(…)`.
+**Aktiva (V4):** `i-zone(dt=…m)`, `steady-state`, `overshoot-bleed`, `past-target-coast`, `full-action`, `hold-deadband`, `mode-reset-hard`, `top-overshoot-guard`, `util-sat-cap`, `margin-scale=…`, `ramp-boost=…`, `pill-top-cap(excess→duty%)`, `pill-bottom-stop(…)`, `min-off(…m)`, `peak-arm`, `peak-tune-down(…)`, `peak-tune-up(…)`, `peak-ok(…)`.
+
+## Säkerhetsregler
+- **Mode-flip**: hård `integral = 0` när `lastMode !== mode` (cooling-I och heating-I delar inte semantik).
+- **Pill top-cap är progressiv**: floor = clamp(0.12 + (excess − 0.7) × 0.25, 0.12, 0.40). Vid pill = target + 1.5 → 32% duty.
+- **Pill bottom-stop nollar I helt** (`nextI = 0`), inte bara halverar — undviker svängningar efter glykol-genomslag.
 
 **Borttagna (V3-era):** `iir-smooth`, `offset-blend=…`, `gradient-k=…`, `predictive-brake`, `bottom-undershoot-guard`, `bottom-undershoot-guard+boost`, `bottom-undershoot-stop`, `stratified-guard(…)`, `stratified-guard:stall-pulse(…)`, `ssot-floor(…)`, `mode-soft-decay`, `mass-coast`.
 
