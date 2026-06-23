@@ -40,6 +40,7 @@
 
 ### Automation & PID
 - [PID V3 Observer](mem://architecture/automation/pid-v3-observer) — V3 core: observer-fused bulk temp, mode-keyed gradient k (cooling 1.3 / heating 0.7), asymmetric gains, cooling-only predictive brake, stratification guards. Replaces V2.
+- [V3 Stability Pack](mem://architecture/automation/pid-v3-stability-pack) — Drift-watchdog under ramp-override (0.15°C/60min), hold-deadband (|err|<0.10°C, |rate|<0.05°/h), 3-min IIR (α=0.4) on controlTemp.
 - [Safety Hardening](mem://architecture/automation/safety-and-integrity-hardening) — MODE_GUARD bounds, hardware revert fallback.
 - [Manual Override](mem://architecture/automation/manual-override-detection-guards) — Ignore PWM bursts (0°C/max), 0.25°C tolerance.
 - [Three-Phase Sync](mem://architecture/automation/three-phase-sync-model) — Metadata, Analyze (inline sub-funcs), Flush/History.
