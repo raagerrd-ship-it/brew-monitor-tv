@@ -5,7 +5,7 @@ type: feature
 ---
 
 When `isCooling` and `bottomEst < actualTarget − 0.3°C`:
-- Cap duty to `uP + uFf` (no I contribution)
+- Cap duty to `uP + uFf` (no I contribution). If `actualTemp > actualTarget + 0.2°C`, add `+0.05` boost to the cap (tag `bottom-undershoot-guard+boost`).
 - Bleed integral: `nextI *= 0.5`
 - Constraint tag: `bottom-undershoot-guard`
 

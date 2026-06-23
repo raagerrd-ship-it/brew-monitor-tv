@@ -438,10 +438,13 @@ export function computeDutyV3(input: {
     }
   }
   if (isCooling && bottomEst < input.actualTarget - 0.3) {
-    const cap = Math.max(0, uP + uFf)
+    // Cap = P + feed-forward. When bulk is clearly above target (>0.2°C) we
+    // allow a small +0.05 boost so the guard doesn't strangle convection.
+    const boost = input.actualTemp > input.actualTarget + 0.2 ? 0.05 : 0
+    const cap = Math.max(0, uP + uFf + boost)
     duty = Math.min(duty, cap)
     nextI = Math.max(0, nextI * 0.5)
-    constraints.push('bottom-undershoot-guard')
+    constraints.push(boost > 0 ? 'bottom-undershoot-guard+boost' : 'bottom-undershoot-guard')
   }
   if (isCooling && bottomEst < input.actualTarget - 0.5) {
     if (stallOverride) {
