@@ -179,7 +179,14 @@ export async function calculateCompensatedTarget(
     if (!raw || typeof raw !== 'object') return null
     const a = raw as any
     if (typeof a.probeTemp !== 'number' || typeof a.pillTemp !== 'number' || typeof a.anchoredAt !== 'string') return null
-    return { probeTemp: a.probeTemp, pillTemp: a.pillTemp, anchoredAt: a.anchoredAt, mode: a.mode === 'heating' ? 'heating' : 'cooling' }
+    return {
+      probeTemp: a.probeTemp,
+      pillTemp: a.pillTemp,
+      anchoredAt: a.anchoredAt,
+      mode: a.mode === 'heating' ? 'heating' : 'cooling',
+      lastControlTemp: typeof a.lastControlTemp === 'number' ? a.lastControlTemp : undefined,
+      lastControlTempAt: typeof a.lastControlTempAt === 'string' ? a.lastControlTempAt : undefined,
+    }
   })()
   const kLearned = kParam.value
 
