@@ -416,6 +416,27 @@ export function computeDutyV3(input: {
   // därför I-termen och låter endast P + ssFloor jobba; integralen bleed:as
   // hårt så ackumulerad drift inte överlever undershoot-perioden. Djupare
   // undershoot (≥0.5°) → full stop.
+  // ── Time-based override: if bulk has stalled above target for ≥20 min
+  //    while bottom probe is cold, allow a weak cooling pulse to nudge
+  //    convection instead of waiting indefinitely for natural mixing. ──
+  let stallOverride = false
+  if (isCooling && bottomEst < input.actualTarget - 0.3 && input.actualTemp > input.actualTarget + 0.15) {
+    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { data: hist } = await supabase
+      .from('temp_controller_history')
+      .select('recorded_at, actual_temp')
+      .eq('controller_id', controllerId)
+      .gte('recorded_at', since)
+      .order('recorded_at', { ascending: false })
+      .limit(40)
+    if (Array.isArray(hist) && hist.length >= 15) {
+      const aboveAll = hist.every((r: any) =>
+        r.actual_temp != null && parseFloat(String(r.actual_temp)) > input.actualTarget + 0.10
+      )
+      const oldestAgeMin = (Date.now() - new Date(hist[hist.length - 1].recorded_at).getTime()) / 60000
+      if (aboveAll && oldestAgeMin >= 20) stallOverride = true
+    }
+  }
   if (isCooling && bottomEst < input.actualTarget - 0.3) {
     const cap = Math.max(0, uP + uFf)
     duty = Math.min(duty, cap)
@@ -423,9 +444,14 @@ export function computeDutyV3(input: {
     constraints.push('bottom-undershoot-guard')
   }
   if (isCooling && bottomEst < input.actualTarget - 0.5) {
-    duty = 0
-    nextI = Math.max(0, nextI * 0.5)
-    constraints.push('bottom-undershoot-stop')
+    if (stallOverride) {
+      duty = Math.max(duty, 0.08)
+      constraints.push('stall-override-weak-pulse')
+    } else {
+      duty = 0
+      nextI = Math.max(0, nextI * 0.5)
+      constraints.push('bottom-undershoot-stop')
+    }
   }
   if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
     duty = Math.min(duty, 0.2)
