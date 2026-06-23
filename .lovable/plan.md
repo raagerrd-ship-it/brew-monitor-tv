@@ -1,43 +1,69 @@
-## Diagnos (loggdata senaste 6h)
+## Diagnos
 
-**Blå (hold @ 13.0°C):** actual_temp 12.96–13.08°C, spann 0.12°C, duty pulserar 0→1→3→5→7→0% var ~15 min. Mycket stabil men onödigt aktiv pulsering runt setpoint.
+Blå har drivit långsamt uppåt från under mål till +0.47°C under 6 timmar, med PWM mest på 0–8%:
 
-**Gul (heating ramp @ 14.5→14.8°C):** actual_temp drev från 14.49 → **15.03°C på 3.5h med duty=0% hela tiden**. Bottenproben ligger 0.7°C under pillen, och `past-target-coast` + `top-overshoot-guard` blockerade all kylning eftersom mode är låst till `heating` av ramp-override och översläng aldrig nådde tröskeln 0.3°C (sakta drift). Det här är dagens enskilt största stabilitetsbrist.
+```
+13:40  12.72°  duty 0%
+15:10  13.02°  duty 0%
+16:25  13.13°  duty 0%
+17:50  13.24°  duty 0%
+19:00  13.38°  duty 0%
+19:20  13.47°  duty 7%
+```
 
-## Tre prioriterade fixar
+Detta är systematisk underkylning, inte en transient. Tre saker bidrar tillsammans:
 
-### 1. Anti-drift watchdog för ramp-override (största vinst)
-Idag: cooling tar bara över om `actualTemp − actualTarget > 0.3°C`. Långsam drift under tröskeln går obemärkt.
+1. **Cooling-Ki och Imax sänktes** i förra rundan (Ki 1.8/0.6, Imax 0.4). Integralen hinner inte bygga någon stadig baskylning innan stratifierings-guarden bleder av den (`nextI *= 0.5`).
+2. **Stratifierings-guarden fyrar för lätt**: så fort `bottomEst < target − 0.15` (vilket är normalt för en kyld tank) kapas duty till `uP + uFf` och I bleds. Probe ligger nästan alltid under target → guarden står på nästan jämt → I-termen kan aldrig växa.
+3. **SSOT-golvet jag la till** kräver `err > 0.3°C` för att aktiveras. Driften från 13.0 till 13.3 sker helt under tröskeln, så ingenting svarar.
 
-Lägg till en **trend-trigger**: om `actualTemp` ligger över `actualTarget` *och* har stigit ≥ 0.15°C de senaste 30 min (avläst från `temp_controller_history`) under heating-ramp → tvinga mode-flip till cooling oavsett ramp-override. Symmetriskt för cooling-ramp som driver nedåt.
+Resultat: PID ser "probe är kallt, allt är bra" medan SSOT (bulken) sakta vandrar uppåt.
 
-Implementation: i `controller-adjustments.ts` ramp-override-blocket (~rad 670–720), läs senaste 3 history-raderna för controllern och beräkna trenden. Kostnad: 1 extra select per active controller per minut.
+## Förslag
 
-### 2. Hold-deadband runt setpoint
-Idag: V3 producerar duty 1–7% även när `|error| < 0.1°C`, vilket ger den synliga pulseringen.
+Tre små, riktade ändringar i `supabase/functions/_shared/pid-compensation.ts`. Värmesidan rörs inte.
 
-I `computeDutyV3`: om `stepType === 'hold'` och `|avgError| < 0.10°C` och `|pillRate| < 0.05°C/h` → klampa duty till 0, frys integralen (lägg constraint `hold-deadband`). Effekt: Blå går från 0/1/3/5/7%-pulser till rena 0%-fönster när den verkligen är på mål.
+### 1. Sänk SSOT-golvets tröskel och gör det proportionellt
 
-### 3. 3-min IIR på controlTemp
-Idag: `controlTemp = 0.5·bottomEst + 0.5·pillTempNow` per minut → pill-spikar (BLE-brus, vågrörelse) ger små duty-jitter.
+Aktivera redan vid `ssotErr > 0.15°C` (istället för 0.3°C) så drift fångas tidigt. Behåll tak på 35%.
 
-Lägg ett enkelt IIR-filter: `controlTempSmoothed = 0.6·prevControlTemp + 0.4·controlTempNow`, persistera i `pid_state` JSON. Bypass vid mode-switch (`modeJustSwitched`) så vi inte laggar respons. Effekt: dämpar sub-cykel-brus utan synbar tröghet.
+```
+ssotErr > 0.15 → duty ≥ min(0.35, Kp · ssotErr + uFf)
+```
 
-## Vad som inte ändras
+Vid err = 0.2°C ger det 6% golv; vid 0.47°C ger det 14%. Mjuk, proportionell.
 
-- **gradient_k inlärning** — redan konvergerad, ingen åtgärd behövs.
-- **Offset-blend** (precis tillagd) — behövs ingen justering förrän vi sett den verka 24h+.
-- **PWM-extrem-target-swings i loggar** (-5/40/revert) — kosmetiskt, redan mutat i UI.
-- **Bottom-undershoot-guard / top-overshoot-guard** — fungerar som tänkt, inget ändras.
+### 2. Låt stratifierings-guarden inte blöda I när SSOT är över mål
 
-## Verifiering efter implementation
+Idag bleds `nextI *= 0.5` även när bulken är för varm. Det förhindrar att en stadig baskylning byggs upp. Ändring:
 
-24h efter deploy: jämför `STDDEV(actual_temp)` för båda controllers i `temp_controller_history` mot baseline ovan (Blå 0.640, Gul 0.541) och bekräfta att Gul inte längre driver > 0.3°C över target under heating-ramp.
+```
+if (stratGap > 0 && ssotErr <= 0) nextI *= 0.5   // bara bleda när bulken är OK
+```
 
-## Filer som rörs
+Cap-logiken på duty behålls oförändrad — vi bara slutar nollställa minnet när vi faktiskt har en värmebudget att jobba mot.
 
-- `supabase/functions/_shared/controller-adjustments.ts` — anti-drift watchdog i ramp-override-blocket
-- `supabase/functions/_shared/pid-compensation.ts` — hold-deadband i `computeDutyV3` + IIR på controlTemp
-- `supabase/functions/_shared/pid-compensation.ts` `persistPidState` — addera `last_control_temp` till persistat state
+### 3. Höj Ki/Imax för cooling-hold marginellt
 
-Inga schemaändringar. Inga signaturändringar i externa anropare.
+Återta lite av det vi sänkte, för att tillåta en stadig baskylning:
+
+```
+KiPerHour (cooling, hold):  0.6 → 1.0
+Imax (cooling):             0.4 → 0.55
+```
+
+Fortfarande långt under heating-sidans 1.2/0.70, så dödtidskänsligheten respekteras. Active-cooling (`KiPerHour=1.8`) och Kp rörs inte.
+
+## Constraint-taggar
+
+- `ssot-floor(err=...,duty=...)` — tröskel ändras från 0.3 → 0.15
+- `stratified-guard(...)` — beteendet oförändrat, men I-bleed villkoras nu på `ssotErr ≤ 0`
+
+## Verifiering
+
+Efter deploy: titta på `auto_cooling_decision_logs` för Blå under 1–2 timmar. Förvänta:
+- `ssot-floor` fyrar runt err=0.15–0.30 med duty 5–10%
+- `actual_temp` driver inte över target + 0.2°C i hold
+- duty hamnar i 5–12% snarare än 0%-pulser
+
+Om driften fortsätter eskalerar vi (höjer Kp, eller flyttar SSOT-golvet utanför stratifierings-guardens cap).
