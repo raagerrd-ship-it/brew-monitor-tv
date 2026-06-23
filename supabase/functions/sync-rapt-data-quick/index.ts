@@ -378,6 +378,9 @@ Deno.serve(async (req) => {
             min_target_temp: existing?.min_target_temp ?? null,
             max_target_temp: existing?.max_target_temp ?? null,
             actual_temp: existing?.actual_temp ?? null,
+            pill_probe_offset: existing?.pill_probe_offset ?? null,
+            pill_probe_offset_baseline: existing?.pill_probe_offset_baseline ?? null,
+            pill_probe_offset_updated_at: existing?.pill_probe_offset_updated_at ?? null,
             updated_at: new Date().toISOString()
           };
 
@@ -444,6 +447,12 @@ Deno.serve(async (req) => {
                 offset: newOffset,
                 baseline,
               });
+              // Learn the new stable pill/probe relationship after alerting once,
+              // otherwise the same offset change keeps re-alerting forever.
+              updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
+            } else {
+              // Slow baseline tracking for normal movement between pill and probe.
+              updateData.pill_probe_offset_baseline = Math.round((baseline * 0.99 + newOffset * 0.01) * 1000) / 1000;
             }
           } else if (pillTemp != null && currentTemp != null && pwmActive) {
             console.log(`OFFSET_SKIP_PWM: ${existing?.name || controller.id} hwTarget=${hwTarget}° probe=${currentTemp}° (cold=${atColdExtreme} hot=${atHotExtreme})`);
