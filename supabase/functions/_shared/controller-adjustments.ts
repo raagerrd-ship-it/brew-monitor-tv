@@ -707,8 +707,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         // (t.ex. +0.5°C på 3h med duty=0%) hindras inte av guarden ovan. Läs
         // de senaste ~30 min ur temp_controller_history och om temperaturen
         // har glidit ≥ 0.15°C i escape-riktningen släpper vi ramp-override.
+        // 0.15°C drift över 60 min = sustained ≥ 0.15°C/h i fel riktning.
         const RAMP_OVERRIDE_DRIFT_LIMIT = 0.15
-        const RAMP_OVERRIDE_DRIFT_MINUTES = 30
+        const RAMP_OVERRIDE_DRIFT_MINUTES = 60
         let driftBypass = false
         let driftDelta: number | null = null
         if (overshoot > 0.05) {
