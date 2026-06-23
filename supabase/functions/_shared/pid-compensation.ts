@@ -397,13 +397,13 @@ export function computeDutyV3(input: {
     ? (isHold ? 0.30 : 0.55)
     : (isHold ? 0.45 : 0.80)
   const KiPerHour = isCooling
-    ? (isHold ? 0.6 : 1.8)
+    ? (isHold ? 1.0 : 1.8)
     : (isHold ? 1.2 : 4.5)
   // D-brake removed for cooling: it was driven by pillRate (the lagging
   // surface sensor), so it braked after the slug had already arrived.
   const Kd = 0
   const Imax = isCooling
-    ? 0.4
+    ? 0.55
     : (isHold ? 0.40 : 0.70)
 
   // ── Integral state: mode-flip soft-decay or hard reset ──
@@ -473,15 +473,19 @@ export function computeDutyV3(input: {
       ? input.pillProbeOffset
       : 0.15
     const stratGap = (input.actualTarget - stratOffset) - bottomEst
+    const ssotErrForGuard = input.actualTemp - input.actualTarget
     if (stratGap > 0) {
       if (input.stallOverride) {
         duty = Math.max(duty, 0.08)
-        nextI = Math.max(0, nextI * 0.5)
+        if (ssotErrForGuard <= 0) nextI = Math.max(0, nextI * 0.5)
         constraints.push(`stratified-guard:stall-pulse(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
       } else {
         const cap = Math.max(0, uP + uFf)
         duty = Math.min(duty, cap)
-        nextI = Math.max(0, nextI * 0.5)
+        // Bleed integral only when SSOT (bulk) is at/under target. If the
+        // bulk is actually too warm we must keep our cooling budget so the
+        // baseline can build, even though the bottom probe looks cold.
+        if (ssotErrForGuard <= 0) nextI = Math.max(0, nextI * 0.5)
         constraints.push(`stratified-guard(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
       }
     }
@@ -500,7 +504,7 @@ export function computeDutyV3(input: {
   // vi får en mild, proportionell respons utan att äventyra botten.
   if (isCooling) {
     const ssotErr = input.actualTemp - input.actualTarget
-    if (ssotErr > 0.3) {
+    if (ssotErr > 0.15) {
       const floor = Math.min(0.35, Kp * ssotErr + uFf)
       if (floor > duty) {
         duty = floor
