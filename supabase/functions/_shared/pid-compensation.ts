@@ -410,11 +410,22 @@ export function computeDutyV3(input: {
   let duty = Math.max(0, Math.min(1, raw))
 
   // ── Stratifierings-guard: ledande sensor får inte rusa förbi target ──
-  // Kyla: botten leder (kall vätska sjunker) → bottenEst < target − 0.3 = STOP
-  // Värme: topp leder (varm vätska stiger) → pillTempNow > target + 0.3 = STOP
+  // Kyla: botten leder (kall vätska sjunker). Om bottenEst redan ligger under
+  // target har spiralen redan levererat kyla som ännu inte hunnit blandas in i
+  // bulken — att skicka mer duty bara fördjupar det kalla skiktet. Vi släpper
+  // därför I-termen och låter endast P + ssFloor jobba; integralen bleed:as
+  // hårt så ackumulerad drift inte överlever undershoot-perioden. Djupare
+  // undershoot (≥0.5°) → full stop.
   if (isCooling && bottomEst < input.actualTarget - 0.3) {
-    duty = Math.min(duty, 0.2)
+    const cap = Math.max(0, uP + uFf)
+    duty = Math.min(duty, cap)
+    nextI = Math.max(0, nextI * 0.5)
     constraints.push('bottom-undershoot-guard')
+  }
+  if (isCooling && bottomEst < input.actualTarget - 0.5) {
+    duty = 0
+    nextI = Math.max(0, nextI * 0.5)
+    constraints.push('bottom-undershoot-stop')
   }
   if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
     duty = Math.min(duty, 0.2)
