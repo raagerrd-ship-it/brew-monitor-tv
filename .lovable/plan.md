@@ -1,69 +1,100 @@
-## Diagnos
+## Bakgrund
 
-Blå har drivit långsamt uppåt från under mål till +0.47°C under 6 timmar, med PWM mest på 0–8%:
+Processen är dödtidsdominerad (15 min probe-latens, 60L termisk massa, glykol-transportlag). Klassisk PID-litteratur säger entydigt: när dödtid > 2 × tidskonstant, **gör loopen långsam och bred**, annars oscillerar den oundvikligen. Allt vi byggt (observer, k-learning, stratifierings-guard, dithering, SSOT-golv, mode-soft-decay, PWM-burst med slots) är försök att kompensera för att vi tunat snabbare än processen tål.
+
+Pill behålls i alla tre förslagen — men som **säkerhetstak**, inte som del av fusion-matematiken.
+
+---
+
+## Alternativ A — Minimal städning (lägst risk)
+
+Behåll PID-strukturen, men ta bort lagren som motverkar varandra.
+
+**Tar bort:**
+- Observer (`estimateBottomTemp`) + k-learning + anchor-tracking
+- 70/30 controlTemp-viktning, IIR-smooth
+- Stratifierings-guard (cap + I-bleed)
+- SSOT-golv (blir överflödigt)
+- Mode-soft-decay, mass-coast, overshoot-bleed, util-sat-cap
+- Dithering / 10-slot rotation
+
+**Behåller:**
+- PI på SSOT (`actualTemp` direkt) med Kp=0.30, Ki=0.5/h, Imax=0.4
+- Asymmetri: heating-sidan oförändrad
+- PWM-burst-systemet (60s minimum) som det är
+- ssFloor som lärd feedforward
+
+**Pill som säkerhet:** om `pill > target + 0.7`, golva duty på 12%. Om `pill < target − 0.7`, kapa duty till 0. Inget mer.
+
+**Förväntat beteende:** ~10-15 min för att svara på störning, ±0.15°C i hold. Mycket förutsägbart att felsöka. ~80% mindre kod i `pid-compensation.ts`.
+
+---
+
+## Alternativ B — BrewPi-stil (rekommendation)
+
+Beprövat i hundratusentals fermentorer. Två tidsskalor:
+
+**Slow loop (1 min cadence):** PI på SSOT-bulk
+- Kp = 0.20 (mild)
+- Ki = 0.3/h (mycket långsam — bygger 10% baskylning över ~30 min)
+- Imax = 0.35
+- Dödband ±0.1°C: ingen integration i bandet
+- Inget D, ingen observer
+
+**Peak-detection (BrewPi-kärnan):** efter att duty gått från positivt till 0%, vänta tills SSOT slutar falla. Om botten-peak ligger ≥0.2°C under target → minska Ki tillfälligt (vi är för aggressiva). Om peak ligger över target → öka Ki. Detta är självtuning utan extern lärning.
+
+**Min on/off:** kylning får inte slå på inom 5 min efter senaste off (skyddar kompressor + ger glykolen tid att blandas). Heating får på inom 1 min.
+
+**Pill som säkerhet:** samma som A — top-cap vid pill > target+0.7, bottom-stop vid pill < target−0.7.
+
+**Förväntat:** ~15-20 min till svar, ±0.1°C i hold efter ~2 dygns inkörning (peak-detection självtunar). Stabilast långsiktigt.
+
+**Komplexitet:** ungefär samma kodmängd som A, men en ny `peak-detect.ts` (~80 rader) som följer toppar/bottnar i SSOT.
+
+---
+
+## Alternativ C — Bang-bang med dödband (enklast)
+
+Klassisk Inkbird/STC-1000-logik. Ingen PID alls.
+
+**Logik:**
+- Om SSOT > target + 0.2 i ≥3 min → kyla med fast 15% duty
+- Om SSOT < target − 0.2 i ≥3 min → värma med fast 25% duty
+- Annars: coast (0%)
+- Min 8 min mellan kyl-cykler, min 4 min mellan värme-cykler
+
+**Pill som säkerhet:** hård gräns. Pill > target+0.7 → tvinga kyla. Pill < target−0.7 → tvinga stop.
+
+**Förväntat:** sågtandsmönster ±0.25°C runt target i hold. Aldrig overshoot mer än ~0.4°C. Garanterat stabilt.
+
+**Komplexitet:** ~150 rader i `pid-compensation.ts` (mot dagens 759). Trivialt att resonera om.
+
+---
+
+## Jämförelse
 
 ```
-13:40  12.72°  duty 0%
-15:10  13.02°  duty 0%
-16:25  13.13°  duty 0%
-17:50  13.24°  duty 0%
-19:00  13.38°  duty 0%
-19:20  13.47°  duty 7%
+                   A (minimal PID)   B (BrewPi)      C (bang-bang)
+Kodrader (est)         ~250            ~330             ~150
+Tid till svar         10-15 min       15-20 min        5-12 min
+Hold-precision       ±0.15 °C        ±0.10 °C         ±0.25 °C
+Overshoot-risk        låg              mycket låg       låg
+Tuning krävs          en gång          självtunar       en gång
+Pill-roll             säkerhet         säkerhet         säkerhet
+Felsökbart            ja               ja               mycket lätt
+Risk vid deploy       låg              medel            mycket låg
 ```
 
-Detta är systematisk underkylning, inte en transient. Tre saker bidrar tillsammans:
+## Gemensamt för alla tre
 
-1. **Cooling-Ki och Imax sänktes** i förra rundan (Ki 1.8/0.6, Imax 0.4). Integralen hinner inte bygga någon stadig baskylning innan stratifierings-guarden bleder av den (`nextI *= 0.5`).
-2. **Stratifierings-guarden fyrar för lätt**: så fort `bottomEst < target − 0.15` (vilket är normalt för en kyld tank) kapas duty till `uP + uFf` och I bleds. Probe ligger nästan alltid under target → guarden står på nästan jämt → I-termen kan aldrig växa.
-3. **SSOT-golvet jag la till** kräver `err > 0.3°C` för att aktiveras. Driften från 13.0 till 13.3 sker helt under tröskeln, så ingenting svarar.
-
-Resultat: PID ser "probe är kallt, allt är bra" medan SSOT (bulken) sakta vandrar uppåt.
+- `pid-compensation.ts` skrivs om från grunden (säkrare än att plocka bort lager för lager)
+- `auto-adjust-cooling/index.ts` rörs minimalt — bara anropet till compensation ändras
+- PWM-execution, plug-styrning, marginal-hantering, mode-switching i caller — allt orört
+- Värmesidan rörs inte (eller minimalt) i alla tre
+- Memory-filer för observer/k-learning/stratifierings-guard markeras som arkiverade
 
 ## Förslag
 
-Tre små, riktade ändringar i `supabase/functions/_shared/pid-compensation.ts`. Värmesidan rörs inte.
+**B (BrewPi-stil)** matchar bäst "hellre långsamt mot målet bara vi håller det". Det är dessutom det enda alternativet som självjusterar — du behöver inte tuna om för olika brygder/tankvolymer.
 
-### 1. Sänk SSOT-golvets tröskel och gör det proportionellt
-
-Aktivera redan vid `ssotErr > 0.15°C` (istället för 0.3°C) så drift fångas tidigt. Behåll tak på 35%.
-
-```
-ssotErr > 0.15 → duty ≥ min(0.35, Kp · ssotErr + uFf)
-```
-
-Vid err = 0.2°C ger det 6% golv; vid 0.47°C ger det 14%. Mjuk, proportionell.
-
-### 2. Låt stratifierings-guarden inte blöda I när SSOT är över mål
-
-Idag bleds `nextI *= 0.5` även när bulken är för varm. Det förhindrar att en stadig baskylning byggs upp. Ändring:
-
-```
-if (stratGap > 0 && ssotErr <= 0) nextI *= 0.5   // bara bleda när bulken är OK
-```
-
-Cap-logiken på duty behålls oförändrad — vi bara slutar nollställa minnet när vi faktiskt har en värmebudget att jobba mot.
-
-### 3. Höj Ki/Imax för cooling-hold marginellt
-
-Återta lite av det vi sänkte, för att tillåta en stadig baskylning:
-
-```
-KiPerHour (cooling, hold):  0.6 → 1.0
-Imax (cooling):             0.4 → 0.55
-```
-
-Fortfarande långt under heating-sidans 1.2/0.70, så dödtidskänsligheten respekteras. Active-cooling (`KiPerHour=1.8`) och Kp rörs inte.
-
-## Constraint-taggar
-
-- `ssot-floor(err=...,duty=...)` — tröskel ändras från 0.3 → 0.15
-- `stratified-guard(...)` — beteendet oförändrat, men I-bleed villkoras nu på `ssotErr ≤ 0`
-
-## Verifiering
-
-Efter deploy: titta på `auto_cooling_decision_logs` för Blå under 1–2 timmar. Förvänta:
-- `ssot-floor` fyrar runt err=0.15–0.30 med duty 5–10%
-- `actual_temp` driver inte över target + 0.2°C i hold
-- duty hamnar i 5–12% snarare än 0%-pulser
-
-Om driften fortsätter eskalerar vi (höjer Kp, eller flyttar SSOT-golvet utanför stratifierings-guardens cap).
+Vill du att jag skriver en konkret implementations-plan för ett av dem (eller alla tre i sekvens, med A först som säkerhetsnät)?
