@@ -293,23 +293,28 @@ function computeDutyV4(input: {
   // ── Integral state ──
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
-  // Mode-flip: mjuk reset
+  // Mode-flip: hård reset (cooling-I och heating-I delar inte semantik)
   if (input.modeJustSwitched || (input.prevState.lastMode && input.prevState.lastMode !== input.mode)) {
-    integral = Math.abs(need) > 0.5 ? 0 : integral * 0.5
-    constraints.push('mode-reset')
+    integral = 0
+    constraints.push('mode-reset-hard')
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
   // ── P-term ──
   const uP = Math.max(0, Kp * need)
 
-  // ── Integration (1-min dt = 1/60 h) ──
+  // ── Integration (verklig dt från lastSsotAt; clampad 0.25–5 min) ──
+  let dtMin = 1.0
+  if (input.prevState.lastSsotAt) {
+    const raw = (nowMs - new Date(input.prevState.lastSsotAt).getTime()) / 60000
+    if (Number.isFinite(raw)) dtMin = Math.max(0.25, Math.min(5.0, raw))
+  }
   let nextI = integral
   // Brett dödband: i ±0.10°C händer inget med I.
   const inDeadband = Math.abs(avgError) <= COOL.Deadband
   if (!inDeadband && Math.abs(need) <= IZone && !input.modeJustSwitched) {
-    nextI += KiPerHour * need / 60
-    constraints.push('i-zone')
+    nextI += KiPerHour * need * dtMin / 60
+    constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   }
   // Steady-state-flagga för ssFloor-lärning (caller läser denna).
   if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
@@ -346,14 +351,16 @@ function computeDutyV4(input: {
     constraints.push('hold-deadband')
   }
 
-  // ── Pill-säkerhet (cooling): top-cap och bottom-stop ──
+  // ── Pill-säkerhet (cooling): progressiv top-cap, hård bottom-stop ──
   if (isCooling && input.pillTempNow != null) {
-    if (input.pillTempNow > input.actualTarget + PILL_TOP_CAP) {
-      duty = Math.max(duty, 0.12)
-      constraints.push(`pill-top-cap(${(input.pillTempNow - input.actualTarget).toFixed(2)})`)
+    const excess = input.pillTempNow - input.actualTarget
+    if (excess > PILL_TOP_CAP) {
+      const floor = Math.max(0.12, Math.min(0.40, 0.12 + (excess - PILL_TOP_CAP) * 0.25))
+      duty = Math.max(duty, floor)
+      constraints.push(`pill-top-cap(${excess.toFixed(2)}→${Math.round(floor * 100)}%)`)
     } else if (input.pillTempNow < input.actualTarget - PILL_BOTTOM_STOP) {
       duty = 0
-      nextI = Math.max(0, nextI * 0.5)
+      nextI = 0
       constraints.push(`pill-bottom-stop(${(input.actualTarget - input.pillTempNow).toFixed(2)})`)
     }
   }
