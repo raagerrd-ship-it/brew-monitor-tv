@@ -386,8 +386,8 @@ export function computeDutyV3(input: {
   const avgError = input.actualTarget - controlTemp
   const need = isCooling ? -avgError : avgError
 
-  // approachRate > 0 = pill rör sig mot target i mode-riktning
-  const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
+  // approachRate previously fed the cooling D-brake (now removed). Kept here
+  // as a no-op reference; pillRate is still consumed by hold-deadband below.
 
   // ── Asymmetric gains: cooling = gentle (no D-brake), heating ≈ bang-bang ──
   // Cooling Ki/Imax lowered: the loop is dead-time dominated (15-min probe
