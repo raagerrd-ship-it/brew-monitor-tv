@@ -378,6 +378,9 @@ Deno.serve(async (req) => {
             min_target_temp: existing?.min_target_temp ?? null,
             max_target_temp: existing?.max_target_temp ?? null,
             actual_temp: existing?.actual_temp ?? null,
+            pill_probe_offset: existing?.pill_probe_offset ?? null,
+            pill_probe_offset_baseline: existing?.pill_probe_offset_baseline ?? null,
+            pill_probe_offset_updated_at: existing?.pill_probe_offset_updated_at ?? null,
             updated_at: new Date().toISOString()
           };
 
