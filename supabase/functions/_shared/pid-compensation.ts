@@ -340,6 +340,7 @@ export function computeDutyV3(input: {
   modeJustSwitched: boolean
   coolingUtilization: number | null
   pillProbeOffset?: number | null
+  stallOverride?: boolean      // detected in caller (DB query); enables weak pulse in bottom-guard
 }): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
@@ -357,17 +358,18 @@ export function computeDutyV3(input: {
   if (obs.offsetBlend != null && obs.offsetBlend > 0) {
     constraints.push(`offset-blend=${obs.offsetBlend.toFixed(2)}`)
   }
-  // Regulate against the fresh bulk average: observer-corrected probe + live
-  // pill, same definition as UI but at 1-minute resolution. When the probe is
-  // fresh bottomEst equals probe, so UI and regulator coincide at samples.
+  // Regulate against a bottom-weighted bulk estimate. Pill is fast but noisy
+  // (BLE jitter, wave motion, top-of-tank dynamics), so we weight the
+  // observer-corrected bottom 70/30 against the live pill. When the probe is
+  // fresh bottomEst equals probe.
   const controlTempRaw = input.pillTempNow != null
-    ? 0.5 * bottomEst + 0.5 * input.pillTempNow
+    ? 0.7 * bottomEst + 0.3 * input.pillTempNow
     : bottomEst
 
-  // ── 3-min IIR on controlTemp: dampens sub-cycle pill noise (BLE jitter,
-  //    wave motion) without adding visible lag. Bypassed on mode-flip so
-  //    fresh response isn't held back, and on stale state (>5 min gap).
-  const SMOOTH_ALPHA = 0.4
+  // ── IIR low-pass on controlTemp: dampens sub-cycle pill noise without
+  //    chasing it. α=0.2 → ~5-min effective time constant at 1-min cadence.
+  //    Bypassed on mode-flip (fresh response) and on stale state (>5 min).
+  const SMOOTH_ALPHA = 0.2
   const prevCT = input.anchor?.lastControlTemp
   const prevCTAt = input.anchor?.lastControlTempAt
   const prevCTAgeMin = prevCTAt
@@ -387,19 +389,32 @@ export function computeDutyV3(input: {
   // approachRate > 0 = pill rör sig mot target i mode-riktning
   const approachRate = input.pillRate == null ? 0 : (isCooling ? -input.pillRate : input.pillRate)
 
-  // ── Asymmetric gains: cooling = gentle+braked, heating ≈ bang-bang ──
+  // ── Asymmetric gains: cooling = gentle (no D-brake), heating ≈ bang-bang ──
+  // Cooling Ki/Imax lowered: the loop is dead-time dominated (15-min probe
+  // latency + transport lag through the coil) so a high integral builds
+  // commitment we can't unwind in time → undershoot oscillation.
   const Kp = isCooling
     ? (isHold ? 0.30 : 0.55)
     : (isHold ? 0.45 : 0.80)
   const KiPerHour = isCooling
-    ? (isHold ? 0.9 : 3.6)
+    ? (isHold ? 0.6 : 1.8)
     : (isHold ? 1.2 : 4.5)
-  const Kd = isCooling ? (isHold ? 0.25 : 0.35) : 0   // heating: ingen broms
+  // D-brake removed for cooling: it was driven by pillRate (the lagging
+  // surface sensor), so it braked after the slug had already arrived.
+  const Kd = 0
   const Imax = isCooling
-    ? (isHold ? 0.35 : 0.65)
+    ? 0.4
     : (isHold ? 0.40 : 0.70)
 
   // ── Integral state: mode-flip soft-decay or hard reset ──
+  // TODO(mode-switching): the actual cooling/heating mode decision lives in
+  // the caller (auto-adjust-cooling). To stop integral thrashing it MUST
+  // apply a wide deadband + dwell before flipping mode:
+  //   • cool only when actualTemp > target + 0.3
+  //   • heat only when actualTemp < target − 0.3
+  //   • coast (no PWM) in the band, and require ≥15 min dwell in current
+  //     mode before any flip. Without this, modeJustSwitched fires too often
+  //     and the integral is reset/decayed repeatedly.
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
   if (input.modeJustSwitched) {
@@ -416,17 +431,10 @@ export function computeDutyV3(input: {
   // ── P-term: observer ger färsk data varje cykel, ingen stale-dämpning ──
   const uP = Kp * need
 
-  // ── D-term: predictive brake — cooling only (heating för svag att överskjuta) ──
-  let uD = 0
-  if (isCooling && approachRate > 0 && need > 0) {
-    // tauLag ≈ 6 min transport-tid från spiral till probe (60L mass)
-    const tauLagHours = 0.10
-    const overshoot = approachRate * tauLagHours - need
-    if (overshoot > 0) {
-      uD = -Math.min(0.5, Kd * overshoot)
-      constraints.push('predictive-brake')
-    }
-  }
+  // ── D-term: disabled. Cooling brake driven by lagging pill led to late
+  //    braking; heating is bang-bang. Kept as 0 for traceability. ──
+  const uD = 0
+  void Kd
 
   // ── Integration: every minute, dt = 1/60 h, with windup zone guard ──
   let nextI = integral
@@ -449,51 +457,33 @@ export function computeDutyV3(input: {
   const raw = uFf + uP + nextI + uD
   let duty = Math.max(0, Math.min(1, raw))
 
-  // ── Stratifierings-guard: ledande sensor får inte rusa förbi target ──
-  // Kyla: botten leder (kall vätska sjunker). Om bottenEst redan ligger under
-  // target har spiralen redan levererat kyla som ännu inte hunnit blandas in i
-  // bulken — att skicka mer duty bara fördjupar det kalla skiktet. Vi släpper
-  // därför I-termen och låter endast P + ssFloor jobba; integralen bleed:as
-  // hårt så ackumulerad drift inte överlever undershoot-perioden. Djupare
-  // undershoot (≥0.5°) → full stop.
-  // ── Time-based override: if bulk has stalled above target for ≥20 min
-  //    while bottom probe is cold, allow a weak cooling pulse to nudge
-  //    convection instead of waiting indefinitely for natural mixing. ──
-  let stallOverride = false
-  if (isCooling && bottomEst < input.actualTarget - 0.3 && input.actualTemp > input.actualTarget + 0.15) {
-    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-    const { data: hist } = await supabase
-      .from('temp_controller_history')
-      .select('recorded_at, actual_temp')
-      .eq('controller_id', controllerId)
-      .gte('recorded_at', since)
-      .order('recorded_at', { ascending: false })
-      .limit(40)
-    if (Array.isArray(hist) && hist.length >= 15) {
-      const aboveAll = hist.every((r: any) =>
-        r.actual_temp != null && parseFloat(String(r.actual_temp)) > input.actualTarget + 0.10
-      )
-      const oldestAgeMin = (Date.now() - new Date(hist[hist.length - 1].recorded_at).getTime()) / 60000
-      if (aboveAll && oldestAgeMin >= 20) stallOverride = true
-    }
-  }
-  if (isCooling && bottomEst < input.actualTarget - 0.3) {
-    // Cap = P + feed-forward. When bulk is clearly above target (>0.2°C) we
-    // allow a small +0.05 boost so the guard doesn't strangle convection.
-    const boost = input.actualTemp > input.actualTarget + 0.2 ? 0.05 : 0
-    const cap = Math.max(0, uP + uFf + boost)
-    duty = Math.min(duty, cap)
-    nextI = Math.max(0, nextI * 0.5)
-    constraints.push(boost > 0 ? 'bottom-undershoot-guard+boost' : 'bottom-undershoot-guard')
-  }
-  if (isCooling && bottomEst < input.actualTarget - 0.5) {
-    if (stallOverride) {
-      duty = Math.max(duty, 0.08)
-      constraints.push('stall-override-weak-pulse')
-    } else {
-      duty = 0
-      nextI = Math.max(0, nextI * 0.5)
-      constraints.push('bottom-undershoot-stop')
+  // ── Stratifierings-guard (unified, offset-based) ──────────────────────
+  // The bottom probe is *expected* to read colder than the bulk during
+  // cooling — that's tank geometry (coil-from-below), not overshoot.
+  // pillProbeOffset (= pill_temp − probe_temp at steady state, positive
+  // when bulk is stratified normally) tells us how much colder. The guard
+  // fires only when the bottom is colder than its stratified position by
+  // more than a small slack:
+  //   stratGap = (actualTarget − stratOffset) − bottomEst
+  //   stratOffset ≈ max(0, pillProbeOffset)  (fallback 0.15°C if unlearned)
+  //   stratGap > 0     → cap duty at uP + uFf, bleed I (single guard)
+  //   stallOverride    → weak pulse 8% instead of cap (stale bulk above target)
+  if (isCooling) {
+    const stratOffset = input.pillProbeOffset != null && input.pillProbeOffset > 0
+      ? input.pillProbeOffset
+      : 0.15
+    const stratGap = (input.actualTarget - stratOffset) - bottomEst
+    if (stratGap > 0) {
+      if (input.stallOverride) {
+        duty = Math.max(duty, 0.08)
+        nextI = Math.max(0, nextI * 0.5)
+        constraints.push(`stratified-guard:stall-pulse(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
+      } else {
+        const cap = Math.max(0, uP + uFf)
+        duty = Math.min(duty, cap)
+        nextI = Math.max(0, nextI * 0.5)
+        constraints.push(`stratified-guard(gap=${stratGap.toFixed(2)},off=${stratOffset.toFixed(2)})`)
+      }
     }
   }
   if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
