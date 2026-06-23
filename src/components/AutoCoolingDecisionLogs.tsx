@@ -218,6 +218,7 @@ export function AutoCoolingDecisionLogs() {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [controllerColors, setControllerColors] = useState<Record<string, string>>({});
+  const [controllerIdToName, setControllerIdToName] = useState<Record<string, string>>({});
   const [lastSuccessfulRaptSync, setLastSuccessfulRaptSync] = useState<string | null>(null);
   const hideSync = false;
   const hidePid = false;
@@ -226,7 +227,7 @@ export function AutoCoolingDecisionLogs() {
     // Fetch controller→pill color map + last RAPT sync
     (async () => {
       const [{ data: controllers }, { data: pills }, { data: syncSettings }] = await Promise.all([
-        supabase.from('rapt_temp_controllers').select('name, linked_pill_id'),
+        supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id'),
         supabase.from('rapt_pills').select('pill_id, color'),
         supabase.from('sync_settings').select('last_successful_rapt_sync_at').limit(1).maybeSingle(),
       ]);
@@ -236,11 +237,14 @@ export function AutoCoolingDecisionLogs() {
       if (controllers && pills) {
         const pillColorMap = Object.fromEntries(pills.map(p => [p.pill_id, p.color]));
         const map: Record<string, string> = {};
+        const idMap: Record<string, string> = {};
         for (const c of controllers) {
           const color = c.linked_pill_id ? pillColorMap[c.linked_pill_id] : null;
           if (color && color !== '#000000') map[c.name] = color;
+          if ((c as any).controller_id && c.name) idMap[(c as any).controller_id] = c.name;
         }
         setControllerColors(map);
+        setControllerIdToName(idMap);
       }
     })();
     loadAll();
