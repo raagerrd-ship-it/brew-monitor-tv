@@ -115,6 +115,7 @@ export async function calculateCompensatedTarget(
   floorLookupTarget?: number | null,
   pillTempNow?: number | null,
   probeTempRaw?: number | null,
+  pillProbeOffset?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -205,6 +206,7 @@ export async function calculateCompensatedTarget(
     persistedIntegral, prevAvgError,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
+    pillProbeOffset: pillProbeOffset ?? null,
   })
   let dutyCycle = v3.duty
   const integral = v3.integral
