@@ -703,10 +703,44 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         log('MODE_RAMP_OVERRIDE_BYPASS', 'info',
           `${fc.name}: ramp ${rampMode} override SKIPPED — överskjutning ${overshoot.toFixed(1)}° > ${RAMP_OVERRIDE_OVERSHOOT_LIMIT}°, tillåter ${suggestedMode}`)
       } else if (suggestedMode !== rampMode) {
-        log('MODE_RAMP_OVERRIDE', 'info', 
-          `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode})`)
-        suggestedMode = rampMode
-        rampOverrideApplied = true
+        // Anti-drift watchdog: en långsam drift under överskjutnings-tröskeln
+        // (t.ex. +0.5°C på 3h med duty=0%) hindras inte av guarden ovan. Läs
+        // de senaste ~30 min ur temp_controller_history och om temperaturen
+        // har glidit ≥ 0.15°C i escape-riktningen släpper vi ramp-override.
+        // 0.15°C drift över 60 min = sustained ≥ 0.15°C/h i fel riktning.
+        const RAMP_OVERRIDE_DRIFT_LIMIT = 0.15
+        const RAMP_OVERRIDE_DRIFT_MINUTES = 60
+        let driftBypass = false
+        let driftDelta: number | null = null
+        if (overshoot > 0.05) {
+          const sinceIso = new Date(Date.now() - (RAMP_OVERRIDE_DRIFT_MINUTES + 5) * 60_000).toISOString()
+          const { data: histRows } = await ctx.supabase
+            .from('temp_controller_history')
+            .select('actual_temp, recorded_at')
+            .eq('controller_id', fc.controller_id)
+            .gte('recorded_at', sinceIso)
+            .order('recorded_at', { ascending: true })
+            .limit(5)
+          if (histRows && histRows.length >= 2) {
+            const oldest = Number(histRows[0].actual_temp)
+            if (Number.isFinite(oldest)) {
+              // Drift mätt i escape-riktning (positivt = behov att byta läge)
+              driftDelta = rampMode === 'heating'
+                ? actualTemp - oldest   // värmde sig under en heating-ramp → behöver cool
+                : oldest - actualTemp   // svalnade under en cooling-ramp → behöver heat
+              if (driftDelta >= RAMP_OVERRIDE_DRIFT_LIMIT) driftBypass = true
+            }
+          }
+        }
+        if (driftBypass) {
+          log('MODE_RAMP_OVERRIDE_DRIFT_BYPASS', 'info',
+            `${fc.name}: ramp ${rampMode} override SKIPPED — drift ${driftDelta!.toFixed(2)}°/${RAMP_OVERRIDE_DRIFT_MINUTES}min ≥ ${RAMP_OVERRIDE_DRIFT_LIMIT}°, tillåter ${suggestedMode}`)
+        } else {
+          log('MODE_RAMP_OVERRIDE', 'info',
+            `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode}${driftDelta != null ? `, drift ${driftDelta.toFixed(2)}°/${RAMP_OVERRIDE_DRIFT_MINUTES}min` : ''})`)
+          suggestedMode = rampMode
+          rampOverrideApplied = true
+        }
       }
     }
 
