@@ -286,6 +286,7 @@ export function computeDutyV3(input: {
   prevAvgError: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
+  pillProbeOffset?: number | null
 }): { duty: number; integral: number; p: number; anchor: SensorAnchor | null; controlTemp: number; constraints: string[] } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
@@ -297,9 +298,12 @@ export function computeDutyV3(input: {
   const probeForObs = input.probeTempRaw ?? input.actualTemp
   const obs = estimateBottomTemp(
     probeForObs, input.probeIsFresh, input.pillTempNow,
-    input.anchor, input.k, input.mode,
+    input.anchor, input.k, input.mode, input.pillProbeOffset ?? null,
   )
   const bottomEst = obs.estimate
+  if (obs.offsetBlend != null && obs.offsetBlend > 0) {
+    constraints.push(`offset-blend=${obs.offsetBlend.toFixed(2)}`)
+  }
   // Regulate against the fresh bulk average: observer-corrected probe + live
   // pill, same definition as UI but at 1-minute resolution. When the probe is
   // fresh bottomEst equals probe, so UI and regulator coincide at samples.
