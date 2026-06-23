@@ -1,4 +1,4 @@
-import { getLearnedParam, getTempBucket } from './learning-utils.ts'
+import { getLearnedParam, getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // PID Control & Thermal Learning (V4: BrewPi-stil)
