@@ -56,7 +56,8 @@ export function estimateBottomTemp(
   anchor: SensorAnchor | null,
   k: number,
   mode: 'heating' | 'cooling',
-): { estimate: number; anchor: SensorAnchor | null; pillDelta: number } {
+  pillProbeOffset: number | null = null,
+): { estimate: number; anchor: SensorAnchor | null; pillDelta: number; offsetBlend?: number } {
   const now = new Date().toISOString()
   // Fresh probe (or no pill / no anchor): re-anchor and use probe directly
   if (probeIsFresh || anchor == null || pillTempNow == null || anchor.mode !== mode) {
@@ -70,7 +71,23 @@ export function estimateBottomTemp(
   // Cap pill-driven correction: a broken/runaway pill cannot drag us off
   const maxCorr = Math.min(0.10 * Math.max(0, minutesSince), 2.0)
   const bounded = Math.max(-maxCorr, Math.min(maxCorr, k * pillDelta))
-  return { estimate: anchor.probeTemp + bounded, anchor, pillDelta }
+  const extrapolated = anchor.probeTemp + bounded
+
+  // ── Offset-anchored fallback: when probe is stale and we have a learned
+  //    static pill−probe offset, blend in (pill − offset) as an absolute
+  //    estimate. Extrapolation drifts with k×pillDelta from an old anchor;
+  //    (pill − offset) is anchored to the *current* pill reading and
+  //    cancels known stratification. Weight grows with staleness so fresh-ish
+  //    anchors stay dominant and the absolute term takes over as the
+  //    extrapolation becomes less trustworthy.
+  if (pillProbeOffset == null) {
+    return { estimate: extrapolated, anchor, pillDelta }
+  }
+  const absolute = pillTempNow - pillProbeOffset
+  // 0 at 0 min stale → 0.5 at 30+ min stale
+  const w = Math.max(0, Math.min(0.5, minutesSince / 60))
+  const estimate = (1 - w) * extrapolated + w * absolute
+  return { estimate, anchor, pillDelta, offsetBlend: w }
 }
 
 /**
