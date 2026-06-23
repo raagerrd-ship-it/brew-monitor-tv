@@ -1,10 +1,17 @@
 
 ## SSOT-golv (tillägg)
-När `actualTemp − actualTarget > 0.3°C` i kylläge golvas duty på
+När `actualTemp − actualTarget > 0.15°C` i kylläge golvas duty på
 `min(0.35, Kp · ssotErr + uFf)`. Detta åsidosätter stratifierings-guardens
 cap eftersom SSOT (bulken) är källan till sanning — om bulken är klart
 för varm ska vi alltid svara, oavsett vad probe visar lokalt.
 Constraint-tagg: `ssot-floor(err=...,duty=...)`.
+
+Stratifierings-guarden bleder dessutom inte längre I-termen när SSOT är
+över mål — endast när bulken faktiskt är at/under target. Detta låter
+baskylningen byggas upp även när bottenproben är kall.
+
+Cooling-hold KiPerHour = 1.0 (höjt från 0.6), Imax = 0.55 (höjt från 0.4)
+för att tillåta en stadig baskylning utan att bryta dödtidskänsligheten.
 ---
 name: Stratified Bottom Guard (offset-based)
 description: Single offset-based guard. Cap duty + bleed I when bottomEst is colder than its stratified position; stall-override weak pulse after 20 min of bulk above target.
