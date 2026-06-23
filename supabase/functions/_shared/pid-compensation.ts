@@ -120,7 +120,8 @@ export async function calculateCompensatedTarget(
   pillTempNow?: number | null,
   probeTempRaw?: number | null,
   pillProbeOffset?: number | null,
-): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void> }> {
+  coolingPwmWindowMin: number = 8,
+): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
   void ctrlTarget; void isInterpolated // legacy params kept for caller compat
@@ -203,6 +204,38 @@ export async function calculateCompensatedTarget(
   const ssFloor = ssFloorRaw > 0 ? ssFloorRaw * deadbandGainScale : 0
   if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
 
+  // ── Stall-override detection (moved out of computeDutyV3 so the inner
+  //    function stays synchronous and DB-free). When bulk has stalled above
+  //    target while the bottom probe is cold, we will allow a weak cooling
+  //    pulse instead of hard-stopping. Query is best-effort: any failure
+  //    leaves stallOverride=false and the guard behaves normally.
+  let stallOverride = false
+  if (
+    mode === 'cooling'
+    && actualTemp > actualTarget + 0.15
+    && (probeTempRaw ?? actualTemp) < actualTarget - 0.3
+  ) {
+    try {
+      const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const { data: hist } = await supabase
+        .from('temp_controller_history')
+        .select('recorded_at, actual_temp')
+        .eq('controller_id', controllerId)
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .limit(40)
+      if (Array.isArray(hist) && hist.length >= 15) {
+        const aboveAll = hist.every((r: any) =>
+          r.actual_temp != null && parseFloat(String(r.actual_temp)) > actualTarget + 0.10
+        )
+        const oldestAgeMin = (Date.now() - new Date(hist[hist.length - 1].recorded_at).getTime()) / 60000
+        if (aboveAll && oldestAgeMin >= 20) stallOverride = true
+      }
+    } catch (e) {
+      console.warn(`stall-override query failed: ${e}`)
+    }
+  }
+
   // ── V3 observer + asymmetric PI(D) ──
   const v3 = computeDutyV3({
     mode, stepType,
@@ -218,6 +251,7 @@ export async function calculateCompensatedTarget(
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     pillProbeOffset: pillProbeOffset ?? null,
+    stallOverride,
   })
   let dutyCycle = v3.duty
   const integral = v3.integral
@@ -276,6 +310,12 @@ export async function calculateCompensatedTarget(
     convergenceCount,
     constraints,
     persistPromise,
+    // ── PWM aggregation window (minutes). Duty should be averaged/applied
+    //    over this window by the caller (e.g. execute-pwm-off cron) rather
+    //    than toggling the pump every minute, so injected glycol has time to
+    //    mix into the bulk before the next regulator decision. Returned for
+    //    the caller to respect — this file does not toggle the pump itself.
+    coolingPwmWindowMin,
   }
 }
 
