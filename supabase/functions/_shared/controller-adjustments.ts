@@ -691,6 +691,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     if (profileCtx?.rampDirection && 
         (profileCtx.currentStepType === 'gradual_ramp' || profileCtx.currentStepType === 'ramp')) {
       const rampMode = profileCtx.rampDirection as 'heating' | 'cooling'
+      // Auto-release efter drift-bypass: så fort temp passerat tillbaka över
+      // target i ramp-riktning ska vi släppa ev. motsatt läge som hänger kvar
+      // pga neutralzon/prevMode-tröghet, så bypass inte drar förbi setpoint.
+      // Heating-ramp: actual ≤ target → tvinga heating direkt.
+      // Cooling-ramp: actual ≥ target → tvinga cooling direkt.
+      const RAMP_AUTO_RELEASE_BAND = 0.02
+      const crossedBack = rampMode === 'heating'
+        ? actualTemp <= actualTarget + RAMP_AUTO_RELEASE_BAND
+        : actualTemp >= actualTarget - RAMP_AUTO_RELEASE_BAND
+      if (crossedBack && suggestedMode !== rampMode) {
+        log('MODE_RAMP_AUTO_RELEASE', 'info',
+          `${fc.name}: ramp ${rampMode} auto-release (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}° passerat tillbaka, släpper ${suggestedMode})`)
+        suggestedMode = rampMode
+        rampOverrideApplied = true
+      }
       // Safety escape: if temp is clearly on the wrong side during a ramp,
       // allow the opposite mode before we get a full 1°C runaway.
       // This prevents heating ramps from pinning mode=heating while beer is
