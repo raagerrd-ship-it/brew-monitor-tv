@@ -9,6 +9,10 @@ export interface SensorAnchor {
   pillTemp: number
   anchoredAt: string // ISO8601
   mode: 'heating' | 'cooling'
+  // Optional smoothing state for IIR filter on controlTemp.
+  // Stored on the same JSONB blob to avoid a schema change.
+  lastControlTemp?: number
+  lastControlTempAt?: string
 }
 
 /** Persist PID state to controller_learned_compensation */
