@@ -769,6 +769,7 @@ Deno.serve(async (req) => {
             controller_temp: linkedCtrlForTemp?.current_temp ?? null,
             profile_target_temp: linkedCtrlForTemp?.profile_target_temp ?? null,
             actual_temp: ssotTemp,
+            controller_id: brew.linked_controller_id ?? null,
           });
 
           // Update brew_readings with latest values (no sg_data write)
@@ -876,6 +877,7 @@ Deno.serve(async (req) => {
                 controller_temp: ctrl?.current_temp ?? null,
                 profile_target_temp: ctrl?.profile_target_temp ?? null,
                 actual_temp: ctrl?.actual_temp ?? point.temp,
+                controller_id: brew.linked_controller_id ?? null,
               });
             }
 
@@ -1555,6 +1557,7 @@ Deno.serve(async (req) => {
           controller_temp: ctrl?.current_temp ?? null,
           profile_target_temp: ctrl?.profile_target_temp ?? null,
           actual_temp: ctrl?.actual_temp ?? null,
+          controller_id: brew.linked_controller_id ?? null,
         });
         count++;
       }
