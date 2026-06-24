@@ -224,7 +224,9 @@ export type Database = {
           auto_target_temp: number | null
           brew_id: string
           controller_temp: number | null
+          cooling_enabled: boolean | null
           created_at: string
+          duty_pct: number | null
           id: string
           pill_temp: number | null
           profile_target_temp: number | null
@@ -236,7 +238,9 @@ export type Database = {
           auto_target_temp?: number | null
           brew_id: string
           controller_temp?: number | null
+          cooling_enabled?: boolean | null
           created_at?: string
+          duty_pct?: number | null
           id?: string
           pill_temp?: number | null
           profile_target_temp?: number | null
@@ -248,7 +252,9 @@ export type Database = {
           auto_target_temp?: number | null
           brew_id?: string
           controller_temp?: number | null
+          cooling_enabled?: boolean | null
           created_at?: string
+          duty_pct?: number | null
           id?: string
           pill_temp?: number | null
           profile_target_temp?: number | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_data_snapshots ADD COLUMN IF NOT EXISTS duty_pct numeric, ADD COLUMN IF NOT EXISTS cooling_enabled boolean;
