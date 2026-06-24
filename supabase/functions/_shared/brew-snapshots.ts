@@ -11,6 +11,12 @@ export interface SnapshotData {
   controller_temp: number | null;
   profile_target_temp: number | null;
   actual_temp?: number | null;
+  // PWM duty (0–100) at snapshot time and whether the controller was in cooling mode.
+  // If omitted but controller_id is provided, the most recent temp_controller_history
+  // row (within the last 30 min) is used.
+  duty_pct?: number | null;
+  cooling_enabled?: boolean | null;
+  controller_id?: string | null;
 }
 
 export async function createBrewSnapshot(
@@ -25,6 +31,25 @@ export async function createBrewSnapshot(
     const raw = data.actual_temp ?? pill_temp ?? controller_temp ?? null;
     const resolvedActualTemp = raw != null ? Math.round(raw * 100) / 100 : null;
 
+    // Resolve PWM duty + cooling mode from latest controller history if not supplied.
+    let duty = data.duty_pct ?? null;
+    let cooling = data.cooling_enabled ?? null;
+    if ((duty == null || cooling == null) && data.controller_id) {
+      const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: hist } = await supabase
+        .from('temp_controller_history')
+        .select('duty_pct, cooling_enabled')
+        .eq('controller_id', data.controller_id)
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (hist) {
+        if (duty == null) duty = hist.duty_pct ?? null;
+        if (cooling == null) cooling = hist.cooling_enabled ?? null;
+      }
+    }
+
     const { error } = await supabase
       .from('brew_data_snapshots')
       .upsert({
@@ -36,6 +61,8 @@ export async function createBrewSnapshot(
         profile_target_temp: data.profile_target_temp,
         auto_target_temp: resolvedActualTemp,
         actual_temp: resolvedActualTemp,
+        duty_pct: duty,
+        cooling_enabled: cooling,
       }, { onConflict: 'brew_id,recorded_at', ignoreDuplicates: true });
 
     if (error) {
@@ -73,7 +100,7 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
 
     const { data: rows } = await supabase
       .from('brew_data_snapshots')
-      .select('id, recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp, auto_target_temp')
+      .select('id, recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp, auto_target_temp, duty_pct, cooling_enabled')
       .eq('brew_id', brewId)
       .gte('recorded_at', lookbackStart)
       .lt('recorded_at', lookbackEnd)
@@ -117,6 +144,15 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
         profile_target_temp: r2(avg('profile_target_temp')),
         actual_temp: r2(avg('actual_temp')),
         auto_target_temp: r2(avg('auto_target_temp')),
+        // PWM duty averages across the 5-min window to reflect mean load.
+        // Cooling mode takes the most recent value in the bucket (group is sorted asc by recorded_at).
+        duty_pct: r2(avg('duty_pct')),
+        cooling_enabled: (() => {
+          for (let i = group.length - 1; i >= 0; i--) {
+            if (group[i].cooling_enabled != null) return group[i].cooling_enabled;
+          }
+          return null;
+        })(),
       };
 
       const keepId = group[0].id;

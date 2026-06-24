@@ -332,6 +332,7 @@ Deno.serve(async (req) => {
           controller_temp: controllerTemp,
           profile_target_temp: profileTargetTemp,
           actual_temp: actualTemp,
+          controller_id: brew.linked_controller_id ?? null,
         });
       } catch (e) {
         errors.push(`snapshot ${brew.name}: ${(e as Error).message}`);
