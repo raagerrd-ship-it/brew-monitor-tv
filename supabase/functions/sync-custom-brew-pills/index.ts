@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
                 controller_temp: ctrlForBrew.current_temp ?? null,
                 profile_target_temp: ctrlForBrew.profile_target_temp ?? null,
                 actual_temp: ctrlForBrew.actual_temp ?? null,
+                controller_id: ctrlForBrew.controller_id ?? null,
               });
               brewsUpdated++;
             }
@@ -163,6 +164,7 @@ Deno.serve(async (req) => {
           controller_temp: ctrlForBrew?.current_temp ?? null,
           profile_target_temp: ctrlForBrew?.profile_target_temp ?? null,
           actual_temp: ctrlForBrew?.actual_temp ?? pillTemp,
+          controller_id: ctrlForBrew?.controller_id ?? null,
         });
 
         // ── Update brew_readings with latest values ──
