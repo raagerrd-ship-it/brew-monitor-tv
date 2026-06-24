@@ -19,6 +19,8 @@ interface SnapshotRow {
   controller_temp: number | null;
   profile_target_temp: number | null;
   auto_target_temp: number | null;
+  duty_pct: number | null;
+  cooling_enabled: boolean | null;
 }
 
 interface SyncedDataDialogProps {
@@ -53,7 +55,7 @@ export function SyncedDataDialog({
       // Thinning policy caps snapshots at ~500 per brew, no pagination needed
       const { data, error } = await supabase
         .from("brew_data_snapshots")
-        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp")
+        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp, duty_pct, cooling_enabled")
         .eq("brew_id", brewId)
         .order("recorded_at", { ascending: false });
 
@@ -128,6 +130,7 @@ export function SyncedDataDialog({
     }
     return s.auto_target_temp != null;
   });
+  const hasDuty = snapshots.some((s) => s.duty_pct != null);
 
   const getDisplayActualTemp = useCallback((point: SnapshotRow) => {
     if (controllerStatus?.dual_sensor_enabled === false) {
@@ -182,7 +185,7 @@ export function SyncedDataDialog({
                 Ingen synkad data ännu
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-background">
                   <tr className="border-b">
                     <th className="text-left py-2 font-medium">Datum</th>
@@ -196,6 +199,9 @@ export function SyncedDataDialog({
                     )}
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Mål</th>
+                    )}
+                    {hasDuty && (
+                      <th className="text-right py-2 font-medium">DWT</th>
                     )}
                   </tr>
                 </thead>
@@ -237,6 +243,17 @@ export function SyncedDataDialog({
                             {point.profile_target_temp != null
                               ? `${point.profile_target_temp.toFixed(1)}°`
                               : "-"}
+                          </td>
+                        )}
+                        {hasDuty && (
+                          <td className={`py-1.5 text-right font-mono ${
+                            point.duty_pct == null
+                              ? 'text-muted-foreground/40'
+                              : point.cooling_enabled === false
+                                ? 'text-orange-500'
+                                : 'text-blue-500'
+                          }`}>
+                            {point.duty_pct != null ? `${Math.round(point.duty_pct)}%` : "-"}
                           </td>
                         )}
                       </tr>
