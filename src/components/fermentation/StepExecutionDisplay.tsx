@@ -74,23 +74,38 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
       color: tempDone ? 'hsl(142 70% 50%)' : 'hsl(38 92% 55%)',
     });
   } else {
-    // Standard temp display for non-gradual steps.
-    // Skip for active ramp steps — the "Rampar upp/ner" row below already shows
-    // start → end and live progress, so a separate "Mål" line is redundant/confusing.
-    const displayTarget = effectiveTarget ?? currentStep.target_temp;
-    const skipForRamp = stepType === 'ramp' && isRamping;
+    // For ramp steps the step's own target_temp is the authoritative destination —
+    // never trust profileTargetTemp here (can lag during step transitions).
+    // For non-ramp steps, prefer the live profileTargetTemp (gradual_ramp etc.).
+    const isRampStep = stepType === 'ramp';
+    const displayTarget = isRampStep
+      ? (currentStep.target_temp ?? effectiveTarget)
+      : (effectiveTarget ?? currentStep.target_temp);
+
+    // Skip when the explicit "Rampar upp/ner" row below will render (linear ramp in progress).
+    const skipForRamp = isRampStep && isRamping;
     if (displayTarget != null && !skipForRamp) {
+      const isUp = isRampStep && stepStartTemp != null && displayTarget > stepStartTemp;
+      const isDown = isRampStep && stepStartTemp != null && displayTarget < stepStartTemp;
       const tempItem: ExecutionItem = {
-        label: 'Mål',
-        icon: <Thermometer className={iconClass} />,
+        label: isUp ? 'Rampar upp mot' : isDown ? 'Rampar ner mot' : 'Mål',
+        icon: isUp ? <ArrowUp className={iconClass} /> : isDown ? <ArrowDown className={iconClass} /> : <Thermometer className={iconClass} />,
         value: `${displayTarget.toFixed(1)}°`,
-        color: 'hsl(var(--primary))',
+        color: isRampStep ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))',
       };
       if (currentTemp != null) {
         const diff = Math.abs(currentTemp - displayTarget);
-        tempItem.detail = `${currentTemp.toFixed(1)}°`;
-        tempItem.progress = Math.max(0, Math.min(1, 1 - diff / 5));
-        tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
+        tempItem.detail = isRampStep && stepStartTemp != null
+          ? `från ${stepStartTemp.toFixed(1)}° · nu ${currentTemp.toFixed(1)}°`
+          : `${currentTemp.toFixed(1)}°`;
+        tempItem.progress = isRampStep && stepStartTemp != null && stepStartTemp !== displayTarget
+          ? Math.max(0, Math.min(1, (currentTemp - stepStartTemp) / (displayTarget - stepStartTemp)))
+          : Math.max(0, Math.min(1, 1 - diff / 5));
+        if (!isRampStep) {
+          tempItem.color = diff <= 0.5 ? 'hsl(142 70% 50%)' : diff <= 2 ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))';
+        } else if (diff <= 0.5) {
+          tempItem.color = 'hsl(142 70% 50%)';
+        }
       }
       items.push(tempItem);
     }
