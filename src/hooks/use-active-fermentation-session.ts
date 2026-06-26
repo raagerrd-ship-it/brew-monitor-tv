@@ -142,13 +142,17 @@ export function useActiveFermentationSession({
     }
   }, [preloadedSession, compact, brewId]);
 
-  // Realtime for dynamic-target steps
-  const currentStepType = preloadedSession?.steps?.[preloadedSession.current_step_index]?.step_type;
-  const isDynamicTargetStep = currentStepType === 'ramp' || currentStepType === 'gradual_ramp' || currentStepType === 'diacetyl_rest';
+  // Realtime: keep controllerData in sync with rapt_temp_controllers for any active session.
+  // Subscribes for both preloaded (compact) and non-preloaded (expanded/loadSession) paths
+  // so profile_target_temp updates (e.g. step skips) propagate without a page reload.
+  const realtimeControllerId =
+    (preloadedSession && compact ? preloadedSession.controller_id : null) ??
+    session?.controller_id ??
+    controllerId ??
+    null;
 
   useEffect(() => {
-    if (!preloadedSession || !compact || !isDynamicTargetStep) return;
-    const cId = preloadedSession.controller_id;
+    const cId = realtimeControllerId;
     if (!cId) return;
 
     const channel = supabase
@@ -171,7 +175,7 @@ export function useActiveFermentationSession({
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [preloadedSession?.controller_id, compact, isDynamicTargetStep]);
+  }, [realtimeControllerId]);
 
   // Load session (non-preloaded)
   const loadSession = useCallback(async () => {
