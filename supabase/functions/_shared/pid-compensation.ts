@@ -150,7 +150,12 @@ export async function calculateCompensatedTarget(
     floorSource = `mode-seed→${phaseBucket}`
   }
 
-  const ssFloorRaw = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
+  const SS_FLOOR_HARD_CAP = 0.30 // Capa inlärt kylgolv: undvik 60-70% första-burst vid små överskridanden.
+  const ssFloorRawUncapped = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
+  const ssFloorRaw = Math.min(ssFloorRawUncapped, SS_FLOOR_HARD_CAP)
+  if (ssFloorRawUncapped > SS_FLOOR_HARD_CAP) {
+    constraints.push(`ss-floor-cap(${(ssFloorRawUncapped * 100).toFixed(0)}→${(SS_FLOOR_HARD_CAP * 100).toFixed(0)}%)`)
+  }
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
   let persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
