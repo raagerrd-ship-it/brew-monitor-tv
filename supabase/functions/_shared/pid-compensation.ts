@@ -333,6 +333,11 @@ function computeDutyV4(input: {
   if (need <= 0) {
     duty = (isHold && input.uFf > 0) ? input.uFf * 0.15 : 0
     constraints.push('past-target-coast')
+    // Mild I-bleed: förhindrar windup när vi tvingas till 0 men felet är litet/negativt.
+    // Drar nextI mot 0 med halva Ki-takten per minut.
+    const bleed = (KiPerHour * dtMin / 60) * 0.5
+    nextI = Math.max(0, nextI - bleed)
+    constraints.push(`coast-i-bleed(${bleed.toFixed(3)})`)
   }
 
   // ── Panik: > 2°C error → full action ──
