@@ -364,10 +364,17 @@ function computeDutyV4(input: {
   // ── Pill-säkerhet (cooling): progressiv top-cap, hård bottom-stop ──
   if (isCooling && input.pillTempNow != null) {
     const excess = input.pillTempNow - input.actualTarget
-    if (excess > PILL_TOP_CAP) {
+    // SSOT-first: top-cap får BARA tvinga kyla om snittet (actualTemp) också ligger över mål.
+    // Annars (stratifierat: varm topp / kall botten) skulle kylning förvärra stratifieringen
+    // eftersom kylspiralen sitter i botten. Då litar vi på SSOT istället.
+    const ssotAboveTarget = input.actualTemp > input.actualTarget + 0.05
+    if (excess > PILL_TOP_CAP && ssotAboveTarget) {
       const floor = Math.max(0.12, Math.min(0.40, 0.12 + (excess - PILL_TOP_CAP) * 0.25))
       duty = Math.max(duty, floor)
       constraints.push(`pill-top-cap(${excess.toFixed(2)}→${Math.round(floor * 100)}%)`)
+    } else if (excess > PILL_TOP_CAP) {
+      // Stratifiering upptäckt — logga men forcera inte cooling.
+      constraints.push(`pill-top-cap-skip-stratified(pill+${excess.toFixed(2)},ssot=${input.actualTemp.toFixed(2)})`)
     } else if (input.pillTempNow < input.actualTarget - PILL_BOTTOM_STOP) {
       duty = 0
       nextI = 0
