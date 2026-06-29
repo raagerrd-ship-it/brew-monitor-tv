@@ -19,6 +19,7 @@ interface SnapshotRow {
   controller_temp: number | null;
   profile_target_temp: number | null;
   auto_target_temp: number | null;
+  actual_temp: number | null;
   duty_pct: number | null;
   cooling_enabled: boolean | null;
 }
@@ -55,7 +56,7 @@ export function SyncedDataDialog({
       // Thinning policy caps snapshots at ~500 per brew, no pagination needed
       const { data, error } = await supabase
         .from("brew_data_snapshots")
-        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp, duty_pct, cooling_enabled")
+        .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, auto_target_temp, actual_temp, duty_pct, cooling_enabled")
         .eq("brew_id", brewId)
         .order("recorded_at", { ascending: false });
 
@@ -124,20 +125,16 @@ export function SyncedDataDialog({
   }, [open, brewId, fetchSnapshots]);
 
   const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
-  const hasAvgTemp = hasControllerData && snapshots.some((s) => {
-    if (controllerStatus?.dual_sensor_enabled === false) {
-      return s.pill_temp != null || s.auto_target_temp != null;
-    }
-    return s.auto_target_temp != null;
-  });
+  // SSOT: always show actual_temp as "Snitt" (it already reflects the user's
+  // preferred sensor / dual-fusion choice — backend writes it that way).
+  const hasAvgTemp = hasControllerData && snapshots.some(
+    (s) => s.actual_temp != null || s.auto_target_temp != null,
+  );
   const hasDuty = snapshots.some((s) => s.duty_pct != null);
 
   const getDisplayActualTemp = useCallback((point: SnapshotRow) => {
-    if (controllerStatus?.dual_sensor_enabled === false) {
-      return point.pill_temp ?? point.auto_target_temp;
-    }
-    return point.auto_target_temp;
-  }, [controllerStatus?.dual_sensor_enabled]);
+    return point.actual_temp ?? point.auto_target_temp;
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
