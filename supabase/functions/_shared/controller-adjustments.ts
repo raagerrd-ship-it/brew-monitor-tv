@@ -1033,6 +1033,25 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
     )
 
+    // ── Emergency: no-heat undershoot coast ──
+    // När heating ej är aktiverat på controllern kan MODE_FLOOR_BLOCK / capability-
+    // guard tvinga oss att stanna i cooling även när probe ligger under mål. Då
+    // ska vi absolut INTE fortsätta kyla (uFf/margin-scale kan annars lyfta duty
+    // över past-target-coast). Tvinga duty=0 så systemet får återhämta sig
+    // passivt tills probe åter passerar mål.
+    if (
+      pidMode === 'cooling' &&
+      !fc.heating_enabled &&
+      pidResult.dutyCycle != null && pidResult.dutyCycle > 0 &&
+      actualTemp < actualTarget - 0.1
+    ) {
+      const blockedDuty = Math.round(pidResult.dutyCycle * 100)
+      pidResult.dutyCycle = 0
+      ;(pidResult.constraints ??= []).push('no-heat-undershoot-coast')
+      log('DUTY_FORCE_ZERO', 'action',
+        `${fc.name}: probe ${round1(actualTemp)}° < mål ${round1(actualTarget)}° och heating ej aktiverat → tvingar duty 0% (PID ville ${blockedDuty}%)`)
+    }
+
     // Log PID status
     const constraintLabels = pidResult.constraints && pidResult.constraints.length > 0 ? pidResult.constraints : []
 
