@@ -1011,6 +1011,15 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
+    // Probe-only mode: user has explicitly disabled dual sensor AND picked the
+    // probe as the trusted sensor. In that case pill is untrusted — don't let
+    // pill-top-cap / pill-bottom-stop / top-overshoot-guard override the PID
+    // result computed from the probe.
+    const probeOnlyMode = !dualEnabled && preferred === 'probe'
+    const pillTempForSafety = probeOnlyMode
+      ? null
+      : ((fc as any).pill_temp != null ? parseFloat(String((fc as any).pill_temp)) : null)
+
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
@@ -1019,7 +1028,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       modeJustSwitched,
       phaseBucket,
       floorLookupTarget,
-      (fc as any).pill_temp != null ? parseFloat(String((fc as any).pill_temp)) : null,
+      pillTempForSafety,
       raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
       (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
     )
