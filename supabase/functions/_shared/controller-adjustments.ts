@@ -1034,22 +1034,35 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     )
 
     // ── Emergency: no-heat undershoot coast ──
-    // När heating ej är aktiverat på controllern kan MODE_FLOOR_BLOCK / capability-
-    // guard tvinga oss att stanna i cooling även när probe ligger under mål. Då
-    // ska vi absolut INTE fortsätta kyla (uFf/margin-scale kan annars lyfta duty
-    // över past-target-coast). Tvinga duty=0 så systemet får återhämta sig
-    // passivt tills probe åter passerar mål.
+    // Heating ej aktiverat → vi kan inte korrigera överskjutning. Tillåt därför
+    // bara mjuk "anticipatory" kylning när vi närmar oss mål underifrån:
+    //   error >= 0          → full PID (över mål, behövs)
+    //   -0.3 < error < 0    → linjär soft-cap (0 → 3%) för mjuk inbromsning
+    //   error <= -0.3       → tvinga 0% (för långt under, låt drift återhämta)
     if (
       pidMode === 'cooling' &&
       !fc.heating_enabled &&
       pidResult.dutyCycle != null && pidResult.dutyCycle > 0 &&
-      actualTemp < actualTarget - 0.1
+      actualTemp < actualTarget
     ) {
-      const blockedDuty = Math.round(pidResult.dutyCycle * 100)
-      pidResult.dutyCycle = 0
-      ;(pidResult.constraints ??= []).push('no-heat-undershoot-coast')
-      log('DUTY_FORCE_ZERO', 'action',
-        `${fc.name}: probe ${round1(actualTemp)}° < mål ${round1(actualTarget)}° och heating ej aktiverat → tvingar duty 0% (PID ville ${blockedDuty}%)`)
+      const err = actualTarget - actualTemp // positivt = under mål
+      const requestedPct = Math.round(pidResult.dutyCycle * 100)
+      if (err >= 0.3) {
+        pidResult.dutyCycle = 0
+        ;(pidResult.constraints ??= []).push('no-heat-undershoot-coast')
+        log('DUTY_FORCE_ZERO', 'action',
+          `${fc.name}: probe ${round1(actualTemp)}° ≥0.3° under mål ${round1(actualTarget)}° och heating ej aktiverat → tvingar duty 0% (PID ville ${requestedPct}%)`)
+      } else {
+        // Linjär soft-cap: 0% vid err=0.3, upp till 3% vid err≈0
+        const softCapPct = Math.max(0, Math.round(3 * (1 - err / 0.3)))
+        const cappedPct = Math.min(requestedPct, softCapPct)
+        if (cappedPct < requestedPct) {
+          pidResult.dutyCycle = cappedPct / 100
+          ;(pidResult.constraints ??= []).push(`no-heat-soft-approach(${cappedPct}%)`)
+          log('DUTY_SOFT_CAP', 'action',
+            `${fc.name}: probe ${round1(actualTemp)}° närmar mål ${round1(actualTarget)}° (err ${err.toFixed(2)}°) → mjuk-cap duty ${cappedPct}% (PID ville ${requestedPct}%)`)
+        }
+      }
     }
 
     // Log PID status
