@@ -384,13 +384,17 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString()
           };
 
-          // Stamp probe freshness ONLY when probe value actually changed (or first-seen).
-          // BLE-ingest writes last_update every minute, so we need a separate timestamp
-          // to detect when the RAPT probe has gone silent.
-          const prevProbe = existing?.current_temp != null ? Number(existing.current_temp) : null;
-          const newProbe = currentTemp != null ? Number(currentTemp) : null;
-          if (newProbe != null && (prevProbe == null || Math.abs(newProbe - prevProbe) > 1e-6)) {
-            updateData.current_temp_updated_at = new Date().toISOString();
+          // Probe freshness = when the RAPT controller last reported in (lastActivityTime
+          // from the API). Using value-change detection is wrong: a stable probe value
+          // would falsely look stale and trigger probe-stale damping in the PID even
+          // though the controller just reported. RAPT's `lastActivityTime` is the
+          // authoritative "last heard from device" timestamp.
+          if (currentTemp != null) {
+            const lat = (controller as any).lastActivityTime;
+            const latMs = lat ? Date.parse(lat) : NaN;
+            updateData.current_temp_updated_at = Number.isFinite(latMs)
+              ? new Date(latMs).toISOString()
+              : new Date().toISOString();
           }
 
           // No BLE ingest in this project — RAPT sync is the sole source of last_update.
