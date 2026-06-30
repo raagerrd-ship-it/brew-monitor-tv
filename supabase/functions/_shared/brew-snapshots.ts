@@ -31,22 +31,38 @@ export async function createBrewSnapshot(
     const raw = data.actual_temp ?? pill_temp ?? controller_temp ?? null;
     const resolvedActualTemp = raw != null ? Math.round(raw * 100) / 100 : null;
 
-    // Resolve PWM duty + cooling mode from latest controller history if not supplied.
+    // Resolve PWM duty + cooling mode. SSOT: `fermentation_learnings.pid_last_duty`
+    // is written by the PID on every cycle. Reading it here keeps the snapshot
+    // DWT column in sync with the dashboard's PWM bar (same source, same age).
+    // `temp_controller_history` only writes every 15 min, so falling back to it
+    // would lag snapshots by up to 15 min and produce divergent numbers in UI.
     let duty = data.duty_pct ?? null;
     let cooling = data.cooling_enabled ?? null;
     if ((duty == null || cooling == null) && data.controller_id) {
-      const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data: hist } = await supabase
-        .from('temp_controller_history')
-        .select('duty_pct, cooling_enabled')
-        .eq('controller_id', data.controller_id)
-        .gte('recorded_at', since)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (hist) {
-        if (duty == null) duty = hist.duty_pct ?? null;
-        if (cooling == null) cooling = hist.cooling_enabled ?? null;
+      // pid_last_duty (fresh, per-cycle)
+      if (duty == null) {
+        const { data: dutyRow } = await supabase
+          .from('fermentation_learnings')
+          .select('learned_value, last_updated_at')
+          .eq('controller_id', data.controller_id)
+          .eq('parameter_name', 'pid_last_duty')
+          .maybeSingle();
+        if (dutyRow) {
+          const ageMs = dutyRow.last_updated_at
+            ? Date.now() - new Date(dutyRow.last_updated_at).getTime()
+            : Infinity;
+          // 15-min stale guard (matches UI bar in use-brew-data.ts)
+          duty = ageMs > 15 * 60 * 1000 ? 0 : Number(dutyRow.learned_value);
+        }
+      }
+      // cooling_enabled still comes from the live controller row
+      if (cooling == null) {
+        const { data: ctrlRow } = await supabase
+          .from('rapt_temp_controllers')
+          .select('cooling_enabled')
+          .eq('controller_id', data.controller_id)
+          .maybeSingle();
+        if (ctrlRow) cooling = ctrlRow.cooling_enabled ?? null;
       }
     }
 
