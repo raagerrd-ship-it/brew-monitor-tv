@@ -207,7 +207,6 @@ function computeDutyV4(input: {
   actualTemp: number             // SSOT (bulk) — PID error source
   pillTempNow: number | null     // pill (top) — endast säkerhetstak
   pillRate: number | null
-  uFf: number                    // feedforward från ssFloor (0 om olärd)
   persistedIntegral: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
@@ -278,8 +277,6 @@ function computeDutyV4(input: {
     nextI += KiPerHour * need * dtMin / 60 * staleScale
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   }
-  // Steady-state-flagga för ssFloor-lärning (caller läser denna).
-  if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
   // Bleed I när vi passerat mål — skyddar mot windup vid undershoot.
   if (need < -0.01) {
     nextI *= 0.85
@@ -288,15 +285,13 @@ function computeDutyV4(input: {
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Sammanställ duty ──
-  const raw = input.uFf + uP + nextI
+  const raw = uP + nextI
   let duty = Math.max(0, Math.min(1, raw))
 
-  // (uff-micro-gate borttagen — uFf är nu alltid 0, ingen gating behövs)
-
-  // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty mot uFf+0.08.
+  // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty till 8%.
   // Hindrar 30%+ burst på 0.1° overshoot innan probe hunnit rapportera.
   if (isCooling && input.probeAgeMin != null && input.probeAgeMin > 8 && need < 0 && Math.abs(need) < 0.25) {
-    const cap = (input.uFf > 0 ? input.uFf : 0) + 0.08
+    const cap = 0.08
     if (duty > cap) {
       duty = cap
       constraints.push(`probe-stale-cap(${(cap*100).toFixed(0)}%)`)
@@ -305,7 +300,7 @@ function computeDutyV4(input: {
 
   // ── Past-target coast ──
   if (need <= 0) {
-    duty = (isHold && input.uFf > 0) ? input.uFf * 0.15 : 0
+    duty = 0
     constraints.push('past-target-coast')
     // Mild I-bleed: förhindrar windup när vi tvingas till 0 men felet är litet/negativt.
     // Drar nextI mot 0 med halva Ki-takten per minut.
