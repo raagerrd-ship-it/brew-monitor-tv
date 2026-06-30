@@ -191,10 +191,10 @@ export async function calculateCompensatedTarget(
       deadbandGainScale = Math.max(0.6, Math.min(1.8, coolerMarginContext.learnedMargin / actualMargin))
     }
   }
-  const uFf = ssFloorRaw > 0 && ssParamResolved.sampleCount >= 5
-    ? ssFloorRaw * deadbandGainScale
-    : 0
-  if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
+  // ssFloor är avaktiverat som duty-källa (ren PI + margin-scaling räcker).
+  // Skrivlogiken i controller-adjustments behålls för diagnostik.
+  const uFf = 0
+  void ssFloorRaw; void deadbandGainScale
 
   // ── Core PI ──
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
