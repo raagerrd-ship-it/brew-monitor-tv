@@ -692,10 +692,47 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           log('MODE_RAMP_OVERRIDE_DRIFT_BYPASS', 'info',
             `${fc.name}: ramp ${rampMode} override SKIPPED — drift ${driftDelta!.toFixed(2)}°/${RAMP_OVERRIDE_DRIFT_MINUTES}min ≥ ${RAMP_OVERRIDE_DRIFT_LIMIT}°, tillåter ${suggestedMode}`)
         } else {
-          log('MODE_RAMP_OVERRIDE', 'info',
-            `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode}${driftDelta != null ? `, drift ${driftDelta.toFixed(2)}°/${RAMP_OVERRIDE_DRIFT_MINUTES}min` : ''})`)
-          suggestedMode = rampMode
-          rampOverrideApplied = true
+          // Sustained-overshoot bypass: även om driften är liten, om temp legat
+          // på fel sida om target i minst 30 min i rad (t.ex. gradual_ramp som
+          // nått sitt mål och nu står still strax över), släpp override så vi
+          // kan kyla mjukt tillbaka istället för att låsa heating-läget.
+          const RAMP_OVERRIDE_SUSTAINED_MINUTES = 30
+          const RAMP_OVERRIDE_SUSTAINED_BAND = 0.05
+          let sustainedBypass = false
+          let sustainedSamples = 0
+          if (overshoot > RAMP_OVERRIDE_SUSTAINED_BAND) {
+            const sinceIso = new Date(Date.now() - (RAMP_OVERRIDE_SUSTAINED_MINUTES + 2) * 60_000).toISOString()
+            const { data: sustRows } = await ctx.supabase
+              .from('temp_controller_history')
+              .select('actual_temp, target_temp, recorded_at')
+              .eq('controller_id', fc.controller_id)
+              .gte('recorded_at', sinceIso)
+              .order('recorded_at', { ascending: true })
+            if (sustRows && sustRows.length >= 4) {
+              sustainedSamples = sustRows.length
+              const allOnWrongSide = sustRows.every(r => {
+                const at = Number(r.actual_temp)
+                const tg = Number(r.target_temp ?? actualTarget)
+                if (!Number.isFinite(at) || !Number.isFinite(tg)) return false
+                return rampMode === 'heating'
+                  ? at > tg + RAMP_OVERRIDE_SUSTAINED_BAND
+                  : at < tg - RAMP_OVERRIDE_SUSTAINED_BAND
+              })
+              const spanMin = (new Date(sustRows[sustRows.length - 1].recorded_at).getTime() - new Date(sustRows[0].recorded_at).getTime()) / 60_000
+              if (allOnWrongSide && spanMin >= RAMP_OVERRIDE_SUSTAINED_MINUTES - 2) {
+                sustainedBypass = true
+              }
+            }
+          }
+          if (sustainedBypass) {
+            log('MODE_RAMP_OVERRIDE_SUSTAINED_BYPASS', 'info',
+              `${fc.name}: ramp ${rampMode} override SKIPPED — temp legat ${overshoot.toFixed(2)}° på fel sida i ≥${RAMP_OVERRIDE_SUSTAINED_MINUTES}min (${sustainedSamples} samples), tillåter ${suggestedMode}`)
+          } else {
+            log('MODE_RAMP_OVERRIDE', 'info',
+              `${fc.name}: ramp ${rampMode} override (temp ${round1(actualTemp)}° vs target ${round1(actualTarget)}°, would have been ${suggestedMode}${driftDelta != null ? `, drift ${driftDelta.toFixed(2)}°/${RAMP_OVERRIDE_DRIFT_MINUTES}min` : ''})`)
+            suggestedMode = rampMode
+            rampOverrideApplied = true
+          }
         }
       }
     }
