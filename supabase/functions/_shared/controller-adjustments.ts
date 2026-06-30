@@ -834,11 +834,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       lastUpdateMs <= prevActualTempAt * 1000
     const isStaleData = rawStaleData
 
-    // === Pill rate (for ramp boost — computed from temp_delta_history in caller) ===
-    // Uses the already-fetched pressureMap rates when available. Falls back to
-    // a quick delta_history query only when actually needed for ramp context.
-    let pillRate: number | null = null
-
     // Use pre-fetched utilization (calculated in parallel before the loop)
     let coolingUtil: number | null = null
     let recentUtil: number | null = null
@@ -850,77 +845,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       }
     }
 
-    // Build ramp context for PID rate-aware boost
-    let rampContext:
-      | { requiredRatePerHour: number; tempBucket: string; loadBucket: string }
-      | null = null
-    if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
-      const tempBucket = getTempBucket(ctrlTarget)
-      const activeCoolingCount = followedControllersFullData.filter(c => c.cooling_enabled).length
-      const loadBucket = activeCoolingCount === 0 ? 'load_0' : activeCoolingCount === 1 ? 'load_1' : 'load_2plus'
-      const distance = actualTemp - actualTarget
-      if (distance > 0.5) {
-        const estimatedRate = Math.max(0.5, distance / 4)
-        rampContext = { requiredRatePerHour: estimatedRate, tempBucket, loadBucket }
-      }
-    }
-
-    // Fetch recent pill rate whenever we are actively regulating near or past
-    // target — needed for predictive brake-zone expansion in BOTH heating and
-    // cooling (calculateCompensatedTarget uses Math.abs(pillRate) symmetrically).
-    // Without this, a heating ramp landing on its target has no momentum signal
-    // and the heater keeps gassing while afterheat carries temp past setpoint.
-    // BLE-linked controllers: ALWAYS compute pillRate (every minute) so the
-    // predictive brake has a momentum signal also during ramps/temp-adjustments
-    // — not just within 0.3° of target. Lets us "pull the handbrake" before
-    // overshoot is baked in by thermal lag.
-    const isNearCoolingTarget = pidMode === 'cooling' && (actualTemp - actualTarget) > 0.3
-    const isNearHeatingTarget = pidMode === 'heating' && (actualTarget - actualTemp) > 0.3
-    const shouldFetchPillRate = isBleLinked || isNearCoolingTarget || isNearHeatingTarget
-    if (shouldFetchPillRate) {
-      const { data: deltaHistory } = await supabase
-        .from('temp_delta_history')
-        .select('pill_temp, recorded_at')
-        .eq('controller_id', fc.controller_id)
-        .order('recorded_at', { ascending: false })
-        .limit(isBleLinked ? 5 : 8)
-      // BLE: kräv minst 3 prov över ≥2 min (≈ 2-3 min fönster på 1-min data).
-      // RAPT: kräv ≥3 prov och >3 min spann (gles data).
-      const minSpanHours = isBleLinked ? (2 / 60) : 0.05
-      if (deltaHistory && deltaHistory.length >= 3) {
-        const newest = deltaHistory[0]
-        const oldest = deltaHistory[deltaHistory.length - 1]
-        const timeDiffMs = new Date(newest.recorded_at).getTime() - new Date(oldest.recorded_at).getTime()
-        const timeDiffHours = timeDiffMs / (1000 * 60 * 60)
-        if (timeDiffHours > minSpanHours) {
-          pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
-        }
-      }
-    }
-
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
-    const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
 
-    // Probe-only mode: user has explicitly disabled dual sensor AND picked the
-    // probe as the trusted sensor. In that case pill is untrusted — don't let
-    // pill-top-cap / pill-bottom-stop / top-overshoot-guard override the PID
-    // result computed from the probe.
-    const probeOnlyMode = !dualEnabled && preferred === 'probe'
-    const pillTempForSafety = probeOnlyMode
-      ? null
-      : ((fc as any).pill_temp != null ? parseFloat(String((fc as any).pill_temp)) : null)
+    // SSOT-stale-signal: använd den färskaste indikatorn vi har. Probe är
+    // ofta flaskhalsen (15 min RAPT-intervall) — om vi har explicit
+    // current_temp_updated_at använder vi den; annars controllerns last_update.
+    const ssotAgeMin = probeAgeMin != null ? probeAgeMin : staleMinutes
 
     const pidResult = await calculateCompensatedTarget(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
-      pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, false,
+      pidInputTemp, isStaleData, coolingUtil,
       modeJustSwitched,
-      pillTempForSafety,
-      raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
-      (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
       8,
-      probeAgeMin,
+      ssotAgeMin,
     )
 
     // ── Emergency: no-heat undershoot coast ──
@@ -974,7 +913,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ctrl_target_pid: round1(pidResult.ctrlTargetPid),
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
-      pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
       mode: pidMode,
       step_type: stepType,
       duty_cycle: pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : undefined,
