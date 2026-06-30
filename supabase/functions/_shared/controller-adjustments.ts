@@ -512,6 +512,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     }
     const lastUpdateMs = fc.last_update ? new Date(fc.last_update as string).getTime() : Date.now()
     const staleMinutes = (Date.now() - lastUpdateMs) / 60000
+    // Probe-freshness: RAPT API rapporterar bara probe-värdet var ~15:e min. Probe sitter
+    // vid kylspiralen i botten — när den är "stale" speglar pill (top) bara stratifiering,
+    // inte den verkliga kyleffekten. Skala ner PI-svaret tills probe uppdateras.
+    const probeUpdatedAt = (fc as any).current_temp_updated_at as string | null | undefined
+    const probeAgeMin = probeUpdatedAt
+      ? (Date.now() - new Date(probeUpdatedAt).getTime()) / 60000
+      : null
     const thermalBucket = getTempBucket(actualTemp)
 
     // Use pre-fetched learnings (from batch query above)
