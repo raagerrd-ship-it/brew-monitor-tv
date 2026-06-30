@@ -847,7 +847,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
-    const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
 
     // SSOT-stale-signal: använd den färskaste indikatorn vi har. Probe är
     // ofta flaskhalsen (15 min RAPT-intervall) — om vi har explicit
