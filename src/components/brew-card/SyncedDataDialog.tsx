@@ -246,12 +246,14 @@ export function SyncedDataDialog({
                           <td className={`py-1.5 text-right font-mono ${
                             point.duty_pct == null
                               ? 'text-muted-foreground/40'
-                              : point.cooling_enabled === false
-                                ? 'text-orange-500'
-                                : 'text-blue-500'
+                              : point.cooling_enabled === true
+                                ? 'text-blue-500'
+                                : point.cooling_enabled === false
+                                  ? 'text-red-500'
+                                  : 'text-muted-foreground/40'
                           }`}>
                             {point.duty_pct != null
-                              ? `${point.cooling_enabled === false ? 'H' : 'C'} ${Math.round(point.duty_pct)}%`
+                              ? `${Math.round(point.duty_pct)}%`
                               : "-"}
                           </td>
                         )}
