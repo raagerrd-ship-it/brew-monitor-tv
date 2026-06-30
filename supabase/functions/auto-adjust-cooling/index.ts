@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { round1, TempController, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
-import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
+import { getTempBucket } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
 // StallSettings removed — stall-boost feature removed
@@ -359,18 +359,6 @@ Deno.serve(async (req) => {
         details.step_index = profileInfo.stepIndex;
         if (profileInfo.currentStepType) details.step_type = profileInfo.currentStepType;
         if (profileInfo.hasCooloff) details.cooloff = true;
-      }
-
-      // Add learned duty cycle percentage if available (for non-glycol, active controllers)
-      // Use profile target or original target for bucket (target_temp may be -5°C during PWM burst)
-      if (!isGlycol && isFollowed && !isStale) {
-        const dutyBucketTemp = originalTarget !== targetTemp && originalTarget < 900 ? originalTarget : targetTemp;
-        const cBucket = getTempBucket(dutyBucketTemp);
-        const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
-        if (dutyParam.sampleCount >= 1 && dutyParam.value > 0) {
-          details.duty_pct = Math.round(dutyParam.value * 100); // raw percentage (integer)
-          details.duty_samples = dutyParam.sampleCount;
-        }
       }
 
       log('SYNC_DATA', 'info', `Controller: ${controller.name}`, details);
