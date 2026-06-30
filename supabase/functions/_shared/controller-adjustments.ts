@@ -1000,10 +1000,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // ── Single merged upsert for all PID state ──
     // PID operational state (duty, mode, interpolation) must ALWAYS be persisted,
-    // even during idle (skipLearning). Only ssFloor learning is gated.
+    // even during idle (skipLearning).
     {
       const now = new Date().toISOString()
-      const epochSec = Math.floor(Date.now() / 1000)
       const rows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = [
         { controller_id: fc.controller_id, parameter_name: 'mode_switch_pressure', learned_value: switchPressure, sample_count: switchPressure, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'mode_last_probe', learned_value: round1(actualTemp)!, sample_count: 1, last_updated_at: now },
@@ -1015,59 +1014,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ]
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
-      }
-      // ssFloor learning: only when NOT in idle mode
-      // ssFloor represents the duty needed to MAINTAIN the target, so learning
-      // should happen during all near-target states, not just "pure" deadband.
-      if (!ctx.skipLearning) {
-        // V3 constraint tags: `steady-state` = |need| ≤ 0.30°C, observer-fused,
-        // not mode-switching. That's the only window ssFloor learning is
-        // meaningful. Skip when any guard/brake/cap was active (signal is
-        // contaminated by transient hardware action).
-        const tags = pidResult.constraints ?? []
-        const isSteady = tags.includes('steady-state')
-        const isMildOvershoot = tags.includes('overshoot-bleed')
-        const conflictTags = new Set([
-          'predictive-brake', 'bottom-undershoot-guard', 'top-overshoot-guard',
-          'past-target-coast', 'full-action', 'mass-coast', 'util-sat-cap',
-        ])
-        const hasConflict = tags.some(t => conflictTags.has(t) || t.startsWith('margin-scale=') || t.startsWith('ramp-boost='))
-        const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-        const canLearnSsFloor = hasDutyData && !isRampStep && !hasConflict && (isSteady || isMildOvershoot)
-        if (canLearnSsFloor) {
-          const dutyBucket = getTempBucket(actualTarget)
-          // Phase-keyed write key when phase is known, otherwise mode-keyed
-          // (preserves prior behaviour for standalone controllers / no brew).
-          const dutyParamName = phaseBucket
-            ? `steady_state_duty:${pidMode}:${dutyBucket}:${phaseBucket}`
-            : `steady_state_duty:${pidMode}:${dutyBucket}`
-          const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
-          // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
-          const { data: existingSs } = await supabase
-            .from('fermentation_learnings')
-            .select('sample_count, learned_value')
-            .eq('controller_id', fc.controller_id)
-            .eq('parameter_name', dutyParamName)
-            .maybeSingle()
-          const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
-          const currentSamples = existingSs?.sample_count ?? 0
-          const tolerance = isMildOvershoot ? 0.50 : 0.20
-          const isSeeding = currentFloor === 0 || currentSamples < 3
-          const isStable = isSeeding || Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
-          if (isStable && (quantizedDuty > 0 || currentFloor > 0)) {
-            let learnedValue = quantizedDuty
-            if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
-              const alpha = currentSamples === 0 ? 0.5 : 0.3
-              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode}${phaseBucket ? `:${phaseBucket}` : ''} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
-            } else if (isMildOvershoot && currentFloor > 0) {
-              const alpha = 0.4
-              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-            }
-            const ssCount = currentSamples + 1
-            rows.push({ controller_id: fc.controller_id, parameter_name: dutyParamName, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
-          }
-        }
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
       await Promise.all([
