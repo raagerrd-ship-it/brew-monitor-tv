@@ -264,9 +264,13 @@ function computeDutyV5(input: {
   if (need <= 0) {
     duty = 0
     constraints.push('past-target-coast')
-    const bleed = (KiPerHour * dtMin / 60) * 0.5
+    // Mildare bleed nära mål (|err|<0.20°) så I får etablera steady-state bias
+    // som matchar värmeinflödet. Aggressivare bleed vid större överskridanden.
+    const nearTarget = Math.abs(avgError) < 0.20
+    const bleedFactor = nearTarget ? 0.15 : 0.5
+    const bleed = (KiPerHour * dtMin / 60) * bleedFactor
     nextI = Math.max(0, nextI - bleed)
-    constraints.push(`coast-i-bleed(${bleed.toFixed(3)})`)
+    constraints.push(`coast-i-bleed(${bleed.toFixed(3)}${nearTarget ? ',near' : ''})`)
   }
 
   if (need > 2.0) {
