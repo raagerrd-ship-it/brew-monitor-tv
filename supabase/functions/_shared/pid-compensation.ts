@@ -191,10 +191,10 @@ export async function calculateCompensatedTarget(
       deadbandGainScale = Math.max(0.6, Math.min(1.8, coolerMarginContext.learnedMargin / actualMargin))
     }
   }
-  const uFf = ssFloorRaw > 0 && ssParamResolved.sampleCount >= 5
-    ? ssFloorRaw * deadbandGainScale
-    : 0
-  if (deadbandGainScale !== 1.0) constraints.push(`margin-scale=${deadbandGainScale.toFixed(2)}`)
+  // ssFloor är avaktiverat som duty-källa (ren PI + margin-scaling räcker).
+  // Skrivlogiken i controller-adjustments behålls för diagnostik.
+  const uFf = 0
+  void ssFloorRaw; void deadbandGainScale
 
   // ── Core PI ──
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
@@ -345,18 +345,7 @@ function computeDutyV4(input: {
   const raw = input.uFf + uP + nextI
   let duty = Math.max(0, Math.min(1, raw))
 
-  // Micro-error gating på uFf: vid små överskridanden (need < 0.30°C) skalas
-  // feedforward linjärt 0→1× så att 0.10° över mål inte triggar full ssFloor-burst.
-  // Skyddar mot 30%+ duty på mikro-overshoot när bottenproben fortfarande ligger på mål.
-  if (isCooling && input.uFf > 0 && need > 0 && need < 0.30) {
-    const gate = need / 0.30
-    const cappedUFf = input.uFf * gate
-    const gatedDuty = cappedUFf + uP + nextI
-    if (gatedDuty < duty) {
-      duty = Math.max(0, Math.min(1, gatedDuty))
-      constraints.push(`uff-micro-gate(${(gate*100).toFixed(0)}%)`)
-    }
-  }
+  // (uff-micro-gate borttagen — uFf är nu alltid 0, ingen gating behövs)
 
   // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty mot uFf+0.08.
   // Hindrar 30%+ burst på 0.1° overshoot innan probe hunnit rapportera.

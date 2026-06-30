@@ -604,16 +604,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // mode-byte på interpolerade värden (i praktiken samma datapunkt 3 ggr).
     const isFreshReading = true
 
-    // ── ssFloor check: block mode switch when established floor exists ──
-    // If we have a learned steady-state duty floor > 0 for the CURRENT mode,
-    // the system KNOWS it needs continuous action in that mode.
-    // Switching away would be wrong — just reduce duty instead.
-    const ssBucketForMode = getTempBucket(actualTarget)
-    // Check mode-specific floor first, fall back to legacy key for cooling
-    const coolingFloor = pressureMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? pressureMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
-    const coolingFloorSamples = sampleCountMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? sampleCountMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
-    const heatingFloor = pressureMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
-    const heatingFloorSamples = sampleCountMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
+    // ssFloor som mode-block är avaktiverat (orsakade deadlock vid stale buckets).
+    // Mode-switch styrs nu enbart av aktuell temp vs target + neutralband.
 
     // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
     // små över-/undershoots passivt. Asymmetriskt:
@@ -661,11 +653,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       fc.heating_enabled && fc.cooling_enabled
 
     if (!emergencyOverride) {
-      // Block switch to heating if we have a confirmed cooling floor
-      if (suggestedMode === 'heating' && prevMode === 'cooling' && coolingFloor > 0 && coolingFloorSamples >= 5) {
-        suggestedMode = 'cooling'
-        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(coolingFloor * 100).toFixed(0)}% (${coolingFloorSamples} prover), stannar i cooling`)
-      }
       // EQUALIZATION GUARD: even without a mature floor, if we were just cooling
       // (lastDuty > 0 in cooling mode) and the undershoot is mild, the drop is
       // almost certainly residual jacket-cold diffusing into wort — not real
@@ -683,14 +670,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         log('MODE_EQUALIZATION_HOLD', 'info',
           `${fc.name}: blockerar heating — nyss kylde (${lastDutyPct}% duty), undershoot ${rawDistanceToTarget.toFixed(2)}° ≤ 1.0° tolkas som termisk utjämning, väntar på passiv återhämtning`)
       }
-      // Block switch to cooling if we have a confirmed heating floor
-      if (suggestedMode === 'cooling' && prevMode === 'heating' && heatingFloor > 0 && heatingFloorSamples >= 5) {
-        suggestedMode = 'heating'
-        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar cooling — inlärt värmegolv ${(heatingFloor * 100).toFixed(0)}% (${heatingFloorSamples} prover), stannar i heating`)
-      }
-    } else {
-      log('MODE_FLOOR_BLOCK_BYPASS', 'info',
-        `${fc.name}: hoppar över floor-block, Δ${rawDistanceToTarget.toFixed(2)}° > ${emergencyThreshold}° kräver omedelbart läge=${suggestedMode}`)
     }
 
     // During active profile ramp, force mode to match ramp direction
