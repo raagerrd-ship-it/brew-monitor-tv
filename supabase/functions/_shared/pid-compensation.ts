@@ -346,9 +346,18 @@ function computeDutyV4(input: {
   }
 
   // ── Heating-säkerhet: top-overshoot-guard ──
+  // SSOT-first (symmetri med pill-top-cap-skip-stratified): guard:en får BARA
+  // capa heating om bulken (actualTemp) faktiskt är nära/över mål. Vid
+  // stratifiering (varm topp / kall botten) skulle capningen förvärra läget
+  // eftersom värmaren behövs för att mixa. Då litar vi på SSOT.
   if (!isCooling && input.pillTempNow != null && input.pillTempNow > input.actualTarget + 0.3) {
-    duty = Math.min(duty, 0.2)
-    constraints.push('top-overshoot-guard')
+    const ssotBelowTarget = input.actualTemp < input.actualTarget - 0.05
+    if (!ssotBelowTarget) {
+      duty = Math.min(duty, 0.2)
+      constraints.push('top-overshoot-guard')
+    } else {
+      constraints.push(`top-overshoot-skip-stratified(pill+${(input.pillTempNow - input.actualTarget).toFixed(2)},ssot=${input.actualTemp.toFixed(2)})`)
+    }
   }
 
   // ── Util saturation ──
