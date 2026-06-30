@@ -670,9 +670,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         log('MODE_EQUALIZATION_HOLD', 'info',
           `${fc.name}: blockerar heating — nyss kylde (${lastDutyPct}% duty), undershoot ${rawDistanceToTarget.toFixed(2)}° ≤ 1.0° tolkas som termisk utjämning, väntar på passiv återhämtning`)
       }
-    } else {
-      log('MODE_FLOOR_BLOCK_BYPASS', 'info',
-        `${fc.name}: hoppar över floor-block, Δ${rawDistanceToTarget.toFixed(2)}° > ${emergencyThreshold}° kräver omedelbart läge=${suggestedMode}`)
     }
 
     // During active profile ramp, force mode to match ramp direction
