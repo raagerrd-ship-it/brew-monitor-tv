@@ -55,14 +55,25 @@ export async function createBrewSnapshot(
           duty = ageMs > 15 * 60 * 1000 ? 0 : Number(dutyRow.learned_value);
         }
       }
-      // cooling_enabled still comes from the live controller row
+      // Active PID mode (not hardware capability). `pid_current_mode` is written
+      // by the PID every cycle: 1=heating, 2=cooling. Reading the controller's
+      // `cooling_enabled` flag is wrong — it just says "cooling is allowed",
+      // not which mode is actually running right now.
       if (cooling == null) {
-        const { data: ctrlRow } = await supabase
-          .from('rapt_temp_controllers')
-          .select('cooling_enabled')
+        const { data: modeRow } = await supabase
+          .from('fermentation_learnings')
+          .select('learned_value, last_updated_at')
           .eq('controller_id', data.controller_id)
+          .eq('parameter_name', 'pid_current_mode')
           .maybeSingle();
-        if (ctrlRow) cooling = ctrlRow.cooling_enabled ?? null;
+        if (modeRow) {
+          const ageMs = modeRow.last_updated_at
+            ? Date.now() - new Date(modeRow.last_updated_at).getTime()
+            : Infinity;
+          if (ageMs <= 15 * 60 * 1000) {
+            cooling = Number(modeRow.learned_value) === 2;
+          }
+        }
       }
     }
 
