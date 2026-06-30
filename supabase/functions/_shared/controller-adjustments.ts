@@ -604,16 +604,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // mode-byte på interpolerade värden (i praktiken samma datapunkt 3 ggr).
     const isFreshReading = true
 
-    // ── ssFloor check: block mode switch when established floor exists ──
-    // If we have a learned steady-state duty floor > 0 for the CURRENT mode,
-    // the system KNOWS it needs continuous action in that mode.
-    // Switching away would be wrong — just reduce duty instead.
-    const ssBucketForMode = getTempBucket(actualTarget)
-    // Check mode-specific floor first, fall back to legacy key for cooling
-    const coolingFloor = pressureMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? pressureMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
-    const coolingFloorSamples = sampleCountMap.get(`steady_state_duty:cooling:${ssBucketForMode}`) ?? sampleCountMap.get(`steady_state_duty:${ssBucketForMode}`) ?? 0
-    const heatingFloor = pressureMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
-    const heatingFloorSamples = sampleCountMap.get(`steady_state_duty:heating:${ssBucketForMode}`) ?? 0
+    // ssFloor som mode-block är avaktiverat (orsakade deadlock vid stale buckets).
+    // Mode-switch styrs nu enbart av aktuell temp vs target + neutralband.
 
     // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
     // små över-/undershoots passivt. Asymmetriskt:
