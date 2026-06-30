@@ -1038,6 +1038,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       pillTempForSafety,
       raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
       (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
+      8,
+      probeAgeMin,
     )
 
     // ── Emergency: no-heat undershoot coast ──
