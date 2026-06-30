@@ -653,11 +653,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       fc.heating_enabled && fc.cooling_enabled
 
     if (!emergencyOverride) {
-      // Block switch to heating if we have a confirmed cooling floor
-      if (suggestedMode === 'heating' && prevMode === 'cooling' && coolingFloor > 0 && coolingFloorSamples >= 5) {
-        suggestedMode = 'cooling'
-        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar heating — inlärt kylgolv ${(coolingFloor * 100).toFixed(0)}% (${coolingFloorSamples} prover), stannar i cooling`)
-      }
       // EQUALIZATION GUARD: even without a mature floor, if we were just cooling
       // (lastDuty > 0 in cooling mode) and the undershoot is mild, the drop is
       // almost certainly residual jacket-cold diffusing into wort — not real
@@ -674,11 +669,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         suggestedMode = 'cooling'
         log('MODE_EQUALIZATION_HOLD', 'info',
           `${fc.name}: blockerar heating — nyss kylde (${lastDutyPct}% duty), undershoot ${rawDistanceToTarget.toFixed(2)}° ≤ 1.0° tolkas som termisk utjämning, väntar på passiv återhämtning`)
-      }
-      // Block switch to cooling if we have a confirmed heating floor
-      if (suggestedMode === 'cooling' && prevMode === 'heating' && heatingFloor > 0 && heatingFloorSamples >= 5) {
-        suggestedMode = 'heating'
-        log('MODE_FLOOR_BLOCK', 'info', `${fc.name}: blockerar cooling — inlärt värmegolv ${(heatingFloor * 100).toFixed(0)}% (${heatingFloorSamples} prover), stannar i heating`)
       }
     } else {
       log('MODE_FLOOR_BLOCK_BYPASS', 'info',
