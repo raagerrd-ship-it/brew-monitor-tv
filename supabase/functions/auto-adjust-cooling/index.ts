@@ -295,9 +295,18 @@ Deno.serve(async (req) => {
               rampDirection = stepTarget > stepStartTemp ? 'heating' : 'cooling';
             }
           }
-          // gradual_ramp always ramps upward (temp_increase > 0)
+          // gradual_ramp (Smart diacetylvila): först ramp upp till diacetyl-mål,
+          // sen hold-fas på samma mål. Behåll heating-låsning bara så länge vi
+          // fortfarande är under målet (ramp-fas). När vi nått/passerat målet
+          // är vi i hold-fasen och PID ska få byta läge fritt.
           if (currentStep && currentStep.step_type === 'gradual_ramp') {
-            rampDirection = 'heating';
+            const ctrlActual = controllerData?.actual_temp != null ? parseFloat(String(controllerData.actual_temp)) : null;
+            const RAMP_PHASE_BAND = 0.15;
+            if (effectiveTarget != null && ctrlActual != null && ctrlActual >= effectiveTarget - RAMP_PHASE_BAND) {
+              rampDirection = null;  // hold-fas — släpp ramp-override
+            } else {
+              rampDirection = 'heating';
+            }
           }
 
           profileStatusMap.set(session.controller_id, {
