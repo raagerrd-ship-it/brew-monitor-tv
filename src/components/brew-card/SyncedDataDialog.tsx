@@ -250,7 +250,9 @@ export function SyncedDataDialog({
                                 ? 'text-orange-500'
                                 : 'text-blue-500'
                           }`}>
-                            {point.duty_pct != null ? `${Math.round(point.duty_pct)}%` : "-"}
+                            {point.duty_pct != null
+                              ? `${point.cooling_enabled === false ? 'H' : 'C'} ${Math.round(point.duty_pct)}%`
+                              : "-"}
                           </td>
                         )}
                       </tr>
