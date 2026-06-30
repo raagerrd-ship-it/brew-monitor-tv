@@ -529,23 +529,6 @@ Deno.serve(async (req) => {
     const baseTargetMap = new Map<string, number>();
     const sharedUtilizations = new Map<string, import('../_shared/cooler-management.ts').UtilizationResult>();
 
-    // ── Build cooler margin context for margin-aware PID gain scaling ──
-    let coolerMarginCtx: { coolerTemp: number; learnedMargin: number } | null = null;
-    const coolerController = allControllers.find(c => (c as any).is_glycol_cooler);
-    if (coolerController) {
-      const coolerTemp = parseFloat(String(coolerController.current_temp ?? coolerController.pill_temp ?? '0'));
-      const { data: marginLearning } = await supabase
-        .from('fermentation_learnings')
-        .select('learned_value, sample_count')
-        .eq('controller_id', coolerController.controller_id)
-        .eq('parameter_name', 'cooler_margin:cold')
-        .maybeSingle();
-      if (marginLearning && marginLearning.sample_count >= 5) {
-        coolerMarginCtx = { coolerTemp, learnedMargin: parseFloat(String(marginLearning.learned_value)) };
-        log('MARGIN_CTX', 'info', `Cooler margin context: coolerTemp=${coolerTemp.toFixed(1)}°, learnedMargin=${coolerMarginCtx.learnedMargin.toFixed(2)}°`);
-      }
-    }
-
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
       followedControllersFullData, profileOwnedControllerIds,
@@ -557,7 +540,6 @@ Deno.serve(async (req) => {
       baseTargetMap,
       skipLearning: systemIsIdle,
       sharedUtilizations,
-      coolerMarginContext: coolerMarginCtx,
     };
 
     // Circuit-breaker: hämta öppna kretsar för aktiva controllers så PID
