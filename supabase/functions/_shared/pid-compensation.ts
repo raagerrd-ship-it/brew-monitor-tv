@@ -105,6 +105,7 @@ export async function calculateCompensatedTarget(
   probeTempRaw?: number | null,
   pillProbeOffset?: number | null,
   coolingPwmWindowMin: number = 8,
+  probeAgeMin?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pillRate?: number | null; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -207,6 +208,7 @@ export async function calculateCompensatedTarget(
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     prevState,
+    probeAgeMin: probeAgeMin ?? null,
   })
   let dutyCycle = r.duty
   const integral = r.integral
@@ -264,6 +266,7 @@ function computeDutyV4(input: {
   modeJustSwitched: boolean
   coolingUtilization: number | null
   prevState: V4PidState
+  probeAgeMin?: number | null
 }): { duty: number; integral: number; p: number; constraints: string[]; nextState: V4PidState } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
@@ -317,8 +320,16 @@ function computeDutyV4(input: {
   let nextI = integral
   // Brett dödband: i ±0.10°C händer inget med I.
   const inDeadband = Math.abs(avgError) <= COOL.Deadband
+  // Probe-staleness scale: probe-värdet uppdateras bara var ~15 min via RAPT API.
+  // Vid liten error och stale probe — dämpa I-ackumulationen så vi inte bygger windup
+  // på pill-drift (top) innan vi sett vad kylspiralen i botten faktiskt gjort.
+  let staleScale = 1.0
+  if (isCooling && input.probeAgeMin != null && input.probeAgeMin > 8 && Math.abs(need) < 0.30) {
+    staleScale = Math.max(0.2, 1 - (input.probeAgeMin - 8) / 12)
+    constraints.push(`probe-stale-i(${input.probeAgeMin.toFixed(0)}m→${staleScale.toFixed(2)}x)`)
+  }
   if (!inDeadband && Math.abs(need) <= IZone && !input.modeJustSwitched) {
-    nextI += KiPerHour * need * dtMin / 60
+    nextI += KiPerHour * need * dtMin / 60 * staleScale
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   }
   // Steady-state-flagga för ssFloor-lärning (caller läser denna).
@@ -333,6 +344,16 @@ function computeDutyV4(input: {
   // ── Sammanställ duty ──
   const raw = input.uFf + uP + nextI
   let duty = Math.max(0, Math.min(1, raw))
+
+  // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty mot uFf+0.08.
+  // Hindrar 30%+ burst på 0.1° overshoot innan probe hunnit rapportera.
+  if (isCooling && input.probeAgeMin != null && input.probeAgeMin > 8 && need < 0 && Math.abs(need) < 0.25) {
+    const cap = (input.uFf > 0 ? input.uFf : 0) + 0.08
+    if (duty > cap) {
+      duty = cap
+      constraints.push(`probe-stale-cap(${(cap*100).toFixed(0)}%)`)
+    }
+  }
 
   // ── Past-target coast ──
   if (need <= 0) {
