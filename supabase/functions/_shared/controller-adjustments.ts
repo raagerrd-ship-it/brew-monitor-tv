@@ -54,8 +54,6 @@ export interface ControllerAdjustmentContext {
   /** Populated by PID: maps controller_id → pre-calculated UtilizationResult.
    *  Shared with cooler to avoid duplicate DB queries. */
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
-  /** Cooler context for margin-aware PID gain scaling */
-  coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null
   /** Circuit-breaker: controllers vars RAPT-writes är pausade pga konsekutiva fel. */
   openCircuitControllerIds?: Set<string>
 }
@@ -382,34 +380,20 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
   // Collect all possible parameter names (including all temp bucket variants)
   const TEMP_BUCKETS = ['cold', 'cool', 'warm', 'hot']
-  const PHASE_BUCKETS = ['active', 'tail', 'clean'] as const
   const BASE_PARAMS = [
     'mode_switch_pressure', 'mode_last_probe', 'pid_current_mode',
     'pid_last_duty', 'mode_last_step_index', 'pid_effective_target',
     'thermal_rate_heating', 'thermal_rate_cooling',
-    'est_prev_actual_temp', 'est_prev_actual_temp_at',
-    'est_observed_rate', 'est_observed_duty', 'est_last_prediction',
+    'est_prev_actual_temp_at',
     'was_ramp_active',
   ]
   const bucketParams = TEMP_BUCKETS.flatMap(b => [
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
-    `steady_state_duty:${b}`,  // legacy (migration fallback)
-    `steady_state_duty:cooling:${b}`, `steady_state_duty:heating:${b}`,
-    // Phase-keyed floors: separates floor per fermentation heat-load class
-    // so phase transitions don't require slow erosion to converge.
-    ...PHASE_BUCKETS.flatMap(p => [
-      `steady_state_duty:cooling:${b}:${p}`,
-      `steady_state_duty:heating:${b}:${p}`,
-    ]),
   ])
   const allParamNames = [...BASE_PARAMS, ...bucketParams]
 
-  // Fetch fermentation phase per controller (via sessionBrewIdMap → brew metrics)
-  // so each PID cycle knows whether the brew is in active/tail/clean exotherm.
-  const controllerBrewIds = Array.from(ctx.sessionBrewIdMap.values()).filter(Boolean) as string[]
-
   // Fire all queries in parallel
-  const [{ data: allLearnings }, utilResults, { data: phaseMetrics }] = await Promise.all([
+  const [{ data: allLearnings }, utilResults] = await Promise.all([
     // 1. Single batch query for all fermentation_learnings
     supabase.from('fermentation_learnings')
       .select('controller_id, parameter_name, learned_value, sample_count')
@@ -424,30 +408,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           return { controllerId: fc.controller_id, result }
         })
     ),
-    // 3. Fermentation phase per brew (for phase-keyed ssFloor)
-    controllerBrewIds.length > 0
-      ? supabase.from('brew_fermentation_metrics')
-          .select('brew_id, fermentation_phase')
-          .in('brew_id', controllerBrewIds)
-      : Promise.resolve({ data: [] }),
   ])
-
-  // Build controller → phaseBucket map. Raw phases collapse into 3 heat-load
-  // classes: lag/exponential → 'active', declining → 'tail', stationary → 'clean'.
-  // Controllers without a brew or with unknown phase get null (falls back to
-  // mode-keyed floor in calculateCompensatedTarget — original behaviour).
-  const phaseByBrew = new Map<string, string>()
-  for (const row of (phaseMetrics ?? [])) {
-    if (row.fermentation_phase) phaseByBrew.set(row.brew_id, row.fermentation_phase)
-  }
-  const phaseBucketByController = new Map<string, 'active' | 'tail' | 'clean'>()
-  for (const [controllerId, brewId] of ctx.sessionBrewIdMap.entries()) {
-    const phase = brewId ? phaseByBrew.get(brewId) : undefined
-    if (!phase || phase === 'unknown') continue
-    if (phase === 'lag' || phase === 'exponential') phaseBucketByController.set(controllerId, 'active')
-    else if (phase === 'declining') phaseBucketByController.set(controllerId, 'tail')
-    else if (phase === 'stationary') phaseBucketByController.set(controllerId, 'clean')
-  }
 
   // Build per-controller lookup maps
   const learningsByController = new Map<string, Map<string, number>>()
@@ -599,13 +560,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isBleLinked = !!(fc as any).linked_pill_id
     const MODE_SWITCH_CYCLES = isBleLinked ? 2 : 3
     const STALL_MIN_PROGRESS = 0.05
-    // RAPT rapporterar var ~15:e min men PID-cron körs var 5:e min. Räkna
-    // bara pressure-cykler där vi har FÄRSK probe-data — annars baseras
-    // mode-byte på interpolerade värden (i praktiken samma datapunkt 3 ggr).
-    const isFreshReading = true
-
-    // ssFloor som mode-block är avaktiverat (orsakade deadlock vid stale buckets).
-    // Mode-switch styrs nu enbart av aktuell temp vs target + neutralband.
 
     // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
     // små över-/undershoots passivt. Asymmetriskt:
@@ -803,7 +757,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         }
       } else if (isStable) {
-        if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
           switchPressure = 0
@@ -814,13 +768,13 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         } else {
           pidMode = prevMode!
-          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabil fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${needsDutyZero ? ', duty=0%' : ', ramp-bypass'}${isFreshReading ? '' : ', interp-skip'})`, {
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (stabil fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${needsDutyZero ? ', duty=0%' : ', ramp-bypass'})`, {
             suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
             velocity: round1(velocity), distance: round1(distanceToTarget),
           })
         }
       } else {
-        if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+        switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
         if (switchPressure >= MODE_SWITCH_CYCLES) {
           pidMode = suggestedMode
           switchPressure = 0
@@ -830,7 +784,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           })
         } else {
           pidMode = prevMode!
-          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (divergerar fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES}${isFreshReading ? '' : ', interp-skip'})`, {
+          log('MODE_HOLD', 'info', `${fc.name}: stannar i ${prevMode} (divergerar fel sida, tryck ${switchPressure}/${MODE_SWITCH_CYCLES})`, {
             suggested: suggestedMode, pressure: switchPressure, threshold: MODE_SWITCH_CYCLES,
             distance: round1(distanceToTarget),
           })
@@ -839,10 +793,8 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     } else if (onWrongSide) {
       // Litet fel (0.05–0.6°C) på fel sida: ackumulera tryck istället för att låsa
       // pressure på 1. Krypande fel ska annars aldrig nå MODE_SWITCH_CYCLES.
-      // Räknas bara på färska RAPT-läsningar — interpolerade värden får inte
-      // driva mode-byten (annars triggar 3 cron-cykler inom 15 min på 1 datapunkt).
       pidMode = prevMode ?? suggestedMode
-      if (isFreshReading) switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
+      switchPressure = Math.min(switchPressure + 1, MODE_SWITCH_CYCLES + 1)
       if (switchPressure >= MODE_SWITCH_CYCLES && lastDutyPct === 0) {
         pidMode = suggestedMode
         switchPressure = 0
@@ -900,8 +852,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // Build ramp context for PID rate-aware boost
     let rampContext:
-      | { requiredRatePerHour: number; tempBucket: string; loadBucket: string;
-          learnedHoldI?: number; etaMin?: number; endTarget?: number }
+      | { requiredRatePerHour: number; tempBucket: string; loadBucket: string }
       | null = null
     if (['ramp', 'gradual_ramp'].includes(stepType) && pidMode === 'cooling') {
       const tempBucket = getTempBucket(ctrlTarget)
@@ -926,7 +877,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isNearCoolingTarget = pidMode === 'cooling' && (actualTemp - actualTarget) > 0.3
     const isNearHeatingTarget = pidMode === 'heating' && (actualTarget - actualTemp) > 0.3
     const shouldFetchPillRate = isBleLinked || isNearCoolingTarget || isNearHeatingTarget
-    let pillEtaHours: number | null = null
     if (shouldFetchPillRate) {
       const { data: deltaHistory } = await supabase
         .from('temp_delta_history')
@@ -946,56 +896,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
         }
       }
-      // ETA-to-target — only meaningful when rate moves toward target.
-      if (pillRate != null && Math.abs(pillRate) > 0.1) {
-        const distance = pidMode === 'cooling' ? (actualTemp - actualTarget) : (actualTarget - actualTemp)
-        const approaching = (pidMode === 'cooling' && pillRate < 0) || (pidMode === 'heating' && pillRate > 0)
-        if (approaching && distance > 0) {
-          pillEtaHours = distance / Math.abs(pillRate)
-        }
-      }
     }
 
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
-    // Phase bucket: collapsed fermentation phase for this controller's brew.
-    const phaseBucket = phaseBucketByController.get(fc.controller_id) ?? null
-    // Ramp-bucket stabilisation: during an active ramp the live target crawls
-    // through multiple buckets — anchor the floor lookup to the ramp end-target
-    // (or current profile target for gradual_ramp) so floor learning doesn't
-    // fragment per bucket and lookups anticipate where we're heading.
     const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
-    const rampEndTarget = isRampStep ? (profileStatus?.profileTarget ?? null) : null
-    const floorLookupTarget = rampEndTarget != null ? rampEndTarget : null
-
-    // ── Predictive ramp brake context ──
-    // Beräkna ETA till rampens slut-target och hämta lärd hold-integral för
-    // slutbucketen, så PID kan börja sänka duty X min före rampslut istället
-    // för att enbart förlita sig på reaktiv wind-up-release efter rampJustFinished.
-    if (isRampStep && rampEndTarget != null && pillRate != null) {
-      const approachingEnd = (pidMode === 'cooling' && pillRate < -0.05) ||
-                             (pidMode === 'heating' && pillRate > 0.05)
-      const distanceToEnd = pidMode === 'cooling'
-        ? (actualTemp - rampEndTarget)
-        : (rampEndTarget - actualTemp)
-      if (approachingEnd && distanceToEnd > 0) {
-        const etaMin = (distanceToEnd / Math.abs(pillRate)) * 60
-        const endBucket = getTempBucket(rampEndTarget)
-        const { data: holdRow } = await supabase
-          .from('controller_learned_compensation')
-          .select('latest_i_correction')
-          .eq('controller_id', fc.controller_id)
-          .eq('delta_bucket', 'low')
-          .eq('mode', pidMode)
-          .eq('step_type', 'hold')
-          .maybeSingle()
-        const learnedHoldI = holdRow ? parseFloat(String(holdRow.latest_i_correction ?? '0')) : 0
-        rampContext = {
-          ...(rampContext ?? { requiredRatePerHour: 0, tempBucket: endBucket, loadBucket: 'load_0' }),
-          learnedHoldI, etaMin, endTarget: rampEndTarget,
-        }
-      }
-    }
 
     // Probe-only mode: user has explicitly disabled dual sensor AND picked the
     // probe as the trusted sensor. In that case pill is untrusted — don't let
@@ -1010,10 +915,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, false,
-      pidMode === 'cooling' ? ctx.coolerMarginContext : null,
       modeJustSwitched,
-      phaseBucket,
-      floorLookupTarget,
       pillTempForSafety,
       raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
       (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
@@ -1073,7 +975,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       p_correction: round1(pidResult.pCorrection ?? 0),
       i_correction: round1(pidResult.iCorrection ?? 0),
       pill_rate: pidResult.pillRate != null ? round1(pidResult.pillRate) : null,
-      pill_eta_min: pillEtaHours != null ? Math.round(pillEtaHours * 60) : null,
       mode: pidMode,
       step_type: stepType,
       duty_cycle: pidResult.dutyCycle != null ? Math.round(pidResult.dutyCycle * 100) : undefined,
@@ -1098,10 +999,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     // ── Single merged upsert for all PID state ──
     // PID operational state (duty, mode, interpolation) must ALWAYS be persisted,
-    // even during idle (skipLearning). Only ssFloor learning is gated.
+    // even during idle (skipLearning).
     {
       const now = new Date().toISOString()
-      const epochSec = Math.floor(Date.now() / 1000)
       const rows: Array<{ controller_id: string; parameter_name: string; learned_value: number; sample_count: number; last_updated_at: string }> = [
         { controller_id: fc.controller_id, parameter_name: 'mode_switch_pressure', learned_value: switchPressure, sample_count: switchPressure, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'mode_last_probe', learned_value: round1(actualTemp)!, sample_count: 1, last_updated_at: now },
@@ -1113,59 +1013,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       ]
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
-      }
-      // ssFloor learning: only when NOT in idle mode
-      // ssFloor represents the duty needed to MAINTAIN the target, so learning
-      // should happen during all near-target states, not just "pure" deadband.
-      if (!ctx.skipLearning) {
-        // V3 constraint tags: `steady-state` = |need| ≤ 0.30°C, observer-fused,
-        // not mode-switching. That's the only window ssFloor learning is
-        // meaningful. Skip when any guard/brake/cap was active (signal is
-        // contaminated by transient hardware action).
-        const tags = pidResult.constraints ?? []
-        const isSteady = tags.includes('steady-state')
-        const isMildOvershoot = tags.includes('overshoot-bleed')
-        const conflictTags = new Set([
-          'predictive-brake', 'bottom-undershoot-guard', 'top-overshoot-guard',
-          'past-target-coast', 'full-action', 'mass-coast', 'util-sat-cap',
-        ])
-        const hasConflict = tags.some(t => conflictTags.has(t) || t.startsWith('margin-scale=') || t.startsWith('ramp-boost='))
-        const hasDutyData = pidResult.dutyCycle != null && pidResult.iCorrection != null
-        const canLearnSsFloor = hasDutyData && !isRampStep && !hasConflict && (isSteady || isMildOvershoot)
-        if (canLearnSsFloor) {
-          const dutyBucket = getTempBucket(actualTarget)
-          // Phase-keyed write key when phase is known, otherwise mode-keyed
-          // (preserves prior behaviour for standalone controllers / no brew).
-          const dutyParamName = phaseBucket
-            ? `steady_state_duty:${pidMode}:${dutyBucket}:${phaseBucket}`
-            : `steady_state_duty:${pidMode}:${dutyBucket}`
-          const quantizedDuty = Math.round(pidResult.iCorrection! * 10) / 10
-          // Read current sample_count from DB to increment it (avoids resetting to 1 every cycle)
-          const { data: existingSs } = await supabase
-            .from('fermentation_learnings')
-            .select('sample_count, learned_value')
-            .eq('controller_id', fc.controller_id)
-            .eq('parameter_name', dutyParamName)
-            .maybeSingle()
-          const currentFloor = existingSs ? parseFloat(String(existingSs.learned_value)) : 0
-          const currentSamples = existingSs?.sample_count ?? 0
-          const tolerance = isMildOvershoot ? 0.50 : 0.20
-          const isSeeding = currentFloor === 0 || currentSamples < 3
-          const isStable = isSeeding || Math.abs(quantizedDuty - currentFloor) <= currentFloor * tolerance + 0.05
-          if (isStable && (quantizedDuty > 0 || currentFloor > 0)) {
-            let learnedValue = quantizedDuty
-            if (isSeeding && currentFloor === 0 && quantizedDuty > 0) {
-              const alpha = currentSamples === 0 ? 0.5 : 0.3
-              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-              log('SS_FLOOR_SEED', 'info', `${fc.name}: seeding ${pidMode}${phaseBucket ? `:${phaseBucket}` : ''} floor ${(learnedValue * 100).toFixed(0)}% from integral ${(quantizedDuty * 100).toFixed(0)}%`)
-            } else if (isMildOvershoot && currentFloor > 0) {
-              const alpha = 0.4
-              learnedValue = Math.round((currentFloor * (1 - alpha) + quantizedDuty * alpha) * 10) / 10
-            }
-            const ssCount = currentSamples + 1
-            rows.push({ controller_id: fc.controller_id, parameter_name: dutyParamName, learned_value: learnedValue, sample_count: ssCount, last_updated_at: now })
-          }
-        }
       }
       // Parallel: PID state (controller_learned_compensation) + learnings (fermentation_learnings)
       await Promise.all([

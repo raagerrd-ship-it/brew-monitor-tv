@@ -1,4 +1,4 @@
-import { getLearnedParam, getTempBucket, updateLearnedParam } from './learning-utils.ts'
+import { getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
 // PID Control & Thermal Learning (V4: BrewPi-stil)
@@ -93,14 +93,10 @@ export async function calculateCompensatedTarget(
   actualTemp: number,
   isStaleData: boolean,
   coolingUtilization?: number | null,
-  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string;
-                  learnedHoldI?: number; etaMin?: number; endTarget?: number } | null,
+  rampContext?: { requiredRatePerHour: number; tempBucket: string; loadBucket: string } | null,
   pillRate?: number | null,
   isInterpolated?: boolean,
-  coolerMarginContext?: { coolerTemp: number; learnedMargin: number } | null,
   modeJustSwitched?: boolean,
-  phaseBucket?: 'active' | 'tail' | 'clean' | null,
-  floorLookupTarget?: number | null,
   pillTempNow?: number | null,
   probeTempRaw?: number | null,
   pillProbeOffset?: number | null,
@@ -112,51 +108,16 @@ export async function calculateCompensatedTarget(
   void ctrlTarget; void isInterpolated; void probeTempRaw; void pillProbeOffset
   void controllerName
 
-  // ── Parallel fetch: PID state + ssFloor ──
-  const ssBucket = getTempBucket(floorLookupTarget ?? actualTarget)
-  const phaseSuffix = phaseBucket ? `:${phaseBucket}` : ''
-  const phaseKeyedName = `steady_state_duty:${mode}:${ssBucket}${phaseSuffix}`
-  const modeKeyedName = `steady_state_duty:${mode}:${ssBucket}`
-  const [{ data: learnedRow }, phaseParam, modeParam] = await Promise.all([
-    supabase
-      .from('controller_learned_compensation')
-      .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, sensor_anchor')
-      .eq('controller_id', controllerId)
-      .eq('delta_bucket', deltaBucket)
-      .eq('mode', mode)
-      .eq('step_type', stepType)
-      .maybeSingle(),
-    phaseBucket
-      ? getLearnedParam(supabase, controllerId, phaseKeyedName, 0)
-      : Promise.resolve({ value: 0, sampleCount: 0 } as { value: number; sampleCount: number }),
-    getLearnedParam(supabase, controllerId, modeKeyedName, 0),
-  ])
+  // ── Fetch PID state ──
+  const { data: learnedRow } = await supabase
+    .from('controller_learned_compensation')
+    .select('learned_pi_correction, convergence_count, accumulated_integral, latest_avg_error, sensor_anchor')
+    .eq('controller_id', controllerId)
+    .eq('delta_bucket', deltaBucket)
+    .eq('mode', mode)
+    .eq('step_type', stepType)
+    .maybeSingle()
 
-  // Floor resolution: phase → mode → legacy (cooling only) → mode-seed
-  let ssParamResolved: { value: number; sampleCount: number } = modeParam
-  let floorSource = 'mode'
-  if (phaseBucket && phaseParam.sampleCount >= 3) {
-    ssParamResolved = phaseParam
-    floorSource = `phase:${phaseBucket}`
-  }
-  if (ssParamResolved.sampleCount === 0 && mode === 'cooling') {
-    const legacyParam = await getLearnedParam(supabase, controllerId, `steady_state_duty:${ssBucket}`, 0)
-    if (legacyParam.sampleCount >= 5) {
-      ssParamResolved = legacyParam
-      floorSource = 'legacy'
-    }
-  }
-  if (phaseBucket && phaseParam.sampleCount < 3 && modeParam.sampleCount >= 5) {
-    ssParamResolved = modeParam
-    floorSource = `mode-seed→${phaseBucket}`
-  }
-
-  const SS_FLOOR_HARD_CAP = 0.30 // Capa inlärt kylgolv: undvik 60-70% första-burst vid små överskridanden.
-  const ssFloorRawUncapped = ssParamResolved.sampleCount >= 5 ? ssParamResolved.value : 0
-  const ssFloorRaw = Math.min(ssFloorRawUncapped, SS_FLOOR_HARD_CAP)
-  if (ssFloorRawUncapped > SS_FLOOR_HARD_CAP) {
-    constraints.push(`ss-floor-cap(${(ssFloorRawUncapped * 100).toFixed(0)}→${(SS_FLOOR_HARD_CAP * 100).toFixed(0)}%)`)
-  }
   const learnedBaseline = learnedRow ? parseFloat(String(learnedRow.learned_pi_correction)) : 0
   const convergenceCount = learnedRow?.convergence_count ?? 0
   let persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
@@ -181,21 +142,6 @@ export async function calculateCompensatedTarget(
     }
   })()
 
-  // ── Margin-aware floor scaling (cooling only) ──
-  // Större faktisk marginal (kallare glykol) → skala NED. Mindre marginal → skala UPP.
-  // Asymmetriskt fönster 0.6×–1.8×. Rör inte ssFloorRaw i DB — endast utskickad duty.
-  let deadbandGainScale = 1.0
-  if (mode === 'cooling' && coolerMarginContext && coolerMarginContext.learnedMargin > 0) {
-    const actualMargin = actualTemp - coolerMarginContext.coolerTemp
-    if (actualMargin > 0.5) {
-      deadbandGainScale = Math.max(0.6, Math.min(1.8, coolerMarginContext.learnedMargin / actualMargin))
-    }
-  }
-  // ssFloor är avaktiverat som duty-källa (ren PI + margin-scaling räcker).
-  // Skrivlogiken i controller-adjustments behålls för diagnostik.
-  const uFf = 0
-  void ssFloorRaw; void deadbandGainScale
-
   // ── Core PI ──
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
   const r = computeDutyV4({
@@ -203,7 +149,6 @@ export async function calculateCompensatedTarget(
     actualTarget, actualTemp,
     pillTempNow: pillTempNow ?? null,
     pillRate: pillRate ?? null,
-    uFf,
     persistedIntegral,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
@@ -229,7 +174,7 @@ export async function calculateCompensatedTarget(
 
   const avgError = actualTarget - actualTemp
   const need = mode === 'cooling' ? -avgError : avgError
-  console.log(`🎯 ${mode} ${controllerName} [${floorSource}]: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, uFf=${uFf.toFixed(3)}, kiAdj=${(r.nextState.kiAdjCooling ?? 1).toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
+  console.log(`🎯 ${mode} ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, kiAdj=${(r.nextState.kiAdjCooling ?? 1).toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
 
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
@@ -261,7 +206,6 @@ function computeDutyV4(input: {
   actualTemp: number             // SSOT (bulk) — PID error source
   pillTempNow: number | null     // pill (top) — endast säkerhetstak
   pillRate: number | null
-  uFf: number                    // feedforward från ssFloor (0 om olärd)
   persistedIntegral: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
@@ -332,8 +276,6 @@ function computeDutyV4(input: {
     nextI += KiPerHour * need * dtMin / 60 * staleScale
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   }
-  // Steady-state-flagga för ssFloor-lärning (caller läser denna).
-  if (Math.abs(need) <= 0.30 && !input.modeJustSwitched) constraints.push('steady-state')
   // Bleed I när vi passerat mål — skyddar mot windup vid undershoot.
   if (need < -0.01) {
     nextI *= 0.85
@@ -342,15 +284,13 @@ function computeDutyV4(input: {
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Sammanställ duty ──
-  const raw = input.uFf + uP + nextI
+  const raw = uP + nextI
   let duty = Math.max(0, Math.min(1, raw))
 
-  // (uff-micro-gate borttagen — uFf är nu alltid 0, ingen gating behövs)
-
-  // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty mot uFf+0.08.
+  // Probe-stale duty cap: vid små overshoot + stale probe, capa totalduty till 8%.
   // Hindrar 30%+ burst på 0.1° overshoot innan probe hunnit rapportera.
   if (isCooling && input.probeAgeMin != null && input.probeAgeMin > 8 && need < 0 && Math.abs(need) < 0.25) {
-    const cap = (input.uFf > 0 ? input.uFf : 0) + 0.08
+    const cap = 0.08
     if (duty > cap) {
       duty = cap
       constraints.push(`probe-stale-cap(${(cap*100).toFixed(0)}%)`)
@@ -359,7 +299,7 @@ function computeDutyV4(input: {
 
   // ── Past-target coast ──
   if (need <= 0) {
-    duty = (isHold && input.uFf > 0) ? input.uFf * 0.15 : 0
+    duty = 0
     constraints.push('past-target-coast')
     // Mild I-bleed: förhindrar windup när vi tvingas till 0 men felet är litet/negativt.
     // Drar nextI mot 0 med halva Ki-takten per minut.

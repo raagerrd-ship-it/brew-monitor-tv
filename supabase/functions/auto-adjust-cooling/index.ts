@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { round1, TempController, isSensorDataStale, filterStaleControllers, RaptUpdateBatch } from '../_shared/temp-utils.ts';
-import { getTempBucket, getLearnedParam } from '../_shared/learning-utils.ts';
+import { getTempBucket } from '../_shared/learning-utils.ts';
 import { insertNotification } from '../_shared/notifications.ts';
 import { AdjustmentResult } from '../_shared/adjustment-logger.ts';
 // StallSettings removed — stall-boost feature removed
@@ -361,18 +361,6 @@ Deno.serve(async (req) => {
         if (profileInfo.hasCooloff) details.cooloff = true;
       }
 
-      // Add learned duty cycle percentage if available (for non-glycol, active controllers)
-      // Use profile target or original target for bucket (target_temp may be -5°C during PWM burst)
-      if (!isGlycol && isFollowed && !isStale) {
-        const dutyBucketTemp = originalTarget !== targetTemp && originalTarget < 900 ? originalTarget : targetTemp;
-        const cBucket = getTempBucket(dutyBucketTemp);
-        const dutyParam = await getLearnedParam(supabase, controller.controller_id, `steady_state_duty:${cBucket}`, -1);
-        if (dutyParam.sampleCount >= 1 && dutyParam.value > 0) {
-          details.duty_pct = Math.round(dutyParam.value * 100); // raw percentage (integer)
-          details.duty_samples = dutyParam.sampleCount;
-        }
-      }
-
       log('SYNC_DATA', 'info', `Controller: ${controller.name}`, details);
     }
 
@@ -529,23 +517,6 @@ Deno.serve(async (req) => {
     const baseTargetMap = new Map<string, number>();
     const sharedUtilizations = new Map<string, import('../_shared/cooler-management.ts').UtilizationResult>();
 
-    // ── Build cooler margin context for margin-aware PID gain scaling ──
-    let coolerMarginCtx: { coolerTemp: number; learnedMargin: number } | null = null;
-    const coolerController = allControllers.find(c => (c as any).is_glycol_cooler);
-    if (coolerController) {
-      const coolerTemp = parseFloat(String(coolerController.current_temp ?? coolerController.pill_temp ?? '0'));
-      const { data: marginLearning } = await supabase
-        .from('fermentation_learnings')
-        .select('learned_value, sample_count')
-        .eq('controller_id', coolerController.controller_id)
-        .eq('parameter_name', 'cooler_margin:cold')
-        .maybeSingle();
-      if (marginLearning && marginLearning.sample_count >= 5) {
-        coolerMarginCtx = { coolerTemp, learnedMargin: parseFloat(String(marginLearning.learned_value)) };
-        log('MARGIN_CTX', 'info', `Cooler margin context: coolerTemp=${coolerTemp.toFixed(1)}°, learnedMargin=${coolerMarginCtx.learnedMargin.toFixed(2)}°`);
-      }
-    }
-
     const controllerCtx: ControllerAdjustmentContext = {
       supabase, supabaseUrl, serviceRoleKey: supabaseKey,
       followedControllersFullData, profileOwnedControllerIds,
@@ -557,7 +528,6 @@ Deno.serve(async (req) => {
       baseTargetMap,
       skipLearning: systemIsIdle,
       sharedUtilizations,
-      coolerMarginContext: coolerMarginCtx,
     };
 
     // Circuit-breaker: hämta öppna kretsar för aktiva controllers så PID

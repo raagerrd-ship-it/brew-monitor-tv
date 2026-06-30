@@ -527,7 +527,7 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
       const cBaseTarget = ctx.baseTargetMap?.get(c.controller_id) ?? parseFloat(String(c.target_temp ?? '20'))
       const cTempBucket = getTempBucket(cBaseTarget)
       controllerBucketMap.set(c.controller_id, cTempBucket)
-      warmingParamNames.push(`warming_rate:${cTempBucket}`, `steady_state_duty:cooling:${cTempBucket}`, `steady_state_duty:${cTempBucket}`)
+      warmingParamNames.push(`warming_rate:${cTempBucket}`)
     }
     // Batch-read all warming params for all controllers at once
     const allWarmingParams = await getLearnedParams(
@@ -548,13 +548,10 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
         const headroom = (targetTemp + hysteresis) - beerTemp
         if (headroom > 0) {
           const minutesUntilCooling = (headroom / warmingParam.value) * 60
-          const dutyParam = allWarmingParams.get(`${c.controller_id}:steady_state_duty:cooling:${cTempBucket}`) ?? allWarmingParams.get(`${c.controller_id}:steady_state_duty:${cTempBucket}`) ?? { value: -1, sampleCount: 0 }
-          const dutyThresholdMinutes = dutyParam.sampleCount >= 3 && dutyParam.value > 0.3
-            ? 20 : 15
+          const dutyThresholdMinutes = 15
 
           if (minutesUntilCooling < dutyThresholdMinutes) {
-            const dutyInfo = dutyParam.sampleCount >= 3 ? ` duty=${Math.round(dutyParam.value * 100)}%` : ''
-            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min${dutyInfo} — håller kylare redo`)
+            log('WARMING_PREDICT', 'action', `${c.name}: warming ${warmingParam.value.toFixed(2)}°C/h → kylning behövs om ~${Math.round(minutesUntilCooling)}min — håller kylare redo`)
             keepCoolerReady = true
             break
           }
