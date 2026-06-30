@@ -878,7 +878,6 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isNearCoolingTarget = pidMode === 'cooling' && (actualTemp - actualTarget) > 0.3
     const isNearHeatingTarget = pidMode === 'heating' && (actualTarget - actualTemp) > 0.3
     const shouldFetchPillRate = isBleLinked || isNearCoolingTarget || isNearHeatingTarget
-    let pillEtaHours: number | null = null
     if (shouldFetchPillRate) {
       const { data: deltaHistory } = await supabase
         .from('temp_delta_history')
@@ -898,56 +897,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           pillRate = (parseFloat(String(newest.pill_temp)) - parseFloat(String(oldest.pill_temp))) / timeDiffHours
         }
       }
-      // ETA-to-target — only meaningful when rate moves toward target.
-      if (pillRate != null && Math.abs(pillRate) > 0.1) {
-        const distance = pidMode === 'cooling' ? (actualTemp - actualTarget) : (actualTarget - actualTemp)
-        const approaching = (pidMode === 'cooling' && pillRate < 0) || (pidMode === 'heating' && pillRate > 0)
-        if (approaching && distance > 0) {
-          pillEtaHours = distance / Math.abs(pillRate)
-        }
-      }
     }
 
     // === PID Calculation (uses interpolated temp when available) ===
     const modeJustSwitched = prevMode != null && pidMode !== prevMode
-    // Phase bucket: collapsed fermentation phase for this controller's brew.
-    const phaseBucket = phaseBucketByController.get(fc.controller_id) ?? null
-    // Ramp-bucket stabilisation: during an active ramp the live target crawls
-    // through multiple buckets — anchor the floor lookup to the ramp end-target
-    // (or current profile target for gradual_ramp) so floor learning doesn't
-    // fragment per bucket and lookups anticipate where we're heading.
     const isRampStep = stepType === 'ramp' || stepType === 'gradual_ramp'
-    const rampEndTarget = isRampStep ? (profileStatus?.profileTarget ?? null) : null
-    const floorLookupTarget = rampEndTarget != null ? rampEndTarget : null
-
-    // ── Predictive ramp brake context ──
-    // Beräkna ETA till rampens slut-target och hämta lärd hold-integral för
-    // slutbucketen, så PID kan börja sänka duty X min före rampslut istället
-    // för att enbart förlita sig på reaktiv wind-up-release efter rampJustFinished.
-    if (isRampStep && rampEndTarget != null && pillRate != null) {
-      const approachingEnd = (pidMode === 'cooling' && pillRate < -0.05) ||
-                             (pidMode === 'heating' && pillRate > 0.05)
-      const distanceToEnd = pidMode === 'cooling'
-        ? (actualTemp - rampEndTarget)
-        : (rampEndTarget - actualTemp)
-      if (approachingEnd && distanceToEnd > 0) {
-        const etaMin = (distanceToEnd / Math.abs(pillRate)) * 60
-        const endBucket = getTempBucket(rampEndTarget)
-        const { data: holdRow } = await supabase
-          .from('controller_learned_compensation')
-          .select('latest_i_correction')
-          .eq('controller_id', fc.controller_id)
-          .eq('delta_bucket', 'low')
-          .eq('mode', pidMode)
-          .eq('step_type', 'hold')
-          .maybeSingle()
-        const learnedHoldI = holdRow ? parseFloat(String(holdRow.latest_i_correction ?? '0')) : 0
-        rampContext = {
-          ...(rampContext ?? { requiredRatePerHour: 0, tempBucket: endBucket, loadBucket: 'load_0' }),
-          learnedHoldI, etaMin, endTarget: rampEndTarget,
-        }
-      }
-    }
 
     // Probe-only mode: user has explicitly disabled dual sensor AND picked the
     // probe as the trusted sensor. In that case pill is untrusted — don't let
@@ -962,10 +916,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil, rampContext, pillRate, false,
-      pidMode === 'cooling' ? ctx.coolerMarginContext : null,
       modeJustSwitched,
-      phaseBucket,
-      floorLookupTarget,
       pillTempForSafety,
       raptProbeTemp != null ? parseFloat(String(raptProbeTemp)) : null,
       (fc as any).pill_probe_offset != null ? parseFloat(String((fc as any).pill_probe_offset)) : null,
