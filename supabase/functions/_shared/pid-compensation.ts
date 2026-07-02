@@ -37,6 +37,8 @@ interface V5PidState {
   peakMinTemp?: number
   kiAdjCooling?: number
   lastMode?: 'heating' | 'cooling'
+  stallBoostPct?: number      // 0..30 — långsam duty-boost när ingen progress
+  lastProgressAt?: string     // senaste tillfället progressRate > +0.02°C/min
 }
 
 // ── Tuning constants ─────────────────────────────────────────────────────
@@ -246,6 +248,14 @@ function computeDutyV5(input: {
   }
   nextI = Math.max(0, Math.min(Imax, nextI))
 
+  // ── Ki auto-recover: peak-arm triggar aldrig när vi ligger permanent över mål,
+  // så tune-down blir enkelriktad. Om I är mättad (>=90% av Imax) och vi
+  // fortfarande är off-target (need>0.15), bumpa kiAdj +10%/cykel.
+  if (isCooling && nextI >= 0.9 * Imax && need > 0.15 && !isStaleSsot) {
+    kiAdj = Math.min(2.5, kiAdj * 1.10)
+    constraints.push(`ki-recover(ki=${kiAdj.toFixed(2)})`)
+  }
+
   // ── D-term: D-on-measurement (bromsa när vi närmar oss mål) ──
   // progressRate > 0 = SSOT rör sig åt rätt håll → minska duty proportionellt.
   let dBrake = 0
@@ -278,16 +288,45 @@ function computeDutyV5(input: {
     constraints.push('full-action')
   }
 
-  // ── Cool-boost: snabba upp approach vid stora fel (1.0–2.0°C) ──
-  // Slow-PI (Kp=0.20) ger bara ~40% vid err=2°, vilket gör sista graden onödigt
-  // långsam. Sätt en golv-duty: err=1.0→70%, err=2.0→100% (linjär). Slew-cap
-  // bypassas redan när |need|>0.5, så inga trappstegs-problem.
-  if (isCooling && need >= 1.0 && need <= 2.0) {
-    const floor = Math.min(1.0, 0.40 + need * 0.30)
+  // ── Cool-boost: snabba upp approach vid mid/large fel (0.5–2.0°C) ──
+  // Linjär golv-duty: err=0.5→25%, err=1.0→50%, err=2.0→100%.
+  if (isCooling && need >= 0.5 && need <= 2.0) {
+    const floor = Math.min(1.0, 0.25 + (need - 0.5) * 0.5)
     if (duty < floor) {
       duty = floor
       constraints.push(`cool-boost(${(floor * 100).toFixed(0)}%)`)
     }
+  }
+
+  // ── Stall-boost: tidsbaserad långsam duty-ökning när SSOT inte rör sig
+  // åt rätt håll trots off-target. Bygger 0.5%/min duty, capad vid 30%.
+  // Nollställs när vi rör oss rätt eller når mål.
+  let stallBoost = Math.max(0, Math.min(0.30, input.prevState.stallBoostPct ?? 0))
+  let lastProgressAt = input.prevState.lastProgressAt
+  if (input.prevState.lastSsot != null && input.prevState.lastSsotAt && !isStaleSsot) {
+    const ratePerMin = (input.actualTemp - input.prevState.lastSsot) / dtMin
+    const progressRate = isCooling ? -ratePerMin : ratePerMin
+    if (need <= 0.05) {
+      stallBoost = 0
+      lastProgressAt = now
+    } else if (progressRate > 0.02) {
+      // Rör oss åt rätt håll → decay 2%/min
+      stallBoost = Math.max(0, stallBoost - 0.02 * dtMin)
+      lastProgressAt = now
+    } else if (need > 0.10) {
+      // Stall (0 eller fel håll) och off-target → bygg 0.5%/min
+      const stallMin = lastProgressAt
+        ? Math.max(0, (nowMs - new Date(lastProgressAt).getTime()) / 60000)
+        : dtMin
+      if (stallMin > 5) {
+        stallBoost = Math.min(0.30, stallBoost + 0.005 * dtMin)
+      }
+    }
+  }
+  if (stallBoost > 0 && need > 0.05) {
+    const before = duty
+    duty = Math.min(1, duty + stallBoost)
+    if (duty > before) constraints.push(`stall-boost(+${(stallBoost * 100).toFixed(1)}%)`)
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
@@ -383,6 +422,8 @@ function computeDutyV5(input: {
     peakMinTemp,
     kiAdjCooling: isCooling ? kiAdj : input.prevState.kiAdjCooling,
     lastMode: input.mode,
+    stallBoostPct: stallBoost,
+    lastProgressAt,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
