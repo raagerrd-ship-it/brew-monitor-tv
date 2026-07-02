@@ -237,8 +237,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
       const winMin = currentStep.stability_window_minutes ?? null
       const maxDev = currentStep.stability_max_deviation ?? null
       if (winMin && maxDev != null) {
-        const probeTemp = controller.current_temp != null ? parseFloat(String(controller.current_temp)) : null
-        const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, immRampCheckTemp, probeTemp, winMin, maxDev)
+        const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, immRampCheckTemp, null, winMin, maxDev)
         if (stab.ok) {
           stepCompleted = true
           actionTaken = 'temp_reached'
@@ -292,8 +291,7 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
           let stabilityOk = true
           let stabilityDetails: any = null
           if (winMin && maxDev != null && rampCheckTemp !== null) {
-            const probeTemp = controller.current_temp != null ? parseFloat(String(controller.current_temp)) : null
-            const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, rampCheckTemp, probeTemp, winMin, maxDev)
+            const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, rampCheckTemp, null, winMin, maxDev)
             stabilityOk = stab.ok
             stabilityDetails = stab.details
             if (!stabilityOk) {
