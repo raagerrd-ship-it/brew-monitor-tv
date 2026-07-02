@@ -246,10 +246,28 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
 
     if (controller && immRampCheckTemp !== null &&
       Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
-      stepCompleted = true
-      actionTaken = 'temp_reached'
-      actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp }
-      console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C reached target ${currentStep.target_temp}°C`)
+      // Temp inom 0.3° — kolla stability-fönster om konfigurerat (annars klart)
+      const winMin = currentStep.stability_window_minutes ?? null
+      const maxDev = currentStep.stability_max_deviation ?? null
+      if (winMin && maxDev != null) {
+        const probeTemp = controller.current_temp != null ? parseFloat(String(controller.current_temp)) : null
+        const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, immRampCheckTemp, probeTemp, winMin, maxDev)
+        if (stab.ok) {
+          stepCompleted = true
+          actionTaken = 'temp_reached'
+          actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp, stability: stab.details }
+          console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C stabil vid ${currentStep.target_temp}°C`)
+        } else {
+          actionTaken = 'waiting_for_stability'
+          actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp, stability: stab.details }
+          console.log(`Immediate ramp: temp nådd men stabilitet väntas (±${Math.min(maxDev, 0.1)}°C över ${winMin}min)`)
+        }
+      } else {
+        stepCompleted = true
+        actionTaken = 'temp_reached'
+        actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp }
+        console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C reached target ${currentStep.target_temp}°C`)
+      }
     } else {
       actionTaken = 'profile_target_set'
       actionDetails = { profile_target: currentStep.target_temp, step_type: 'immediate_ramp' }
