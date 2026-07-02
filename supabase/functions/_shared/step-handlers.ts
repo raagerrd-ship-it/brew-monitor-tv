@@ -53,6 +53,69 @@ function getResolvedTemp(controller: TempController): number | null {
   return controller.actual_temp ?? null
 }
 
+/**
+ * Check ramp-completion stability.
+ *
+ * Kräver att BÅDE probe (current_temp) och fused actual_temp:
+ *   1. inte driftat mer än ±maxDev från senaste värdet under fönstret (drift)
+ *   2. avviker med max ±maxDev från step-målet (target-adherence)
+ *
+ * maxDev hard-cap: 0.1°C — annars är kärlet inte stabilt.
+ */
+async function checkStabilityWindow(
+  supabase: any,
+  controllerId: string,
+  targetTemp: number,
+  currentActual: number,
+  currentProbe: number | null,
+  windowMin: number,
+  maxDevRaw: number,
+): Promise<{ ok: boolean; details: any }> {
+  const maxDev = Math.min(maxDevRaw ?? 0.1, 0.1)
+  const since = new Date(Date.now() - windowMin * 60_000).toISOString()
+  const { data: hist } = await supabase
+    .from('temp_controller_history')
+    .select('actual_temp, current_temp, recorded_at')
+    .eq('controller_id', controllerId)
+    .gte('recorded_at', since)
+    .order('recorded_at', { ascending: false })
+    .limit(500)
+  const actuals: number[] = (hist ?? [])
+    .map((r: any) => r.actual_temp != null ? parseFloat(r.actual_temp) : NaN)
+    .filter((n: number) => Number.isFinite(n))
+  const probes: number[] = (hist ?? [])
+    .map((r: any) => r.current_temp != null ? parseFloat(r.current_temp) : NaN)
+    .filter((n: number) => Number.isFinite(n))
+  if (actuals.length < 3) {
+    return { ok: false, details: { window_min: windowMin, max_dev: maxDev, samples: actuals.length, reason: 'not_enough_samples' } }
+  }
+  const maxA = Math.max(...actuals), minA = Math.min(...actuals)
+  const actualTargetDev = Math.max(Math.abs(maxA - targetTemp), Math.abs(minA - targetTemp), Math.abs(currentActual - targetTemp))
+  const actualDriftOk = (maxA - currentActual) <= maxDev && (currentActual - minA) <= maxDev
+  const actualTargetOk = actualTargetDev <= maxDev
+
+  let probeDriftOk = true, probeTargetOk = true, probeStats: any = null
+  if (currentProbe != null && probes.length >= 3) {
+    const maxP = Math.max(...probes), minP = Math.min(...probes)
+    const probeTargetDev = Math.max(Math.abs(maxP - targetTemp), Math.abs(minP - targetTemp), Math.abs(currentProbe - targetTemp))
+    probeDriftOk = (maxP - currentProbe) <= maxDev && (currentProbe - minP) <= maxDev
+    probeTargetOk = probeTargetDev <= maxDev
+    probeStats = { max: maxP, min: minP, cur: currentProbe, target_dev: probeTargetDev }
+  }
+
+  const ok = actualDriftOk && actualTargetOk && probeDriftOk && probeTargetOk
+  return {
+    ok,
+    details: {
+      window_min: windowMin,
+      max_dev: maxDev,
+      target: targetTemp,
+      actual: { max: maxA, min: minA, cur: currentActual, target_dev: actualTargetDev, drift_ok: actualDriftOk, target_ok: actualTargetOk },
+      probe: probeStats ? { ...probeStats, drift_ok: probeDriftOk, target_ok: probeTargetOk } : null,
+    },
+  }
+}
+
 export function isGravityStable(sgData: SgDataPoint[], stableDays: number, threshold: number): boolean {
   if (!sgData || sgData.length < 2) return false
 
@@ -183,10 +246,28 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
 
     if (controller && immRampCheckTemp !== null &&
       Math.abs(immRampCheckTemp - currentStep.target_temp) <= 0.3) {
-      stepCompleted = true
-      actionTaken = 'temp_reached'
-      actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp }
-      console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C reached target ${currentStep.target_temp}°C`)
+      // Temp inom 0.3° — kolla stability-fönster om konfigurerat (annars klart)
+      const winMin = currentStep.stability_window_minutes ?? null
+      const maxDev = currentStep.stability_max_deviation ?? null
+      if (winMin && maxDev != null) {
+        const probeTemp = controller.current_temp != null ? parseFloat(String(controller.current_temp)) : null
+        const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, immRampCheckTemp, probeTemp, winMin, maxDev)
+        if (stab.ok) {
+          stepCompleted = true
+          actionTaken = 'temp_reached'
+          actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp, stability: stab.details }
+          console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C stabil vid ${currentStep.target_temp}°C`)
+        } else {
+          actionTaken = 'waiting_for_stability'
+          actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp, stability: stab.details }
+          console.log(`Immediate ramp: temp nådd men stabilitet väntas (±${Math.min(maxDev, 0.1)}°C över ${winMin}min)`)
+        }
+      } else {
+        stepCompleted = true
+        actionTaken = 'temp_reached'
+        actionDetails = { target_temp: currentStep.target_temp, current_temp: immRampCheckTemp }
+        console.log(`Immediate ramp complete: temp ${immRampCheckTemp}°C reached target ${currentStep.target_temp}°C`)
+      }
     } else {
       actionTaken = 'profile_target_set'
       actionDetails = { profile_target: currentStep.target_temp, step_type: 'immediate_ramp' }
@@ -224,31 +305,12 @@ export async function processRampStep(ctx: StepContext): Promise<StepResult> {
           let stabilityOk = true
           let stabilityDetails: any = null
           if (winMin && maxDev != null && rampCheckTemp !== null) {
-            const since = new Date(Date.now() - winMin * 60_000).toISOString()
-            const { data: hist } = await supabase
-              .from('temp_controller_history')
-              .select('actual_temp, current_temp, recorded_at')
-              .eq('controller_id', session.controller_id)
-              .gte('recorded_at', since)
-              .order('recorded_at', { ascending: false })
-              .limit(500)
-            const samples: number[] = (hist ?? [])
-              .map((r: any) => r.actual_temp != null ? parseFloat(r.actual_temp) : (r.current_temp != null ? parseFloat(r.current_temp) : NaN))
-              .filter((n: number) => Number.isFinite(n))
-            if (samples.length >= 3) {
-              const maxT = Math.max(...samples)
-              const minT = Math.min(...samples)
-              const upDev = maxT - rampCheckTemp
-              const downDev = rampCheckTemp - minT
-              stabilityOk = upDev <= maxDev && downDev <= maxDev
-              stabilityDetails = { window_min: winMin, max_dev: maxDev, max: maxT, min: minT, current: rampCheckTemp, up: upDev, down: downDev }
-              if (!stabilityOk) {
-                console.log(`Ramp waiting for stability: max=${maxT.toFixed(2)} min=${minT.toFixed(2)} cur=${rampCheckTemp.toFixed(2)} (±${maxDev}°C over ${winMin}min)`)
-              }
-            } else {
-              stabilityOk = false
-              stabilityDetails = { window_min: winMin, max_dev: maxDev, samples: samples.length, reason: 'not_enough_samples' }
-              console.log(`Ramp waiting for stability: only ${samples.length} samples in last ${winMin}min`)
+            const probeTemp = controller.current_temp != null ? parseFloat(String(controller.current_temp)) : null
+            const stab = await checkStabilityWindow(supabase, session.controller_id, currentStep.target_temp, rampCheckTemp, probeTemp, winMin, maxDev)
+            stabilityOk = stab.ok
+            stabilityDetails = stab.details
+            if (!stabilityOk) {
+              console.log(`Ramp waiting for stability (±${Math.min(maxDev, 0.1)}°C, win ${winMin}min): ${JSON.stringify(stab.details)}`)
             }
           }
           if (stabilityOk) {

@@ -278,6 +278,18 @@ function computeDutyV5(input: {
     constraints.push('full-action')
   }
 
+  // ── Cool-boost: snabba upp approach vid stora fel (1.0–2.0°C) ──
+  // Slow-PI (Kp=0.20) ger bara ~40% vid err=2°, vilket gör sista graden onödigt
+  // långsam. Sätt en golv-duty: err=1.0→70%, err=2.0→100% (linjär). Slew-cap
+  // bypassas redan när |need|>0.5, så inga trappstegs-problem.
+  if (isCooling && need >= 1.0 && need <= 2.0) {
+    const floor = Math.min(1.0, 0.40 + need * 0.30)
+    if (duty < floor) {
+      duty = floor
+      constraints.push(`cool-boost(${(floor * 100).toFixed(0)}%)`)
+    }
+  }
+
   if (isHold && !input.modeJustSwitched && inDeadband) {
     duty = 0
     nextI = integral
