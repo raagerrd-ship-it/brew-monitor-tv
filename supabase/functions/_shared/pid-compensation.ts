@@ -434,7 +434,7 @@ async function learnRateCore(
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
   const { data: history } = await supabase
     .from('temp_controller_history')
-    .select('current_temp, actual_temp, target_temp, cooling_enabled, recorded_at')
+    .select('actual_temp, target_temp, cooling_enabled, recorded_at')
     .eq('controller_id', controllerId)
     .gte('recorded_at', sixHoursAgo)
     .order('recorded_at', { ascending: true })
