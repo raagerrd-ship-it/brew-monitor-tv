@@ -56,7 +56,7 @@ function getResolvedTemp(controller: TempController): number | null {
 /**
  * Check ramp-completion stability.
  *
- * Kräver att BÅDE probe (current_temp) och fused actual_temp:
+ * Kräver att fused actual_temp (SSOT):
  *   1. inte driftat mer än ±maxDev från senaste värdet under fönstret (drift)
  *   2. avviker med max ±maxDev från step-målet (target-adherence)
  *
@@ -75,16 +75,13 @@ async function checkStabilityWindow(
   const since = new Date(Date.now() - windowMin * 60_000).toISOString()
   const { data: hist } = await supabase
     .from('temp_controller_history')
-    .select('actual_temp, current_temp, recorded_at')
+    .select('actual_temp, recorded_at')
     .eq('controller_id', controllerId)
     .gte('recorded_at', since)
     .order('recorded_at', { ascending: false })
     .limit(500)
   const actuals: number[] = (hist ?? [])
     .map((r: any) => r.actual_temp != null ? parseFloat(r.actual_temp) : NaN)
-    .filter((n: number) => Number.isFinite(n))
-  const probes: number[] = (hist ?? [])
-    .map((r: any) => r.current_temp != null ? parseFloat(r.current_temp) : NaN)
     .filter((n: number) => Number.isFinite(n))
   if (actuals.length < 3) {
     return { ok: false, details: { window_min: windowMin, max_dev: maxDev, samples: actuals.length, reason: 'not_enough_samples' } }
@@ -94,16 +91,7 @@ async function checkStabilityWindow(
   const actualDriftOk = (maxA - currentActual) <= maxDev && (currentActual - minA) <= maxDev
   const actualTargetOk = actualTargetDev <= maxDev
 
-  let probeDriftOk = true, probeTargetOk = true, probeStats: any = null
-  if (currentProbe != null && probes.length >= 3) {
-    const maxP = Math.max(...probes), minP = Math.min(...probes)
-    const probeTargetDev = Math.max(Math.abs(maxP - targetTemp), Math.abs(minP - targetTemp), Math.abs(currentProbe - targetTemp))
-    probeDriftOk = (maxP - currentProbe) <= maxDev && (currentProbe - minP) <= maxDev
-    probeTargetOk = probeTargetDev <= maxDev
-    probeStats = { max: maxP, min: minP, cur: currentProbe, target_dev: probeTargetDev }
-  }
-
-  const ok = actualDriftOk && actualTargetOk && probeDriftOk && probeTargetOk
+  const ok = actualDriftOk && actualTargetOk
   return {
     ok,
     details: {
@@ -111,7 +99,6 @@ async function checkStabilityWindow(
       max_dev: maxDev,
       target: targetTemp,
       actual: { max: maxA, min: minA, cur: currentActual, target_dev: actualTargetDev, drift_ok: actualDriftOk, target_ok: actualTargetOk },
-      probe: probeStats ? { ...probeStats, drift_ok: probeDriftOk, target_ok: probeTargetOk } : null,
     },
   }
 }
