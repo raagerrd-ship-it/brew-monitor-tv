@@ -300,29 +300,31 @@ function computeDutyV5(input: {
     }
   }
 
-  // ── Stall-boost: tidsbaserad långsam duty-ökning när SSOT inte rör sig
-  // åt rätt håll trots off-target. Bygger 0.5%/min duty, capad vid 30%.
-  // Nollställs när vi rör oss rätt eller når mål.
+  // ── Stall-boost: lutningsbaserad duty-ökning. Kräver att SSOT rör sig
+  // mot mål med minst `requiredRate` °C/min (skalat med felstorlek).
+  // Rate ≤ 0 (stillastående/fel håll) → snabb växt. Positiv men otillräcklig
+  // rate → proportionell växt. Rate ≥ krav → decay. Capad vid 30%.
   let stallBoost = Math.max(0, Math.min(0.30, input.prevState.stallBoostPct ?? 0))
   let lastProgressAt = input.prevState.lastProgressAt
   if (input.prevState.lastSsot != null && input.prevState.lastSsotAt && !isStaleSsot) {
     const ratePerMin = (input.actualTemp - input.prevState.lastSsot) / dtMin
     const progressRate = isCooling ? -ratePerMin : ratePerMin
+    // Krav: 0.02°C/min vid små fel → 0.10°C/min vid err ≥ 1.6°C
+    const requiredRate = Math.max(0.02, Math.min(0.10, need * 0.05))
+    const shortfall = requiredRate - progressRate  // >0 = otillräcklig progress
     if (need <= 0.05) {
       stallBoost = 0
       lastProgressAt = now
-    } else if (progressRate > 0.02) {
-      // Rör oss åt rätt håll → decay 2%/min
+    } else if (shortfall <= 0) {
+      // Uppfyller kravet → decay 2%/min
       stallBoost = Math.max(0, stallBoost - 0.02 * dtMin)
       lastProgressAt = now
     } else if (need > 0.10) {
-      // Stall (0 eller fel håll) och off-target → bygg 0.5%/min
-      const stallMin = lastProgressAt
-        ? Math.max(0, (nowMs - new Date(lastProgressAt).getTime()) / 60000)
-        : dtMin
-      if (stallMin > 5) {
-        stallBoost = Math.min(0.30, stallBoost + 0.005 * dtMin)
-      }
+      // Växt proportionell mot shortfall. Extra push om vi går fel håll.
+      // shortfall 0.02 → +0.5%/min, 0.05 → +1.25%/min, ≥0.08 → +2%/min
+      let growthPerMin = Math.min(0.02, shortfall * 0.25)
+      if (progressRate < 0) growthPerMin += 0.01  // fel håll = extra 1%/min
+      stallBoost = Math.min(0.30, stallBoost + growthPerMin * dtMin)
     }
   }
   if (stallBoost > 0 && need > 0.05) {
