@@ -132,6 +132,8 @@ export async function calculateCompensatedTarget(
       peakMinTemp: typeof a.peakMinTemp === 'number' ? a.peakMinTemp : undefined,
       kiAdjCooling: typeof a.kiAdjCooling === 'number' ? a.kiAdjCooling : undefined,
       lastMode: a.lastMode === 'heating' || a.lastMode === 'cooling' ? a.lastMode : undefined,
+      stallBoostPct: typeof a.stallBoostPct === 'number' ? a.stallBoostPct : undefined,
+      lastProgressAt: typeof a.lastProgressAt === 'string' ? a.lastProgressAt : undefined,
     }
   })()
 
