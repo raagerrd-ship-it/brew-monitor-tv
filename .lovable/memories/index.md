@@ -9,6 +9,7 @@
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
 - Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average. PID V4 regulerar direkt mot SSOT.
 - PID är V4 (BrewPi-stil): långsam PI på SSOT, brett dödband ±0.10°C, peak-detection självtuner cooling-Ki, pill enbart som säkerhetstak. Ingen observer/k-learning/stratifierings-guard.
+- PID läser ENBART `actual_temp` (SSOT). Ingen probe/pill/current_temp i PID-loop, integral, mode-switch, stale-cap eller stability-gates. Se pid-ssot-only.
 
 ## Memories
 
@@ -21,6 +22,7 @@
 - [SG Data](mem://architecture/data/sg-data-migration) — Deprecated `sg_data` for `brew_data_snapshots`.
 - [Learning Precision](mem://architecture/data/learning-data-management) — 6 decimal precision for <0.01 parameters.
 - [PID Persistency](mem://architecture/automation/pid-state-persistence-policy) — Always persist PID state to prevent runaway logic.
+- [PID SSOT-only](mem://architecture/automation/pid-ssot-only) — PID reads exclusively actual_temp; probe/pill forbidden in regulation logic.
 - [Public Access](mem://architecture/api/public-data-access) — `get-public-rapt-data` uses sequence: share_id -> batch_id -> id.
 - [Step Logic](mem://architecture/fermentation/isolated-step-logic) — 7-day limits, SG stability requirements.
 - [Hardware Mode Guard](mem://logic/automation/hardware-capability-mode-guard) — Force PID mode to match physical capabilities.
