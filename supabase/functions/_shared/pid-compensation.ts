@@ -242,7 +242,11 @@ function computeDutyV5(input: {
     nextI += KiPerHour * need * dtMin / 60
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   } else if (inDeadband) {
-    constraints.push('deadband-freeze')
+    // Mild I-bleed inne i deadband: annars sitter I mättad efter en burst och
+    // dumpar full duty så fort SSOT vinglar över mål igen (sågtand ±0.10°C).
+    const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
+    nextI = Math.max(0, nextI - deadbandBleed)
+    constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
   }
   if (need < -0.01) {
     nextI *= 0.85
@@ -251,11 +255,17 @@ function computeDutyV5(input: {
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Ki auto-recover: peak-arm triggar aldrig när vi ligger permanent över mål,
-  // så tune-down blir enkelriktad. Om I är mättad (>=90% av Imax) och vi
-  // fortfarande är off-target (need>0.15), bumpa kiAdj +10%/cykel.
-  if (isCooling && nextI >= 0.9 * Imax && need > 0.15 && !isStaleSsot) {
+  // så tune-down blir enkelriktad. Bumpa kiAdj bara vid tydligt off-target
+  // (need>0.30) — inte vid mikrofel (0.15) där I mättnad orsakar sågtand.
+  if (isCooling && nextI >= 0.9 * Imax && need > 0.30 && !isStaleSsot) {
     kiAdj = Math.min(2.5, kiAdj * 1.10)
     constraints.push(`ki-recover(ki=${kiAdj.toFixed(2)})`)
+  }
+  // Sakta tune-down kiAdj när vi är stabilt nära mål — annars fastnar den på 2.5
+  // efter en tidigare recovery-fas och över-integrerar för alltid.
+  if (isCooling && Math.abs(avgError) < 0.15 && kiAdj > 1.0) {
+    kiAdj = Math.max(1.0, kiAdj - 0.02 * dtMin)
+    constraints.push(`ki-decay(ki=${kiAdj.toFixed(2)})`)
   }
 
   // ── D-term: D-on-measurement (bromsa när vi närmar oss mål) ──
