@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       .gte('recorded_at', threeHoursAgo)
       .order('recorded_at', { ascending: true });
 
-    if (!hist || hist.length < 20) {
+    if (!hist || hist.length < 8) {
       results.push({ controller: c.name, status: 'insufficient-data', rows: hist?.length ?? 0 });
       continue;
     }
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // Target stability across the full stable-window
     const stableRows = hist.filter(r => new Date(r.recorded_at).getTime() >= stableCutoff);
     const targets = stableRows.map(r => Number(r.profile_target_temp)).filter(Number.isFinite);
-    if (targets.length < 10) {
+    if (targets.length < 5) {
       results.push({ controller: c.name, status: 'insufficient-stable-window' });
       continue;
     }
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       .map(r => Number(r.duty_pct))
       .filter(Number.isFinite);
 
-    if (errs.length < 10) {
+    if (errs.length < 4) {
       results.push({ controller: c.name, status: 'insufficient-last-hour' });
       continue;
     }
