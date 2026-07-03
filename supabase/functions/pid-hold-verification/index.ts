@@ -22,11 +22,18 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  const { data: selected } = await supabase
+    .from('selected_rapt_temp_controllers')
+    .select('controller_id')
+    .eq('is_visible', true);
+  const selectedIds = (selected ?? []).map((s: any) => s.controller_id);
+
   const { data: controllers, error: cErr } = await supabase
     .from('rapt_temp_controllers')
-    .select('controller_id, name, profile_target_temp, is_glycol_cooler')
+    .select('controller_id, name, profile_target_temp, is_glycol_cooler, cooling_enabled, heating_enabled')
     .not('profile_target_temp', 'is', null)
-    .eq('is_glycol_cooler', false);
+    .eq('is_glycol_cooler', false)
+    .in('controller_id', selectedIds.length ? selectedIds : ['__none__']);
 
   if (cErr) {
     return new Response(JSON.stringify({ error: cErr.message }), {
