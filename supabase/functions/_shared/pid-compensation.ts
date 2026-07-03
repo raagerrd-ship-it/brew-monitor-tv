@@ -254,17 +254,34 @@ function computeDutyV5(input: {
     nextI += KiPerHour * need * dtMin / 60
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   } else if (inDeadband) {
-    // Asymmetrisk I-hantering i deadband:
-    //  – Fel sida (cool: err>+0.02, heat: err<-0.02) → låt I stå kvar så vi
-    //    behåller steady-state-duty som håller mot värmeinflödet.
-    //  – Säker sida → mild bleed så I inte sitter mättad efter en burst.
-    const wrongSideI = need > 0.02
-    if (!wrongSideI) {
-      const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
-      nextI = Math.max(0, nextI - deadbandBleed)
-      constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
+    // Symmetrisk long-horizon konvergens i deadband:
+    //  – Låt I följa verklig hold-duty över flera hold-cykler utan att
+    //    bleeda bort minnet. Ingen persistens – bara att integralen får jobba.
+    //  – Fel sida (need>+0.02): trimma upp (som tidigare hold-trim, men här).
+    //  – Säker sida (need<-0.02): trimma ner lika sakta som upp.
+    //  – Nära noll (|need|<=0.02): frys – vi har hittat steady-state.
+    if (isHold && !input.modeJustSwitched) {
+      if (need > 0.02) {
+        const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
+        nextI = Math.min(Imax, nextI + step)
+        constraints.push(`db-conv-up(+${(step*100).toFixed(2)}%)`)
+      } else if (need < -0.02) {
+        const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
+        nextI = Math.max(0, nextI - step)
+        constraints.push(`db-conv-dn(-${(step*100).toFixed(2)}%)`)
+      } else {
+        constraints.push('db-conv-freeze')
+      }
     } else {
-      constraints.push('deadband-hold-i')
+      // Icke-hold: behåll tidigare asymmetriska beteende
+      const wrongSideI = need > 0.02
+      if (!wrongSideI) {
+        const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
+        nextI = Math.max(0, nextI - deadbandBleed)
+        constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
+      } else {
+        constraints.push('deadband-hold-i')
+      }
     }
   }
   // Overshoot-bleed körs bara utanför deadband. Inne i deadband hanterar
@@ -390,23 +407,11 @@ function computeDutyV5(input: {
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
-    // Asymmetrisk hold-deadband:
-    //  – Fel sida (cool: warm-side, heat: cool-side) → cap till nextI (steady-state).
-    //  – Säker sida → glid ner mot 0 med slew, nolla inte hårt (det orsakar
-    //    sågtand när steady-state-duty behövs mot värmeinflöde).
-    const wrongSide = need > 0.02
-    if (!wrongSide) {
-      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
-      duty = Math.min(duty, slewFloor)
-      nextI = integral  // frys I i deadband
-      constraints.push(`hold-deadband-soft(→${(duty*100).toFixed(0)}%)`)
-    } else {
-      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
-      duty = Math.max(duty, Math.min(nextI, slewFloor))
-      constraints.push('hold-deadband-trim')
-    }
+    // Long-horizon konvergens: låt duty följa nextI i deadband istället för
+    // att slewa mot 0. Det är så vi ser att systemet lär sig verklig hold-duty.
+    // nextI uppdateras redan symmetriskt i deadband-blocket ovan.
+    duty = Math.max(0, Math.min(1, nextI))
+    constraints.push(`db-follow-i(${(duty*100).toFixed(0)}%)`)
   }
 
   if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
