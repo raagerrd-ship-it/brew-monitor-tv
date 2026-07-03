@@ -322,7 +322,9 @@ function computeDutyV5(input: {
     // Krav: 0.02°C/min vid små fel → 0.10°C/min vid err ≥ 1.6°C
     const requiredRate = Math.max(0.02, Math.min(0.10, need * 0.05))
     const shortfall = requiredRate - progressRate  // >0 = otillräcklig progress
-    if (need <= 0.05) {
+    if (need <= 0.05 || Math.abs(avgError) < 0.15) {
+      // Nära mål: stallboost är irrelevant och skapar burst-övercool om den
+      // ligger kvar mättad. Rensa alltid när vi är inom ±0.15° av target.
       stallBoost = 0
       lastProgressAt = now
     } else if (shortfall <= 0) {
