@@ -29,6 +29,7 @@ import { getTempBucket, updateLearnedParam } from './learning-utils.ts'
 interface V5PidState {
   lastSsot?: number
   lastSsotAt?: string
+  ssotSmoothed?: number       // EMA av SSOT — dämpar sensorjitter före PID
   lastDutyPct?: number
   lastZeroDutyAt?: string
   peakArmed?: boolean
@@ -124,6 +125,7 @@ export async function calculateCompensatedTarget(
     return {
       lastSsot: typeof a.lastSsot === 'number' ? a.lastSsot : undefined,
       lastSsotAt: typeof a.lastSsotAt === 'string' ? a.lastSsotAt : undefined,
+      ssotSmoothed: typeof a.ssotSmoothed === 'number' ? a.ssotSmoothed : undefined,
       lastDutyPct: typeof a.lastDutyPct === 'number' ? a.lastDutyPct : undefined,
       lastZeroDutyAt: typeof a.lastZeroDutyAt === 'string' ? a.lastZeroDutyAt : undefined,
       peakArmed: typeof a.peakArmed === 'boolean' ? a.peakArmed : undefined,
@@ -195,7 +197,21 @@ function computeDutyV5(input: {
   const now = new Date().toISOString()
   const nowMs = Date.now()
 
-  const avgError = input.actualTarget - input.actualTemp
+  // ── SSOT-smoothing: EMA med tidskonstant ~3 min för att döda sensorjitter.
+  // Alpha skalar med dtMin (räknas nedan) — beräkna dtMin först.
+  let dtMinEarly = 1.0
+  if (input.prevState.lastSsotAt) {
+    const raw = (nowMs - new Date(input.prevState.lastSsotAt).getTime()) / 60000
+    if (Number.isFinite(raw)) dtMinEarly = Math.max(0.25, Math.min(5.0, raw))
+  }
+  const TAU_MIN = 3.0
+  const alpha = Math.min(1, dtMinEarly / TAU_MIN)
+  const prevSmoothed = input.prevState.ssotSmoothed
+  const ssotFiltered = prevSmoothed != null
+    ? prevSmoothed + alpha * (input.actualTemp - prevSmoothed)
+    : input.actualTemp
+
+  const avgError = input.actualTarget - ssotFiltered
   const need = isCooling ? -avgError : avgError
 
   let kiAdj = isCooling && input.prevState.kiAdjCooling != null
@@ -222,11 +238,7 @@ function computeDutyV5(input: {
 
   const uP = Math.max(0, Kp * need)
 
-  let dtMin = 1.0
-  if (input.prevState.lastSsotAt) {
-    const raw = (nowMs - new Date(input.prevState.lastSsotAt).getTime()) / 60000
-    if (Number.isFinite(raw)) dtMin = Math.max(0.25, Math.min(5.0, raw))
-  }
+  const dtMin = dtMinEarly
   let nextI = integral
   const inDeadband = Math.abs(avgError) <= COOL.Deadband
 
@@ -278,8 +290,8 @@ function computeDutyV5(input: {
   // ── D-term: D-on-measurement (bromsa när vi närmar oss mål) ──
   // progressRate > 0 = SSOT rör sig åt rätt håll → minska duty proportionellt.
   let dBrake = 0
-  if (input.prevState.lastSsot != null && input.prevState.lastSsotAt && !isStaleSsot) {
-    const ratePerMin = (input.actualTemp - input.prevState.lastSsot) / dtMin
+  if (prevSmoothed != null && input.prevState.lastSsotAt && !isStaleSsot) {
+    const ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
     const progressRate = isCooling ? -ratePerMin : ratePerMin
     if (progressRate > 0) {
       dBrake = Math.min(0.25, Kd * progressRate)
@@ -323,8 +335,8 @@ function computeDutyV5(input: {
   // rate → proportionell växt. Rate ≥ krav → decay. Capad vid 30%.
   let stallBoost = Math.max(0, Math.min(0.30, input.prevState.stallBoostPct ?? 0))
   let lastProgressAt = input.prevState.lastProgressAt
-  if (input.prevState.lastSsot != null && input.prevState.lastSsotAt && !isStaleSsot) {
-    const ratePerMin = (input.actualTemp - input.prevState.lastSsot) / dtMin
+  if (prevSmoothed != null && input.prevState.lastSsotAt && !isStaleSsot) {
+    const ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
     const progressRate = isCooling ? -ratePerMin : ratePerMin
     // Krav: 0.02°C/min vid små fel → 0.10°C/min vid err ≥ 1.6°C
     const requiredRate = Math.max(0.02, Math.min(0.10, need * 0.05))
@@ -437,6 +449,7 @@ function computeDutyV5(input: {
   const nextState: V5PidState = {
     lastSsot: input.actualTemp,
     lastSsotAt: now,
+    ssotSmoothed: ssotFiltered,
     lastDutyPct: dutyPct,
     lastZeroDutyAt,
     peakArmed,
