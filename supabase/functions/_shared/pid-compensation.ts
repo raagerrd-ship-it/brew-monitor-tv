@@ -407,23 +407,11 @@ function computeDutyV5(input: {
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
-    // Asymmetrisk hold-deadband:
-    //  – Fel sida (cool: warm-side, heat: cool-side) → cap till nextI (steady-state).
-    //  – Säker sida → glid ner mot 0 med slew, nolla inte hårt (det orsakar
-    //    sågtand när steady-state-duty behövs mot värmeinflöde).
-    const wrongSide = need > 0.02
-    if (!wrongSide) {
-      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
-      duty = Math.min(duty, slewFloor)
-      nextI = integral  // frys I i deadband
-      constraints.push(`hold-deadband-soft(→${(duty*100).toFixed(0)}%)`)
-    } else {
-      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
-      duty = Math.max(duty, Math.min(nextI, slewFloor))
-      constraints.push('hold-deadband-trim')
-    }
+    // Long-horizon konvergens: låt duty följa nextI i deadband istället för
+    // att slewa mot 0. Det är så vi ser att systemet lär sig verklig hold-duty.
+    // nextI uppdateras redan symmetriskt i deadband-blocket ovan.
+    duty = Math.max(0, Math.min(1, nextI))
+    constraints.push(`db-follow-i(${(duty*100).toFixed(0)}%)`)
   }
 
   if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
