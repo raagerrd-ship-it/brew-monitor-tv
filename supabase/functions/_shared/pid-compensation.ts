@@ -49,14 +49,14 @@ const COOL = {
   Deadband: 0.10,
   IZone: 0.4,
   MinOffMin: 5,
-  Kd: 8.0,
+  Kd: 3.0,
 }
 const HEAT = {
   KpHold: 0.45, KpRamp: 0.80,
   KiHold: 1.2,  KiRamp: 4.5,
   Imax: 0.40,
   IZone: 0.6,
-  Kd: 6.0,
+  Kd: 2.5,
 }
 const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel
 const SLEW_BYPASS_ERR = 0.50   // |err|>0.5°C → fri respons
@@ -248,7 +248,10 @@ function computeDutyV5(input: {
     nextI = Math.max(0, nextI - deadbandBleed)
     constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
   }
-  if (need < -0.01) {
+  // Overshoot-bleed körs bara utanför deadband. Inne i deadband hanterar
+  // deadband-bleed / hold-deadband redan I-termen; en extra bleed här skulle
+  // motsäga 'deadband-freeze'-semantiken och göra loggen missvisande.
+  if (need < -0.01 && !inDeadband) {
     nextI *= 0.85
     constraints.push('overshoot-bleed')
   }
@@ -257,8 +260,12 @@ function computeDutyV5(input: {
   // ── Ki auto-recover: peak-arm triggar aldrig när vi ligger permanent över mål,
   // så tune-down blir enkelriktad. Bumpa kiAdj bara vid tydligt off-target
   // (need>0.30) — inte vid mikrofel (0.15) där I mättnad orsakar sågtand.
+  // Rate-limit: +10%/5min istället för +10%/cykel — annars når vi 2.5x på <1h
+  // vilket är farligt när dead-time (~15 min) bara innebär att systemet ännu
+  // inte hunnit svara på nuvarande duty.
   if (isCooling && nextI >= 0.9 * Imax && need > 0.30 && !isStaleSsot) {
-    kiAdj = Math.min(2.5, kiAdj * 1.10)
+    const recoverGrowth = 0.10 * (dtMin / 5)  // 10% per 5 min
+    kiAdj = Math.min(2.5, kiAdj * (1 + recoverGrowth))
     constraints.push(`ki-recover(ki=${kiAdj.toFixed(2)})`)
   }
   // Sakta tune-down kiAdj när vi är stabilt nära mål — annars fastnar den på 2.5
