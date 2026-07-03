@@ -254,11 +254,18 @@ function computeDutyV5(input: {
     nextI += KiPerHour * need * dtMin / 60
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   } else if (inDeadband) {
-    // Mild I-bleed inne i deadband: annars sitter I mättad efter en burst och
-    // dumpar full duty så fort SSOT vinglar över mål igen (sågtand ±0.10°C).
-    const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
-    nextI = Math.max(0, nextI - deadbandBleed)
-    constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
+    // Asymmetrisk I-hantering i deadband:
+    //  – Fel sida (cool: err>+0.02, heat: err<-0.02) → låt I stå kvar så vi
+    //    behåller steady-state-duty som håller mot värmeinflödet.
+    //  – Säker sida → mild bleed så I inte sitter mättad efter en burst.
+    const wrongSideI = isCooling ? avgError > 0.02 : avgError < -0.02
+    if (!wrongSideI) {
+      const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
+      nextI = Math.max(0, nextI - deadbandBleed)
+      constraints.push(`deadband-bleed(${deadbandBleed.toFixed(3)})`)
+    } else {
+      constraints.push('deadband-hold-i')
+    }
   }
   // Overshoot-bleed körs bara utanför deadband. Inne i deadband hanterar
   // deadband-bleed / hold-deadband redan I-termen; en extra bleed här skulle
@@ -365,9 +372,19 @@ function computeDutyV5(input: {
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
-    duty = 0
-    nextI = integral
-    constraints.push('hold-deadband')
+    // Asymmetrisk hold-deadband: nolla bara på "säkra" sidan.
+    // På fel sida (cool: warm-side, heat: cool-side) släpper vi PI-outputen
+    // hålla en mild steady-state-duty istället för att slamma till 0 och
+    // trigga sågtandsoscillation.
+    const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
+    if (!wrongSide) {
+      duty = 0
+      nextI = integral
+      constraints.push('hold-deadband')
+    } else {
+      duty = Math.max(0, Math.min(duty, nextI))
+      constraints.push('hold-deadband-trim')
+    }
   }
 
   if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
