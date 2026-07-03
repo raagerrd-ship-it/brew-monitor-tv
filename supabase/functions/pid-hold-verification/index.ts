@@ -98,6 +98,15 @@ Deno.serve(async (req) => {
     const dutyStd = std(duties);
     const dutyMean = duties.length ? duties.reduce((a, b) => a + b, 0) / duties.length : 0;
 
+    // Skip controllers that aren't actively regulating (no PWM in last hour).
+    if (dutyMean < 1 && dutyStd < 1) {
+      results.push({
+        controller: c.name, controller_id: c.controller_id,
+        status: 'inactive', avg_err: +avgErr.toFixed(3),
+      });
+      continue;
+    }
+
     const highErr = avgErr > AVG_ERR_THRESHOLD;
     const oscillating = dutyStd > DUTY_STD_THRESHOLD;
 
