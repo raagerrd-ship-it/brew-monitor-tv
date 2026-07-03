@@ -46,7 +46,7 @@ interface V5PidState {
 const COOL = {
   Kp: 0.20,
   KiPerHour: 0.30,
-  Imax: 0.35,
+  Imax: 0.65,
   Deadband: 0.10,
   IZone: 0.4,
   MinOffMin: 5,
