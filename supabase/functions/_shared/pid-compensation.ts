@@ -258,7 +258,7 @@ function computeDutyV5(input: {
     //  – Fel sida (cool: err>+0.02, heat: err<-0.02) → låt I stå kvar så vi
     //    behåller steady-state-duty som håller mot värmeinflödet.
     //  – Säker sida → mild bleed så I inte sitter mättad efter en burst.
-    const wrongSideI = isCooling ? avgError > 0.02 : avgError < -0.02
+    const wrongSideI = need > 0.02
     if (!wrongSideI) {
       const deadbandBleed = (KiPerHour * dtMin / 60) * 0.30
       nextI = Math.max(0, nextI - deadbandBleed)
@@ -394,7 +394,7 @@ function computeDutyV5(input: {
     //  – Fel sida (cool: warm-side, heat: cool-side) → cap till nextI (steady-state).
     //  – Säker sida → glid ner mot 0 med slew, nolla inte hårt (det orsakar
     //    sågtand när steady-state-duty behövs mot värmeinflöde).
-    const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
+    const wrongSide = need > 0.02
     if (!wrongSide) {
       const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
       const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
@@ -402,7 +402,9 @@ function computeDutyV5(input: {
       nextI = integral  // frys I i deadband
       constraints.push(`hold-deadband-soft(→${(duty*100).toFixed(0)}%)`)
     } else {
-      duty = Math.max(0, Math.min(duty, nextI))
+      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
+      duty = Math.max(duty, Math.min(nextI, slewFloor))
       constraints.push('hold-deadband-trim')
     }
   }
