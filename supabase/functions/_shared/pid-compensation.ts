@@ -310,15 +310,33 @@ function computeDutyV5(input: {
   let duty = Math.max(0, Math.min(1, raw))
 
   if (need <= 0) {
-    duty = 0
-    constraints.push('past-target-coast')
-    // Mildare bleed nära mål (|err|<0.20°) så I får etablera steady-state bias
-    // som matchar värmeinflödet. Aggressivare bleed vid större överskridanden.
-    const nearTarget = Math.abs(avgError) < 0.20
-    const bleedFactor = nearTarget ? 0.15 : 0.5
-    const bleed = (KiPerHour * dtMin / 60) * bleedFactor
-    nextI = Math.max(0, nextI - bleed)
-    constraints.push(`coast-i-bleed(${bleed.toFixed(3)}${nearTarget ? ',near' : ''})`)
+    // Soft coast: slamma inte till 0 direkt när vi precis passerat mål.
+    // Om vi kylde 50% för att sakta sänka så innebär target-crossing inte
+    // att systemet slutat behöva kylning — det finns fortfarande
+    // värmeinflöde. Låt duty glida ner mot steady-state (nextI) begränsad av
+    // slew, och bara nolla när vi klart överskridit (|err| ≥ 0.15°).
+    const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+    const clearOvershoot = avgError <= -0.15  // för kylning: SSOT ≥ 0.15° under mål
+    if (clearOvershoot) {
+      // Tydlig overshoot: släpp mot 0, men slew-limita nedstegen (5%/cykel)
+      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
+      duty = Math.min(duty, slewFloor)
+      constraints.push(`past-target-coast(clear,→${(duty*100).toFixed(0)}%)`)
+    } else {
+      // Nyss passerat / mikro-overshoot: håll steady-state (nextI) som golv
+      // och slew-limita nedåt så vi inte sågar 50→0→50.
+      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
+      const softFloor = Math.max(nextI, slewFloor)
+      duty = Math.max(0, Math.min(duty, softFloor))
+      constraints.push(`past-target-soft(→${(duty*100).toFixed(0)}%)`)
+    }
+    // Bleed I bara vid tydlig overshoot; nära mål lämnas I orörd så
+    // steady-state-bias bevaras.
+    if (clearOvershoot) {
+      const bleed = (KiPerHour * dtMin / 60) * 0.5
+      nextI = Math.max(0, nextI - bleed)
+      constraints.push(`coast-i-bleed(${bleed.toFixed(3)})`)
+    }
   }
 
   if (need > 2.0) {
@@ -372,15 +390,17 @@ function computeDutyV5(input: {
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
-    // Asymmetrisk hold-deadband: nolla bara på "säkra" sidan.
-    // På fel sida (cool: warm-side, heat: cool-side) släpper vi PI-outputen
-    // hålla en mild steady-state-duty istället för att slamma till 0 och
-    // trigga sågtandsoscillation.
+    // Asymmetrisk hold-deadband:
+    //  – Fel sida (cool: warm-side, heat: cool-side) → cap till nextI (steady-state).
+    //  – Säker sida → glid ner mot 0 med slew, nolla inte hårt (det orsakar
+    //    sågtand när steady-state-duty behövs mot värmeinflöde).
     const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
     if (!wrongSide) {
-      duty = 0
-      nextI = integral
-      constraints.push('hold-deadband')
+      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
+      duty = Math.min(duty, slewFloor)
+      nextI = integral  // frys I i deadband
+      constraints.push(`hold-deadband-soft(→${(duty*100).toFixed(0)}%)`)
     } else {
       duty = Math.max(0, Math.min(duty, nextI))
       constraints.push('hold-deadband-trim')
@@ -404,7 +424,9 @@ function computeDutyV5(input: {
   // Hindrar bursts (t.ex. 0→30% på mikro-overshoot). Bypass vid panik, mode-byte
   // eller past-target-coast (måste få stänga snabbt).
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const slewBypass = input.modeJustSwitched || Math.abs(need) > SLEW_BYPASS_ERR || need <= 0
+  // Slew gäller även när vi precis passerat mål — det är där mest sågtand
+  // uppstår. Bara mode-switch eller stort fel bypassar.
+  const slewBypass = input.modeJustSwitched || Math.abs(need) > SLEW_BYPASS_ERR
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
     if (Math.abs(delta) > SLEW_PER_CYCLE) {
