@@ -390,15 +390,17 @@ function computeDutyV5(input: {
   }
 
   if (isHold && !input.modeJustSwitched && inDeadband) {
-    // Asymmetrisk hold-deadband: nolla bara på "säkra" sidan.
-    // På fel sida (cool: warm-side, heat: cool-side) släpper vi PI-outputen
-    // hålla en mild steady-state-duty istället för att slamma till 0 och
-    // trigga sågtandsoscillation.
+    // Asymmetrisk hold-deadband:
+    //  – Fel sida (cool: warm-side, heat: cool-side) → cap till nextI (steady-state).
+    //  – Säker sida → glid ner mot 0 med slew, nolla inte hårt (det orsakar
+    //    sågtand när steady-state-duty behövs mot värmeinflöde).
     const wrongSide = isCooling ? avgError > 0.02 : avgError < -0.02
     if (!wrongSide) {
-      duty = 0
-      nextI = integral
-      constraints.push('hold-deadband')
+      const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+      const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
+      duty = Math.min(duty, slewFloor)
+      nextI = integral  // frys I i deadband
+      constraints.push(`hold-deadband-soft(→${(duty*100).toFixed(0)}%)`)
     } else {
       duty = Math.max(0, Math.min(duty, nextI))
       constraints.push('hold-deadband-trim')
