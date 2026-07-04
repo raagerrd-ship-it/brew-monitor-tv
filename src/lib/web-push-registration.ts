@@ -106,30 +106,13 @@ export async function autoRegisterWebPush(): Promise<void> {
     const deviceInfo = navigator.userAgent;
 
     const subData = subscriptionJSON as unknown as Record<string, unknown>;
-    const { data: existing } = await supabase
-      .from('push_subscriptions')
-      .select('id')
-      .eq('endpoint', subscriptionJSON.endpoint!)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from('push_subscriptions')
-        .update({ 
-          subscription: subData as any, 
-          device_info: deviceInfo,
-          last_used_at: new Date().toISOString() 
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabase
-        .from('push_subscriptions')
-        .insert([{
-          endpoint: subscriptionJSON.endpoint!,
-          subscription: subData as any,
-          device_info: deviceInfo,
-        }]);
-    }
+    await supabase.functions.invoke('register-push-subscription', {
+      body: {
+        endpoint: subscriptionJSON.endpoint!,
+        subscription: subData,
+        device_info: deviceInfo,
+      },
+    });
 
     console.log('✅ Push subscription registered');
   } catch (error) {

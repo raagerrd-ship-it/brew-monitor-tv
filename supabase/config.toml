@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.sonos-position]
 verify_jwt = false
+
+[functions.register-push-subscription]
+verify_jwt = false
