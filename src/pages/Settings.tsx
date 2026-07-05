@@ -399,6 +399,38 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            <SettingsSection icon={RefreshCw} title="Sensor-tröskelvärden" description="Minuter innan varningstriangel visas för föråldrad sensordata">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Pill-sensor</p>
+                  <p className="text-xs text-muted-foreground">Minuter innan pill anses föråldrad</p>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  className="w-24 h-8 text-xs"
+                  value={settings.pillStaleThresholdMin}
+                  onChange={(e) => settings.handlePillStaleThresholdChange(e.target.value)}
+                />
+              </div>
+              <SettingsDivider />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Probe-sensor</p>
+                  <p className="text-xs text-muted-foreground">Minuter innan probe anses föråldrad</p>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  className="w-24 h-8 text-xs"
+                  value={settings.probeStaleThresholdMin}
+                  onChange={(e) => settings.handleProbeStaleThresholdChange(e.target.value)}
+                />
+              </div>
+            </SettingsSection>
+
             {/* ═══════════════ SONOS ═══════════════ */}
             <CategorySeparator icon={Music} label="Sonos" />
             <SettingsSection icon={Music} title="Sonos-inställningar" description="Rum, widget och bakgrundsbildbehandling">
