@@ -69,7 +69,30 @@ async function persistPidState(
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
   dutyCycle: number, nextState: V5PidState,
+  prevConvergenceCount: number, prevLearnedBaseline: number,
+  modeJustSwitched: boolean,
 ): Promise<void> {
+  // ── Long-horizon convergence detection ──
+  // Only in hold, inside deadband, when duty is actively driven by the I-term
+  // (steady state). EMA the learned baseline slowly so a single cycle can't
+  // skew it. This is the persistent duty-floor used to seed future sessions.
+  let newConvergenceCount = prevConvergenceCount
+  let newLearnedBaseline = prevLearnedBaseline
+  const converged =
+    stepType === 'hold' &&
+    !modeJustSwitched &&
+    Math.abs(avgError) <= 0.10 &&
+    dutyCycle > 0.02 &&
+    Math.abs(dutyCycle - iCorrection) < 0.05
+  if (converged) {
+    newConvergenceCount = prevConvergenceCount + 1
+    const alpha = 0.10
+    newLearnedBaseline = prevLearnedBaseline > 0
+      ? prevLearnedBaseline + alpha * (iCorrection - prevLearnedBaseline)
+      : iCorrection
+    // Clamp to sane range
+    newLearnedBaseline = Math.max(0, Math.min(0.65, newLearnedBaseline))
+  }
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
     latest_p_correction: pCorrection, latest_i_correction: iCorrection,
@@ -77,6 +100,9 @@ async function persistPidState(
     latest_avg_error: avgError,
     accumulated_integral: iCorrection,
     sensor_anchor: nextState,
+    convergence_count: newConvergenceCount,
+    learned_pi_correction: newLearnedBaseline,
+    last_converged_at: converged ? new Date().toISOString() : undefined,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
 }
@@ -144,6 +170,7 @@ export async function calculateCompensatedTarget(
     mode, stepType,
     actualTarget, actualTemp,
     persistedIntegral,
+    learnedBaseline,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     prevState,
@@ -161,6 +188,7 @@ export async function calculateCompensatedTarget(
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError, dutyCycle, r.nextState,
+    convergenceCount, learnedBaseline, !!modeJustSwitched,
   )
 
   return {
@@ -186,6 +214,7 @@ function computeDutyV5(input: {
   actualTarget: number
   actualTemp: number             // SSOT — enda temperatursignal
   persistedIntegral: number
+  learnedBaseline: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
   prevState: V5PidState
@@ -230,9 +259,26 @@ function computeDutyV5(input: {
 
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
+
+  // Seed from long-term learned duty-floor when transient integral is empty.
+  // Fresh session, cold start, or last cycle bled to 0 → give PID a head start
+  // at 70% of the learned steady-state duty. PID trims the rest via db-conv-up.
+  const canSeed = integral === 0 && input.learnedBaseline > 0.05 && !input.modeJustSwitched
+  if (canSeed) {
+    integral = input.learnedBaseline * 0.7
+    constraints.push(`seed-from-learned(${(integral * 100).toFixed(0)}%)`)
+  }
+
   if (input.modeJustSwitched || (input.prevState.lastMode && input.prevState.lastMode !== input.mode)) {
-    integral = 0
-    constraints.push('mode-reset-hard')
+    // Mjuk reset: behåll halva lärda baselinen istället för att slänga bort
+    // all ackumulerad kunskap vid varje PWM-mode-flip.
+    if (input.learnedBaseline > 0.05) {
+      integral = input.learnedBaseline * 0.5
+      constraints.push(`mode-reset-soft(${(integral * 100).toFixed(0)}%)`)
+    } else {
+      integral = 0
+      constraints.push('mode-reset-hard')
+    }
   }
   integral = Math.max(0, Math.min(Imax, integral))
 

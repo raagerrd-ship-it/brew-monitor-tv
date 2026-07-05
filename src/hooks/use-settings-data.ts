@@ -352,7 +352,7 @@ export function useSettingsData() {
   const updateSyncSetting = useCallback(async (field: string, value: string | number | boolean) => {
     if (!settingsId) return;
     try {
-      const { error } = await supabase.from('sync_settings').update({ [field]: value }).eq('id', settingsId);
+      const { error } = await supabase.from('sync_settings').update({ [field]: value } as never).eq('id', settingsId);
       if (error) throw error;
       toast({ title: "Inställningar sparade" });
     } catch {
@@ -363,7 +363,7 @@ export function useSettingsData() {
   const updateAutoCoolingSetting = useCallback(async (field: string, value: string | number | boolean) => {
     if (!autoCoolingSettingsId) return;
     try {
-      const { error } = await supabase.from('auto_cooling_settings').update({ [field]: value }).eq('id', autoCoolingSettingsId);
+      const { error } = await supabase.from('auto_cooling_settings').update({ [field]: value } as never).eq('id', autoCoolingSettingsId);
       if (error) throw error;
       toast({ title: "Inställningar sparade" });
     } catch {

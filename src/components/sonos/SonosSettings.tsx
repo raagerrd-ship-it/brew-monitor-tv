@@ -310,7 +310,7 @@ export function SonosSettings() {
       if (settingsId) {
         const { error } = await supabase
           .from('sonos_settings')
-          .update(fields)
+          .update(fields as never)
           .eq('id', settingsId);
         if (error) console.error('Failed to save setting:', error.message, fields);
       } else {
