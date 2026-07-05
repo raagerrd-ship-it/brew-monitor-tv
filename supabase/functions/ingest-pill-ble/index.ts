@@ -65,7 +65,16 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const { readings, heartbeat } = parsed.data;
+  const { readings: rawReadings, heartbeat } = parsed.data;
+
+  // Per-reading validation: skip malformed items, keep the rest.
+  const readings: z.infer<typeof ReadingSchema>[] = [];
+  const invalidReadings: { index: number; error: string }[] = [];
+  for (let i = 0; i < rawReadings.length; i++) {
+    const r = ReadingSchema.safeParse(rawReadings[i]);
+    if (r.success) readings.push(r.data);
+    else invalidReadings.push({ index: i, error: r.error.message });
+  }
 
   if (heartbeat && readings.length === 0) {
     return json({ ok: true, heartbeat: true });
