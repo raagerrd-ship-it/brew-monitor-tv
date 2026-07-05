@@ -330,8 +330,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                        const probeAgeMin = probeStamp
                          ? (now - new Date(probeStamp).getTime()) / 60000
                          : Infinity;
-                       const pillStale = !!linkedPill && pillAgeMin > 5;
-                       const probeStale = controller.current_temp != null && probeAgeMin > 31;
+                       const pillStale = !!linkedPill && pillAgeMin > pillStaleMin;
+                       const probeStale = controller.current_temp != null && probeAgeMin > probeStaleMin;
                        const pillWarn = pillStale || probeStale;
                        const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
                        const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
@@ -376,8 +376,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          {pillWarn && (
                             <span
                               title={[
-                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel 5 min)` : '',
-                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel 31 min)` : '',
+                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel ${pillStaleMin} min)` : '',
+                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel ${probeStaleMin} min)` : '',
                               ].filter(Boolean).join('\n')}
                               className="inline-flex"
                             >
