@@ -18,22 +18,20 @@ export function AlarmTimerDialog({ open, onOpenChange }: Props) {
   // Timer state
   const [timerMinutes, setTimerMinutes] = useState(15);
   const [timerAlertText, setTimerAlertText] = useState('Tiden är ute!');
-  const [timerAlertDuration, setTimerAlertDuration] = useState(10);
 
   // Alarm state
   const [alarmTime, setAlarmTime] = useState('');
   const [alarmAlertText, setAlarmAlertText] = useState('Alarm!');
-  const [alarmAlertDuration, setAlarmAlertDuration] = useState(10);
 
   const handleStartTimer = () => {
     if (timerMinutes <= 0) return;
-    startTimer(timerMinutes, timerAlertText, timerAlertDuration);
+    startTimer(timerMinutes, timerAlertText);
     onOpenChange(false);
   };
 
   const handleSetAlarm = () => {
     if (!alarmTime) return;
-    setAlarm(alarmTime, alarmAlertText, alarmAlertDuration);
+    setAlarm(alarmTime, alarmAlertText);
     onOpenChange(false);
   };
 
@@ -94,17 +92,7 @@ export function AlarmTimerDialog({ open, onOpenChange }: Props) {
                 onChange={e => setTimerAlertText(e.target.value)}
                 placeholder="Tiden är ute!"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="timer-dur">Visa alert i (sekunder)</Label>
-              <Input
-                id="timer-dur"
-                type="number"
-                min={3}
-                max={300}
-                value={timerAlertDuration}
-                onChange={e => setTimerAlertDuration(Number(e.target.value))}
-              />
+              <p className="text-xs text-muted-foreground">Alerten stannar synlig tills du kvitterar.</p>
             </div>
             <Button onClick={handleStartTimer} className="w-full" disabled={timerMinutes <= 0 || !!entry}>
               Starta timer
@@ -129,17 +117,7 @@ export function AlarmTimerDialog({ open, onOpenChange }: Props) {
                 onChange={e => setAlarmAlertText(e.target.value)}
                 placeholder="Alarm!"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="alarm-dur">Visa alert i (sekunder)</Label>
-              <Input
-                id="alarm-dur"
-                type="number"
-                min={3}
-                max={300}
-                value={alarmAlertDuration}
-                onChange={e => setAlarmAlertDuration(Number(e.target.value))}
-              />
+              <p className="text-xs text-muted-foreground">Alerten stannar synlig tills du kvitterar.</p>
             </div>
             <Button onClick={handleSetAlarm} className="w-full" disabled={!alarmTime || !!entry}>
               Sätt alarm
