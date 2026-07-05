@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, Re
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { AlarmTimerFooterBar } from '@/components/AlarmTimerFooterBar';
+import { Button } from '@/components/ui/button';
 import { AlertTriangle, Timer, AlarmClock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -22,8 +23,8 @@ export interface AlarmTimerEntry {
 interface AlarmTimerContextType {
   entry: AlarmTimerEntry | null;
   remainingMs: number;
-  startTimer: (minutes: number, alertText: string, alertDurationSec: number, label?: string) => void;
-  setAlarm: (targetTime: string, alertText: string, alertDurationSec: number, label?: string) => void;
+  startTimer: (minutes: number, alertText: string, alertDurationSec?: number, label?: string) => void;
+  setAlarm: (targetTime: string, alertText: string, alertDurationSec?: number, label?: string) => void;
   cancel: () => void;
 }
 
@@ -94,7 +95,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   const [entry, setEntry] = useState<AlarmTimerEntry | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
-  const { showAlert } = useDashboardAlert();
+  const { showAlert, dismissAlert } = useDashboardAlert();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const firedLocallyRef = useRef<string | null>(null);
 
@@ -105,7 +106,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     await clearTimerInDb();
   }, []);
 
-  const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec: number, label?: string) => {
+  const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec?: number, label?: string) => {
     const now = Date.now();
     const totalMs = minutes * 60 * 1000;
     const endsAt = new Date(now + totalMs);
@@ -117,13 +118,13 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       total_ms: totalMs,
       label: label || `Timer ${minutes} min`,
       alert_text: alertText,
-      alert_duration_sec: alertDurationSec,
+      alert_duration_sec: alertDurationSec ?? 0,
       is_active: true,
       fired: false,
     });
   }, []);
 
-  const setAlarm = useCallback(async (targetTime: string, alertText: string, alertDurationSec: number, label?: string) => {
+  const setAlarm = useCallback(async (targetTime: string, alertText: string, alertDurationSec?: number, label?: string) => {
     const now = new Date();
     const [hours, minutes] = targetTime.split(':').map(Number);
     const target = new Date(now);
@@ -140,7 +141,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       total_ms: totalMs,
       label: label || 'Alarm',
       alert_text: alertText,
-      alert_duration_sec: alertDurationSec,
+      alert_duration_sec: alertDurationSec ?? 0,
       is_active: true,
       fired: false,
     });
