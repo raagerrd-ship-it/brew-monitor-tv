@@ -230,15 +230,16 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     if (!entry?.fired) return;
     const Icon = entry.type === 'timer' ? Timer : AlarmClock;
     const typeLabel = entry.type === 'timer' ? '⏱️ Timer' : '⏰ Alarm';
+    const alertId = `alarm-timer-alert-${entry.id}`;
     showAlert({
-      id: `alarm-timer-alert-${entry.id}`,
-      autoDismissMs: entry.alertDurationSec * 1000,
+      id: alertId,
+      autoDismissMs: null,
       overlayBackground: 'radial-gradient(ellipse at center, hsl(38 90% 30% / 0.4) 0%, hsl(0 0% 0% / 0.85) 100%)',
       pushTitle: `${typeLabel}: ${entry.label}`,
       pushBody: entry.alertText,
       content: (
         <div
-          className="flex flex-col items-center px-12 py-8 rounded-2xl max-w-[90vw]"
+          className="flex flex-col items-center px-12 py-8 rounded-2xl max-w-[90vw] pointer-events-auto"
           style={{
             background: 'linear-gradient(145deg, hsl(38 80% 18%) 0%, hsl(222 20% 10%) 100%)',
             border: '2px solid hsl(38 90% 50% / 0.5)',
@@ -255,21 +256,21 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
             <AlertTriangle className="w-6 h-6 text-primary-foreground" />
             <Icon className="w-5 h-5 text-primary-foreground" />
           </div>
-          <div className="text-4xl md:text-6xl font-bold text-center leading-tight" style={{ color: 'hsl(40 90% 85%)' }}>
+          <div className="text-4xl md:text-6xl font-bold text-center leading-tight mb-8" style={{ color: 'hsl(40 90% 85%)' }}>
             {entry.alertText}
           </div>
+          <Button
+            onClick={() => { dismissAlert(alertId); cancel(); }}
+            className="pointer-events-auto"
+          >
+            Kvittera
+          </Button>
         </div>
       ),
     });
 
-    // Auto-clear the entry after alert dismisses
-    const clearTimer = setTimeout(async () => {
-      setEntry(null);
-      setRemainingMs(0);
-      await clearTimerInDb();
-    }, entry.alertDurationSec * 1000 + 500);
-    return () => clearTimeout(clearTimer);
-  }, [entry?.fired]);
+    return () => { dismissAlert(alertId); };
+  }, [entry?.fired, cancel, dismissAlert]);
 
   // Manage footer slot — only update on entry change, not every second
   useEffect(() => {
