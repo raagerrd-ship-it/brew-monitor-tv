@@ -76,3 +76,37 @@ journalctl -u plug-watchdog -f
 
 Test by stopping the poller and manually setting a controller's
 `last_update` to >31 min ago, or just watch the log for the next real outage.
+
+## Auto-update (no more manual git pull)
+
+`auto-update.sh` + `plug-autoupdate.timer` poll the git remote every 5 min.
+If new commits under `pi/plug-poller/` land on `main`, the Pi does
+`git reset --hard`, reinstalls deps if `requirements.txt` changed, and
+restarts only the affected service (`plug-poller` and/or `plug-watchdog`).
+No inbound ports, no webhook.
+
+### Install
+
+```bash
+chmod +x /home/pi/brew/pi/plug-poller/auto-update.sh
+
+# allow the service unit (running as root by default) to restart the workers
+sudo cp systemd/plug-autoupdate.service /etc/systemd/system/
+sudo cp systemd/plug-autoupdate.timer   /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now plug-autoupdate.timer
+
+# verify
+systemctl list-timers plug-autoupdate.timer
+journalctl -u plug-autoupdate -f
+```
+
+If the repo lives somewhere other than `/home/pi/brew`, edit `REPO_DIR`
+at the top of `auto-update.sh` (or set it in the service unit with
+`Environment=REPO_DIR=/path/to/repo`).
+
+### Force an update now
+
+```bash
+sudo systemctl start plug-autoupdate.service
+```
