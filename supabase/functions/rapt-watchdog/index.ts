@@ -64,7 +64,22 @@ Deno.serve(async (req) => {
     if (rErr) throw rErr;
 
     const inCooldown = (recent?.length ?? 0) > 0;
-    const action = inCooldown ? 'cooldown_skipped' : 'restart_triggered';
+
+    // Also skip if there's already a pending command — the Pi poller is
+    // offline or hasn't caught up. Never let commands stack.
+    const { data: pending, error: pendErr } = await supabase
+      .from('plug_commands')
+      .select('id')
+      .eq('status', 'pending')
+      .limit(1);
+    if (pendErr) throw pendErr;
+    const hasPending = (pending?.length ?? 0) > 0;
+
+    const action = hasPending
+      ? 'pending_skipped'
+      : inCooldown
+        ? 'cooldown_skipped'
+        : 'restart_triggered';
 
     // 3. log every stale detection
     const logRows = stale.map((s) => ({
@@ -77,7 +92,7 @@ Deno.serve(async (req) => {
     if (lErr) console.error('watchdog_log insert failed:', lErr);
 
     // 4. queue restart unless in cooldown
-    if (!inCooldown) {
+    if (!inCooldown && !hasPending) {
       const { error: pErr } = await supabase
         .from('plug_commands')
         .insert({ command: 'restart', source: 'watchdog' });

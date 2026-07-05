@@ -110,6 +110,17 @@ def last_watchdog_restart() -> datetime | None:
     return parse_ts(rows[0].get("created_at"))
 
 
+def has_pending_command() -> bool:
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/plug_commands",
+        params={"select": "id", "status": "eq.pending", "limit": "1"},
+        headers=HEADERS,
+        timeout=15,
+    )
+    r.raise_for_status()
+    return len(r.json()) > 0
+
+
 def queue_restart(reason: str) -> None:
     r = requests.post(
         f"{SUPABASE_URL}/rest/v1/plug_commands",
@@ -131,6 +142,12 @@ def check_once() -> None:
     log.info("latest controller update %.1f min ago", age_min)
 
     if age_min < STALE_MIN:
+        return
+
+    # Never let commands stack — if the poller is offline, there's already
+    # a pending restart waiting. Adding more just creates a backlog.
+    if has_pending_command():
+        log.info("stale %.1f min but a plug command is already pending — skipping", age_min)
         return
 
     last_restart = last_watchdog_restart()
