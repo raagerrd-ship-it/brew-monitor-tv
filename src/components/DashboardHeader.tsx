@@ -211,6 +211,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const [raptDegraded, setRaptDegraded] = useState(false);
   const [lastSuccessfulSync, setLastSuccessfulSync] = useState<Date | null>(null);
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
+  const [pillStaleMin, setPillStaleMin] = useState(5);
+  const [probeStaleMin, setProbeStaleMin] = useState(31);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -232,7 +234,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
     const check = async () => {
       const { data } = await supabase
         .from('sync_settings')
-        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at, rapt_sync_interval')
+        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at, rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
         .limit(1)
         .maybeSingle();
       if (!data) return;
@@ -241,6 +243,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
       const syncIntervalSec = (data as any).rapt_sync_interval ?? 300;
       const thresholdMin = Math.max(31, Math.round((syncIntervalSec * 2) / 60) + 20);
       setStaleThresholdMin(thresholdMin);
+      setPillStaleMin(Number((data as any).pill_stale_threshold_min ?? 5));
+      setProbeStaleMin(Number((data as any).probe_stale_threshold_min ?? 31));
       setLastSuccessfulSync(lastSuccess);
       if (lastSuccess && lastQuick) {
         const sinceSuccess = Date.now() - lastSuccess.getTime();
@@ -326,8 +330,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                        const probeAgeMin = probeStamp
                          ? (now - new Date(probeStamp).getTime()) / 60000
                          : Infinity;
-                       const pillStale = !!linkedPill && pillAgeMin > 5;
-                       const probeStale = controller.current_temp != null && probeAgeMin > 31;
+                       const pillStale = !!linkedPill && pillAgeMin > pillStaleMin;
+                       const probeStale = controller.current_temp != null && probeAgeMin > probeStaleMin;
                        const pillWarn = pillStale || probeStale;
                        const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
                        const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
@@ -372,8 +376,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          {pillWarn && (
                             <span
                               title={[
-                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel 5 min)` : '',
-                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel 31 min)` : '',
+                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel ${pillStaleMin} min)` : '',
+                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel ${probeStaleMin} min)` : '',
                               ].filter(Boolean).join('\n')}
                               className="inline-flex"
                             >

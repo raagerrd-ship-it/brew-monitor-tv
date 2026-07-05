@@ -1721,6 +1721,8 @@ export type Database = {
           last_full_sync_at: string | null
           last_rapt_quick_sync_at: string | null
           last_successful_rapt_sync_at: string | null
+          pill_stale_threshold_min: number
+          probe_stale_threshold_min: number
           rapt_sync_interval: number
           show_fps_counter: boolean
           splash_delay_ms: number
@@ -1740,6 +1742,8 @@ export type Database = {
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
+          pill_stale_threshold_min?: number
+          probe_stale_threshold_min?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
@@ -1759,6 +1763,8 @@ export type Database = {
           last_full_sync_at?: string | null
           last_rapt_quick_sync_at?: string | null
           last_successful_rapt_sync_at?: string | null
+          pill_stale_threshold_min?: number
+          probe_stale_threshold_min?: number
           rapt_sync_interval?: number
           show_fps_counter?: boolean
           splash_delay_ms?: number
