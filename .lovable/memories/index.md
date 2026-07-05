@@ -24,6 +24,7 @@
 - [Learning Precision](mem://architecture/data/learning-data-management) — 6 decimal precision for <0.01 parameters.
 - [PID Persistency](mem://architecture/automation/pid-state-persistence-policy) — Always persist PID state to prevent runaway logic.
 - [PID SSOT-only](mem://architecture/automation/pid-ssot-only) — PID reads exclusively actual_temp; probe/pill forbidden in regulation logic.
+- [PID HW Quantization](mem://architecture/automation/pid-hw-quantization-awareness) — PID vet om 1%/50min PWM-upplösning; D-brake fryses i dither-zon.
 - [Public Access](mem://architecture/api/public-data-access) — `get-public-rapt-data` uses sequence: share_id -> batch_id -> id.
 - [Step Logic](mem://architecture/fermentation/isolated-step-logic) — 7-day limits, SG stability requirements.
 - [Hardware Mode Guard](mem://logic/automation/hardware-capability-mode-guard) — Force PID mode to match physical capabilities.
