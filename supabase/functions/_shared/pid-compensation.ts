@@ -214,6 +214,7 @@ function computeDutyV5(input: {
   actualTarget: number
   actualTemp: number             // SSOT — enda temperatursignal
   persistedIntegral: number
+  learnedBaseline: number
   modeJustSwitched: boolean
   coolingUtilization: number | null
   prevState: V5PidState
@@ -258,9 +259,26 @@ function computeDutyV5(input: {
 
   let integral = input.persistedIntegral
   if (!Number.isFinite(integral) || Math.abs(integral) > 1.0) integral = 0
+
+  // Seed from long-term learned duty-floor when transient integral is empty.
+  // Fresh session, cold start, or last cycle bled to 0 → give PID a head start
+  // at 70% of the learned steady-state duty. PID trims the rest via db-conv-up.
+  const canSeed = integral === 0 && input.learnedBaseline > 0.05 && !input.modeJustSwitched
+  if (canSeed) {
+    integral = input.learnedBaseline * 0.7
+    constraints.push(`seed-from-learned(${(integral * 100).toFixed(0)}%)`)
+  }
+
   if (input.modeJustSwitched || (input.prevState.lastMode && input.prevState.lastMode !== input.mode)) {
-    integral = 0
-    constraints.push('mode-reset-hard')
+    // Mjuk reset: behåll halva lärda baselinen istället för att slänga bort
+    // all ackumulerad kunskap vid varje PWM-mode-flip.
+    if (input.learnedBaseline > 0.05) {
+      integral = input.learnedBaseline * 0.5
+      constraints.push(`mode-reset-soft(${(integral * 100).toFixed(0)}%)`)
+    } else {
+      integral = 0
+      constraints.push('mode-reset-hard')
+    }
   }
   integral = Math.max(0, Math.min(Imax, integral))
 
