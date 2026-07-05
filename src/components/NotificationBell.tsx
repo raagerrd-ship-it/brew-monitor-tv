@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
+import { HeaderIconButton } from "./header/HeaderIconButton";
 
 interface Notification {
   id: string;
@@ -135,29 +136,16 @@ function NotificationBellComponent() {
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (v) markAllRead(); }}>
       <DialogTrigger asChild>
-        <div className="relative flex items-center justify-center" style={{ width: "40px", height: "40px" }}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full opacity-40 hover:opacity-100"
-          >
-            <Bell className="transition-colors duration-200" style={{ width: "50%", height: "50%" }} />
-          </Button>
-          {unreadCount > 0 && (
-            <span
-              className="absolute top-1 right-1 flex items-center justify-center rounded-full font-bold text-white"
-              style={{
-                width: "16px",
-                height: "16px",
-                fontSize: "9px",
-                background: "hsl(0 70% 50%)",
-                boxShadow: "0 0 8px hsl(0 70% 50% / 0.6)",
-              }}
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </div>
+        <HeaderIconButton
+          icon={<Bell />}
+          label={
+            unreadCount > 0
+              ? `${unreadCount} olästa notifikationer`
+              : "Notifikationer"
+          }
+          active={unreadCount > 0}
+          dotColor={unreadCount > 0 ? "hsl(0 70% 55%)" : undefined}
+        />
       </DialogTrigger>
       <DialogContent className="max-w-md pt-3 [&>button]:top-3 [&>button]:right-4">
         <DialogHeader className="space-y-2">
