@@ -10,15 +10,20 @@ const corsHeaders = {
 
 const ReadingSchema = z.object({
   mac: z.string().min(6).max(64),
-  temp_c: z.number().min(-20).max(60).nullable().optional(),
-  gravity_sg: z.number().min(0.9).max(1.3).nullable().optional(),
+  // No value-range filtering: accept any numeric temp/gravity so pills out of
+  // liquid (gravity ~0.80) or with odd readings still flow through. Only
+  // structural validation (must be a finite number when present).
+  temp_c: z.number().finite().nullable().optional(),
+  gravity_sg: z.number().finite().nullable().optional(),
   battery_pct: z.number().int().min(0).max(100).nullable().optional(),
   rssi: z.number().int().min(-120).max(0).nullable().optional(),
   recorded_at: z.string().datetime(),
 });
 
 const BodySchema = z.object({
-  readings: z.array(ReadingSchema).max(500),
+  // Per-reading tolerant: validate each item individually below so one bad
+  // reading never fails the whole batch. Accept unknown shape here.
+  readings: z.array(z.unknown()).max(500),
   heartbeat: z.boolean().optional(),
 });
 
@@ -60,7 +65,16 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const { readings, heartbeat } = parsed.data;
+  const { readings: rawReadings, heartbeat } = parsed.data;
+
+  // Per-reading validation: skip malformed items, keep the rest.
+  const readings: z.infer<typeof ReadingSchema>[] = [];
+  const invalidReadings: { index: number; error: string }[] = [];
+  for (let i = 0; i < rawReadings.length; i++) {
+    const r = ReadingSchema.safeParse(rawReadings[i]);
+    if (r.success) readings.push(r.data);
+    else invalidReadings.push({ index: i, error: r.error.message });
+  }
 
   if (heartbeat && readings.length === 0) {
     return json({ ok: true, heartbeat: true });
@@ -413,5 +427,6 @@ Deno.serve(async (req) => {
     batches: avgByMac.size,
     triggered,
     unknown_macs: Array.from(unknownMacs),
+    invalid_readings: invalidReadings,
   });
 });
