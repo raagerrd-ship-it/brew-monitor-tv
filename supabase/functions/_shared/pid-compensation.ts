@@ -333,19 +333,28 @@ function computeDutyV5(input: {
   // Overshoot-bleed körs bara utanför deadband. Inne i deadband hanterar
   // deadband-bleed / hold-deadband redan I-termen; en extra bleed här skulle
   // motsäga 'deadband-freeze'-semantiken och göra loggen missvisande.
-  if (need < -0.01 && !inDeadband) {
-    nextI *= 0.85
-    constraints.push('overshoot-bleed')
+  //
+  // Tuning: bleed:en var 15%/cykel = 85%/h vilket raderade lärd I varje
+  // gång temperaturen dippade under mål (t.ex. morgondipp efter nattens
+  // ambient-topp). Skala nu bleed:en med felstorlek + dtMin så bara
+  // uppenbara översläng (>-0.15°C) tömmer I snabbt.
+  if (need < -0.05 && !inDeadband) {
+    // 3%/cyk vid −0.05°C, 10%/cyk vid −0.20°C, capad 15%/cyk. Skalas med dtMin/5.
+    const overshootMag = Math.min(0.20, Math.abs(avgError))
+    const bleedFrac = Math.min(0.15, 0.02 + overshootMag * 0.65) * (dtMin / 5)
+    nextI *= (1 - bleedFrac)
+    constraints.push(`overshoot-bleed(-${(bleedFrac*100).toFixed(1)}%)`)
   }
   nextI = Math.max(0, Math.min(Imax, nextI))
 
   // ── Ki auto-recover: peak-arm triggar aldrig när vi ligger permanent över mål,
-  // så tune-down blir enkelriktad. Bumpa kiAdj bara vid tydligt off-target
-  // (need>0.30) — inte vid mikrofel (0.15) där I mättnad orsakar sågtand.
+  // så tune-down blir enkelriktad. Bumpa kiAdj vid off-target (need>0.20) —
+  // typisk nattlig excursion ligger 0.20–0.25°C, tidigare tröskel 0.30 nåddes
+  // aldrig så kiAdj växte aldrig och I under-integrerade permanent.
   // Rate-limit: +10%/5min istället för +10%/cykel — annars når vi 2.5x på <1h
   // vilket är farligt när dead-time (~15 min) bara innebär att systemet ännu
   // inte hunnit svara på nuvarande duty.
-  if (isCooling && nextI >= 0.9 * Imax && need > 0.30 && !isStaleSsot) {
+  if (isCooling && nextI >= 0.85 * Imax && need > 0.20 && !isStaleSsot) {
     const recoverGrowth = 0.10 * (dtMin / 5)  // 10% per 5 min
     kiAdj = Math.min(2.5, kiAdj * (1 + recoverGrowth))
     constraints.push(`ki-recover(ki=${kiAdj.toFixed(2)})`)
@@ -394,9 +403,10 @@ function computeDutyV5(input: {
       constraints.push(`past-target-soft(→${(duty*100).toFixed(0)}%)`)
     }
     // Bleed I bara vid tydlig overshoot; nära mål lämnas I orörd så
-    // steady-state-bias bevaras.
+    // steady-state-bias bevaras. Bleed-faktor sänkt från 0.5 → 0.2 så en
+    // enda coast-cykel inte torkar ut lärd hold-duty.
     if (clearOvershoot) {
-      const bleed = (KiPerHour * dtMin / 60) * 0.5
+      const bleed = (KiPerHour * dtMin / 60) * 0.2
       nextI = Math.max(0, nextI - bleed)
       constraints.push(`coast-i-bleed(${bleed.toFixed(3)})`)
     }
@@ -462,6 +472,10 @@ function computeDutyV5(input: {
 
   if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
     duty = Math.min(duty, nextI + 0.1)
+    // Anti-windup: kylkretsen är mättad, vi kan inte leverera mer duty.
+    // Frys I på tidigare värde så inte pressure byggs upp mot ett tak vi
+    // ändå inte kan svara på.
+    nextI = Math.min(nextI, input.persistedIntegral)
     constraints.push('util-sat-cap')
   }
 
@@ -469,6 +483,9 @@ function computeDutyV5(input: {
     const minutesSinceOff = (nowMs - new Date(input.prevState.lastZeroDutyAt).getTime()) / 60000
     if (minutesSinceOff < COOL.MinOffMin) {
       duty = 0
+      // Anti-windup: min-off tvingar duty=0, låt inte I växa under tiden
+      // — annars burst när min-off släpper.
+      nextI = Math.min(nextI, input.persistedIntegral)
       constraints.push(`min-off(${minutesSinceOff.toFixed(1)}m)`)
     }
   }
@@ -485,6 +502,11 @@ function computeDutyV5(input: {
     if (Math.abs(delta) > SLEW_PER_CYCLE) {
       duty = Math.max(0, Math.min(1, lastDutyFrac + Math.sign(delta) * SLEW_PER_CYCLE))
       constraints.push(`slew-cap(${(delta * 100).toFixed(1)}%→${Math.sign(delta) * SLEW_PER_CYCLE * 100}%)`)
+      // Anti-windup: om vi ville växa duty men slew-cap begränsar, låt
+      // inte I fortsätta bygga upp mot en respons vi ännu inte kunnat leverera.
+      if (delta > 0) {
+        nextI = Math.min(nextI, input.persistedIntegral + SLEW_PER_CYCLE)
+      }
     }
   }
 
