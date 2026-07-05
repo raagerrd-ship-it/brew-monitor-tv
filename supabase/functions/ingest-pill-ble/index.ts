@@ -427,5 +427,6 @@ Deno.serve(async (req) => {
     batches: avgByMac.size,
     triggered,
     unknown_macs: Array.from(unknownMacs),
+    invalid_readings: invalidReadings,
   });
 });
