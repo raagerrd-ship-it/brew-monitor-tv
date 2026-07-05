@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, Re
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { AlarmTimerFooterBar } from '@/components/AlarmTimerFooterBar';
+import { Button } from '@/components/ui/button';
 import { AlertTriangle, Timer, AlarmClock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -22,8 +23,8 @@ export interface AlarmTimerEntry {
 interface AlarmTimerContextType {
   entry: AlarmTimerEntry | null;
   remainingMs: number;
-  startTimer: (minutes: number, alertText: string, alertDurationSec: number, label?: string) => void;
-  setAlarm: (targetTime: string, alertText: string, alertDurationSec: number, label?: string) => void;
+  startTimer: (minutes: number, alertText: string, alertDurationSec?: number, label?: string) => void;
+  setAlarm: (targetTime: string, alertText: string, alertDurationSec?: number, label?: string) => void;
   cancel: () => void;
 }
 
@@ -94,7 +95,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   const [entry, setEntry] = useState<AlarmTimerEntry | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
-  const { showAlert } = useDashboardAlert();
+  const { showAlert, dismissAlert } = useDashboardAlert();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const firedLocallyRef = useRef<string | null>(null);
 
@@ -105,7 +106,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     await clearTimerInDb();
   }, []);
 
-  const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec: number, label?: string) => {
+  const startTimer = useCallback(async (minutes: number, alertText: string, alertDurationSec?: number, label?: string) => {
     const now = Date.now();
     const totalMs = minutes * 60 * 1000;
     const endsAt = new Date(now + totalMs);
@@ -117,13 +118,13 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       total_ms: totalMs,
       label: label || `Timer ${minutes} min`,
       alert_text: alertText,
-      alert_duration_sec: alertDurationSec,
+      alert_duration_sec: alertDurationSec ?? 0,
       is_active: true,
       fired: false,
     });
   }, []);
 
-  const setAlarm = useCallback(async (targetTime: string, alertText: string, alertDurationSec: number, label?: string) => {
+  const setAlarm = useCallback(async (targetTime: string, alertText: string, alertDurationSec?: number, label?: string) => {
     const now = new Date();
     const [hours, minutes] = targetTime.split(':').map(Number);
     const target = new Date(now);
@@ -140,7 +141,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       total_ms: totalMs,
       label: label || 'Alarm',
       alert_text: alertText,
-      alert_duration_sec: alertDurationSec,
+      alert_duration_sec: alertDurationSec ?? 0,
       is_active: true,
       fired: false,
     });
@@ -229,15 +230,16 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     if (!entry?.fired) return;
     const Icon = entry.type === 'timer' ? Timer : AlarmClock;
     const typeLabel = entry.type === 'timer' ? '⏱️ Timer' : '⏰ Alarm';
+    const alertId = `alarm-timer-alert-${entry.id}`;
     showAlert({
-      id: `alarm-timer-alert-${entry.id}`,
-      autoDismissMs: entry.alertDurationSec * 1000,
+      id: alertId,
+      autoDismissMs: null,
       overlayBackground: 'radial-gradient(ellipse at center, hsl(38 90% 30% / 0.4) 0%, hsl(0 0% 0% / 0.85) 100%)',
       pushTitle: `${typeLabel}: ${entry.label}`,
       pushBody: entry.alertText,
       content: (
         <div
-          className="flex flex-col items-center px-12 py-8 rounded-2xl max-w-[90vw]"
+          className="flex flex-col items-center px-12 py-8 rounded-2xl max-w-[90vw] pointer-events-auto"
           style={{
             background: 'linear-gradient(145deg, hsl(38 80% 18%) 0%, hsl(222 20% 10%) 100%)',
             border: '2px solid hsl(38 90% 50% / 0.5)',
@@ -254,21 +256,21 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
             <AlertTriangle className="w-6 h-6 text-primary-foreground" />
             <Icon className="w-5 h-5 text-primary-foreground" />
           </div>
-          <div className="text-4xl md:text-6xl font-bold text-center leading-tight" style={{ color: 'hsl(40 90% 85%)' }}>
+          <div className="text-4xl md:text-6xl font-bold text-center leading-tight mb-8" style={{ color: 'hsl(40 90% 85%)' }}>
             {entry.alertText}
           </div>
+          <Button
+            onClick={() => { dismissAlert(alertId); cancel(); }}
+            className="pointer-events-auto"
+          >
+            Kvittera
+          </Button>
         </div>
       ),
     });
 
-    // Auto-clear the entry after alert dismisses
-    const clearTimer = setTimeout(async () => {
-      setEntry(null);
-      setRemainingMs(0);
-      await clearTimerInDb();
-    }, entry.alertDurationSec * 1000 + 500);
-    return () => clearTimeout(clearTimer);
-  }, [entry?.fired]);
+    return () => { dismissAlert(alertId); };
+  }, [entry?.fired, cancel, dismissAlert]);
 
   // Manage footer slot — only update on entry change, not every second
   useEffect(() => {

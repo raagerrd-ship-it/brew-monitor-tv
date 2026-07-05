@@ -83,6 +83,7 @@
 - [SG Comp Logic](mem://features/fermentation/sg-temperature-correction-logic) — Adaptive residual EMA for temp corr.
 - [Web Push Setup](mem://features/notifications/web-push-vapid-infrastructure) — Vite injectManifest with DB vapid keys.
 - [Shared Timers](mem://features/local-alarm-timer/shared-timer-system) — `shared_timer` singleton table atomic updates.
+- [Acknowledgment Required](mem://features/local-alarm-timer/acknowledgment-required) — Timer/alarm alerts stay visible until manually acknowledged.
 - [Outage Tracking](mem://features/monitoring/controller-outage-tracking) — 50min stale detection, `sensor_offline` alerts.
 - [Manual Edits](mem://features/fermentation/manual-data-management) — CustomBrewDialog truncates snapshot rows permanently.
 
