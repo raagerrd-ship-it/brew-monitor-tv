@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { PlugControl } from "./PlugControl";
+import { PiHealthChip } from "./PiHealthChip";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -102,6 +103,7 @@ export function DashboardHeader({
                   <Settings className="w-5 h-5" />
                 </Button>
               </div>
+              {!isTvMode && <PiHealthChip />}
             </div>
           </div>
         ) : null}
@@ -126,6 +128,7 @@ export function DashboardHeader({
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
               {!isTvMode && <PlugControl />}
+              {!isTvMode && <PiHealthChip />}
 
               {!isTvMode && (
                 <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
