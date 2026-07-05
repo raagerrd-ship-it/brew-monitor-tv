@@ -25,7 +25,7 @@ function persist(field: string, value: any) {
   if (!settingsId) return;
   supabase
     .from('sync_settings')
-    .update({ [field]: value })
+    .update({ [field]: value } as never)
     .eq('id', settingsId)
     .then(({ error }) => {
       if (error) console.error('[ChartSettings] Save failed:', error.message);
