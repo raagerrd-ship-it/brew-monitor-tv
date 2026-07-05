@@ -6,6 +6,7 @@
 - RAPT Hardware bounds: Max -10°C lower limit. No `SetHeatingEnabled` via API. Match devices strictly by `paired_device_id`.
 - Hardware suppressions: +2°C above probe to suppress cooling, -2°C below probe to suppress heating during PWM off phases.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
+- Never regenerate `pi/brew-ble/ble_scanner.py` from scratch — Kegland 0x4152 PT-V2 decoder is field-verified; only surgical edits.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
 - Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average. PID V4 regulerar direkt mot SSOT.
 - PID är V4 (BrewPi-stil): långsam PI på SSOT, brett dödband ±0.10°C, peak-detection självtuner cooling-Ki, pill enbart som säkerhetstak. Ingen observer/k-learning/stratifierings-guard.
