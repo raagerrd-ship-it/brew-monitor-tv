@@ -170,6 +170,7 @@ export async function calculateCompensatedTarget(
     mode, stepType,
     actualTarget, actualTemp,
     persistedIntegral,
+    learnedBaseline,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     prevState,
@@ -187,6 +188,7 @@ export async function calculateCompensatedTarget(
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, avgError, dutyCycle, r.nextState,
+    convergenceCount, learnedBaseline, !!modeJustSwitched,
   )
 
   return {
