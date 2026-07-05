@@ -370,23 +370,19 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                          ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
                         }}>
                          {pillWarn && (
-                           <AlertTriangle
-                             className="w-3 h-3 flex-shrink-0"
-                             style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
-                              aria-label={`${pillStale ? `Pill ${Math.round(pillAgeMin)} min sedan uppdatering` : ''}${pillStale && probeStale ? ' · ' : ''}${probeStale ? `Probe ${Math.round(probeAgeMin)} min sedan uppdatering` : ''}`}
-                              >
-                              <title>
-                                {pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel 5 min)` : ''}
-                                {pillStale && probeStale ? '\n' : ''}
-                                {probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel 31 min)` : ''}
-                              </title>
-                            </AlertTriangle>
+                            <span
+                              title={[
+                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel 5 min)` : '',
+                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel 31 min)` : '',
+                              ].filter(Boolean).join('\n')}
+                              className="inline-flex"
+                            >
+                              <AlertTriangle
+                                className="w-3 h-3 flex-shrink-0"
+                                style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                              />
+                            </span>
                           )}
-                          {false && (
-                            <AlertTriangle
-                              className="w-3 h-3"
-                           />
-                         )}
                          {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                        </span>
                       );
