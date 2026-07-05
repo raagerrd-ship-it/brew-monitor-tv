@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
@@ -18,6 +17,7 @@ import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { PlugControl } from "./PlugControl";
 import { PiHealthChip } from "./PiHealthChip";
+import { HeaderIconButton } from "./header/HeaderIconButton";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -86,23 +86,30 @@ export function DashboardHeader({
             </div>
             <div className="flex items-center gap-1">
               {onRefresh && !isOnSettings && (
-                <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                  <Button variant="ghost" size="icon" onClick={onRefresh} className="opacity-50 hover:opacity-90 hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full">
-                    <RefreshCw className="w-5 h-5" />
-                  </Button>
-                </div>
+                <HeaderIconButton
+                  icon={<RefreshCw />}
+                  label="Uppdatera"
+                  onClick={onRefresh}
+                />
               )}
-              <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-50 hover:opacity-90'}`}>
-                  <Timer className="w-5 h-5" />
-                </Button>
-              </div>
+              <HeaderIconButton
+                icon={<Timer />}
+                label="Timer / alarm"
+                onClick={() => setAlarmDialogOpen(true)}
+                active={!!(alarmEntry && !alarmEntry.fired)}
+                dotColor={
+                  alarmEntry && !alarmEntry.fired
+                    ? "hsl(var(--primary))"
+                    : undefined
+                }
+              />
               <NotificationBell />
-              <div className="relative flex items-center justify-center" style={{ width: '36px', height: '36px' }}>
-                <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
-                  <Settings className="w-5 h-5" />
-                </Button>
-              </div>
+              <HeaderIconButton
+                icon={<Settings />}
+                label="Inställningar"
+                onClick={() => navigate('/settings')}
+                active={isOnSettings}
+              />
               {!isTvMode && <PiHealthChip />}
             </div>
           </div>
@@ -131,21 +138,28 @@ export function DashboardHeader({
               {!isTvMode && <PiHealthChip />}
 
               {!isTvMode && (
-                <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                  <Button variant="ghost" size="icon" onClick={() => setAlarmDialogOpen(true)} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${alarmEntry && !alarmEntry.fired ? 'opacity-100 text-primary' : 'opacity-50 hover:opacity-90'}`}>
-                    <Timer className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
-                  </Button>
-                </div>
+                <HeaderIconButton
+                  icon={<Timer />}
+                  label="Timer / alarm"
+                  onClick={() => setAlarmDialogOpen(true)}
+                  active={!!(alarmEntry && !alarmEntry.fired)}
+                  dotColor={
+                    alarmEntry && !alarmEntry.fired
+                      ? "hsl(var(--primary))"
+                      : undefined
+                  }
+                />
               )}
 
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
-                <div className="relative flex items-center justify-center" style={{ width: '40px', height: '40px' }}>
-                  <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} className={`hover:bg-transparent transition-opacity duration-200 w-full h-full rounded-full ${isOnSettings ? 'opacity-100' : 'opacity-50 hover:opacity-90'}`}>
-                    <Settings className="transition-colors duration-200" style={{ width: '50%', height: '50%' }} />
-                  </Button>
-                </div>
+                <HeaderIconButton
+                  icon={<Settings />}
+                  label="Inställningar"
+                  onClick={() => navigate('/settings')}
+                  active={isOnSettings}
+                />
               )}
 
               <Clock />

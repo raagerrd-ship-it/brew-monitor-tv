@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Zap } from "lucide-react";
+import { Cpu } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { HeaderIconButton } from "./header/HeaderIconButton";
 
 interface PiHealth {
   last_seen: string | null;
@@ -57,8 +58,17 @@ export function PiHealthChip() {
     : Infinity;
   const online = ageSec < 90;
   const undervoltage = !!(health?.undervoltage_now || health?.undervoltage_ever);
-  const dotColor = online ? "hsl(142 70% 45%)" : "hsl(0 70% 50%)";
-  const labelColor = online ? "hsl(0 0% 85%)" : "hsl(0 70% 60%)";
+  // Attention dot: red if offline, amber if undervoltage, none when healthy.
+  const dotColor = !online
+    ? "hsl(0 70% 55%)"
+    : undervoltage
+      ? "hsl(38 92% 55%)"
+      : undefined;
+  const iconColor = !online
+    ? "hsl(0 70% 60%)"
+    : undervoltage
+      ? "hsl(38 92% 60%)"
+      : "hsl(142 60% 55%)";
 
   const tooltip = (
     <div className="text-xs space-y-1">
@@ -104,38 +114,13 @@ export function PiHealthChip() {
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div
-            className="flex items-center gap-1.5 px-2 h-7 rounded-full"
-            style={{
-              background: "hsl(0 0% 100% / 0.04)",
-              border: "1px solid hsl(0 0% 100% / 0.08)",
-            }}
-          >
-            <span
-              className="inline-block rounded-full"
-              style={{
-                width: 7,
-                height: 7,
-                background: dotColor,
-                boxShadow: `0 0 6px ${dotColor}`,
-              }}
-            />
-            <span
-              className="text-[11px] font-medium tabular-nums"
-              style={{ color: labelColor }}
-            >
-              Pi
-            </span>
-            {undervoltage && (
-              <Zap
-                className="w-3 h-3"
-                style={{
-                  color: "hsl(38 92% 55%)",
-                  filter: "drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))",
-                }}
-              />
-            )}
-          </div>
+          <HeaderIconButton
+            icon={<Cpu strokeWidth={2} />}
+            label={`Pi: ${online ? "online" : "offline"}`}
+            active={online}
+            dotColor={dotColor}
+            iconColor={iconColor}
+          />
         </TooltipTrigger>
         <TooltipContent side="bottom">{tooltip}</TooltipContent>
       </Tooltip>

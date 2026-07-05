@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HeaderIconButton } from "./header/HeaderIconButton";
 
 interface WatchdogEvent {
   id: string;
@@ -118,27 +119,20 @@ export function PlugControl({ compact: _compact = false }: { compact?: boolean }
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
+          <HeaderIconButton
+            icon={<Plug strokeWidth={2} />}
+            label={`Plugg: ${stateLabel}`}
             disabled={sending}
-            className="relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 hover:bg-white/[0.06] focus:outline-none disabled:cursor-default disabled:opacity-60"
-            style={{ color: stateColor }}
-            title={`Plugg: ${stateLabel}`}
-            aria-label={`Plugg: ${stateLabel}`}
-          >
-            <Plug className="w-5 h-5" strokeWidth={2} />
-            {hasRecentEvent && (
-              <span
-                className="absolute top-2 right-2 rounded-full"
-                style={{
-                  width: 6,
-                  height: 6,
-                  background: "hsl(38 92% 60%)",
-                  boxShadow: "0 0 5px hsl(38 92% 55%)",
-                }}
-              />
-            )}
-          </button>
+            active={isOn === true}
+            iconColor={stateColor}
+            dotColor={
+              isOn === false
+                ? "hsl(0 70% 55%)"
+                : hasRecentEvent
+                  ? "hsl(38 92% 55%)"
+                  : undefined
+            }
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
