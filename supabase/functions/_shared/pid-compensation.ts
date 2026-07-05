@@ -69,7 +69,30 @@ async function persistPidState(
   controllerId: string, deltaBucket: string, mode: string, stepType: string,
   pCorrection: number, iCorrection: number, avgError: number,
   dutyCycle: number, nextState: V5PidState,
+  prevConvergenceCount: number, prevLearnedBaseline: number,
+  modeJustSwitched: boolean,
 ): Promise<void> {
+  // ── Long-horizon convergence detection ──
+  // Only in hold, inside deadband, when duty is actively driven by the I-term
+  // (steady state). EMA the learned baseline slowly so a single cycle can't
+  // skew it. This is the persistent duty-floor used to seed future sessions.
+  let newConvergenceCount = prevConvergenceCount
+  let newLearnedBaseline = prevLearnedBaseline
+  const converged =
+    stepType === 'hold' &&
+    !modeJustSwitched &&
+    Math.abs(avgError) <= 0.10 &&
+    dutyCycle > 0.02 &&
+    Math.abs(dutyCycle - iCorrection) < 0.05
+  if (converged) {
+    newConvergenceCount = prevConvergenceCount + 1
+    const alpha = 0.10
+    newLearnedBaseline = prevLearnedBaseline > 0
+      ? prevLearnedBaseline + alpha * (iCorrection - prevLearnedBaseline)
+      : iCorrection
+    // Clamp to sane range
+    newLearnedBaseline = Math.max(0, Math.min(0.65, newLearnedBaseline))
+  }
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
     latest_p_correction: pCorrection, latest_i_correction: iCorrection,
@@ -77,6 +100,9 @@ async function persistPidState(
     latest_avg_error: avgError,
     accumulated_integral: iCorrection,
     sensor_anchor: nextState,
+    convergence_count: newConvergenceCount,
+    learned_pi_correction: newLearnedBaseline,
+    last_converged_at: converged ? new Date().toISOString() : undefined,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'controller_id,delta_bucket,mode,step_type', ignoreDuplicates: false })
 }

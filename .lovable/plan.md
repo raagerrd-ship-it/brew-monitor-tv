@@ -1,58 +1,52 @@
-## Granskning: V4 PID (pid-compensation.ts) mot historik
+## Problem
 
-### Vad är solitt
-- **SSOT-regulering korrekt**: PI körs direkt på `actualTemp` (bulk-probe). `actualTarget` skickas tillbaka orört som `ctrlTargetPid` — `profile_target_temp` rörs inte. Bra mot SSOT-regeln.
-- **Slow-PI-värden rimliga för dödtid**: Kp=0.20, Ki=0.30/h, Imax=0.35, dödband ±0.10°C. Stämmer med BrewPi/Inkbird-praxis för 60 L massa med 15 min probe-latens.
-- **Pill korrekt utanför PI-felet**: bara top-cap (+0.7°C → ≥12% duty) och bottom-stop (−0.7°C → 0% + I-bleed). Matchar "pill måste vara med, men inte i fusion".
-- **Min-off 5 min för kyla**: skyddar kompressor/glykolmix. Bokföringen via `lastZeroDutyAt` är korrekt (verifierat: dutyPct beräknas EFTER min-off-blocket, så state speglar verkligen utskickad duty).
-- **Peak-detect 0.85×/1.15× med 0.4–2.5 clamp**: säker självtuning, kommer konvergera ~2 dygn.
-- **ssFloor + margin-scale 0.6–1.8×** bevaras → kall-glykol drar ned duty proaktivt. Rör inte `ssFloorRaw` i DB.
-- **Past-target-coast + overshoot-bleed (0.85×)** dämpar windup vid undershoot.
+`controller_learned_compensation` har kolumnerna `convergence_count` och `learned_pi_correction`, men `persistPidState()` skriver **aldrig** till dem. Endast `accumulated_integral` (transient I-term) persistas.
 
-### Konkreta risker (måste fixas innan vi kan lova ±0.10°C hold)
+Följdverkan för Grön:
+- Konvergensräknare fast på 0 sedan 63 dagar.
+- Ingen lärd "duty-floor" — varje ny session/mode-switch börjar reaktivt från 0.
+- Mode-reset (`mode-reset-hard`, rad 233) nollar accumulated_integral. Med PWM-cyklingen som pinglar cooling↔heating hinner I-termen sällan bygga upp verklig steady-state.
+- Nattens observerade sågtand (12.7 ↔ 13.24) = symptom.
 
-1. **dt hårdkodad till 1 min — extra triggers över-integrerar.**
-   `nextI += KiPerHour * need / 60` antar exakt 1 cykel/min. Men `auto-adjust-cooling` triggas av tre källor:
-   - cron `* * * * *` (1 min)
-   - RAPT-update trigger (var 15 min, drar in extra cykel direkt efter cron)
-   - `ingest-pill-ble` (när BLE-paket landar)
-   
-   En 15-min RAPT-burst kan ge 2 cykler inom samma minut → dubbel integration. **Fix:** byt till `dt = clamp((now − lastSsotAt)/60000, 0.25, 5.0)` minuter; använd `KiPerHour * need * dt/60`. Använder redan `lastSsotAt` i V4PidState.
+## Åtgärd (isolerad till pid-compensation.ts)
 
-2. **Mode-flip mjuk reset blandar mode-integraler.**
-   Vid cool→heat flip: `integral = |need|>0.5 ? 0 : integral*0.5`. Men cooling-I och heating-I har motsatta semantiska riktningar (båda är ≥0 men driver olika hårdvara). Att behålla halva cooling-I som heating-I ger en falsk varmstart. **Fix:** hård `integral = 0` på varje mode-flip (`lastMode !== mode`). Mode-switching-logiken ute i caller har redan 3-stable-cykler-guard, så flip-flop är inte ett bekymmer.
+**1. Detektera konvergens i `persistPidState`**
 
-3. **Pill top-cap för svag i sommarvärme.** 12% duty vid pill +0.7°C kan inte kyla bort en varm topp om ambient är 25°C. **Fix:** gör capen progressiv:
-   ```
-   excess = pill − target
-   if excess > 0.7: floor = clamp(0.12 + (excess − 0.7) * 0.25, 0.12, 0.40)
-   ```
-   Vid +1.5°C topp → 32% duty. Behåller "saktare" karaktär men respekterar fysik.
+Skriv `convergence_count` och `learned_pi_correction` när ALLT gäller:
+- `stepType === 'hold'`
+- `Math.abs(avgError) ≤ 0.10` (i deadband)
+- `dutyCycle > 0.02` (aktiv reglering, inte coast)
+- `Math.abs(dutyCycle - iCorrection) < 0.05` (duty drivs av I-term, dvs. steady state)
+- Ej `mode-reset-hard`-cykel
 
-4. **Bottom-stop nollställer för svagt I.** `nextI *= 0.5` när pill < target − 0.7. Om systemet är i kraftig undershoot (kall glykol slår igenom till pill), halv I = vi kommer behöva bygga upp samma I igen → svängningar. **Fix:** `nextI = 0` när bottom-stop triggar. Den efterföljande cykeln startar rent.
+När villkoret uppfylls:
+- `convergence_count += 1`
+- `learned_pi_correction = EMA(prev, iCorrection, α=0.10)` — långsam glidning så en enstaka outlier inte förstör baseline.
 
-### Småsaker (rör vi ej nu — dokumentera bara)
-- `inDeadband` använder konstanten `COOL.Deadband` även för värme. Funktionellt rätt (±0.10°C för båda), men namnet vilseledande. Lämna.
-- `deadbandGainScale`-variabeln gäller `uFf`, inte dödband. Namn confusing. Lämna.
-- Heating har varken min-on/off eller peak-detect. För Mjöd/Skogens Sus är heating sällsynt (ambient ofta varmare än setpoint) — riskerar inte stabilitet.
+**2. Använda `learned_pi_correction` som seed i `computeDutyV5`**
 
-### Verdikt
-**Med fix 1–4: ja, kärlen kommer hålla ±0.10–0.15°C efter ~2 dygns självtuning.**
-**Som koden står nu: ja men ±0.20–0.30°C med ojämn cykling, särskilt direkt efter RAPT-bursts.** Fix #1 är den enda som påverkar dagligt beteende; #2–4 är edge-case-härdning.
+När `persistedIntegral === 0` (fresh session / efter mode-reset) och `learnedBaseline > 0.05`:
+- Seed `integral = learnedBaseline * 0.7` (70% — konservativt, PID trimmar upp resten via db-conv-up)
+- Ny constraint-tagg: `seed-from-learned(X%)` för spårbarhet.
 
-### Implementationsplan (4 små edits i `pid-compensation.ts`)
+**3. Mjukare mode-reset**
 
-```text
-1. dt från lastSsotAt        → integration använder verklig minuter
-   verify: log "dt=2.3m" syns i bursts efter RAPT
-2. Hård integral=0 vid mode-flip
-   verify: log "mode-reset(hard)" + I=0.000 vid första flip
-3. Progressiv pill-top-cap
-   verify: vid pill=target+1.5 → duty ≥ 0.32, constraint "pill-top-cap(1.50→32%)"
-4. Bottom-stop nollställer I
-   verify: efter bottom-stop, nästa cykel börjar med I=0.000
-```
+Ändra rad 233–236: istället för hård `integral = 0`, blend mot lärd baseline:
+- `integral = learnedBaseline * 0.5` om `learnedBaseline > 0`, annars 0.
+- Constraint: `mode-reset-soft` när baseline finns.
 
-Inga ändringar i `auto-adjust-cooling`, PWM, plug, mode-switching eller DB-schema. Backwards-compat på V4PidState (alla fält redan finns).
+## Filer som ändras
 
-Vill du att jag implementerar alla fyra, eller bara fix #1 (störst impact)?
+- `supabase/functions/_shared/pid-compensation.ts` — enda filen. Ingen migration behövs (kolumnerna finns redan).
+
+## Verifiering
+
+Efter deploy, om 24h:
+- Kolla `SELECT convergence_count, learned_pi_correction FROM controller_learned_compensation WHERE controller_id LIKE '6fbbc7db%' AND step_type='hold'` — count > 0, correction ≠ 0.
+- Kolla nattens `temp_controller_history` — förvänta minskad spridning kring 13.0°C (mål: ±0.15° istället för ±0.24°).
+
+## Ej i scope
+
+- Långsiktig persistering över säsonger (ambient sommar/vinter) — kräver ambient-bucket, större refactor.
+- Bucket-baserad kompensation (`delta_bucket` är hårdkodat till 'low' idag) — behåll tills stability visat värde.
+- UI för att visa lärt värde — separat pass.
