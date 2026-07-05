@@ -69,8 +69,9 @@ def decode_rapt_pt(data: bytes) -> tuple[float, float, int] | None:
         battery = struct.unpack_from(">H", data, 21)[0] / 256.0
     except struct.error:
         return None
-    if not (-20 < temp_c < 60) or not (0.9 < gravity < 1.3):
-        return None
+    # No value-range filtering: forward every structurally valid packet.
+    # The edge function (ingest-pill-ble) is tolerant and validates per-reading,
+    # so pills out of liquid (gravity ~0.80) or with odd temps still flow through.
     return round(temp_c, 3), round(gravity, 4), int(round(battery))
 
 
