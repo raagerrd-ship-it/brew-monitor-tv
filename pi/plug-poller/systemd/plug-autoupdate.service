@@ -1,0 +1,14 @@
+[Unit]
+Description=Auto-update plug-poller / plug-watchdog from git
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/brew/pi/plug-poller
+ExecStart=/usr/bin/env bash /home/pi/brew/pi/plug-poller/auto-update.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
