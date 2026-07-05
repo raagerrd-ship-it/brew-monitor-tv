@@ -63,6 +63,15 @@ const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel
 const SLEW_BYPASS_ERR = 0.50   // |err|>0.5°C → fri respons
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys I
 
+// ── PWM-hårdvarans kvantisering (round-robin dither i controller-adjustments) ──
+// Cykel = 5 min. Slot = 10%-burst. Dither-fönster = 10 slots = 50 min.
+// Effektiv upplösning: 1% duty över 50 min. Under duty=10% levererar HW
+// aldrig en jämn andel — bara enskilda 10%-bursts glest utspridda.
+const HW_STEP = 0.01              // 1% minsta meningsfulla duty-steg
+const DITHER_ZONE_MAX = 0.10      // duty < 10% ⇒ vi är i dither-territorium
+/** Kvantisera till närmaste 1%. */
+const quantize = (d: number) => Math.round(d / HW_STEP) * HW_STEP
+
 /** Persist PID state to controller_learned_compensation */
 async function persistPidState(
   supabase: any,
@@ -265,7 +274,7 @@ function computeDutyV5(input: {
   // at 70% of the learned steady-state duty. PID trims the rest via db-conv-up.
   const canSeed = integral === 0 && input.learnedBaseline > 0.05 && !input.modeJustSwitched
   if (canSeed) {
-    integral = input.learnedBaseline * 0.7
+    integral = quantize(input.learnedBaseline * 0.7)
     constraints.push(`seed-from-learned(${(integral * 100).toFixed(0)}%)`)
   }
 
@@ -273,7 +282,7 @@ function computeDutyV5(input: {
     // Mjuk reset: behåll halva lärda baselinen istället för att slänga bort
     // all ackumulerad kunskap vid varje PWM-mode-flip.
     if (input.learnedBaseline > 0.05) {
-      integral = input.learnedBaseline * 0.5
+      integral = quantize(input.learnedBaseline * 0.5)
       constraints.push(`mode-reset-soft(${(integral * 100).toFixed(0)}%)`)
     } else {
       integral = 0
@@ -372,7 +381,17 @@ function computeDutyV5(input: {
   if (prevSmoothed != null && input.prevState.lastSsotAt && !isStaleSsot) {
     const ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
     const progressRate = isCooling ? -ratePerMin : ratePerMin
-    if (progressRate > 0) {
+    // Dither-artefakt-guard: när vi ligger i låg-duty-zonen (<10%) och redan
+    // är nära mål levererar HW enstaka 10%-bursts glest utspridda. SSOT-EMA
+    // (τ=3 min) hinner reagera på bursten och rapporterar en "progress-rate"
+    // som egentligen är burst-ringing, inte PID-trajektoria. Att bromsa på
+    // det skulle sänka duty ytterligare och skapa oscillation runt setpoint.
+    const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+    const inDitherZone = prevDutyFrac > 0 && prevDutyFrac < DITHER_ZONE_MAX
+    const suppressD = inDitherZone && isHold && inDeadband
+    if (suppressD) {
+      constraints.push('d-suppress-dither')
+    } else if (progressRate > 0) {
       dBrake = Math.min(0.25, Kd * progressRate)
       constraints.push(`d-brake(${(dBrake * 100).toFixed(1)}%)`)
     }
