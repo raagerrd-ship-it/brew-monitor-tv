@@ -56,6 +56,12 @@ function setupChannel() {
   if (channelSetup) return;
   channelSetup = true;
 
+  // Guard against HMR / StrictMode: remove any lingering channel with the
+  // same name before subscribing. Attaching .on() after a prior .subscribe()
+  // on the same channel throws "cannot add postgres_changes callbacks".
+  const existing = supabase.getChannels().find(c => c.topic === 'realtime:chart-settings-sync');
+  if (existing) supabase.removeChannel(existing);
+
   supabase
     .channel('chart-settings-sync')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload: any) => {
