@@ -135,7 +135,7 @@ def queue_restart(reason: str) -> None:
     log.warning("watchdog queued RESTART: %s", reason)
 
 
-def check_once() -> None:
+def check_once(enabled: bool = True) -> None:
     latest = latest_controller_update()
     if latest is None:
         log.info("no controller data yet — skipping")
@@ -145,6 +145,10 @@ def check_once() -> None:
     log.info("latest controller update %.1f min ago", age_min)
 
     if age_min < STALE_MIN:
+        return
+
+    if not enabled:
+        log.info("stale %.1f min but WATCHDOG_ENABLED=false — not queueing restart", age_min)
         return
 
     # Never let commands stack — if the poller is offline, there's already
