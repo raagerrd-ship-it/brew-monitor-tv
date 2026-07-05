@@ -4,6 +4,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 // Tunable thresholds
 const STALE_THRESHOLD_MIN = 31;
 const COOLDOWN_MIN = 35;
+// Max watchdog-triggered restarts within EPISODE_WINDOW_MIN before we stop
+// cycling the plug and just alert. Prevents endless restart loops during a
+// long RAPT-cloud outage.
+const MAX_RESTARTS_PER_EPISODE = 2;
+const EPISODE_WINDOW_MIN = 180;
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -75,11 +80,24 @@ Deno.serve(async (req) => {
     if (pendErr) throw pendErr;
     const hasPending = (pending?.length ?? 0) > 0;
 
+    // Episode guard: count watchdog restarts in the trailing window.
+    const episodeCutoff = new Date(now - EPISODE_WINDOW_MIN * 60_000).toISOString();
+    const { count: episodeCount, error: eErr } = await supabase
+      .from('plug_commands')
+      .select('id', { count: 'exact', head: true })
+      .eq('source', 'watchdog')
+      .eq('command', 'restart')
+      .gte('created_at', episodeCutoff);
+    if (eErr) throw eErr;
+    const maxReached = (episodeCount ?? 0) >= MAX_RESTARTS_PER_EPISODE;
+
     const action = hasPending
       ? 'pending_skipped'
-      : inCooldown
-        ? 'cooldown_skipped'
-        : 'restart_triggered';
+      : maxReached
+        ? 'max_restarts_reached'
+        : inCooldown
+          ? 'cooldown_skipped'
+          : 'restart_triggered';
 
     // 3. log every stale detection
     const logRows = stale.map((s) => ({
@@ -92,7 +110,7 @@ Deno.serve(async (req) => {
     if (lErr) console.error('watchdog_log insert failed:', lErr);
 
     // 4. queue restart unless in cooldown
-    if (!inCooldown && !hasPending) {
+    if (!inCooldown && !hasPending && !maxReached) {
       const { error: pErr } = await supabase
         .from('plug_commands')
         .insert({ command: 'restart', source: 'watchdog' });
@@ -104,6 +122,7 @@ Deno.serve(async (req) => {
         checked: controllers?.length ?? 0,
         stale: stale.length,
         action,
+        episode_restarts: episodeCount ?? 0,
         controllers: stale.map((s) => ({ name: s.name, ageMin: Number(s.ageMin.toFixed(1)) })),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
