@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     // 1. fetch monitored brewing controllers (skip glycol coolers)
     const { data: controllers, error: cErr } = await supabase
       .from('rapt_temp_controllers')
-      .select('controller_id,name,last_update,is_glycol_cooler')
+      .select('controller_id,name,current_temp_updated_at,is_glycol_cooler')
       .or('is_glycol_cooler.is.null,is_glycol_cooler.eq.false');
     if (cErr) throw cErr;
 
@@ -29,13 +29,16 @@ Deno.serve(async (req) => {
     const stale: { name: string; controller_id: string; last_update: string | null; ageMin: number }[] = [];
 
     for (const c of controllers ?? []) {
-      if (!c.last_update) continue;
-      const ageMin = (now - new Date(c.last_update).getTime()) / 60000;
+      // Use RAPT's lastActivityTime (probe freshness) — `last_update` is stamped
+      // to now() on every successful poll and lies when the RAPT cloud caches
+      // stale telemetry.
+      if (!c.current_temp_updated_at) continue;
+      const ageMin = (now - new Date(c.current_temp_updated_at).getTime()) / 60000;
       if (ageMin > STALE_THRESHOLD_MIN) {
         stale.push({
           name: c.name ?? c.controller_id,
           controller_id: c.controller_id,
-          last_update: c.last_update,
+          last_update: c.current_temp_updated_at,
           ageMin,
         });
       }

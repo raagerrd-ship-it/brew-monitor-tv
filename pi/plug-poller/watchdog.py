@@ -67,12 +67,17 @@ def parse_ts(s: str | None) -> datetime | None:
 
 
 def latest_controller_update() -> datetime | None:
-    """Most recent last_update across all RAPT controllers."""
+    """Most recent probe activity across all RAPT controllers.
+
+    Uses current_temp_updated_at (RAPT lastActivityTime) rather than last_update,
+    which is stamped to now() on every successful poll and hides real outages
+    when the RAPT cloud caches stale telemetry.
+    """
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/rapt_temp_controllers",
         params={
-            "select": "last_update",
-            "order": "last_update.desc.nullslast",
+            "select": "current_temp_updated_at",
+            "order": "current_temp_updated_at.desc.nullslast",
             "limit": "1",
         },
         headers=HEADERS,
@@ -82,7 +87,7 @@ def latest_controller_update() -> datetime | None:
     rows = r.json()
     if not rows:
         return None
-    return parse_ts(rows[0].get("last_update"))
+    return parse_ts(rows[0].get("current_temp_updated_at"))
 
 
 def last_watchdog_restart() -> datetime | None:
