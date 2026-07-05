@@ -107,6 +107,65 @@ def report_state(is_on: bool | None) -> None:
     r.raise_for_status()
 
 
+def _read_throttled() -> tuple[str | None, bool | None, bool | None]:
+    try:
+        out = subprocess.check_output(["vcgencmd", "get_throttled"], timeout=5).decode().strip()
+        hex_str = out.split("=", 1)[1].strip()
+        val = int(hex_str, 16)
+        return hex_str, bool(val & 0x1), bool(val & 0x10000)
+    except Exception:
+        return None, None, None
+
+
+def _read_temp() -> float | None:
+    try:
+        out = subprocess.check_output(["vcgencmd", "measure_temp"], timeout=5).decode().strip()
+        return float(out.split("=", 1)[1].split("'", 1)[0])
+    except Exception:
+        return None
+
+
+def _read_uptime() -> int | None:
+    try:
+        with open("/proc/uptime") as f:
+            return int(float(f.read().split()[0]))
+    except Exception:
+        return None
+
+
+def _read_load1() -> float | None:
+    try:
+        with open("/proc/loadavg") as f:
+            return float(f.read().split()[0])
+    except Exception:
+        return None
+
+
+def report_pi_health() -> None:
+    """Best-effort Pi heartbeat. Får ALDRIG kasta undantag."""
+    try:
+        hex_str, uv_now, uv_ever = _read_throttled()
+        payload = {
+            "last_seen": now_iso(),
+            "updated_at": now_iso(),
+            "undervoltage_now": uv_now,
+            "undervoltage_ever": uv_ever,
+            "throttled_hex": hex_str,
+            "temp_c": _read_temp(),
+            "uptime_sec": _read_uptime(),
+            "load1": _read_load1(),
+        }
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/pi_health",
+            params={"id": "eq.1"},
+            headers={**HEADERS, "Prefer": "return=minimal"},
+            json=payload,
+            timeout=10,
+        )
+    except Exception as e:
+        log.debug("pi_health heartbeat failed: %s", e)
+
+
 def last_manual_off_age_sec() -> float | None:
     """Sekunder sedan senaste körda manuella 'off'-kommando, eller None."""
     r = requests.get(
@@ -267,6 +326,9 @@ def main() -> int:
             except Exception as e:
                 log.error("report_state failed: %s", e)
             last_state_report = time.time()
+
+            # Pi heartbeat — samma tick som state-report.
+            report_pi_health()
 
             # Dead-man's switch — pluggen får aldrig fastna i off-läge.
             if is_on is False:
