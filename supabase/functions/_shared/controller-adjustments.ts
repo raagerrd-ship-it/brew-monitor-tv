@@ -181,10 +181,14 @@ async function executePwmDutyCycle(
   const dutyHigh = Math.ceil(dutyRaw * 10) * 10    // e.g. 30
   const fraction = dutyRaw * 100 - dutyLow          // e.g. 3.0 (how many tenths toward high)
   // 5-min PWM cycle (matches sync cadence). 10-slot dithering across 50 min.
+  // Round-robin (Bresenham) spread: distribute N high-slots evenly across 10
+  // instead of front-loading them. E.g. N=4 → slots {2,4,7,9}; N=7 → {1,2,4,5,7,8,9}.
   const SLOT_MS = 300_000
   const currentSlot = Math.floor(Date.now() / SLOT_MS)
   const ditherSlot = currentSlot % 10
-  const dutyPct = ditherSlot < Math.round(fraction) ? dutyHigh : dutyLow
+  const highSlots = Math.round(fraction) // 0..10
+  const isHighSlot = Math.floor(((ditherSlot + 1) * highSlots) / 10) > Math.floor((ditherSlot * highSlots) / 10)
+  const dutyPct = isHighSlot ? dutyHigh : dutyLow
   // Single consolidated burst per 5-min cycle (no split phases).
   // burstSeconds = dutyPct% * 300s  →  20%=60s, 40%=120s, 100%=300s.
   const burstSeconds = Math.round((dutyPct / 100) * 300)
