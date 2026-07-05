@@ -22,6 +22,7 @@ from pathlib import Path
 
 import requests
 import tinytuya
+import subprocess
 
 # ── env loading ────────────────────────────────────────────────────────────
 ENV_PATH = Path(__file__).parent / ".env"
