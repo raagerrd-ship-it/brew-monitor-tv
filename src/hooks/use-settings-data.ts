@@ -60,6 +60,8 @@ export function useSettingsData() {
   
   const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
+  const [pillStaleThresholdMin, setPillStaleThresholdMin] = useState<string>("5");
+  const [probeStaleThresholdMin, setProbeStaleThresholdMin] = useState<string>("31");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [lastQuickSync, setLastQuickSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -153,6 +155,8 @@ export function useSettingsData() {
         
         setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
+        setPillStaleThresholdMin(((data as any).pill_stale_threshold_min ?? 5).toString());
+        setProbeStaleThresholdMin(((data as any).probe_stale_threshold_min ?? 31).toString());
         setLastFullSync(data.last_full_sync_at);
         setLastQuickSync(data.last_rapt_quick_sync_at);
       }
@@ -397,6 +401,16 @@ export function useSettingsData() {
     await updateSyncSetting('splash_delay_ms', parseInt(value));
   }, [updateSyncSetting]);
 
+  const handlePillStaleThresholdChange = useCallback(async (value: string) => {
+    setPillStaleThresholdMin(value);
+    await updateSyncSetting('pill_stale_threshold_min', parseInt(value));
+  }, [updateSyncSetting]);
+
+  const handleProbeStaleThresholdChange = useCallback(async (value: string) => {
+    setProbeStaleThresholdMin(value);
+    await updateSyncSetting('probe_stale_threshold_min', parseInt(value));
+  }, [updateSyncSetting]);
+
   const handleQuickSync = useCallback(async () => {
     setQuickSyncing(true);
     try {
@@ -519,6 +533,7 @@ export function useSettingsData() {
     user, loading,
     // Sync — unified 2-tier
     quickSyncInterval, fullSyncInterval, splashDelayMs,
+    pillStaleThresholdMin, probeStaleThresholdMin,
     lastFullSync, lastQuickSync,
     syncing, quickSyncing,
     syncSteps,
@@ -538,6 +553,7 @@ export function useSettingsData() {
     // Handlers
     handleQuickSyncIntervalChange, handleFullSyncIntervalChange,
     handleAutoSettingChange, handleSplashDelayChange,
+    handlePillStaleThresholdChange, handleProbeStaleThresholdChange,
     handleQuickSync, handleFullSync,
     handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
     handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
