@@ -80,10 +80,8 @@ def main():
     if post(payload):
         con.executemany("UPDATE pill_readings SET synced = 1 WHERE id = ?", [(i,) for i in ids])
         con.commit()
-
-        # Housekeeping: keep last 7 days of synced readings
-        con.execute("DELETE FROM pill_readings WHERE synced = 1 AND recorded_at < datetime('now', '-7 days')")
-        con.commit()
+        # No housekeeping: keep full history locally as archive
+        # (~150 MB/year per pill - trivial on Pi 5)
         return 0
 
     log.error("upload failed after retries — readings remain queued")
