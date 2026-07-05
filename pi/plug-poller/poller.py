@@ -43,6 +43,12 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "10"))
 STATE_INTERVAL = int(os.environ.get("STATE_REPORT_INTERVAL_SEC", "30"))
 RESTART_OFF = int(os.environ.get("RESTART_OFF_SECONDS", "8"))
 MAX_COMMAND_AGE_SEC = int(os.environ.get("MAX_COMMAND_AGE_SEC", "300"))
+# Dead-man's switch: pluggen får ALDRIG fastna i off-läge.
+# Om den läses som OFF utan giltig anledning (senaste kommandot är inte
+# ett manuellt 'off' inom detta fönster) forcerar vi ON.
+# Sätt MANUAL_OFF_GRACE_SEC=0 för att alltid forcera on oavsett manuellt off.
+STUCK_OFF_MAX_SEC = int(os.environ.get("STUCK_OFF_MAX_SEC", "120"))
+MANUAL_OFF_GRACE_SEC = int(os.environ.get("MANUAL_OFF_GRACE_SEC", "600"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -98,6 +104,43 @@ def report_state(is_on: bool | None) -> None:
         timeout=15,
     )
     r.raise_for_status()
+
+
+def last_manual_off_age_sec() -> float | None:
+    """Sekunder sedan senaste körda manuella 'off'-kommando, eller None."""
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/plug_commands",
+        params={
+            "select": "executed_at",
+            "command": "eq.off",
+            "source": "eq.manual",
+            "status": "eq.done",
+            "order": "executed_at.desc",
+            "limit": "1",
+        },
+        headers=HEADERS,
+        timeout=15,
+    )
+    r.raise_for_status()
+    rows = r.json()
+    if not rows or not rows[0].get("executed_at"):
+        return None
+    try:
+        ts = datetime.fromisoformat(rows[0]["executed_at"].replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - ts).total_seconds()
+
+
+def has_pending_command() -> bool:
+    r = requests.get(
+        f"{SUPABASE_URL}/rest/v1/plug_commands",
+        params={"select": "id", "status": "eq.pending", "limit": "1"},
+        headers=HEADERS,
+        timeout=15,
+    )
+    r.raise_for_status()
+    return len(r.json()) > 0
 
 
 # ── Tuya plug ──────────────────────────────────────────────────────────────
@@ -168,6 +211,8 @@ def main() -> int:
 
     plug = make_plug()
     last_state_report = 0.0
+    # Dead-man's switch: när började vi observera pluggen som OFF?
+    off_since: float | None = None
     # In-memory guard: never execute the same command id twice in one process
     # lifetime, even if the DB write to mark it done fails.
     handled: set[str] = set()
@@ -221,6 +266,44 @@ def main() -> int:
             except Exception as e:
                 log.error("report_state failed: %s", e)
             last_state_report = time.time()
+
+            # Dead-man's switch — pluggen får aldrig fastna i off-läge.
+            if is_on is False:
+                if off_since is None:
+                    off_since = time.time()
+                off_dur = time.time() - off_since
+                if off_dur >= STUCK_OFF_MAX_SEC:
+                    try:
+                        pending = has_pending_command()
+                        manual_age = last_manual_off_age_sec()
+                    except Exception as e:
+                        log.error("dead-man check failed: %s", e)
+                        pending, manual_age = True, 0.0
+                    manual_recent = (
+                        manual_age is not None and manual_age < MANUAL_OFF_GRACE_SEC
+                    )
+                    if pending:
+                        log.info(
+                            "STUCK-OFF %.0fs men pending-kommando finns — väntar",
+                            off_dur,
+                        )
+                    elif manual_recent:
+                        log.info(
+                            "STUCK-OFF %.0fs men manuellt 'off' för %.0fs sedan "
+                            "(grace=%ds) — respekterar",
+                            off_dur, manual_age, MANUAL_OFF_GRACE_SEC,
+                        )
+                    else:
+                        log.warning(
+                            "🚨 DEAD-MAN forcerar ON: off i %.0fs utan giltig anledning "
+                            "(manual_off_age=%s)",
+                            off_dur, manual_age,
+                        )
+                        if plug_set(plug, True):
+                            off_since = None
+                            last_state_report = 0.0  # rapportera direkt efter
+            else:
+                off_since = None
 
         # sleep the remainder of the poll interval
         elapsed = time.time() - loop_start
