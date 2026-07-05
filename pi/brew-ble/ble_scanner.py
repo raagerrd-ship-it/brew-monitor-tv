@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""
-RAPT Pill BLE scanner.
+"""RAPT Pill BLE scanner (Kegland 0x4152 / "PT" V2 format).
 
-RAPT Pills broadcast a Tilt-compatible iBeacon manufacturer-data payload
-(Apple company id 0x004C, type 0x02 iBeacon). The UUID identifies the pill
-color; the major field encodes temperature in Fahrenheit, and the minor
-field encodes specific gravity * 1000.
+RAPT Pill broadcasts manufacturer-specific data with Kegland's company id
+0x4152 ("RA"). Payload starts with "PT" magic, byte 2 = version (V2 used by
+current firmware). Big-endian fields:
+  [0:2]  "PT"
+  [2]    version (0x02)
+  [3]    mac-present flag
+  [4]    gravity-velocity-valid flag
+  [5:9]  gravity_velocity (float32 BE, points/day if valid)
+  [9:11] temperature_raw (uint16 BE, Kelvin*128)
+  [11:15] gravity_raw (float32 BE, SG*1000)
+  [15:17] accel_x (int16 BE)
+  [17:19] accel_y (int16 BE)
+  [19:21] accel_z (int16 BE)
+  [21:23] battery_raw (uint16 BE, percent*256)
 
-Battery + RSSI come straight from the advertisement metadata when available.
+Writes to SQLite (table pill_readings) for uploader.py to drain.
 """
 
 import asyncio
@@ -15,6 +24,7 @@ import logging
 import os
 import sqlite3
 import struct
+import time
 from datetime import datetime, timezone
 
 from bleak import BleakScanner
@@ -24,76 +34,109 @@ load_dotenv("/opt/brew-ble/.env")
 
 DB_PATH = os.environ.get("DB_PATH", "/opt/brew-ble/readings.db")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+THROTTLE_SECONDS = float(os.environ.get("THROTTLE_SECONDS", "30"))
+# Silent-stall watchdog: if no reading is written for this long, BlueZ has
+# likely stalled (process alive but delivering no advertisements) — exit so
+# systemd (Restart=always) gives us a fresh BLE session.
+STALL_RESTART_SEC = float(os.environ.get("STALL_RESTART_SEC", "1200"))
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("ble-scanner")
 
-APPLE_COMPANY_ID = 0x004C  # iBeacon manufacturer id used by RAPT Pill
+KEGLAND_COMPANY_ID = 0x4152  # "RA" - RAPT Pill / Kegland
 
-# In-memory throttle: only write 1 reading per MAC per 30s to keep SQLite light
-_last_write: dict[str, float] = {}
-THROTTLE_SECONDS = 30.0
-
-
-def f_to_c(f: float) -> float:
-    return round((f - 32.0) * 5.0 / 9.0, 3)
+_last_hex: dict[str, tuple[str, float]] = {}
+_last_reading_ts = 0.0  # monotonic time of the last successful insert
 
 
-def parse_ibeacon(mfg: bytes) -> tuple[float, float] | None:
-    """Parse iBeacon payload from manufacturer data. Returns (temp_c, sg)."""
-    # iBeacon layout after company id: [0x02, 0x15, UUID(16), major(2), minor(2), tx_power(1)]
-    if len(mfg) < 23 or mfg[0] != 0x02 or mfg[1] != 0x15:
+def looks_like_rapt(mfg_data: dict[int, bytes]) -> bytes | None:
+    for cid, data in mfg_data.items():
+        if cid == KEGLAND_COMPANY_ID:
+            return data
+        if len(data) >= 2 and data[:2] in (b"PT", b"PV"):
+            return data
+    return None
+
+
+def decode_rapt_pt(data: bytes) -> tuple[float, float, int] | None:
+    """Return (temp_c, gravity_sg, battery_pct_int) or None."""
+    if len(data) < 23 or data[:2] != b"PT":
         return None
-    major = struct.unpack(">H", mfg[18:20])[0]  # temperature, Fahrenheit
-    minor = struct.unpack(">H", mfg[20:22])[0]  # gravity * 1000
-    if major == 0 or minor == 0:
+    try:
+        temp_raw = struct.unpack_from(">H", data, 9)[0]
+        temp_c = temp_raw / 128.0 - 273.15
+        gravity = struct.unpack_from(">f", data, 11)[0] / 1000.0
+        battery = struct.unpack_from(">H", data, 21)[0] / 256.0
+    except struct.error:
         return None
-    return f_to_c(float(major)), round(minor / 1000.0, 4)
+    if not (-20 < temp_c < 60) or not (0.9 < gravity < 1.3):
+        return None
+    return round(temp_c, 3), round(gravity, 4), int(round(battery))
 
 
-def insert(con: sqlite3.Connection, mac: str, temp_c, sg, rssi):
+def insert(con: sqlite3.Connection, mac: str, temp_c: float,
+           sg: float, batt: int, rssi: int):
     con.execute(
         "INSERT INTO pill_readings (mac, temp_c, gravity_sg, battery_pct, rssi, recorded_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (mac, temp_c, sg, None, rssi, datetime.now(timezone.utc).isoformat()),
+        (mac, temp_c, sg, batt, rssi,
+         datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
     )
     con.commit()
 
 
+async def watchdog_loop():
+    """Exit non-zero if BLE goes silent past STALL_RESTART_SEC, so systemd
+    restarts us. Catches BlueZ stalls that leave the process alive but
+    delivering no advertisements (Restart=always never fires on its own)."""
+    while True:
+        await asyncio.sleep(60)
+        silence = time.monotonic() - _last_reading_ts
+        if silence > STALL_RESTART_SEC:
+            log.error(
+                "no BLE readings for %.0fs (> %ds) — BlueZ likely stalled, "
+                "exiting for systemd restart", silence, STALL_RESTART_SEC,
+            )
+            os._exit(1)
+
+
 async def main():
+    global _last_reading_ts
     con = sqlite3.connect(DB_PATH, isolation_level=None)
-    log.info("BLE scanner starting, DB=%s", DB_PATH)
+    _last_reading_ts = time.monotonic()  # grace window from startup
+    log.info("RAPT BLE scanner starting, DB=%s throttle=%ss stall_restart=%ss",
+             DB_PATH, THROTTLE_SECONDS, STALL_RESTART_SEC)
 
     def detection(device, adv):
+        global _last_reading_ts
         try:
-            mfg = adv.manufacturer_data.get(APPLE_COMPANY_ID)
-            if not mfg:
+            data = looks_like_rapt(adv.manufacturer_data)
+            if data is None:
                 return
-            parsed = parse_ibeacon(bytes(mfg))
-            if not parsed:
+            parsed = decode_rapt_pt(bytes(data))
+            if parsed is None:
                 return
-            temp_c, sg = parsed
+            temp_c, sg, batt = parsed
             mac = device.address.lower().replace(":", "")
+            hex_str = data.hex()
 
-            now = asyncio.get_event_loop().time()
-            last = _last_write.get(mac, 0.0)
-            if now - last < THROTTLE_SECONDS:
+            prev_hex, prev_ts = _last_hex.get(mac, ("", 0.0))
+            now = time.monotonic()
+            if hex_str == prev_hex and (now - prev_ts) < THROTTLE_SECONDS:
                 return
-            _last_write[mac] = now
+            _last_hex[mac] = (hex_str, now)
 
-            insert(con, mac, temp_c, sg, adv.rssi)
-            log.info("pill %s temp=%.2f sg=%.4f rssi=%s", mac, temp_c, sg, adv.rssi)
+            insert(con, mac, temp_c, sg, batt, adv.rssi)
+            _last_reading_ts = now
+            log.info("pill %s temp=%.2fC sg=%.4f batt=%d%% rssi=%s",
+                     mac, temp_c, sg, batt, adv.rssi)
         except Exception as e:
             log.exception("detection error: %s", e)
 
     scanner = BleakScanner(detection_callback=detection)
     await scanner.start()
     try:
-        while True:
-            await asyncio.sleep(3600)
+        await watchdog_loop()
     finally:
         await scanner.stop()
         con.close()
