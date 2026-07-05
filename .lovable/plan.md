@@ -1,52 +1,53 @@
-## Problem
 
-`controller_learned_compensation` har kolumnerna `convergence_count` och `learned_pi_correction`, men `persistPidState()` skriver **aldrig** till dem. Endast `accumulated_integral` (transient I-term) persistas.
+# Fix PID SSOT-filter regression + dither-aware guards
 
-Följdverkan för Grön:
-- Konvergensräknare fast på 0 sedan 63 dagar.
-- Ingen lärd "duty-floor" — varje ny session/mode-switch börjar reaktivt från 0.
-- Mode-reset (`mode-reset-hard`, rad 233) nollar accumulated_integral. Med PWM-cyklingen som pinglar cooling↔heating hinner I-termen sällan bygga upp verklig steady-state.
-- Nattens observerade sågtand (12.7 ↔ 13.24) = symptom.
+Claudes analys stämmer mot koden i `supabase/functions/_shared/pid-compensation.ts`: EMA:n saturerar till 1 vid 5-min cadence, så `ssotFiltered === actualTemp` i produktion. Dither-guarden och peak-detektionen agerar därför fortfarande på rå burst-brus.
 
-## Åtgärd (isolerad till pid-compensation.ts)
+Alla ändringar i **`supabase/functions/_shared/pid-compensation.ts`** — inga andra kodfiler, inga signaturer eller `V5PidState`-fält ändras.
 
-**1. Detektera konvergens i `persistPidState`**
+## Ändringar
 
-Skriv `convergence_count` och `learned_pi_correction` när ALLT gäller:
-- `stepType === 'hold'`
-- `Math.abs(avgError) ≤ 0.10` (i deadband)
-- `dutyCycle > 0.02` (aktiv reglering, inte coast)
-- `Math.abs(dutyCycle - iCorrection) < 0.05` (duty drivs av I-term, dvs. steady state)
-- Ej `mode-reset-hard`-cykel
+**1. Riktig diskret EMA (rad ~245–249)**
+```ts
+// TAU_MIN måste överstiga sample-intervallet (≥5 min PWM-cykel) och rymma ~15 min probe-latens,
+// annars saturerar alpha och EMA:n blir en no-op. Formen 1-exp(-dt/tau) är korrekt diskret EMA.
+const TAU_MIN = 12.0
+const alpha = 1 - Math.exp(-dtMinEarly / TAU_MIN)
+const prevSmoothed = input.prevState.ssotSmoothed
+const ssotFiltered = prevSmoothed != null
+  ? prevSmoothed + alpha * (input.actualTemp - prevSmoothed)
+  : input.actualTemp
+```
+Vid dt=5, tau=12 → alpha≈0.341 (verklig filtrering). Fallback vid `prevSmoothed == null` (fresh controller / state-reset) bibehålls — `alpha` beräknas oberoende av prevSmoothed så inget cirkulärt beroende.
 
-När villkoret uppfylls:
-- `convergence_count += 1`
-- `learned_pi_correction = EMA(prev, iCorrection, α=0.10)` — långsam glidning så en enstaka outlier inte förstör baseline.
+**2. Gate stall-boost-growth på `inDitherZone` (rad ~453–476)**
+- Härled `inDitherZone` i stall-boost-blocket **från `prevDutyFrac`** (förra cykelns duty, samma källa som D-brake-guarden) — inte den duty som beräknas denna cykel (som ännu inte är finaliserad här).
+- I `shortfall > 0`-grenen: om `inDitherZone` är true, hoppa över `stallBoost += growthPerMin * dtMin` **och** push:a constraint `stall-freeze-dither` (endast här, inte generellt närhelst `inDitherZone` är true — så decay/reset-cykler slipper stökig logg-brus).
+- Decay-grenen (`progressRate ≥ requiredRate`) och reset-grenen (`|error| < 0.05`) körs oförändrat — boost får krympa eller nollas, aldrig växa, från en dither-burst-mätning.
 
-**2. Använda `learned_pi_correction` som seed i `computeDutyV5`**
+**3. Peak-detection läser `ssotFiltered` istället för `input.actualTemp` (rad ~534–572)**
+- Byt `peakMinTemp = input.actualTemp` → `ssotFiltered` vid arm.
+- Byt `input.actualTemp < peakMinTemp` och `input.actualTemp >= peakMinTemp + 0.02` → använd `ssotFiltered`.
+- Skyddar Ki-autotune från att latcha en burst-inducerad dip som "peak".
 
-När `persistedIntegral === 0` (fresh session / efter mode-reset) och `learnedBaseline > 0.05`:
-- Seed `integral = learnedBaseline * 0.7` (70% — konservativt, PID trimmar upp resten via db-conv-up)
-- Ny constraint-tagg: `seed-from-learned(X%)` för spårbarhet.
+**4. Kommentar ovan EMA** — inbakad i punkt 1, förklarar varför `TAU_MIN` måste överstiga sample-intervallet så framtida cadence-tuning inte regresserar det.
 
-**3. Mjukare mode-reset**
+## Bibehålls
 
-Ändra rad 233–236: istället för hård `integral = 0`, blend mot lärd baseline:
-- `integral = learnedBaseline * 0.5` om `learnedBaseline > 0`, annars 0.
-- Constraint: `mode-reset-soft` när baseline finns.
-
-## Filer som ändras
-
-- `supabase/functions/_shared/pid-compensation.ts` — enda filen. Ingen migration behövs (kolumnerna finns redan).
+- `V5PidState`-form, alla loggar och `constraints`-strängar (förutom nya `stall-freeze-dither`).
+- Existerande D-brake `d-suppress-dither`-guard oförändrad.
+- `HW_STEP` / `quantize()` / seed-quantization oförändrat.
+- Slew-cap (5%), deadband (±0.10°C), min-off logik oförändrat.
 
 ## Verifiering
 
-Efter deploy, om 24h:
-- Kolla `SELECT convergence_count, learned_pi_correction FROM controller_learned_compensation WHERE controller_id LIKE '6fbbc7db%' AND step_type='hold'` — count > 0, correction ≠ 0.
-- Kolla nattens `temp_controller_history` — förvänta minskad spridning kring 13.0°C (mål: ±0.15° istället för ±0.24°).
+- `tsgo` typecheck via harness efter build-mode.
+- Sanity: `dtMinEarly=5, TAU_MIN=12` → alpha ≈ 0.341 (inte 1.0).
+- Snabbläs runtime-loggar för nya `stall-freeze-dither` — förväntas dyka upp endast under låg-duty hold med aktiv shortfall, inte varje cykel i dither-zonen.
 
-## Ej i scope
+## Uppdatera memory
 
-- Långsiktig persistering över säsonger (ambient sommar/vinter) — kräver ambient-bucket, större refactor.
-- Bucket-baserad kompensation (`delta_bucket` är hårdkodat till 'low' idag) — behåll tills stability visat värde.
-- UI för att visa lärt värde — separat pass.
+Uppdatera `.lovable/memories/architecture/automation/pid-hw-quantization-awareness.md`:
+- Rätt EMA-formel (`1 - exp(-dt/tau)`) och `TAU_MIN=12`, med förklaringen att TAU måste överstiga sample-intervallet.
+- Stall-boost-growth fryses i dither-zon (constraint `stall-freeze-dither`), decay/reset opåverkade.
+- Peak-detection läser `ssotFiltered` (inte raw) för att skydda Ki-autotune.

@@ -242,8 +242,12 @@ function computeDutyV5(input: {
     const raw = (nowMs - new Date(input.prevState.lastSsotAt).getTime()) / 60000
     if (Number.isFinite(raw)) dtMinEarly = Math.max(0.25, Math.min(5.0, raw))
   }
-  const TAU_MIN = 3.0
-  const alpha = Math.min(1, dtMinEarly / TAU_MIN)
+  // TAU_MIN måste överstiga sample-intervallet (≥5 min PWM-cykel) och rymma
+  // ~15 min probe-latens — annars saturerar alpha och EMA:n blir en no-op.
+  // Formen 1-exp(-dt/tau) är korrekt diskret EMA (tidigare min(1, dt/tau)
+  // gav alpha=1 vid dt≥tau, dvs pass-through).
+  const TAU_MIN = 12.0
+  const alpha = 1 - Math.exp(-dtMinEarly / TAU_MIN)
   const prevSmoothed = input.prevState.ssotSmoothed
   const ssotFiltered = prevSmoothed != null
     ? prevSmoothed + alpha * (input.actualTemp - prevSmoothed)
@@ -458,6 +462,11 @@ function computeDutyV5(input: {
     // Krav: 0.02°C/min vid små fel → 0.10°C/min vid err ≥ 1.6°C
     const requiredRate = Math.max(0.02, Math.min(0.10, need * 0.05))
     const shortfall = requiredRate - progressRate  // >0 = otillräcklig progress
+    // Dither-guard: förra cykelns duty i (0, 10%) betyder HW levererade en
+    // gles 10%-burst. Rate-mätningen speglar då burst-brus, inte bulk-cooling
+    // — låt boost decay/reset:a men aldrig växa på ett burst-sample.
+    const stallPrevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+    const stallInDitherZone = stallPrevDutyFrac > 0 && stallPrevDutyFrac < DITHER_ZONE_MAX
     if (need <= 0.05 || Math.abs(avgError) < 0.15) {
       // Nära mål: stallboost är irrelevant och skapar burst-övercool om den
       // ligger kvar mättad. Rensa alltid när vi är inom ±0.15° av target.
@@ -468,11 +477,17 @@ function computeDutyV5(input: {
       stallBoost = Math.max(0, stallBoost - 0.02 * dtMin)
       lastProgressAt = now
     } else if (need > 0.10) {
-      // Växt proportionell mot shortfall. Extra push om vi går fel håll.
-      // shortfall 0.02 → +0.5%/min, 0.05 → +1.25%/min, ≥0.08 → +2%/min
-      let growthPerMin = Math.min(0.02, shortfall * 0.25)
-      if (progressRate < 0) growthPerMin += 0.01  // fel håll = extra 1%/min
-      stallBoost = Math.min(0.30, stallBoost + growthPerMin * dtMin)
+      if (stallInDitherZone) {
+        // Skippa growth — burst-sample opålitligt. Logga bara här så decay/
+        // reset-cykler inte spammar constraint.
+        constraints.push('stall-freeze-dither')
+      } else {
+        // Växt proportionell mot shortfall. Extra push om vi går fel håll.
+        // shortfall 0.02 → +0.5%/min, 0.05 → +1.25%/min, ≥0.08 → +2%/min
+        let growthPerMin = Math.min(0.02, shortfall * 0.25)
+        if (progressRate < 0) growthPerMin += 0.01  // fel håll = extra 1%/min
+        stallBoost = Math.min(0.30, stallBoost + growthPerMin * dtMin)
+      }
     }
   }
   if (stallBoost > 0 && need > 0.05) {
@@ -541,12 +556,12 @@ function computeDutyV5(input: {
       peakArmed = true
       peakArmedTarget = input.actualTarget
       peakArmedAt = now
-      peakMinTemp = input.actualTemp
+      peakMinTemp = ssotFiltered
       constraints.push('peak-arm')
     } else if (peakArmed && peakMinTemp != null) {
-      if (input.actualTemp < peakMinTemp) {
-        peakMinTemp = input.actualTemp
-      } else if (input.actualTemp >= peakMinTemp + 0.02) {
+      if (ssotFiltered < peakMinTemp) {
+        peakMinTemp = ssotFiltered
+      } else if (ssotFiltered >= peakMinTemp + 0.02) {
         const tgt = peakArmedTarget ?? input.actualTarget
         const under = tgt - peakMinTemp
         if (under > 0.20) {
