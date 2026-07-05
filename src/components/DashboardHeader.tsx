@@ -18,7 +18,6 @@ import { RaptControllerDialog } from "./RaptControllerDialog";
 import { PlugControl } from "./PlugControl";
 import { PiHealthChip } from "./PiHealthChip";
 import { HeaderIconButton } from "./header/HeaderIconButton";
-import { Button } from "@/components/ui/button";
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
