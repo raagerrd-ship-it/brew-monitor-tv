@@ -42,6 +42,7 @@ TUYA_VERSION = float(os.environ.get("TUYA_VERSION", "3.4"))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "10"))
 STATE_INTERVAL = int(os.environ.get("STATE_REPORT_INTERVAL_SEC", "30"))
 RESTART_OFF = int(os.environ.get("RESTART_OFF_SECONDS", "8"))
+MAX_COMMAND_AGE_SEC = int(os.environ.get("MAX_COMMAND_AGE_SEC", "300"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -167,6 +168,9 @@ def main() -> int:
 
     plug = make_plug()
     last_state_report = 0.0
+    # In-memory guard: never execute the same command id twice in one process
+    # lifetime, even if the DB write to mark it done fails.
+    handled: set[str] = set()
 
     while not _stop:
         loop_start = time.time()
@@ -176,8 +180,30 @@ def main() -> int:
             for cmd in fetch_pending():
                 cmd_id = cmd["id"]
                 command = cmd["command"]
+                if cmd_id in handled:
+                    log.warning("skipping already-handled id=%s (mark_command must have failed)", cmd_id)
+                    continue
+                created = cmd.get("created_at")
+                if created:
+                    try:
+                        ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                        age = (datetime.now(timezone.utc) - ts).total_seconds()
+                        if age > MAX_COMMAND_AGE_SEC:
+                            log.warning(
+                                "skipping stale command id=%s age=%.0fs > %ds",
+                                cmd_id, age, MAX_COMMAND_AGE_SEC,
+                            )
+                            handled.add(cmd_id)
+                            try:
+                                mark_command(cmd_id, "error")
+                            except Exception as e:
+                                log.error("failed to mark stale command: %s", e)
+                            continue
+                    except ValueError:
+                        pass
                 log.info("executing %s (id=%s, source=%s)", command, cmd_id, cmd.get("source"))
                 ok = execute(plug, command)
+                handled.add(cmd_id)
                 mark_command(cmd_id, "done" if ok else "error")
                 # report state immediately after a command
                 last_state_report = 0.0
