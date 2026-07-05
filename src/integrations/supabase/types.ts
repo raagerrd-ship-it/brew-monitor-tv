@@ -992,6 +992,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pi_health: {
+        Row: {
+          id: number
+          last_seen: string | null
+          load1: number | null
+          temp_c: number | null
+          throttled_hex: string | null
+          undervoltage_ever: boolean | null
+          undervoltage_now: boolean | null
+          updated_at: string
+          uptime_sec: number | null
+        }
+        Insert: {
+          id?: number
+          last_seen?: string | null
+          load1?: number | null
+          temp_c?: number | null
+          throttled_hex?: string | null
+          undervoltage_ever?: boolean | null
+          undervoltage_now?: boolean | null
+          updated_at?: string
+          uptime_sec?: number | null
+        }
+        Update: {
+          id?: number
+          last_seen?: string | null
+          load1?: number | null
+          temp_c?: number | null
+          throttled_hex?: string | null
+          undervoltage_ever?: boolean | null
+          undervoltage_now?: boolean | null
+          updated_at?: string
+          uptime_sec?: number | null
+        }
+        Relationships: []
+      }
       pid_event_throttle: {
         Row: {
           controller_id: string
