@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll git for plug-poller updates every 5 min
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=plug-autoupdate.service
+
+[Install]
+WantedBy=timers.target
