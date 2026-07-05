@@ -492,7 +492,7 @@ export function CustomBrewDialog({
         // Update existing brew
         const { error: updateError } = await supabase
           .from("brew_readings")
-          .update(updateData)
+          .update(updateData as never)
           .eq("id", editBrew.id);
 
         if (updateError) throw updateError;
