@@ -38,6 +38,9 @@ SUPABASE_KEY = os.environ["SUPABASE_ANON_KEY"]
 INTERVAL = int(os.environ.get("WATCHDOG_INTERVAL_SEC", "300"))
 STALE_MIN = int(os.environ.get("WATCHDOG_STALE_MIN", "31"))
 COOLDOWN_MIN = int(os.environ.get("WATCHDOG_COOLDOWN_MIN", "20"))
+# Default OFF — the cloud rapt-watchdog edge function is authoritative.
+# Only set true if you want this Pi watchdog to queue restarts as a fallback.
+ENABLED = os.environ.get("WATCHDOG_ENABLED", "false").strip().lower() in ("1", "true", "yes")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -176,13 +179,15 @@ def main() -> int:
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
     log.info(
-        "watchdog started (interval=%ds, stale=%dmin, cooldown=%dmin)",
-        INTERVAL, STALE_MIN, COOLDOWN_MIN,
+        "watchdog started (enabled=%s, interval=%ds, stale=%dmin, cooldown=%dmin)",
+        ENABLED, INTERVAL, STALE_MIN, COOLDOWN_MIN,
     )
+    if not ENABLED:
+        log.info("WATCHDOG_ENABLED=false — running in observe-only mode, will not queue restarts")
     while not _stop:
         start = time.time()
         try:
-            check_once()
+            check_once(enabled=ENABLED)
         except requests.HTTPError as e:
             log.error("supabase error: %s — %s", e, getattr(e.response, "text", ""))
         except Exception as e:
