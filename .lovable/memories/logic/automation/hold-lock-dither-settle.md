@@ -9,8 +9,8 @@ PWM-hårdvaran levererar 1% upplösning via 10-slot × 5-min = 50-min dither-fö
 - Enter: `isHold && prevDutyFrac ∈ (0, 10%) && |avgError| < 0.15°C && !modeJustSwitched` → sätt `holdLockUntil = now + 15 min`, `holdLockDuty = lastDutyFrac`. Constraint `hold-lock-enter(15m@X%)`.
 - Enter: sätter dessutom `holdLockBaseline = ssotFiltered` som referens för drift-brytet.
 - Active: medan låst → `duty = holdLockDuty`, `nextI` capad till `persistedIntegral` (anti-windup). Constraint `hold-lock(remaining_min@X%,drift=Y°)`.
-- Break: `modeJustSwitched || |avgError| > 0.25°C || drift > 0.15°C || past-target-release` → nolla lock. Constraint `hold-lock-break(reason)` med reason ∈ {drift, err, mode, past-target}.
-- **Past-target release**: cooling & `avgError < -0.05°C` (kallare än target) eller heating & `avgError > +0.05°C` (varmare). Hold-lock får inte hindra välmotiverad avstängning när tanken redan svalnat/värmts förbi målet — burst-settle-argumentet gäller bara små avvikelser runt setpoint.
+- Break: `modeJustSwitched || |avgError| > 0.25°C || drift > 0.15°C` sedan lock-entry → nolla lock. Constraint `hold-lock-break(reason)` med reason ∈ {drift, err, mode}.
+- **Asymmetriskt lås (past-target ratchet)**: Låset blockerar up-shifts (skydd mot burst-brus) men tillåter sänkning. När cooling & `avgError < -0.05°C` (eller heating & `avgError > +0.05°C`) och PID:s beräknade duty (efter slew-cap) är lägre än `holdLockDuty` → sätt `holdLockDuty = duty` (ratchet mot avstängning). Slew-cap (-5%/cykel) ger mjuk nedtrappning så vi inte studsar tillbaka upp och oscillerar. Constraint `hold-lock-ratchet(→X%)`.
 
 **Drift-brytet (`HOLD_LOCK_DRIFT_EXIT = 0.15°C`)** är sensor-cadence-agnostiskt: jämför två EMA-filtrerade SSOT-värden istället för momentan rate. Rate-baserad break är opålitlig eftersom probe (15-min-cadence) och pill (1-min-cadence) blandas in i SSOT — 5-min-rate domineras av pill-rörelse medan probe är stale. Drift sedan baseline fångar sustained trend oavsett vilken sensor som ledde.
 

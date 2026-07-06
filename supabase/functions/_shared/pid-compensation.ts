@@ -570,27 +570,30 @@ function computeDutyV5(input: {
   const shouldBreakLock =
     input.modeJustSwitched ||
     Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ||
-    (lockActive && driftSinceLock > HOLD_LOCK_DRIFT_EXIT) ||
-    // Past-target release: när vi redan är på "säker sida" av target
-    // (cooling & kallare än target, heating & varmare) ska duty få sänkas fritt.
-    // Hold-lock är till för att låta bursten leverera vid små avvikelser runt setpoint —
-    // inte för att hindra en välmotiverad avstängning när tanken redan svalnat förbi målet.
-    (input.mode === 'cooling' && avgError < -0.05) ||
-    (input.mode === 'heating' && avgError > 0.05)
+    (lockActive && driftSinceLock > HOLD_LOCK_DRIFT_EXIT)
   if (shouldBreakLock) {
     if (lockActive) {
       const reason = driftSinceLock > HOLD_LOCK_DRIFT_EXIT
         ? `drift(${driftSinceLock.toFixed(2)}°)`
-        : Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ? `err(${avgError.toFixed(2)}°)`
-        : input.modeJustSwitched ? 'mode'
-        : `past-target(${avgError.toFixed(2)}°)`
+        : Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ? `err(${avgError.toFixed(2)}°)` : 'mode'
       constraints.push(`hold-lock-break(${reason})`)
     }
     holdLockUntil = undefined
     holdLockDuty = undefined
     holdLockBaseline = undefined
   } else if (lockActive) {
-    duty = holdLockDuty!
+    // Asymmetriskt lås: blockera up-shifts (burst-brus) men tillåt sänkning.
+    // PID:s beräknade `duty` har redan passerat slew-cap (max -5%/cykel), så
+    // nedgången blir mjuk. Ratchetar ned holdLockDuty så vi inte studsar upp igen.
+    const pastTargetDown =
+      (input.mode === 'cooling' && avgError < -0.05 && duty < holdLockDuty!) ||
+      (input.mode === 'heating' && avgError > 0.05 && duty > holdLockDuty!)
+    if (pastTargetDown) {
+      holdLockDuty = duty  // ratchet i riktning mot avstängning
+      constraints.push(`hold-lock-ratchet(→${Math.round(duty*100)}%)`)
+    } else {
+      duty = holdLockDuty!
+    }
     nextI = Math.min(nextI, input.persistedIntegral)
     const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
     constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%,drift=${driftSinceLock.toFixed(2)}°)`)
