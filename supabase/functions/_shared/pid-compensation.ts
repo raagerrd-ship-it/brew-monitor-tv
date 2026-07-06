@@ -591,6 +591,7 @@ function computeDutyV5(input: {
     holdLockUntil = undefined
     holdLockDuty = undefined
     holdLockBaseline = undefined
+    holdLockLastTrickleAt = undefined
   } else if (lockActive) {
     // Trickle-adjust: när vi är på "säker sida" av target får duty ta EN 1%-step
     // per lock-fönster (15 min) i riktning mot PID:s önskade värde. Efter steget
