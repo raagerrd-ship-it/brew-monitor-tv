@@ -8,7 +8,7 @@
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - Never regenerate `pi/brew-ble/ble_scanner.py` from scratch — Kegland 0x4152 PT-V2 decoder is field-verified; only surgical edits.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
-- Active Controllers: **Mjöd** (Green: `6fbbc7db`), **Skogens Sus** (Blå: `ffa62be4`). Both run average-SSOT (`dual_sensor_enabled=true`) so UI/DB `actual_temp` is the probe+pill average. PID V4 regulerar direkt mot SSOT.
+- Controllers (DB-namn): **Green** (`6fbbc7db`, cooling+heating), **Blå** (`ffa62be4`), **Gul** (`618b29b0`), **Kylare** (`7e57bd3c`, glycol). Kör average-SSOT (`dual_sensor_enabled=true`) → `actual_temp` = probe+pill-snitt. Använd DB-namnet i loggar/svar; bryggnamn (t.ex. "El Sueco Dorado") tillhör aktiv brygga, inte controllern.
 - PID är V4 (BrewPi-stil): långsam PI på SSOT, brett dödband ±0.10°C, peak-detection självtuner cooling-Ki, pill enbart som säkerhetstak. Ingen observer/k-learning/stratifierings-guard.
 - PID läser ENBART `actual_temp` (SSOT). Ingen probe/pill/current_temp i PID-loop, integral, mode-switch, stale-cap eller stability-gates. Se pid-ssot-only.
 
