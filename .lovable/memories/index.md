@@ -55,6 +55,7 @@
 - [Cooler Margin](mem://logic/automation/marginal-aware-duty-scaling) — Scale duty based on learned vs actual glycol margin.
 - [Margin Hard Floor](mem://logic/automation/cooler-margin-hard-floor) — 5.0°C absolute minimum cooler margin.
 - [PWM Dithering](mem://logic/automation/pwm-dithering-resolution-bypass) — 10-slot rotation (50m) for 1% PWM resolution.
+- [Hold-lock](mem://logic/automation/hold-lock-dither-settle) — 15 min duty-lock i dither-zon (prev 1-9% + |err|<0.15) så aktuatorn hinner leverera burst innan PID re-evaluerar.
 - [Mode Switching](mem://logic/automation/mode-switching-logic) — Require 3 stable cycles or immediate if override/delta > 1°C.
 - [Ramp Limiting](mem://logic/automation/ramp-rate-limiting) — Limit effective target to 4.0°C/h cool, 3.0°C/h heat.
 - [Virtual Profile](mem://logic/automation/virtual-profile-target-and-revert-logic) — Hard targets update only when duty is 0%.
