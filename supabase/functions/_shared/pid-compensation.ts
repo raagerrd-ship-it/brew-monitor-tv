@@ -43,6 +43,7 @@ interface V5PidState {
   holdLockUntil?: string      // dither-zon settle-lock — duty låst till holdLockDuty tills detta klockslag
   holdLockDuty?: number       // låst duty-fraktion (0..1) under hold-lock
   holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
+  holdLockLastTrickleAt?: string  // senaste trickle-steget — gate mot att fira 1%/cykel istället för 1%/15min
 }
 
 // ── Tuning constants ─────────────────────────────────────────────────────
