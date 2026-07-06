@@ -627,27 +627,25 @@ function computeDutyV5(input: {
     holdLockBaseline = undefined
     holdLockLastTrickleAt = undefined
   } else if (lockActive) {
-    // Trickle-adjust: när vi är på "säker sida" av target får duty ta EN 1%-step
-    // per lock-fönster (15 min) i riktning mot PID:s önskade värde. Efter steget
-    // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
-    // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
+    // Trickle-adjust: när Snitt/actual_temp ligger på fel/säker sida av target
+    // får duty ta EN 1%-step per lock-fönster (15 min) i den riktningen. Efter
+    // steget refreshas låset så vi väntar hela fönstret innan nästa step.
     const dutyDelta = duty - holdLockDuty!
-    // Trickle i BÅDA riktningar (mode-normaliserat via `need`):
-    //  - Down: past-target (need < -0.05°C) och PID vill sänka (dutyDelta < 0)
-    //  - Up:   under-action (need > +0.05°C) och PID vill höja (dutyDelta > 0)
-    // Ett 1%-steg per 15-min-fönster i endera riktning — förhindrar att låset
-    // sitter fast medan en mild drift åt fel håll bygger upp innan err/drift-break.
-    const trickleOk =
-      (need < -0.05 && dutyDelta < 0) ||
-      (need > 0.05 && dutyDelta > 0)
+    // Trickle i BÅDA riktningar (mode-normaliserat via `need`) även om PI ännu
+    // inte hunnit ackumulera synlig delta — annars kan 1% låsas om var 15:e min
+    // och aldrig sakta öka när Snitt redan är över mål.
+    const trickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
+    const trickleOk = trickleDir !== 0
     // Cooldown-gate: minst HOLD_LOCK_MIN sedan förra trickle-steget (eller sedan
     // lock-entry om inget steg tagits än). Utan denna gate firar trickle varje
     // PID-cykel (5 min) eftersom holdLockUntil-refreshen inte hindrar re-entry.
     const lastTrickleMs = holdLockLastTrickleAt ? new Date(holdLockLastTrickleAt).getTime() : null
     const minsSinceTrickle = lastTrickleMs != null ? (nowMs - lastTrickleMs) / 60000 : Infinity
     const trickleCooldownOk = minsSinceTrickle >= HOLD_LOCK_MIN
-    if (trickleOk && trickleCooldownOk && Math.abs(dutyDelta) >= 0.005) {
-      const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
+    if (trickleOk && trickleCooldownOk) {
+      const step = Math.sign(dutyDelta) === trickleDir && Math.abs(dutyDelta) >= 0.005
+        ? Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
+        : trickleDir * 0.01
       holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
       duty = holdLockDuty
       holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
@@ -661,13 +659,16 @@ function computeDutyV5(input: {
     const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
     constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%,drift=${driftSinceLock.toFixed(2)}°)`)
   } else if (isHold && prevInDither && Math.abs(avgError) < HOLD_LOCK_ERR_ENTER && !input.modeJustSwitched) {
+    const expiredTrickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
     holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
-    holdLockDuty = lastDutyFrac
+    holdLockDuty = Math.max(0, Math.min(1, lastDutyFrac + expiredTrickleDir * 0.01))
     holdLockBaseline = ssotFiltered
     holdLockLastTrickleAt = now   // starta cooldown vid entry så första trickle sker efter 15 min
     duty = holdLockDuty
     nextI = Math.min(nextI, input.persistedIntegral)
-    constraints.push(`hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
+    constraints.push(expiredTrickleDir !== 0
+      ? `hold-lock-enter-trickle(${expiredTrickleDir > 0 ? '+' : ''}${expiredTrickleDir}%→${Math.round(duty*100)}%)`
+      : `hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
   }
 
   // ── Peak-detection (cooling, hold): självtunar Ki ──
