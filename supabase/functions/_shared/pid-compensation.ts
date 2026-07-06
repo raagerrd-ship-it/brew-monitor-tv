@@ -200,9 +200,17 @@ export async function calculateCompensatedTarget(
   const need = mode === 'cooling' ? -avgError : avgError
   console.log(`🎯 ${mode} ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, P=${pCorrection.toFixed(2)}, I=${integral.toFixed(3)}, kiAdj=${(r.nextState.kiAdjCooling ?? 1).toFixed(2)}, duty=${(dutyCycle * 100).toFixed(0)}% [${constraints.join(',')}]`)
 
+  // Convergence-gate ska matcha kontroll-loopens filtrerade signal — annars
+  // riskerar en enstaka brusig raw-sample hålla oss utanför 0.10°-fönstret
+  // trots att hold-lock håller stabilt. Använd samma ssotFiltered som
+  // computeDutyV5 beslutade på (fallback till raw om smoothing saknas).
+  const filteredAvgError = r.nextState.ssotSmoothed != null
+    ? actualTarget - r.nextState.ssotSmoothed
+    : avgError
+
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode, stepType,
-    pCorrection, integral, avgError, dutyCycle, r.nextState,
+    pCorrection, integral, filteredAvgError, dutyCycle, r.nextState,
     convergenceCount, learnedBaseline, !!modeJustSwitched,
   )
 
@@ -587,11 +595,15 @@ function computeDutyV5(input: {
     // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
     // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
     const dutyDelta = duty - holdLockDuty!
-    // past-target = actual passerat target med >0.05°C i "säker" riktning
-    // (kallare än target vid cooling, varmare vid heating). `need` är redan
-    // mode-normaliserad så samma villkor gäller båda lägen.
-    const pastTargetDown = need < -0.05 && dutyDelta < 0
-    if (pastTargetDown && Math.abs(dutyDelta) >= 0.005) {
+    // Trickle i BÅDA riktningar (mode-normaliserat via `need`):
+    //  - Down: past-target (need < -0.05°C) och PID vill sänka (dutyDelta < 0)
+    //  - Up:   under-action (need > +0.05°C) och PID vill höja (dutyDelta > 0)
+    // Ett 1%-steg per 15-min-fönster i endera riktning — förhindrar att låset
+    // sitter fast medan en mild drift åt fel håll bygger upp innan err/drift-break.
+    const trickleOk =
+      (need < -0.05 && dutyDelta < 0) ||
+      (need > 0.05 && dutyDelta > 0)
+    if (trickleOk && Math.abs(dutyDelta) >= 0.005) {
       const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
       holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
       duty = holdLockDuty
