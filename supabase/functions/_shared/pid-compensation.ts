@@ -587,11 +587,15 @@ function computeDutyV5(input: {
     // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
     // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
     const dutyDelta = duty - holdLockDuty!
-    // past-target = actual passerat target med >0.05°C i "säker" riktning
-    // (kallare än target vid cooling, varmare vid heating). `need` är redan
-    // mode-normaliserad så samma villkor gäller båda lägen.
-    const pastTargetDown = need < -0.05 && dutyDelta < 0
-    if (pastTargetDown && Math.abs(dutyDelta) >= 0.005) {
+    // Trickle i BÅDA riktningar (mode-normaliserat via `need`):
+    //  - Down: past-target (need < -0.05°C) och PID vill sänka (dutyDelta < 0)
+    //  - Up:   under-action (need > +0.05°C) och PID vill höja (dutyDelta > 0)
+    // Ett 1%-steg per 15-min-fönster i endera riktning — förhindrar att låset
+    // sitter fast medan en mild drift åt fel håll bygger upp innan err/drift-break.
+    const trickleOk =
+      (need < -0.05 && dutyDelta < 0) ||
+      (need > 0.05 && dutyDelta > 0)
+    if (trickleOk && Math.abs(dutyDelta) >= 0.005) {
       const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
       holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
       duty = holdLockDuty
