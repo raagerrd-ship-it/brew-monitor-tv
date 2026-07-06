@@ -627,16 +627,13 @@ function computeDutyV5(input: {
     holdLockBaseline = undefined
     holdLockLastTrickleAt = undefined
   } else if (lockActive) {
-    // Trickle-adjust: när vi är på "säker sida" av target får duty ta EN 1%-step
-    // per lock-fönster (15 min) i riktning mot PID:s önskade värde. Efter steget
-    // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
-    // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
+    // Trickle-adjust: när Snitt/actual_temp ligger på fel/säker sida av target
+    // får duty ta EN 1%-step per lock-fönster (15 min) i den riktningen. Efter
+    // steget refreshas låset så vi väntar hela fönstret innan nästa step.
     const dutyDelta = duty - holdLockDuty!
-    // Trickle i BÅDA riktningar (mode-normaliserat via `need`):
-    //  - Down: past-target (need < -0.05°C) och PID vill sänka (dutyDelta < 0)
-    //  - Up:   under-action (need > +0.05°C) och PID vill höja (dutyDelta > 0)
-    // Ett 1%-steg per 15-min-fönster i endera riktning — förhindrar att låset
-    // sitter fast medan en mild drift åt fel håll bygger upp innan err/drift-break.
+    // Trickle i BÅDA riktningar (mode-normaliserat via `need`) även om PI ännu
+    // inte hunnit ackumulera synlig delta — annars kan 1% låsas om var 15:e min
+    // och aldrig sakta öka när Snitt redan är över mål.
     const trickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
     const trickleOk = trickleDir !== 0
     // Cooldown-gate: minst HOLD_LOCK_MIN sedan förra trickle-steget (eller sedan
