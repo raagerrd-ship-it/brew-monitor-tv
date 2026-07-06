@@ -642,6 +642,8 @@ function computeDutyV5(input: {
     lastMode: input.mode,
     stallBoostPct: stallBoost,
     lastProgressAt,
+    holdLockUntil,
+    holdLockDuty,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
