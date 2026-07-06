@@ -548,6 +548,36 @@ function computeDutyV5(input: {
     }
   }
 
+  // ── Hold-lock: dither-zon settle-time ──
+  // I dither-zonen levererar HW en 10%-burst per 50-min-fönster (10 slot × 5m),
+  // medan PID re-evaluerar var 5:e min. Utan lock beslutar PID på burst-brus
+  // istället för på faktisk termisk respons. Låt aktuatorn hinna leverera
+  // minst en burst (~1 dither-fönster / 3 PID-cykler) innan duty ändras igen.
+  const HOLD_LOCK_MIN = 15
+  const HOLD_LOCK_ERR_ENTER = 0.15
+  const HOLD_LOCK_ERR_EXIT = 0.25
+  let holdLockUntil = input.prevState.holdLockUntil
+  let holdLockDuty = input.prevState.holdLockDuty
+  const prevInDither = lastDutyFrac > 0 && lastDutyFrac < DITHER_ZONE_MAX
+  const lockActive = !!holdLockUntil && new Date(holdLockUntil).getTime() > nowMs && holdLockDuty != null
+  const shouldBreakLock = input.modeJustSwitched || Math.abs(avgError) > HOLD_LOCK_ERR_EXIT
+  if (shouldBreakLock) {
+    if (lockActive) constraints.push('hold-lock-break')
+    holdLockUntil = undefined
+    holdLockDuty = undefined
+  } else if (lockActive) {
+    duty = holdLockDuty!
+    nextI = Math.min(nextI, input.persistedIntegral)
+    const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
+    constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%)`)
+  } else if (isHold && prevInDither && Math.abs(avgError) < HOLD_LOCK_ERR_ENTER && !input.modeJustSwitched) {
+    holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
+    holdLockDuty = lastDutyFrac
+    duty = holdLockDuty
+    nextI = Math.min(nextI, input.persistedIntegral)
+    constraints.push(`hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
+  }
+
   // ── Peak-detection (cooling, hold): självtunar Ki ──
   const dutyPct = Math.round(duty * 100)
   let peakArmed = input.prevState.peakArmed ?? false
