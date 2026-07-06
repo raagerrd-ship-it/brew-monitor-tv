@@ -188,7 +188,24 @@ async function executePwmDutyCycle(
   const ditherSlot = currentSlot % 10
   const highSlots = Math.round(fraction) // 0..10
   const isHighSlot = Math.floor(((ditherSlot + 1) * highSlots) / 10) > Math.floor((ditherSlot * highSlots) / 10)
-  const dutyPct = isHighSlot ? dutyHigh : dutyLow
+  let dutyPct = isHighSlot ? dutyHigh : dutyLow
+  const slotParam = `pwm_last_slot:${mode}`
+  let lastSlot = -1
+  let subTenMinGapSlots = 0
+  if (dutyRaw > 0 && dutyRaw < 0.10 && dutyHigh > 0) {
+    const { data: slotRow } = await supabase
+      .from('fermentation_learnings')
+      .select('learned_value')
+      .eq('controller_id', fc.controller_id)
+      .eq('parameter_name', slotParam)
+      .maybeSingle()
+    lastSlot = slotRow ? Math.floor(parseFloat(String(slotRow.learned_value))) : -1
+    subTenMinGapSlots = Math.max(1, Math.floor(10 / Math.max(1, highSlots)))
+    const slotsSinceBurst = lastSlot >= 0 ? currentSlot - lastSlot : Infinity
+    if (dutyPct === 0 && slotsSinceBurst >= subTenMinGapSlots) {
+      dutyPct = dutyHigh
+    }
+  }
   // Single consolidated burst per 5-min cycle (no split phases).
   // burstSeconds = dutyPct% * 300s  →  20%=60s, 40%=120s, 100%=300s.
   const burstSeconds = Math.round((dutyPct / 100) * 300)
@@ -237,16 +254,21 @@ async function executePwmDutyCycle(
     // Slot guard: only fire ONE burst per 5-min slot. Subsequent
     // run-automation runs within the same slot leave the pending
     // PWM OFF row untouched so the cycle completes naturally.
-    const slotParam = `pwm_last_slot:${mode}`
-    const { data: slotRow } = await supabase
-      .from('fermentation_learnings')
-      .select('learned_value')
-      .eq('controller_id', fc.controller_id)
-      .eq('parameter_name', slotParam)
-      .maybeSingle()
-    const lastSlot = slotRow ? Math.floor(parseFloat(String(slotRow.learned_value))) : -1
+    if (lastSlot < 0) {
+      const { data: slotRow } = await supabase
+        .from('fermentation_learnings')
+        .select('learned_value')
+        .eq('controller_id', fc.controller_id)
+        .eq('parameter_name', slotParam)
+        .maybeSingle()
+      lastSlot = slotRow ? Math.floor(parseFloat(String(slotRow.learned_value))) : -1
+    }
     if (lastSlot === currentSlot) {
       log('DUTY_BURST_SKIP', 'info', `${fc.name}: ${mode} ${dutyPct}% — burst redan schemalagd för 5-min-slot ${currentSlot}`, { duty_pct: dutyPct, mode, slot: currentSlot })
+      return
+    }
+    if (subTenMinGapSlots > 0 && lastSlot >= 0 && currentSlot - lastSlot < subTenMinGapSlots) {
+      log('DUTY_DITHER_IDLE', 'info', `${fc.name}: ${mode} raw=${Math.round(dutyRaw * 100)}% — väntar ${subTenMinGapSlots - (currentSlot - lastSlot)} slot(s) till nästa låg-duty burst`, { duty_raw: Math.round(dutyRaw * 100), mode, slot: currentSlot })
       return
     }
     log('DUTY_BURST', 'action', `${fc.name}: ${mode} duty ${dutyPct}% (raw=${Math.round(dutyRaw * 100)}%, dither=${ditherSlot}/${Math.round(fraction)}) → ${burstSeconds}s burst at ${onTarget}° (revert=${revertTarget}°)`, {
