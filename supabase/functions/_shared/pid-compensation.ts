@@ -571,6 +571,7 @@ function computeDutyV5(input: {
   let holdLockUntil = input.prevState.holdLockUntil
   let holdLockDuty = input.prevState.holdLockDuty
   let holdLockBaseline = input.prevState.holdLockBaseline
+  let holdLockLastTrickleAt = input.prevState.holdLockLastTrickleAt
   const prevInDither = lastDutyFrac > 0 && lastDutyFrac < DITHER_ZONE_MAX
   const lockActive = !!holdLockUntil && new Date(holdLockUntil).getTime() > nowMs && holdLockDuty != null
   const driftSinceLock = lockActive && holdLockBaseline != null
@@ -604,12 +605,19 @@ function computeDutyV5(input: {
     const trickleOk =
       (need < -0.05 && dutyDelta < 0) ||
       (need > 0.05 && dutyDelta > 0)
-    if (trickleOk && Math.abs(dutyDelta) >= 0.005) {
+    // Cooldown-gate: minst HOLD_LOCK_MIN sedan förra trickle-steget (eller sedan
+    // lock-entry om inget steg tagits än). Utan denna gate firar trickle varje
+    // PID-cykel (5 min) eftersom holdLockUntil-refreshen inte hindrar re-entry.
+    const lastTrickleMs = holdLockLastTrickleAt ? new Date(holdLockLastTrickleAt).getTime() : null
+    const minsSinceTrickle = lastTrickleMs != null ? (nowMs - lastTrickleMs) / 60000 : Infinity
+    const trickleCooldownOk = minsSinceTrickle >= HOLD_LOCK_MIN
+    if (trickleOk && trickleCooldownOk && Math.abs(dutyDelta) >= 0.005) {
       const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
       holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
       duty = holdLockDuty
       holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
       holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
+      holdLockLastTrickleAt = now
       constraints.push(`hold-lock-trickle(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%)`)
     } else {
       duty = holdLockDuty!
@@ -621,6 +629,7 @@ function computeDutyV5(input: {
     holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
     holdLockDuty = lastDutyFrac
     holdLockBaseline = ssotFiltered
+    holdLockLastTrickleAt = now   // starta cooldown vid entry så första trickle sker efter 15 min
     duty = holdLockDuty
     nextI = Math.min(nextI, input.persistedIntegral)
     constraints.push(`hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
