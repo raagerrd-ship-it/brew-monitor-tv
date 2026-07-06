@@ -40,6 +40,8 @@ interface V5PidState {
   lastMode?: 'heating' | 'cooling'
   stallBoostPct?: number      // 0..30 — långsam duty-boost när ingen progress
   lastProgressAt?: string     // senaste tillfället progressRate > +0.02°C/min
+  holdLockUntil?: string      // dither-zon settle-lock — duty låst till holdLockDuty tills detta klockslag
+  holdLockDuty?: number       // låst duty-fraktion (0..1) under hold-lock
 }
 
 // ── Tuning constants ─────────────────────────────────────────────────────
