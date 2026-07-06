@@ -42,6 +42,7 @@ interface V5PidState {
   lastProgressAt?: string     // senaste tillfället progressRate > +0.02°C/min
   holdLockUntil?: string      // dither-zon settle-lock — duty låst till holdLockDuty tills detta klockslag
   holdLockDuty?: number       // låst duty-fraktion (0..1) under hold-lock
+  holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
 }
 
 // ── Tuning constants ─────────────────────────────────────────────────────
