@@ -173,6 +173,8 @@ export async function calculateCompensatedTarget(
       lastMode: a.lastMode === 'heating' || a.lastMode === 'cooling' ? a.lastMode : undefined,
       stallBoostPct: typeof a.stallBoostPct === 'number' ? a.stallBoostPct : undefined,
       lastProgressAt: typeof a.lastProgressAt === 'string' ? a.lastProgressAt : undefined,
+      holdLockUntil: typeof a.holdLockUntil === 'string' ? a.holdLockUntil : undefined,
+      holdLockDuty: typeof a.holdLockDuty === 'number' ? a.holdLockDuty : undefined,
     }
   })()
 
