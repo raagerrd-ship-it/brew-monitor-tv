@@ -582,15 +582,21 @@ function computeDutyV5(input: {
     holdLockDuty = undefined
     holdLockBaseline = undefined
   } else if (lockActive) {
-    // Asymmetriskt lås: blockera up-shifts (burst-brus) men tillåt sänkning.
-    // PID:s beräknade `duty` har redan passerat slew-cap (max -5%/cykel), så
-    // nedgången blir mjuk. Ratchetar ned holdLockDuty så vi inte studsar upp igen.
+    // Trickle-adjust: när vi är på "säker sida" av target får duty ta EN 1%-step
+    // per lock-fönster (15 min) i riktning mot PID:s önskade värde. Efter steget
+    // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
+    // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
+    const dutyDelta = duty - holdLockDuty!
     const pastTargetDown =
-      (input.mode === 'cooling' && avgError < -0.05 && duty < holdLockDuty!) ||
-      (input.mode === 'heating' && avgError > 0.05 && duty > holdLockDuty!)
-    if (pastTargetDown) {
-      holdLockDuty = duty  // ratchet i riktning mot avstängning
-      constraints.push(`hold-lock-ratchet(→${Math.round(duty*100)}%)`)
+      (input.mode === 'cooling' && avgError < -0.05 && dutyDelta < 0) ||
+      (input.mode === 'heating' && avgError > 0.05 && dutyDelta > 0)
+    if (pastTargetDown && Math.abs(dutyDelta) >= 0.005) {
+      const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
+      holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
+      duty = holdLockDuty
+      holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
+      holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
+      constraints.push(`hold-lock-trickle(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%)`)
     } else {
       duty = holdLockDuty!
     }
