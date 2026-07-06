@@ -642,7 +642,23 @@ function computeDutyV5(input: {
     const lastTrickleMs = holdLockLastTrickleAt ? new Date(holdLockLastTrickleAt).getTime() : null
     const minsSinceTrickle = lastTrickleMs != null ? (nowMs - lastTrickleMs) / 60000 : Infinity
     const trickleCooldownOk = minsSinceTrickle >= HOLD_LOCK_MIN
-    if (trickleOk && trickleCooldownOk) {
+    // Pre-break bypass: om vi är på väg mot en break (drift/err närmar sig exit-tröskeln)
+    // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
+    // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
+    // förra trickle så vi inte firar samma cykel som lock-entry.
+    const HOLD_LOCK_DRIFT_WARN = 0.08  // ~55% av break-tröskeln (0.15°)
+    const HOLD_LOCK_ERR_WARN = 0.18    // ~72% av break-tröskeln (0.25°)
+    const approachingBreak =
+      trickleOk &&
+      minsSinceTrickle >= 3 &&
+      (
+        (driftSinceLock > HOLD_LOCK_DRIFT_WARN &&
+          // drift går åt samma håll som trickle vill korrigera
+          Math.sign(ssotFiltered - (holdLockBaseline ?? ssotFiltered)) ===
+            (input.mode === 'cooling' ? trickleDir : -trickleDir)) ||
+        Math.abs(avgError) > HOLD_LOCK_ERR_WARN
+      )
+    if (trickleOk && (trickleCooldownOk || approachingBreak)) {
       const step = Math.sign(dutyDelta) === trickleDir && Math.abs(dutyDelta) >= 0.005
         ? Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
         : trickleDir * 0.01
@@ -651,7 +667,8 @@ function computeDutyV5(input: {
       holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
       holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
       holdLockLastTrickleAt = now
-      constraints.push(`hold-lock-trickle(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%)`)
+      const tag = approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'
+      constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%)`)
     } else {
       duty = holdLockDuty!
     }
