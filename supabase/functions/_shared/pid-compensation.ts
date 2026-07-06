@@ -339,10 +339,26 @@ function computeDutyV5(input: {
     //  – Säker sida (need<-0.02): trimma ner lika sakta som upp.
     //  – Nära noll (|need|<=0.02): frys – vi har hittat steady-state.
     if (isHold && !input.modeJustSwitched) {
-      if (need > 0.02) {
+      // ── Prediktiv wake: dödtidsdominerad process (~15 min probe-latens)
+      // gör att om vi väntar tills need>+0.02 för att börja aktuera, har vi
+      // redan garanterat en översläng. Beräkna Snitt-lutning och starta
+      // db-conv-up i förväg när trenden pekar mot fel sida tillräckligt
+      // snabbt att vi hinner passera deadbandet inom ~1 dödtid.
+      let predictiveWake = false
+      if (prevSmoothed != null && input.prevState.lastSsotAt) {
+        const ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
+        // "toward-wrong-side" rate i °/min:
+        //   cooling: temp stiger  ⇒ ratePerMin > 0
+        //   heating: temp faller  ⇒ ratePerMin < 0
+        const towardWrongPerMin = isCooling ? ratePerMin : -ratePerMin
+        // Tröskel: 0.4°C/h = 0.0067°/min ⇒ på 15 min dödtid rör vi oss 0.10°C
+        // (= deadband-kanten). Vakna alltså minst så tidigt.
+        if (towardWrongPerMin >= 0.0067) predictiveWake = true
+      }
+      if (need > 0.02 || predictiveWake) {
         const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
         nextI = Math.min(Imax, nextI + step)
-        constraints.push(`db-conv-up(+${(step*100).toFixed(2)}%)`)
+        constraints.push(`db-conv-up${predictiveWake && need <= 0.02 ? '-pred' : ''}(+${(step*100).toFixed(2)}%)`)
       } else if (need < -0.02) {
         const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
         nextI = Math.max(0, nextI - step)
