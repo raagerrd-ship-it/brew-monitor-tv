@@ -703,6 +703,7 @@ function computeDutyV5(input: {
     holdLockUntil,
     holdLockDuty,
     holdLockBaseline,
+    holdLockLastTrickleAt,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
