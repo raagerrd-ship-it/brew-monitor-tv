@@ -42,6 +42,7 @@ interface V5PidState {
   lastProgressAt?: string     // senaste tillfället progressRate > +0.02°C/min
   holdLockUntil?: string      // dither-zon settle-lock — duty låst till holdLockDuty tills detta klockslag
   holdLockDuty?: number       // låst duty-fraktion (0..1) under hold-lock
+  holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
 }
 
 // ── Tuning constants ─────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ export async function calculateCompensatedTarget(
       lastProgressAt: typeof a.lastProgressAt === 'string' ? a.lastProgressAt : undefined,
       holdLockUntil: typeof a.holdLockUntil === 'string' ? a.holdLockUntil : undefined,
       holdLockDuty: typeof a.holdLockDuty === 'number' ? a.holdLockDuty : undefined,
+      holdLockBaseline: typeof a.holdLockBaseline === 'number' ? a.holdLockBaseline : undefined,
     }
   })()
 
@@ -556,23 +558,38 @@ function computeDutyV5(input: {
   const HOLD_LOCK_MIN = 15
   const HOLD_LOCK_ERR_ENTER = 0.15
   const HOLD_LOCK_ERR_EXIT = 0.25
+  const HOLD_LOCK_DRIFT_EXIT = 0.15  // filtered-SSOT-drift sedan lock-entry (sensor-cadence-agnostisk)
   let holdLockUntil = input.prevState.holdLockUntil
   let holdLockDuty = input.prevState.holdLockDuty
+  let holdLockBaseline = input.prevState.holdLockBaseline
   const prevInDither = lastDutyFrac > 0 && lastDutyFrac < DITHER_ZONE_MAX
   const lockActive = !!holdLockUntil && new Date(holdLockUntil).getTime() > nowMs && holdLockDuty != null
-  const shouldBreakLock = input.modeJustSwitched || Math.abs(avgError) > HOLD_LOCK_ERR_EXIT
+  const driftSinceLock = lockActive && holdLockBaseline != null
+    ? Math.abs(ssotFiltered - holdLockBaseline)
+    : 0
+  const shouldBreakLock =
+    input.modeJustSwitched ||
+    Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ||
+    (lockActive && driftSinceLock > HOLD_LOCK_DRIFT_EXIT)
   if (shouldBreakLock) {
-    if (lockActive) constraints.push('hold-lock-break')
+    if (lockActive) {
+      const reason = driftSinceLock > HOLD_LOCK_DRIFT_EXIT
+        ? `drift(${driftSinceLock.toFixed(2)}°)`
+        : Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ? `err(${avgError.toFixed(2)}°)` : 'mode'
+      constraints.push(`hold-lock-break(${reason})`)
+    }
     holdLockUntil = undefined
     holdLockDuty = undefined
+    holdLockBaseline = undefined
   } else if (lockActive) {
     duty = holdLockDuty!
     nextI = Math.min(nextI, input.persistedIntegral)
     const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
-    constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%)`)
+    constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%,drift=${driftSinceLock.toFixed(2)}°)`)
   } else if (isHold && prevInDither && Math.abs(avgError) < HOLD_LOCK_ERR_ENTER && !input.modeJustSwitched) {
     holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
     holdLockDuty = lastDutyFrac
+    holdLockBaseline = ssotFiltered
     duty = holdLockDuty
     nextI = Math.min(nextI, input.persistedIntegral)
     constraints.push(`hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
@@ -644,6 +661,7 @@ function computeDutyV5(input: {
     lastProgressAt,
     holdLockUntil,
     holdLockDuty,
+    holdLockBaseline,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
