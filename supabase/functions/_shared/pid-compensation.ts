@@ -570,12 +570,20 @@ function computeDutyV5(input: {
   const shouldBreakLock =
     input.modeJustSwitched ||
     Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ||
-    (lockActive && driftSinceLock > HOLD_LOCK_DRIFT_EXIT)
+    (lockActive && driftSinceLock > HOLD_LOCK_DRIFT_EXIT) ||
+    // Past-target release: när vi redan är på "säker sida" av target
+    // (cooling & kallare än target, heating & varmare) ska duty få sänkas fritt.
+    // Hold-lock är till för att låta bursten leverera vid små avvikelser runt setpoint —
+    // inte för att hindra en välmotiverad avstängning när tanken redan svalnat förbi målet.
+    (input.mode === 'cooling' && avgError < -0.05) ||
+    (input.mode === 'heating' && avgError > 0.05)
   if (shouldBreakLock) {
     if (lockActive) {
       const reason = driftSinceLock > HOLD_LOCK_DRIFT_EXIT
         ? `drift(${driftSinceLock.toFixed(2)}°)`
-        : Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ? `err(${avgError.toFixed(2)}°)` : 'mode'
+        : Math.abs(avgError) > HOLD_LOCK_ERR_EXIT ? `err(${avgError.toFixed(2)}°)`
+        : input.modeJustSwitched ? 'mode'
+        : `past-target(${avgError.toFixed(2)}°)`
       constraints.push(`hold-lock-break(${reason})`)
     }
     holdLockUntil = undefined
