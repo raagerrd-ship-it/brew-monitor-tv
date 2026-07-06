@@ -178,6 +178,7 @@ export async function calculateCompensatedTarget(
       holdLockUntil: typeof a.holdLockUntil === 'string' ? a.holdLockUntil : undefined,
       holdLockDuty: typeof a.holdLockDuty === 'number' ? a.holdLockDuty : undefined,
       holdLockBaseline: typeof a.holdLockBaseline === 'number' ? a.holdLockBaseline : undefined,
+      holdLockLastTrickleAt: typeof a.holdLockLastTrickleAt === 'string' ? a.holdLockLastTrickleAt : undefined,
     }
   })()
 
