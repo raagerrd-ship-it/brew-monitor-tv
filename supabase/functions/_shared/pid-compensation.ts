@@ -357,7 +357,10 @@ function computeDutyV5(input: {
       }
       if (need > 0.02 || predictiveWake) {
         const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
-        nextI = Math.min(Imax, nextI + step)
+        // Sub-1% duty cannot be executed by the PWM dithering layer (1% is the
+        // smallest meaningful long-window duty). When wake is justified, start
+        // at that minimum instead of accumulating invisible 0.1–0.4% cycles.
+        nextI = Math.min(Imax, Math.max(HW_STEP, nextI + step))
         constraints.push(`db-conv-up${predictiveWake && need <= 0.02 ? '-pred' : ''}(+${(step*100).toFixed(2)}%)`)
       } else if (need < -0.02) {
         const step = Math.min(0.010, 0.003 + Math.abs(avgError) * 0.05) * (dtMin / 5)
