@@ -176,6 +176,7 @@ export async function calculateCompensatedTarget(
       lastProgressAt: typeof a.lastProgressAt === 'string' ? a.lastProgressAt : undefined,
       holdLockUntil: typeof a.holdLockUntil === 'string' ? a.holdLockUntil : undefined,
       holdLockDuty: typeof a.holdLockDuty === 'number' ? a.holdLockDuty : undefined,
+      holdLockBaseline: typeof a.holdLockBaseline === 'number' ? a.holdLockBaseline : undefined,
     }
   })()
 
