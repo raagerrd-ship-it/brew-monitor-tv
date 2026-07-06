@@ -252,7 +252,11 @@ function computeDutyV5(input: {
 
   // ── SSOT-smoothing: EMA med tidskonstant ~3 min för att döda sensorjitter.
   // Alpha skalar med dtMin (räknas nedan) — beräkna dtMin först.
-  let dtMinEarly = 1.0
+  // Default = normal PWM-cykel (5 min). Används bara på första cykeln innan
+  // lastSsotAt persisterats — då är prevSmoothed också null så EMA-alpha
+  // spelar ingen roll, men integralsteget använder dtMin så vi vill inte
+  // under-integrera med 1/5.
+  let dtMinEarly = 5.0
   if (input.prevState.lastSsotAt) {
     const raw = (nowMs - new Date(input.prevState.lastSsotAt).getTime()) / 60000
     if (Number.isFinite(raw)) dtMinEarly = Math.max(0.25, Math.min(5.0, raw))
@@ -426,7 +430,10 @@ function computeDutyV5(input: {
     // värmeinflöde. Låt duty glida ner mot steady-state (nextI) begränsad av
     // slew, och bara nolla när vi klart överskridit (|err| ≥ 0.15°).
     const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-    const clearOvershoot = avgError <= -0.15  // för kylning: SSOT ≥ 0.15° under mål
+    // Mode-normaliserad overshoot: `need <= -0.15` betyder "klart förbi mål"
+    // oavsett kylning/värmning. Direkt avgError-tecken är inverterat mellan
+    // moderna (cooling: past-target ⇒ avgError > 0) — lätt att slarva med.
+    const clearOvershoot = need <= -0.15
     if (clearOvershoot) {
       // Tydlig overshoot: släpp mot 0, men slew-limita nedstegen (5%/cykel)
       const slewFloor = Math.max(0, prevDutyFrac - SLEW_PER_CYCLE)
