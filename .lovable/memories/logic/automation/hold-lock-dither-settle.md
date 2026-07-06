@@ -7,8 +7,11 @@ PWM-hårdvaran levererar 1% upplösning via 10-slot × 5-min = 50-min dither-fö
 
 **Logik (i `pid-compensation.ts`, efter slew-cap):**
 - Enter: `isHold && prevDutyFrac ∈ (0, 10%) && |avgError| < 0.15°C && !modeJustSwitched` → sätt `holdLockUntil = now + 15 min`, `holdLockDuty = lastDutyFrac`. Constraint `hold-lock-enter(15m@X%)`.
-- Active: medan låst → `duty = holdLockDuty`, `nextI` capad till `persistedIntegral` (anti-windup). Constraint `hold-lock(remaining_min@X%)`.
-- Break: `modeJustSwitched || |avgError| > 0.25°C` → nolla lock. Constraint `hold-lock-break` (bara om aktiv).
+- Enter: sätter dessutom `holdLockBaseline = ssotFiltered` som referens för drift-brytet.
+- Active: medan låst → `duty = holdLockDuty`, `nextI` capad till `persistedIntegral` (anti-windup). Constraint `hold-lock(remaining_min@X%,drift=Y°)`.
+- Break: `modeJustSwitched || |avgError| > 0.25°C || drift > 0.15°C` sedan lock-entry → nolla lock. Constraint `hold-lock-break(reason)` med reason ∈ {drift, err, mode}.
+
+**Drift-brytet (`HOLD_LOCK_DRIFT_EXIT = 0.15°C`)** är sensor-cadence-agnostiskt: jämför två EMA-filtrerade SSOT-värden istället för momentan rate. Rate-baserad break är opålitlig eftersom probe (15-min-cadence) och pill (1-min-cadence) blandas in i SSOT — 5-min-rate domineras av pill-rörelse medan probe är stale. Drift sedan baseline fångar sustained trend oavsett vilken sensor som ledde.
 
 **State (V5PidState):** `holdLockUntil?: string`, `holdLockDuty?: number`. Persisteras i `sensor_anchor` JSONB.
 
