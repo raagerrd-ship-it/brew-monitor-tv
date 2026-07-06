@@ -605,6 +605,9 @@ function computeDutyV5(input: {
   let holdLockLastTrickleAt = input.prevState.holdLockLastTrickleAt
   const prevInDither = lastDutyFrac > 0 && lastDutyFrac < DITHER_ZONE_MAX
   const lockActive = !!holdLockUntil && new Date(holdLockUntil).getTime() > nowMs && holdLockDuty != null
+  if (lockActive && !holdLockLastTrickleAt) {
+    holdLockLastTrickleAt = now
+  }
   const driftSinceLock = lockActive && holdLockBaseline != null
     ? Math.abs(ssotFiltered - holdLockBaseline)
     : 0
