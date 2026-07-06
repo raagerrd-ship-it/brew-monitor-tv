@@ -587,9 +587,10 @@ function computeDutyV5(input: {
     // refreshas låset så vi väntar hela fönstret innan nästa step. Detta ger
     // mjuk 6→5→4→3-nedgång utan risk för studs tillbaka upp på burst-brus.
     const dutyDelta = duty - holdLockDuty!
-    const pastTargetDown =
-      (input.mode === 'cooling' && avgError < -0.05 && dutyDelta < 0) ||
-      (input.mode === 'heating' && avgError > 0.05 && dutyDelta > 0)
+    // past-target = actual passerat target med >0.05°C i "säker" riktning
+    // (kallare än target vid cooling, varmare vid heating). `need` är redan
+    // mode-normaliserad så samma villkor gäller båda lägen.
+    const pastTargetDown = need < -0.05 && dutyDelta < 0
     if (pastTargetDown && Math.abs(dutyDelta) >= 0.005) {
       const step = Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
       holdLockDuty = Math.max(0, Math.min(1, holdLockDuty! + step))
