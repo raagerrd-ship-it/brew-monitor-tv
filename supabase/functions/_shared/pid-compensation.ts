@@ -505,12 +505,13 @@ function computeDutyV5(input: {
   const raw = uP + nextI - dBrake
   let duty = Math.max(0, Math.min(1, raw))
 
-  if (need <= 0) {
-    // Soft coast: slamma inte till 0 direkt när vi precis passerat mål.
-    // Om vi kylde 50% för att sakta sänka så innebär target-crossing inte
-    // att systemet slutat behöva kylning — det finns fortfarande
-    // värmeinflöde. Låt duty glida ner mot steady-state (nextI) begränsad av
-    // slew, och bara nolla när vi klart överskridit (|err| ≥ 0.15°).
+  // Coast-cap gäller bara UTANFÖR deadbandet (need <= -0.10). När vi drivit
+  // tillbaka mot target inom ±0.10° tar deadband-/hold-lock-logiken över och
+  // ska inte fortsätta klämma duty mot nextI (som kan ha bleedats till 0 under
+  // en lång coast). Utan denna gräns håller past-target-soft(→0%) duty vid 0
+  // långt efter att temp korsat tillbaka mot mål, vilket bygger upp
+  // termisk-inflow-skuld som trickle-up sen inte hinner betala av.
+  if (need <= -0.10) {
     const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
     // Mode-normaliserad overshoot: `need <= -0.15` betyder "klart förbi mål"
     // oavsett kylning/värmning. Direkt avgError-tecken är inverterat mellan
