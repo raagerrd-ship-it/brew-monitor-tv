@@ -160,6 +160,12 @@ export async function calculateCompensatedTarget(
   const convergenceCount = learnedRow?.convergence_count ?? 0
   let persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
   if (!Number.isFinite(persistedIntegral) || Math.abs(persistedIntegral) > 1.0) persistedIntegral = 0
+
+  // Feedforward duty-floor: empiriskt beräknat "ambient_gain / cool_response".
+  // Använd max(convergens-lärd, feedforward) som effektiv baseline så att
+  // seed-golvet fångar verkligt behov även innan konvergensen hunnit ikapp.
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = (() => {
     const raw = learnedRow?.sensor_anchor
     if (!raw || typeof raw !== 'object') return {}
@@ -190,7 +196,7 @@ export async function calculateCompensatedTarget(
     mode, stepType,
     actualTarget, actualTemp,
     persistedIntegral,
-    learnedBaseline,
+    learnedBaseline: effectiveBaseline,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     prevState,
