@@ -753,14 +753,23 @@ function computeDutyV5(input: {
       settlingTowardTarget &&
       trickleCooldownOk &&
       dutyDelta < -0.005
+    // Rate-fast settle-down: när approach mot mål är stark (>HOLD_LOCK_FAST_RATE)
+    // hinner 1%/15 min inte förhindra overshoot — speciellt när probe leder SSOT
+    // och redan är under target. Sänk cooldown till 5 min i det scenariot.
+    const settleDownFastReady =
+      settlingTowardTarget &&
+      minsSinceTrickle >= 5 &&
+      !trickleCooldownOk &&
+      progressToTarget > HOLD_LOCK_FAST_RATE &&
+      dutyDelta < -0.005
     const trickleDir = effectivePositionDir !== 0
       ? effectivePositionDir
-      : (rateTrickleReady || settleDownReady ? -1 : 0)
+      : (rateTrickleReady || settleDownReady || settleDownFastReady ? -1 : 0)
     const trickleOk = trickleDir !== 0
     const trickleReason: 'position' | 'rate' | null =
       effectivePositionDir !== 0
         ? 'position'
-        : (rateTrickleReady || settleDownReady ? 'rate' : null)
+        : (rateTrickleReady || settleDownReady || settleDownFastReady ? 'rate' : null)
     // Pre-break bypass: om vi är på väg mot en break (drift/err närmar sig exit-tröskeln)
     // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
     // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
@@ -793,7 +802,7 @@ function computeDutyV5(input: {
       minsSinceTrickle >= 5 &&
       !trickleCooldownOk &&  // bara relevant när standard cooldown ej klar
       rateAwayFromTargetCph > HOLD_LOCK_FAST_RATE
-    if (trickleOk && (trickleCooldownOk || approachingBreak || rateFastUpReady)) {
+    if (trickleOk && (trickleCooldownOk || approachingBreak || rateFastUpReady || settleDownFastReady)) {
       const step = Math.sign(dutyDelta) === trickleDir && Math.abs(dutyDelta) >= 0.005
         ? Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
         : trickleDir * 0.01
@@ -803,12 +812,14 @@ function computeDutyV5(input: {
       holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
       holdLockLastTrickleAt = now
       const tag = trickleReason === 'rate'
-        ? (settleDownReady ? 'hold-lock-settle-down-trickle' : 'hold-lock-rate-trickle')
+        ? (settleDownFastReady
+            ? 'hold-lock-settle-down-fast-trickle'
+            : (settleDownReady ? 'hold-lock-settle-down-trickle' : 'hold-lock-rate-trickle'))
         : (rateFastUpReady
             ? 'hold-lock-rate-fast-trickle'
             : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'))
       const rateSuffix = trickleReason === 'rate'
-        ? `,rate=${(settleDownReady ? progressToTarget : driftRateCph).toFixed(2)}°/h`
+        ? `,rate=${((settleDownReady || settleDownFastReady) ? progressToTarget : driftRateCph).toFixed(2)}°/h`
         : (rateFastUpReady ? `,rate=${rateAwayFromTargetCph.toFixed(2)}°/h` : '')
       constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%${rateSuffix})`)
     } else {
