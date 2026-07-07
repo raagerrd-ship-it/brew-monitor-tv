@@ -692,14 +692,36 @@ function computeDutyV5(input: {
     // Trickle i BÅDA riktningar (mode-normaliserat via `need`) även om PI ännu
     // inte hunnit ackumulera synlig delta — annars kan 1% låsas om var 15:e min
     // och aldrig sakta öka när Snitt redan är över mål.
-    const trickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
-    const trickleOk = trickleDir !== 0
+    const positionTrickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
     // Cooldown-gate: minst HOLD_LOCK_MIN sedan förra trickle-steget (eller sedan
     // lock-entry om inget steg tagits än). Utan denna gate firar trickle varje
     // PID-cykel (5 min) eftersom holdLockUntil-refreshen inte hindrar re-entry.
     const lastTrickleMs = holdLockLastTrickleAt ? new Date(holdLockLastTrickleAt).getTime() : null
     const minsSinceTrickle = lastTrickleMs != null ? (nowMs - lastTrickleMs) / 60000 : Infinity
     const trickleCooldownOk = minsSinceTrickle >= HOLD_LOCK_MIN
+    // ── Rate-aware trickle: mät SSOT-drift sedan senaste baseline-anchor. Om
+    //    ssotSmoothed hållbart driftar mot past-target-hållet trots att vi är
+    //    innanför position-deadbandet (|need| ≤ 0.05), fira en preventiv 1%-
+    //    sänkning istället för att vänta ut drift-break vid 0.25° överskott.
+    //    Baseline sätts vid lock-entry/trickle och ger en stabil 15-min-rate
+    //    (kräver minsSinceTrickle ≥ 5 min för att undvika brus tidigt i låset).
+    const HOLD_LOCK_RATE_TRICKLE = 0.10  // °C/h — 0.025°C drift/15min
+    const baselineForRate = holdLockBaseline ?? ssotFiltered
+    const driftSignedFromBaseline = ssotFiltered - baselineForRate
+    const driftRateCph =
+      Number.isFinite(minsSinceTrickle) && minsSinceTrickle > 5
+        ? (driftSignedFromBaseline * 60) / minsSinceTrickle
+        : 0
+    const progressToPastTarget = isCooling ? -driftRateCph : driftRateCph
+    const rateTrickleReady =
+      positionTrickleDir === 0 &&
+      trickleCooldownOk &&
+      progressToPastTarget > HOLD_LOCK_RATE_TRICKLE &&
+      dutyDelta < -0.005 // PID vill lägre duty
+    const trickleDir = positionTrickleDir !== 0 ? positionTrickleDir : (rateTrickleReady ? -1 : 0)
+    const trickleOk = trickleDir !== 0
+    const trickleReason: 'position' | 'rate' | null =
+      positionTrickleDir !== 0 ? 'position' : (rateTrickleReady ? 'rate' : null)
     // Pre-break bypass: om vi är på väg mot en break (drift/err närmar sig exit-tröskeln)
     // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
     // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
@@ -708,6 +730,7 @@ function computeDutyV5(input: {
     const HOLD_LOCK_ERR_WARN = 0.18    // ~72% av break-tröskeln (0.25°)
     const approachingBreak =
       trickleOk &&
+      trickleReason === 'position' &&  // rate-trickle kräver alltid full cooldown
       minsSinceTrickle >= 3 &&
       (
         (driftSinceLock > HOLD_LOCK_DRIFT_WARN &&
@@ -725,8 +748,11 @@ function computeDutyV5(input: {
       holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
       holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
       holdLockLastTrickleAt = now
-      const tag = approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'
-      constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%)`)
+      const tag = trickleReason === 'rate'
+        ? 'hold-lock-rate-trickle'
+        : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle')
+      const rateSuffix = trickleReason === 'rate' ? `,rate=${driftRateCph.toFixed(2)}°/h` : ''
+      constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%${rateSuffix})`)
     } else {
       duty = holdLockDuty!
     }
