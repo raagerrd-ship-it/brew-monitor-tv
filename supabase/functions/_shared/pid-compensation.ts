@@ -616,7 +616,7 @@ function computeDutyV5(input: {
   const HOLD_LOCK_MIN = 15
   const HOLD_LOCK_ERR_ENTER = 0.15
   const HOLD_LOCK_ERR_EXIT = 0.25
-  const HOLD_LOCK_DRIFT_EXIT = 0.15  // filtered-SSOT-drift sedan lock-entry (sensor-cadence-agnostisk)
+  const HOLD_LOCK_DRIFT_EXIT = 0.25  // filtered-SSOT-drift sedan lock-entry — matchar err-break symmetriskt
   let holdLockUntil = input.prevState.holdLockUntil
   let holdLockDuty = input.prevState.holdLockDuty
   let holdLockBaseline = input.prevState.holdLockBaseline
@@ -664,7 +664,7 @@ function computeDutyV5(input: {
     // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
     // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
     // förra trickle så vi inte firar samma cykel som lock-entry.
-    const HOLD_LOCK_DRIFT_WARN = 0.08  // ~55% av break-tröskeln (0.15°)
+    const HOLD_LOCK_DRIFT_WARN = 0.14  // ~55% av break-tröskeln (0.25°)
     const HOLD_LOCK_ERR_WARN = 0.18    // ~72% av break-tröskeln (0.25°)
     const approachingBreak =
       trickleOk &&
