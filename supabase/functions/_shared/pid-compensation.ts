@@ -735,6 +735,9 @@ function computeDutyV5(input: {
       positionTrickleDir > 0 &&
       progressToTarget >= HOLD_LOCK_SETTLE_RATE
     const effectivePositionDir = settlingTowardTarget ? 0 : positionTrickleDir
+    if (settlingTowardTarget) {
+      constraints.push(`hold-lock-settle-skip(rate=${progressToTarget.toFixed(2)}°/h→target)`)
+    }
     const trickleDir = effectivePositionDir !== 0 ? effectivePositionDir : (rateTrickleReady ? -1 : 0)
     const trickleOk = trickleDir !== 0
     const trickleReason: 'position' | 'rate' | null =
