@@ -714,12 +714,18 @@ function computeDutyV5(input: {
         ? (driftSignedFromBaseline * 60) / minsSinceTrickle
         : 0
     const progressToPastTarget = isCooling ? -driftRateCph : driftRateCph
-    // Progress TOWARD target: positiv = SSOT konvergerar mot mål oavsett mode.
-    // Cooling+ovan_mål: temp faller → driftSigned<0 → progressToTarget=+
-    // Heating+under_mål: temp stiger → driftSigned>0 → progressToTarget=+
+    // Progress TOWARD target: positiv = SSOT konvergerar mot mål. Använder
+    // cycle-to-cycle EMA-rate (`prevSmoothed → ssotFiltered`), INTE trickle-
+    // baseline-rate — annars nollställs raten var 15:e min vid varje trickle
+    // och settle-skip missar den första cykeln efter en position-trickle
+    // (exakt när överskott byggs upp).
+    const ratePerMinToTarget =
+      prevSmoothed != null && !isStaleSsot
+        ? (ssotFiltered - prevSmoothed) / dtMin
+        : 0
     const progressToTarget =
-      (input.mode === 'cooling' && need > 0) ? -driftRateCph :
-      (input.mode === 'heating' && need > 0) ? driftRateCph :
+      (input.mode === 'cooling' && need > 0) ? -ratePerMinToTarget * 60 :
+      (input.mode === 'heating' && need > 0) ? ratePerMinToTarget * 60 :
       0
     const rateTrickleReady =
       positionTrickleDir === 0 &&
