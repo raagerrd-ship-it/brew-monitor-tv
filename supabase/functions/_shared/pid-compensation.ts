@@ -505,12 +505,13 @@ function computeDutyV5(input: {
   const raw = uP + nextI - dBrake
   let duty = Math.max(0, Math.min(1, raw))
 
-  if (need <= 0) {
-    // Soft coast: slamma inte till 0 direkt när vi precis passerat mål.
-    // Om vi kylde 50% för att sakta sänka så innebär target-crossing inte
-    // att systemet slutat behöva kylning — det finns fortfarande
-    // värmeinflöde. Låt duty glida ner mot steady-state (nextI) begränsad av
-    // slew, och bara nolla när vi klart överskridit (|err| ≥ 0.15°).
+  // Coast-cap gäller bara UTANFÖR deadbandet (need <= -0.10). När vi drivit
+  // tillbaka mot target inom ±0.10° tar deadband-/hold-lock-logiken över och
+  // ska inte fortsätta klämma duty mot nextI (som kan ha bleedats till 0 under
+  // en lång coast). Utan denna gräns håller past-target-soft(→0%) duty vid 0
+  // långt efter att temp korsat tillbaka mot mål, vilket bygger upp
+  // termisk-inflow-skuld som trickle-up sen inte hinner betala av.
+  if (need <= -0.10) {
     const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
     // Mode-normaliserad overshoot: `need <= -0.15` betyder "klart förbi mål"
     // oavsett kylning/värmning. Direkt avgError-tecken är inverterat mellan
@@ -739,7 +740,22 @@ function computeDutyV5(input: {
             (input.mode === 'cooling' ? trickleDir : -trickleDir)) ||
         Math.abs(avgError) > HOLD_LOCK_ERR_WARN
       )
-    if (trickleOk && (trickleCooldownOk || approachingBreak)) {
+    // Rate-fast UP-trickle: när termisk-inflow-skuld byggs snabbare än
+    // standard 1%/15 min hinner betala av. Om trickle vill UP (kylning: need>0,
+    // temp fortfarande över mål) OCH SSOT-EMA driftar bort från mål med
+    // >0.20°C/h, tillåt UP-steg var 5:e min istället för 15. Endast UP: down-
+    // trickle håller full cooldown för att inte överreagera på pill-bruset.
+    const HOLD_LOCK_FAST_RATE = 0.20  // °C/h drift bort från mål
+    const rateAwayFromTargetCph =
+      (input.mode === 'cooling' ? driftSignedFromBaseline : -driftSignedFromBaseline)
+      * 60 / Math.max(minsSinceTrickle, 1)
+    const rateFastUpReady =
+      trickleReason === 'position' &&
+      trickleDir > 0 &&
+      minsSinceTrickle >= 5 &&
+      !trickleCooldownOk &&  // bara relevant när standard cooldown ej klar
+      rateAwayFromTargetCph > HOLD_LOCK_FAST_RATE
+    if (trickleOk && (trickleCooldownOk || approachingBreak || rateFastUpReady)) {
       const step = Math.sign(dutyDelta) === trickleDir && Math.abs(dutyDelta) >= 0.005
         ? Math.sign(dutyDelta) * Math.min(0.01, Math.abs(dutyDelta))
         : trickleDir * 0.01
@@ -750,8 +766,12 @@ function computeDutyV5(input: {
       holdLockLastTrickleAt = now
       const tag = trickleReason === 'rate'
         ? 'hold-lock-rate-trickle'
-        : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle')
-      const rateSuffix = trickleReason === 'rate' ? `,rate=${driftRateCph.toFixed(2)}°/h` : ''
+        : (rateFastUpReady
+            ? 'hold-lock-rate-fast-trickle'
+            : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'))
+      const rateSuffix = trickleReason === 'rate'
+        ? `,rate=${driftRateCph.toFixed(2)}°/h`
+        : (rateFastUpReady ? `,rate=${rateAwayFromTargetCph.toFixed(2)}°/h` : '')
       constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%${rateSuffix})`)
     } else {
       duty = holdLockDuty!
