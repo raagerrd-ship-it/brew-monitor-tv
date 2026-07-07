@@ -20,7 +20,7 @@ PWM-hårdvaran levererar 1% upplösning via 10-slot × 5-min = 50-min dither-fö
 **Interaktion med andra guards:**
 - Kör EFTER slew-cap — hold-lock är en output-override, inte en gain-modifierare.
 - Kör FÖRE peak-detection så `dutyPct` speglar det låsta värdet.
-- I-termen fryses under lock (som i min-off/util-sat) så pressure inte byggs mot en respons vi inte lyssnar på.
+- **I-termen fryses under lock** — `prevLockActive` (från förra cykelns state) beräknas tidigt och gate:ar db-conv-up/db-conv-dn/deadband-bleed/i-zone/overshoot-bleed/coast-i-bleed. Utan denna gate äter dessa block ur I-termen medan duty är pinnad → `|dutyCycle - iCorrection|` växer och convergence-gaten i `persistPidState` missar just de steady-state-sampels låset ska producera. Constraint `lock-freeze-i` loggas när gaten är aktiv. Den senare `Math.min(nextI, persistedIntegral)`-clampen är belt-and-suspenders (skyddar mot growth), inte primärskydd.
 - 3 PID-cykler (15 min) räcker för ~1 dither-fönster faktisk termisk respons på probe/pill.
 - **Convergence-gate matchar kontroll-loopen**: `persistPidState` får `filteredAvgError = actualTarget - r.nextState.ssotSmoothed` (fallback till raw om smoothing saknas), inte raw `avgError`. Annars kan en enstaka brusig raw-sample hålla oss utanför 0.10°-fönstret trots att hold-lock håller stabilt → learned baseline missar just de steady-state-perioder låset är byggt för att producera.
 
