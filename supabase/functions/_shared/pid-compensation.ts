@@ -744,10 +744,23 @@ function computeDutyV5(input: {
     if (settlingTowardTarget) {
       constraints.push(`hold-lock-settle-skip(rate=${progressToTarget.toFixed(2)}°/h→target)`)
     }
-    const trickleDir = effectivePositionDir !== 0 ? effectivePositionDir : (rateTrickleReady ? -1 : 0)
+    // Settle-down-trickle: när settle-skip är aktiv (approach mot mål i gång)
+    // OCH PID vill lägre duty OCH cooldown passerat → fira -1% preemptivt.
+    // Utan detta står duty kvar på UP-trickle-toppen tills temp korsar target
+    // och sedan överkyler. Speglar rate-aware DOWN-trickle men gäller UTANFÖR
+    // deadbandet där position-trickle annars blockerar.
+    const settleDownReady =
+      settlingTowardTarget &&
+      trickleCooldownOk &&
+      dutyDelta < -0.005
+    const trickleDir = effectivePositionDir !== 0
+      ? effectivePositionDir
+      : (rateTrickleReady || settleDownReady ? -1 : 0)
     const trickleOk = trickleDir !== 0
     const trickleReason: 'position' | 'rate' | null =
-      effectivePositionDir !== 0 ? 'position' : (rateTrickleReady ? 'rate' : null)
+      effectivePositionDir !== 0
+        ? 'position'
+        : (rateTrickleReady || settleDownReady ? 'rate' : null)
     // Pre-break bypass: om vi är på väg mot en break (drift/err närmar sig exit-tröskeln)
     // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
     // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
@@ -790,12 +803,12 @@ function computeDutyV5(input: {
       holdLockBaseline = ssotFiltered  // ny drift-anchor efter steg
       holdLockLastTrickleAt = now
       const tag = trickleReason === 'rate'
-        ? 'hold-lock-rate-trickle'
+        ? (settleDownReady ? 'hold-lock-settle-down-trickle' : 'hold-lock-rate-trickle')
         : (rateFastUpReady
             ? 'hold-lock-rate-fast-trickle'
             : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'))
       const rateSuffix = trickleReason === 'rate'
-        ? `,rate=${driftRateCph.toFixed(2)}°/h`
+        ? `,rate=${(settleDownReady ? progressToTarget : driftRateCph).toFixed(2)}°/h`
         : (rateFastUpReady ? `,rate=${rateAwayFromTargetCph.toFixed(2)}°/h` : '')
       constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%${rateSuffix})`)
     } else {
