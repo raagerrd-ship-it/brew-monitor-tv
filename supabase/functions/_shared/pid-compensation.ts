@@ -341,6 +341,17 @@ function computeDutyV5(input: {
   let nextI = integral
   const inDeadband = Math.abs(avgError) <= COOL.Deadband
 
+  // Hold-lock (från förra cykeln) fryser I-termen: när aktuatorn är pinnad
+  // ska PID inte samtidigt äta ur I-termen via db-conv-dn/overshoot-bleed/
+  // coast-i-bleed — då växer |duty - iCorrection| under låset och convergence-
+  // gaten i persistPidState (|diff| < 5%) missar just de steady-state-sampels
+  // låset är byggt för att producera. Lock evalueras nedan (kan brytas denna
+  // cykel), men mutationsblocken körs innan dess — så vi använder prevState.
+  const prevLockActive =
+    !!input.prevState.holdLockUntil &&
+    new Date(input.prevState.holdLockUntil).getTime() > nowMs &&
+    input.prevState.holdLockDuty != null
+
   // SSOT-stale-freeze: när bulkmätaren inte uppdaterats på >8 min är PI:s
   // återkoppling osäker. Frys integralen för att undvika windup mot data
   // som ännu inte speglar verkan av aktuell duty.
@@ -349,7 +360,9 @@ function computeDutyV5(input: {
     constraints.push(`ssot-stale-freeze(${input.actualTempAgeMin!.toFixed(0)}m)`)
   }
 
-  if (!inDeadband && Math.abs(need) <= IZone && !input.modeJustSwitched && !isStaleSsot) {
+  if (prevLockActive) {
+    constraints.push('lock-freeze-i')
+  } else if (!inDeadband && Math.abs(need) <= IZone && !input.modeJustSwitched && !isStaleSsot) {
     nextI += KiPerHour * need * dtMin / 60
     constraints.push(`i-zone(dt=${dtMin.toFixed(1)}m)`)
   } else if (inDeadband) {
@@ -412,7 +425,7 @@ function computeDutyV5(input: {
   // gång temperaturen dippade under mål (t.ex. morgondipp efter nattens
   // ambient-topp). Skala nu bleed:en med felstorlek + dtMin så bara
   // uppenbara översläng (>-0.15°C) tömmer I snabbt.
-  if (need < -0.05 && !inDeadband) {
+  if (need < -0.05 && !inDeadband && !prevLockActive) {
     // 3%/cyk vid −0.05°C, 10%/cyk vid −0.20°C, capad 15%/cyk. Skalas med dtMin/5.
     const overshootMag = Math.min(0.20, Math.abs(avgError))
     const bleedFrac = Math.min(0.15, 0.02 + overshootMag * 0.65) * (dtMin / 5)
@@ -492,7 +505,7 @@ function computeDutyV5(input: {
     // Bleed I bara vid tydlig overshoot; nära mål lämnas I orörd så
     // steady-state-bias bevaras. Bleed-faktor sänkt från 0.5 → 0.2 så en
     // enda coast-cykel inte torkar ut lärd hold-duty.
-    if (clearOvershoot) {
+    if (clearOvershoot && !prevLockActive) {
       const bleed = (KiPerHour * dtMin / 60) * 0.2
       nextI = Math.max(0, nextI - bleed)
       constraints.push(`coast-i-bleed(${bleed.toFixed(3)})`)
