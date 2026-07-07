@@ -737,12 +737,18 @@ function computeDutyV5(input: {
     // räcker och 1%/15 min ovanpå det skjuter förbi mål. Gäller bara UP:
     // DOWN-trickle måste alltid kunna fira mot past-target.
     const HOLD_LOCK_SETTLE_RATE = 0.10  // °C/h konvergens mot mål
+    // Kombinera cykel-rate (prev→now) med baseline-rate (sedan senaste trickle).
+    // Cykel-rate fångar första cykeln efter trickle (baseline just nollställd),
+    // baseline-rate fångar långsam stadig drift när cykel-signalen brus-nollas
+    // (SSOT-EMA hovrar t.ex. 13.05↔13.07 → cykel-rate ~0 fast 15-min-trend är
+    // -0.5°/h). MAX säkerställer att båda perspektiven kan trigga settle-skip.
+    const progressToTargetCombined = Math.max(progressToTarget, progressToPastTarget)
     const settlingTowardTarget =
       positionTrickleDir > 0 &&
-      progressToTarget >= HOLD_LOCK_SETTLE_RATE
+      progressToTargetCombined >= HOLD_LOCK_SETTLE_RATE
     const effectivePositionDir = settlingTowardTarget ? 0 : positionTrickleDir
     if (settlingTowardTarget) {
-      constraints.push(`hold-lock-settle-skip(rate=${progressToTarget.toFixed(2)}°/h→target)`)
+      constraints.push(`hold-lock-settle-skip(rate=${progressToTargetCombined.toFixed(2)}°/h→target)`)
     }
     // Settle-down-trickle: när settle-skip är aktiv (approach mot mål i gång)
     // OCH PID vill lägre duty OCH cooldown passerat → fira -1% preemptivt.
@@ -763,7 +769,7 @@ function computeDutyV5(input: {
       settlingTowardTarget &&
       minsSinceTrickle >= 5 &&
       !trickleCooldownOk &&
-      progressToTarget > HOLD_LOCK_FAST_RATE &&
+      progressToTargetCombined > HOLD_LOCK_FAST_RATE &&
       dutyDelta < -0.005
     const trickleDir = effectivePositionDir !== 0
       ? effectivePositionDir
@@ -820,7 +826,7 @@ function computeDutyV5(input: {
             ? 'hold-lock-rate-fast-trickle'
             : (approachingBreak && !trickleCooldownOk ? 'hold-lock-pre-break-trickle' : 'hold-lock-trickle'))
       const rateSuffix = trickleReason === 'rate'
-        ? `,rate=${((settleDownReady || settleDownFastReady) ? progressToTarget : driftRateCph).toFixed(2)}°/h`
+        ? `,rate=${((settleDownReady || settleDownFastReady) ? progressToTargetCombined : driftRateCph).toFixed(2)}°/h`
         : (rateFastUpReady ? `,rate=${rateAwayFromTargetCph.toFixed(2)}°/h` : '')
       constraints.push(`${tag}(${step > 0 ? '+' : ''}${(step*100).toFixed(0)}%→${Math.round(duty*100)}%${rateSuffix})`)
     } else {
