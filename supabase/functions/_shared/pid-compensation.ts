@@ -541,8 +541,15 @@ function computeDutyV5(input: {
   }
 
   if (need > 2.0) {
-    duty = 1.0
-    constraints.push('full-action')
+    if (dBrake >= 0.10) {
+      // Snabb approach mot mål — låt d-brake modulera även i large-err-zonen
+      // så vi inte kör 100% duty rakt in i overshoot. dBrake=0.25 (cap) → 50%.
+      duty = Math.max(0.5, 1.0 - dBrake * 2)
+      constraints.push(`full-action-brake(${(duty*100).toFixed(0)}%)`)
+    } else {
+      duty = 1.0
+      constraints.push('full-action')
+    }
   }
 
   // ── Cool-boost: snabba upp approach vid mid/large fel (0.5–2.0°C) ──
