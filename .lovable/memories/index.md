@@ -60,6 +60,7 @@
 - [Ramp Limiting](mem://logic/automation/ramp-rate-limiting) — Limit effective target to 4.0°C/h cool, 3.0°C/h heat.
 - [Virtual Profile](mem://logic/automation/virtual-profile-target-and-revert-logic) — Hard targets update only when duty is 0%.
 - [Phase ssFloor](mem://logic/automation/phase-keyed-ssfloor) — ssFloor keyed per fermentation phase (active/tail/clean) with mode-keyed fallback + seeding; floor learning frozen during ramps.
+- [Feedforward Duty](mem://logic/automation/feedforward-duty-learning) — Lär ambient_gain/cool_response → duty-golv. Bredare convergence-gate ±0.20°.
 - [AI Audit Constraints](mem://features/automation/ai-audit-context-and-data-constraints) — Restrict payloads to avoid hallucinations.
 - [AI Engine](mem://features/automation/ai-audit-and-optimization-engine) — Whitelisted active PID parameters only.
 

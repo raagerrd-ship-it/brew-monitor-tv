@@ -86,20 +86,23 @@ async function persistPidState(
   modeJustSwitched: boolean,
 ): Promise<void> {
   // ── Long-horizon convergence detection ──
-  // Only in hold, inside deadband, when duty is actively driven by the I-term
-  // (steady state). EMA the learned baseline slowly so a single cycle can't
-  // skew it. This is the persistent duty-floor used to seed future sessions.
+  // Widened gate (v2): accept |err| ≤ 0.20° (was 0.10) with proximity-weighted
+  // EMA so samples near zero-error still dominate. Fångar hela hold-området,
+  // inte bara noll-passager, så baseline speglar verkligt duty-behov istället
+  // för att fastna nära 1%.
   let newConvergenceCount = prevConvergenceCount
   let newLearnedBaseline = prevLearnedBaseline
+  const absErr = Math.abs(avgError)
   const converged =
     stepType === 'hold' &&
     !modeJustSwitched &&
-    Math.abs(avgError) <= 0.10 &&
+    absErr <= 0.20 &&
     dutyCycle > 0.02 &&
     Math.abs(dutyCycle - iCorrection) < 0.05
   if (converged) {
     newConvergenceCount = prevConvergenceCount + 1
-    const alpha = 0.10
+    // α faller linjärt från 0.10 vid err=0 till 0 vid err=0.20°
+    const alpha = 0.10 * Math.max(0, 1 - absErr / 0.20)
     newLearnedBaseline = prevLearnedBaseline > 0
       ? prevLearnedBaseline + alpha * (iCorrection - prevLearnedBaseline)
       : iCorrection
@@ -157,6 +160,12 @@ export async function calculateCompensatedTarget(
   const convergenceCount = learnedRow?.convergence_count ?? 0
   let persistedIntegral = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
   if (!Number.isFinite(persistedIntegral) || Math.abs(persistedIntegral) > 1.0) persistedIntegral = 0
+
+  // Feedforward duty-floor: empiriskt beräknat "ambient_gain / cool_response".
+  // Använd max(convergens-lärd, feedforward) som effektiv baseline så att
+  // seed-golvet fångar verkligt behov även innan konvergensen hunnit ikapp.
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = (() => {
     const raw = learnedRow?.sensor_anchor
     if (!raw || typeof raw !== 'object') return {}
@@ -187,7 +196,7 @@ export async function calculateCompensatedTarget(
     mode, stepType,
     actualTarget, actualTemp,
     persistedIntegral,
-    learnedBaseline,
+    learnedBaseline: effectiveBaseline,
     modeJustSwitched: !!modeJustSwitched,
     coolingUtilization: coolingUtilization ?? null,
     prevState,
@@ -966,4 +975,96 @@ export async function getGlycolRatesSummary(
     }
   }
   return result
+}
+
+// ============================================================
+// Feedforward duty learner
+//
+// Modellerar termisk balans från senaste 6h historik:
+//   ambient_gain (°/h)  = medel positiv drift när duty=0 (cooling) / negativ (heating)
+//   cool_response (°/h per 1% duty) = medel drift-derivata per duty när duty>0
+//   required_duty = ambient_gain / cool_response   (fraktion 0..1)
+//
+// Persisteras i fermentation_learnings som `feedforward_duty:{mode}` och
+// används som golv för `learned_pi_correction`. 2h-cache via last_updated_at
+// undviker att räkna om varje cykel.
+// ============================================================
+export async function learnFeedforwardDuty(
+  supabase: any,
+  controllerId: string,
+  mode: 'heating' | 'cooling',
+): Promise<number> {
+  const paramName = `feedforward_duty:${mode}`
+
+  // Cache-hit: skip recompute if <2h old
+  const { data: existing } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value, sample_count, last_updated_at')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', paramName)
+    .maybeSingle()
+  if (existing?.last_updated_at) {
+    const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000
+    if (hoursSince < 2 && existing.sample_count >= 3) {
+      return parseFloat(String(existing.learned_value)) || 0
+    }
+  }
+
+  const sixHoursAgo = new Date(Date.now() - 6 * 3_600_000).toISOString()
+  const { data: history } = await supabase
+    .from('temp_controller_history')
+    .select('actual_temp, duty_pct, recorded_at')
+    .eq('controller_id', controllerId)
+    .gte('recorded_at', sixHoursAgo)
+    .order('recorded_at', { ascending: true })
+    .limit(300)
+
+  if (!history || history.length < 6) {
+    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+  }
+
+  const ambient: number[] = []            // °/h drift while duty=0
+  const perPctResp: number[] = []         // °/h per 1% duty while duty>0
+
+  for (let i = 1; i < history.length; i++) {
+    const p = history[i - 1] as any
+    const c = history[i] as any
+    const pt = parseFloat(String(p.actual_temp))
+    const ct = parseFloat(String(c.actual_temp))
+    if (!Number.isFinite(pt) || !Number.isFinite(ct)) continue
+    const dtH = (new Date(c.recorded_at).getTime() - new Date(p.recorded_at).getTime()) / 3_600_000
+    if (dtH < 0.05 || dtH > 0.6) continue    // 3–36 min windows
+    const rate = (ct - pt) / dtH              // °/h, positive = warming
+    const duty = parseFloat(String(c.duty_pct ?? p.duty_pct ?? 0)) || 0
+
+    if (mode === 'cooling') {
+      if (duty <= 0.5 && rate > 0.02) ambient.push(rate)
+      if (duty >= 2 && rate < -0.02) perPctResp.push(-rate / duty)     // °/h per 1%
+    } else {
+      if (duty <= 0.5 && rate < -0.02) ambient.push(-rate)
+      if (duty >= 2 && rate > 0.02) perPctResp.push(rate / duty)
+    }
+  }
+
+  if (ambient.length < 2 || perPctResp.length < 2) {
+    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+  }
+
+  const median = (arr: number[]) => {
+    const s = [...arr].sort((a, b) => a - b)
+    return s[Math.floor(s.length / 2)]
+  }
+  const ambientGain = median(ambient)         // °/h
+  const perPct = median(perPctResp)           // °/h per 1% duty
+  if (!(perPct > 0)) return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+
+  // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
+  let requiredDuty = ambientGain / (perPct * 100)
+  requiredDuty = Math.max(0, Math.min(0.30, requiredDuty))     // safety-cap 30%
+
+  const result = await updateLearnedParam(
+    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
+  )
+  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
+  return result.newValue || 0
 }
