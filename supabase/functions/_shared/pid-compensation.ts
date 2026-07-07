@@ -749,6 +749,9 @@ function computeDutyV5(input: {
     // Utan detta står duty kvar på UP-trickle-toppen tills temp korsar target
     // och sedan överkyler. Speglar rate-aware DOWN-trickle men gäller UTANFÖR
     // deadbandet där position-trickle annars blockerar.
+    // Rate-fast tröskel: används av både UP- och DOWN-fast-trickle. Deklareras
+    // här (före settleDownFastReady) för att undvika TDZ-fel.
+    const HOLD_LOCK_FAST_RATE = 0.20  // °C/h
     const settleDownReady =
       settlingTowardTarget &&
       trickleCooldownOk &&
@@ -790,9 +793,7 @@ function computeDutyV5(input: {
     // Rate-fast UP-trickle: när termisk-inflow-skuld byggs snabbare än
     // standard 1%/15 min hinner betala av. Om trickle vill UP (kylning: need>0,
     // temp fortfarande över mål) OCH SSOT-EMA driftar bort från mål med
-    // >0.20°C/h, tillåt UP-steg var 5:e min istället för 15. Endast UP: down-
-    // trickle håller full cooldown för att inte överreagera på pill-bruset.
-    const HOLD_LOCK_FAST_RATE = 0.20  // °C/h drift bort från mål
+    // >HOLD_LOCK_FAST_RATE, tillåt UP-steg var 5:e min istället för 15.
     const rateAwayFromTargetCph =
       (input.mode === 'cooling' ? driftSignedFromBaseline : -driftSignedFromBaseline)
       * 60 / Math.max(minsSinceTrickle, 1)
