@@ -84,6 +84,7 @@ async function persistPidState(
   dutyCycle: number, nextState: V5PidState,
   prevConvergenceCount: number, prevLearnedBaseline: number,
   modeJustSwitched: boolean,
+  feedforwardFloor: number = 0,
 ): Promise<void> {
   // ── Long-horizon convergence detection ──
   // Widened gate (v2): accept |err| ≤ 0.20° (was 0.10) with proximity-weighted
@@ -108,6 +109,13 @@ async function persistPidState(
       : iCorrection
     // Clamp to sane range
     newLearnedBaseline = Math.max(0, Math.min(0.65, newLearnedBaseline))
+  }
+  // Feedforward hard floor: den empiriska "ambient_gain / cool_response" är
+  // sanning från verkliga mätningar. Låt aldrig EMA:n dra ner baseline under
+  // detta värde — annars läcker låg-duty-samples i det breddade konvergens-
+  // fönstret ner baseline mot 0 och vi tappar tillbaka till oscillation.
+  if (feedforwardFloor > 0 && newLearnedBaseline < feedforwardFloor) {
+    newLearnedBaseline = feedforwardFloor
   }
   await supabase.from('controller_learned_compensation').upsert({
     controller_id: controllerId, delta_bucket: deltaBucket, mode, step_type: stepType,
@@ -223,6 +231,7 @@ export async function calculateCompensatedTarget(
     supabase, controllerId, deltaBucket, mode, stepType,
     pCorrection, integral, filteredAvgError, dutyCycle, r.nextState,
     convergenceCount, learnedBaseline, !!modeJustSwitched,
+    feedforwardDuty ?? 0,
   )
 
   return {
