@@ -46,6 +46,56 @@ interface V5PidState {
   holdLockLastTrickleAt?: string  // senaste trickle-steget — gate mot att fira 1%/cykel istället för 1%/15min
 }
 
+// ── V5PidState schema ────────────────────────────────────────────────────
+// Single source of truth for (a) what fields exist and (b) their runtime
+// type, used to safely parse sensor_anchor JSONB back into V5PidState.
+//
+// The `satisfies Record<keyof V5PidState, ...>` below is load-bearing: if a
+// field is added to V5PidState but not here (or vice versa), TypeScript
+// fails to compile. This is what actually prevents the class of bug we hit
+// already — holdLockLastTrickleAt was added to the interface and to
+// nextState, but silently missing from the old hand-written prevState
+// reconstruction, so the hold-lock trickle cooldown never saw its own
+// previous value. A schema-driven parser makes that specific mistake
+// impossible instead of relying on catching it in review again.
+const V5_STATE_SCHEMA = {
+  lastSsot: 'number',
+  lastSsotAt: 'string',
+  ssotSmoothed: 'number',
+  lastDutyPct: 'number',
+  lastZeroDutyAt: 'string',
+  peakArmed: 'boolean',
+  peakArmedTarget: 'number',
+  peakArmedAt: 'string',
+  peakMinTemp: 'number',
+  kiAdjCooling: 'number',
+  lastMode: 'mode',
+  stallBoostPct: 'number',
+  lastProgressAt: 'string',
+  holdLockUntil: 'string',
+  holdLockDuty: 'number',
+  holdLockBaseline: 'number',
+  holdLockLastTrickleAt: 'string',
+} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
+
+/** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
+ *  field whose runtime type doesn't match the schema (defends against
+ *  corrupted/legacy JSON the same way the old per-field typeof checks did). */
+function parseV5State(raw: unknown): V5PidState {
+  if (!raw || typeof raw !== 'object') return {}
+  const a = raw as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const [key, kind] of Object.entries(V5_STATE_SCHEMA)) {
+    const v = a[key]
+    if (kind === 'mode') {
+      if (v === 'heating' || v === 'cooling') out[key] = v
+    } else if (typeof v === kind) {
+      out[key] = v
+    }
+  }
+  return out as V5PidState
+}
+
 // ── Tuning constants ─────────────────────────────────────────────────────
 const COOL = {
   Kp: 0.20,
@@ -174,30 +224,7 @@ export async function calculateCompensatedTarget(
   // seed-golvet fångar verkligt behov även innan konvergensen hunnit ikapp.
   const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
   const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
-  const prevState: V5PidState = (() => {
-    const raw = learnedRow?.sensor_anchor
-    if (!raw || typeof raw !== 'object') return {}
-    const a = raw as any
-    return {
-      lastSsot: typeof a.lastSsot === 'number' ? a.lastSsot : undefined,
-      lastSsotAt: typeof a.lastSsotAt === 'string' ? a.lastSsotAt : undefined,
-      ssotSmoothed: typeof a.ssotSmoothed === 'number' ? a.ssotSmoothed : undefined,
-      lastDutyPct: typeof a.lastDutyPct === 'number' ? a.lastDutyPct : undefined,
-      lastZeroDutyAt: typeof a.lastZeroDutyAt === 'string' ? a.lastZeroDutyAt : undefined,
-      peakArmed: typeof a.peakArmed === 'boolean' ? a.peakArmed : undefined,
-      peakArmedTarget: typeof a.peakArmedTarget === 'number' ? a.peakArmedTarget : undefined,
-      peakArmedAt: typeof a.peakArmedAt === 'string' ? a.peakArmedAt : undefined,
-      peakMinTemp: typeof a.peakMinTemp === 'number' ? a.peakMinTemp : undefined,
-      kiAdjCooling: typeof a.kiAdjCooling === 'number' ? a.kiAdjCooling : undefined,
-      lastMode: a.lastMode === 'heating' || a.lastMode === 'cooling' ? a.lastMode : undefined,
-      stallBoostPct: typeof a.stallBoostPct === 'number' ? a.stallBoostPct : undefined,
-      lastProgressAt: typeof a.lastProgressAt === 'string' ? a.lastProgressAt : undefined,
-      holdLockUntil: typeof a.holdLockUntil === 'string' ? a.holdLockUntil : undefined,
-      holdLockDuty: typeof a.holdLockDuty === 'number' ? a.holdLockDuty : undefined,
-      holdLockBaseline: typeof a.holdLockBaseline === 'number' ? a.holdLockBaseline : undefined,
-      holdLockLastTrickleAt: typeof a.holdLockLastTrickleAt === 'string' ? a.holdLockLastTrickleAt : undefined,
-    }
-  })()
+  const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
   const r = computeDutyV5({
