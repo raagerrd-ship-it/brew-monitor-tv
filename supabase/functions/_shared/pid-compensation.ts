@@ -86,20 +86,23 @@ async function persistPidState(
   modeJustSwitched: boolean,
 ): Promise<void> {
   // ── Long-horizon convergence detection ──
-  // Only in hold, inside deadband, when duty is actively driven by the I-term
-  // (steady state). EMA the learned baseline slowly so a single cycle can't
-  // skew it. This is the persistent duty-floor used to seed future sessions.
+  // Widened gate (v2): accept |err| ≤ 0.20° (was 0.10) with proximity-weighted
+  // EMA so samples near zero-error still dominate. Fångar hela hold-området,
+  // inte bara noll-passager, så baseline speglar verkligt duty-behov istället
+  // för att fastna nära 1%.
   let newConvergenceCount = prevConvergenceCount
   let newLearnedBaseline = prevLearnedBaseline
+  const absErr = Math.abs(avgError)
   const converged =
     stepType === 'hold' &&
     !modeJustSwitched &&
-    Math.abs(avgError) <= 0.10 &&
+    absErr <= 0.20 &&
     dutyCycle > 0.02 &&
     Math.abs(dutyCycle - iCorrection) < 0.05
   if (converged) {
     newConvergenceCount = prevConvergenceCount + 1
-    const alpha = 0.10
+    // α faller linjärt från 0.10 vid err=0 till 0 vid err=0.20°
+    const alpha = 0.10 * Math.max(0, 1 - absErr / 0.20)
     newLearnedBaseline = prevLearnedBaseline > 0
       ? prevLearnedBaseline + alpha * (iCorrection - prevLearnedBaseline)
       : iCorrection
