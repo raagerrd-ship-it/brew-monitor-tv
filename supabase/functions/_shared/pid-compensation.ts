@@ -714,15 +714,31 @@ function computeDutyV5(input: {
         ? (driftSignedFromBaseline * 60) / minsSinceTrickle
         : 0
     const progressToPastTarget = isCooling ? -driftRateCph : driftRateCph
+    // Progress TOWARD target: positiv = SSOT konvergerar mot mål oavsett mode.
+    // Cooling+ovan_mål: temp faller → driftSigned<0 → progressToTarget=+
+    // Heating+under_mål: temp stiger → driftSigned>0 → progressToTarget=+
+    const progressToTarget =
+      (input.mode === 'cooling' && need > 0) ? -driftRateCph :
+      (input.mode === 'heating' && need > 0) ? driftRateCph :
+      0
     const rateTrickleReady =
       positionTrickleDir === 0 &&
       trickleCooldownOk &&
       progressToPastTarget > HOLD_LOCK_RATE_TRICKLE &&
       dutyDelta < -0.005 // PID vill lägre duty
-    const trickleDir = positionTrickleDir !== 0 ? positionTrickleDir : (rateTrickleReady ? -1 : 0)
+    // Rate-gate på position-UP: om SSOT redan konvergerar mot mål med
+    // ≥HOLD_LOCK_SETTLE_RATE (0.10°C/h), skippa UP-trickle — nuvarande duty
+    // räcker och 1%/15 min ovanpå det skjuter förbi mål. Gäller bara UP:
+    // DOWN-trickle måste alltid kunna fira mot past-target.
+    const HOLD_LOCK_SETTLE_RATE = 0.10  // °C/h konvergens mot mål
+    const settlingTowardTarget =
+      positionTrickleDir > 0 &&
+      progressToTarget >= HOLD_LOCK_SETTLE_RATE
+    const effectivePositionDir = settlingTowardTarget ? 0 : positionTrickleDir
+    const trickleDir = effectivePositionDir !== 0 ? effectivePositionDir : (rateTrickleReady ? -1 : 0)
     const trickleOk = trickleDir !== 0
     const trickleReason: 'position' | 'rate' | null =
-      positionTrickleDir !== 0 ? 'position' : (rateTrickleReady ? 'rate' : null)
+      effectivePositionDir !== 0 ? 'position' : (rateTrickleReady ? 'rate' : null)
     // Pre-break bypass: om vi är på väg mot en break (drift/err närmar sig exit-tröskeln)
     // och trickle-riktningen matchar problemet — fira trickle DIREKT istället för att
     // vänta ut cooldown och sedan tvingas break:a hela låset. Kräver minst 3 min sedan
