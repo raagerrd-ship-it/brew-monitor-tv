@@ -44,6 +44,7 @@ interface V5PidState {
   holdLockDuty?: number       // låst duty-fraktion (0..1) under hold-lock
   holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
   holdLockLastTrickleAt?: string  // senaste trickle-steget — gate mot att fira 1%/cykel istället för 1%/15min
+  modeChangedAt?: string      // tidsstämpel för senaste heat↔cool-flip — driver bumpless-transfer-rampen
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ const V5_STATE_SCHEMA = {
   holdLockDuty: 'number',
   holdLockBaseline: 'number',
   holdLockLastTrickleAt: 'string',
+  modeChangedAt: 'string',
 } as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
@@ -855,6 +857,34 @@ function computeDutyV5(input: {
       : `hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
   }
 
+  // ── Bumpless mode-transfer ─────────────────────────────────────────────
+  // När PWM-läget flippar heat↔cool ska den nya sidans duty inte kunna hoppa
+  // rakt upp till t.ex. 20% (I-term/learned-baseline från förra sidan).
+  // Ramp: cykel 0 = 5%, cykel 1 = 10%, cykel 2 = 15%, sedan fri.
+  // Låset bryts direkt om ackumulerat |need| >= 1.0° (verklig storfel — då
+  // ska normala PID-svar få jobba).
+  const modeJustFlipped =
+    input.modeJustSwitched ||
+    (input.prevState.lastMode && input.prevState.lastMode !== input.mode)
+  let modeChangedAt = input.prevState.modeChangedAt
+  if (modeJustFlipped) {
+    modeChangedAt = now
+  }
+  if (modeChangedAt && !prevLockActive && need < 1.0) {
+    const ageMin = (nowMs - new Date(modeChangedAt).getTime()) / 60000
+    // Antag ~15 min per cykel (matchar SYNC-intervallet). Ramp över 3 cykler.
+    const cycle = Math.floor(ageMin / 15)
+    if (cycle < 3) {
+      const cap = 0.05 * (cycle + 1)   // 5% / 10% / 15%
+      if (duty > cap) {
+        duty = cap
+        constraints.push(`bumpless-transfer(c${cycle},≤${(cap*100).toFixed(0)}%)`)
+      }
+    } else {
+      modeChangedAt = undefined   // rampen klar
+    }
+  }
+
   // ── Peak-detection (cooling, hold): självtunar Ki ──
   const dutyPct = Math.round(duty * 100)
   let peakArmed = input.prevState.peakArmed ?? false
@@ -923,6 +953,7 @@ function computeDutyV5(input: {
     holdLockDuty,
     holdLockBaseline,
     holdLockLastTrickleAt,
+    modeChangedAt,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
