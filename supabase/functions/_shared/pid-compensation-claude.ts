@@ -398,14 +398,18 @@ function computeDutyV5(input: {
     }
   }
 
-  // ── Slew-cap: max ±5%/cykel, TILLÄMPAS ALLTID (utom vid mode-switch).
-  // Tidigare fanns ett undantag för |need|>0.5° ("stort fel → fri respons"),
-  // men verklig drift visade att stora fel är precis där duty svänger som
-  // mest — bypass:en stängde av det enda skyddet exakt när det behövdes.
-  // Reglering sker nu kontinuerligt på avstånd (P) + hastighet (D) inom
-  // samma ±5%/cykel-tak oavsett felstorlek — inga specialfall. ──
+  // ── Slew-cap: max ±5%/cykel för ökningar och för minskningar medan vi
+  // fortfarande är kvar mot mål. UNDANTAG: om vi redan passerat mål
+  // (need≤0) och duty ändå ska minska, släpper vi direkt utan cap — det är
+  // alltid en säker riktning (motsvarar "sluta trycka, låt passiv drift ta
+  // över"), till skillnad från de slumpmässiga UPPÅT-hoppen som capen finns
+  // för att stoppa. Denna asymmetri låter systemet släppa omedelbart precis
+  // förbi mål utan att återinföra den okontrollerade svängningen vid stort
+  // kvarstående fel (se historik: |need|>0.5-bypass:en gjorde det, och togs
+  // bort eftersom den öppnade upp i FEL riktning också). ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const slewBypass = input.modeJustSwitched
+  const easingOffPastTarget = need <= 0 && duty < lastDutyFrac
+  const slewBypass = input.modeJustSwitched || easingOffPastTarget
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
@@ -414,6 +418,8 @@ function computeDutyV5(input: {
       slewLimited = true
       constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→${(Math.sign(delta)*SLEW_PER_CYCLE*100).toFixed(0)}%)`)
     }
+  } else if (easingOffPastTarget) {
+    constraints.push('past-target-release')
   }
 
   // ── Anti-windup: om aktuatorn inte kunde leverera vad trimI-tillväxten
