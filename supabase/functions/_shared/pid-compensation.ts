@@ -45,6 +45,10 @@ interface V5PidState {
   holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
   holdLockLastTrickleAt?: string  // senaste trickle-steget — gate mot att fira 1%/cykel istället för 1%/15min
   modeChangedAt?: string      // tidsstämpel för senaste heat↔cool-flip — driver bumpless-transfer-rampen
+  preCoolK?: number           // adaptiv rate→duty-koefficient för pre-cool (duty per °C/h inflow)
+  preCoolActiveAt?: string    // pre-cool aktiverad denna cykel — start på utvärderingsfönster
+  preCoolEntryTarget?: number // mål vid pre-cool-entry (låser utvärdering mot rätt setpoint)
+  preCoolPeakSsot?: number    // max SSOT observerad under pre-cool-fönstret (för overshoot-mätning)
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -78,6 +82,10 @@ const V5_STATE_SCHEMA = {
   holdLockBaseline: 'number',
   holdLockLastTrickleAt: 'string',
   modeChangedAt: 'string',
+  preCoolK: 'number',
+  preCoolActiveAt: 'string',
+  preCoolEntryTarget: 'number',
+  preCoolPeakSsot: 'number',
 } as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
@@ -508,33 +516,115 @@ function computeDutyV5(input: {
   const raw = uP + nextI - dBrake
   let duty = Math.max(0, Math.min(1, raw))
 
-  // ── Rate-based pre-cool ────────────────────────────────────────────────
+  // ── Rate-based pre-cool + adaptiv K-kalibrering ────────────────────────
   // Proaktivt: när SSOT är under mål men rör sig UPP mot det, matcha duty
   // mot inflow-raten så vi möter mål med "0-netto" istället för att låta
-  // 0% → panik-spike efter passering (oscillering).
+  // 0% → panik-spike efter passering.
   //
-  // Fysiskt: steady-state-duty som håller emot inflow r är ~r × K där
-  // K = learnedBaseline / förväntad drift. Om learned baseline finns använder
-  // vi den direkt (den är kalibrerad mot verkligt kylsvar); annars fallback
-  // K = 0.30 per °C/h (typiskt för fermentors).
+  //   preCool_duty = ratePerHour × preCoolK           (tak 60%)
+  //   preCoolK adapteras utifrån OUTCOME av senaste episod:
+  //     • overshoot > 0.15°   → K *= 1.10  (för svag pre-cool, öka)
+  //     • overshoot 0.02–0.15°→ K oförändrad (perfekt landning)
+  //     • overshoot < 0.02°   → K *= 0.95  (för stark, minska)
+  //     • temp vände före mål → K *= 0.90  (klart för stark)
+  //   K klampas till [0.10, 1.00]. Startvärde 0.30/°C/h.
   //
-  // Aktiv endast som PORT: 0–0.5° under mål OCH stigning >0.18°/h.
-  // Duty-storleken kommer helt från raten — ingen proximity-skalning.
-  if (
+  // Aktiv-port: 0–0.5° under mål OCH stigning >0.18°/h.
+  const K_MIN = 0.10, K_MAX = 1.00, K_DEFAULT = 0.30
+  let preCoolK = input.prevState.preCoolK ?? K_DEFAULT
+  preCoolK = Math.max(K_MIN, Math.min(K_MAX, preCoolK))
+  let preCoolActiveAt = input.prevState.preCoolActiveAt
+  let preCoolEntryTarget = input.prevState.preCoolEntryTarget
+  let preCoolPeakSsot = input.prevState.preCoolPeakSsot
+
+  const preCoolPortOpen =
     isCooling &&
     ratePerMin != null &&
-    ratePerMin > 0.003 &&              // >0.18°/h stigning
-    need < 0 && need > -0.5 &&         // 0–0.5° under mål (aktiv-port)
+    ratePerMin > 0.003 &&
+    need < 0 && need > -0.5 &&
     !prevLockActive && !isStaleSsot
-  ) {
-    const ratePerHour = ratePerMin * 60
-    // Rate-till-duty-koefficient: föredra learnedBaseline om den är
-    // kalibrerad (>5%), annars fallback 0.30/°C/h.
-    const K = input.learnedBaseline > 0.05 ? input.learnedBaseline : 0.30
-    const preCool = Math.min(0.60, ratePerHour * K)   // hårdt tak 60%
+
+  if (preCoolPortOpen) {
+    const ratePerHour = ratePerMin! * 60
+    const preCool = Math.min(0.60, ratePerHour * preCoolK)
     if (preCool > duty) {
       duty = preCool
-      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,K=${K.toFixed(2)})`)
+      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,K=${preCoolK.toFixed(2)})`)
+    }
+    // Registrera episod-start första cykeln porten öppnas
+    if (!preCoolActiveAt) {
+      preCoolActiveAt = now
+      preCoolEntryTarget = input.actualTarget
+      preCoolPeakSsot = ssotFiltered
+    } else {
+      // Uppdatera peak under pågående episod
+      if (preCoolPeakSsot == null || ssotFiltered > preCoolPeakSsot) {
+        preCoolPeakSsot = ssotFiltered
+      }
+    }
+  }
+
+  // Adaptiv K-kalibrering: utvärdera när episoden avslutas.
+  //   Avslut-triggers: (a) SSOT klart förbi mål (need <= -0.10, dvs vi är i
+  //   overshoot-zonen), (b) porten stängd + temp faller igen (temp vände utan
+  //   att nå mål), eller (c) time-out 60 min.
+  if (preCoolActiveAt && preCoolEntryTarget != null && preCoolPeakSsot != null) {
+    const ageMin = (nowMs - new Date(preCoolActiveAt).getTime()) / 60000
+    const targetChanged = Math.abs(input.actualTarget - preCoolEntryTarget) > 0.05
+    const overshoot = preCoolPeakSsot - preCoolEntryTarget   // >0 = passerat mål
+    const currentFalling = ratePerMin != null && ratePerMin < -0.001
+    // Uppdatera peak även utanför porten (så vi ser hela toppen)
+    if (ssotFiltered > preCoolPeakSsot) preCoolPeakSsot = ssotFiltered
+
+    let concluded = false
+    let adjustment = 1.0
+    let reason = ''
+
+    if (targetChanged) {
+      concluded = true   // ogiltig — kassera utan justering
+      reason = 'target-changed'
+    } else if (!preCoolPortOpen && currentFalling && ageMin > 5) {
+      // Porten stängd + temp faller nu
+      if (overshoot < -0.05) {
+        // Vände före mål — pre-cool var för stark
+        adjustment = 0.90
+        reason = `reversed(peak=${overshoot.toFixed(2)}°)`
+        concluded = true
+      } else if (overshoot < 0.02) {
+        // Precis nudde mål — lätt för stark
+        adjustment = 0.95
+        reason = `soft-land(peak=${overshoot.toFixed(2)}°)`
+        concluded = true
+      } else if (overshoot <= 0.15) {
+        // Perfekt landning
+        adjustment = 1.00
+        reason = `perfect(peak=${overshoot.toFixed(2)}°)`
+        concluded = true
+      } else {
+        // Overshoot — pre-cool var för svag
+        adjustment = 1.10
+        reason = `overshoot(peak=${overshoot.toFixed(2)}°)`
+        concluded = true
+      }
+    } else if (ageMin > 60) {
+      // Time-out — analysera med det vi har
+      if (overshoot > 0.15) { adjustment = 1.10; reason = `timeout-overshoot(${overshoot.toFixed(2)}°)` }
+      else if (overshoot < 0.02) { adjustment = 0.95; reason = `timeout-under(${overshoot.toFixed(2)}°)` }
+      else { adjustment = 1.00; reason = `timeout-ok(${overshoot.toFixed(2)}°)` }
+      concluded = true
+    }
+
+    if (concluded) {
+      const newK = Math.max(K_MIN, Math.min(K_MAX, preCoolK * adjustment))
+      if (Math.abs(newK - preCoolK) > 0.001) {
+        constraints.push(`pre-cool-tune(${reason},K:${preCoolK.toFixed(2)}→${newK.toFixed(2)})`)
+      } else if (reason) {
+        constraints.push(`pre-cool-eval(${reason})`)
+      }
+      preCoolK = newK
+      preCoolActiveAt = undefined
+      preCoolEntryTarget = undefined
+      preCoolPeakSsot = undefined
     }
   }
 
@@ -985,6 +1075,10 @@ function computeDutyV5(input: {
     holdLockBaseline,
     holdLockLastTrickleAt,
     modeChangedAt,
+    preCoolK,
+    preCoolActiveAt,
+    preCoolEntryTarget,
+    preCoolPeakSsot,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
