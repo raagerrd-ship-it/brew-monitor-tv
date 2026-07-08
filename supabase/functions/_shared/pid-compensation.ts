@@ -529,7 +529,12 @@ function computeDutyV5(input: {
   //     • temp vände före mål → K *= 0.90  (klart för stark)
   //   K klampas till [0.10, 1.00]. Startvärde 0.30/°C/h.
   //
-  // Aktiv-port: 0–0.5° under mål OCH stigning >0.18°/h.
+  // Aktiv-port: ±0.5° kring mål OCH stigning >0.18°/h.
+  // (Symmetrisk zon förenklar logiken — pre-cool driver duty både strax
+  // under mål och upp till 0.5° över, så länge SSOT stiger. Ovanför +0.5°
+  // tar cool-boost/full-action över; nedanför −0.5° tar past-target-coast
+  // hand om coast från undershoot, och rate-guarden (>0.003°/min) håller
+  // dessa mutuellt exklusiva.)
   const K_MIN = 0.10, K_MAX = 1.00, K_DEFAULT = 0.30
   let preCoolK = input.prevState.preCoolK ?? K_DEFAULT
   preCoolK = Math.max(K_MIN, Math.min(K_MAX, preCoolK))
@@ -541,7 +546,7 @@ function computeDutyV5(input: {
     isCooling &&
     ratePerMin != null &&
     ratePerMin > 0.003 &&
-    need < 0 && need > -0.5 &&
+    need > -0.5 && need < 0.5 &&
     !prevLockActive && !isStaleSsot
 
   if (preCoolPortOpen) {
