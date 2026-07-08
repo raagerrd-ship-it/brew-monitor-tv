@@ -45,6 +45,10 @@ interface V5PidState {
   holdLockBaseline?: number   // ssotFiltered vid lock-entry — bryts om filtered SSOT driftat >0.15°C
   holdLockLastTrickleAt?: string  // senaste trickle-steget — gate mot att fira 1%/cykel istället för 1%/15min
   modeChangedAt?: string      // tidsstämpel för senaste heat↔cool-flip — driver bumpless-transfer-rampen
+  preCoolK?: number           // adaptiv rate→duty-koefficient för pre-cool (duty per °C/h inflow)
+  preCoolActiveAt?: string    // pre-cool aktiverad denna cykel — start på utvärderingsfönster
+  preCoolEntryTarget?: number // mål vid pre-cool-entry (låser utvärdering mot rätt setpoint)
+  preCoolPeakSsot?: number    // max SSOT observerad under pre-cool-fönstret (för overshoot-mätning)
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -78,6 +82,10 @@ const V5_STATE_SCHEMA = {
   holdLockBaseline: 'number',
   holdLockLastTrickleAt: 'string',
   modeChangedAt: 'string',
+  preCoolK: 'number',
+  preCoolActiveAt: 'string',
+  preCoolEntryTarget: 'number',
+  preCoolPeakSsot: 'number',
 } as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
