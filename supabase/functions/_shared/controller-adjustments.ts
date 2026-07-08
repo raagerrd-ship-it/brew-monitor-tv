@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
+import { calculateCompensatedTarget as calculateCompensatedTargetClaude } from './pid-compensation-claude.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
