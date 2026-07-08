@@ -49,6 +49,7 @@ interface V5PidState {
   preCoolActiveAt?: string    // pre-cool aktiverad denna cykel — start på utvärderingsfönster
   preCoolEntryTarget?: number // mål vid pre-cool-entry (låser utvärdering mot rätt setpoint)
   preCoolPeakSsot?: number    // max SSOT observerad under pre-cool-fönstret (för overshoot-mätning)
+  ssotHistory?: Array<{ t: string; v: number }>  // rullande SSOT-samplar (senaste ~25 min) för windowed rate
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -86,7 +87,8 @@ const V5_STATE_SCHEMA = {
   preCoolActiveAt: 'string',
   preCoolEntryTarget: 'number',
   preCoolPeakSsot: 'number',
-} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
+  ssotHistory: 'history',
+} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode' | 'history'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
  *  field whose runtime type doesn't match the schema (defends against
@@ -99,6 +101,14 @@ function parseV5State(raw: unknown): V5PidState {
     const v = a[key]
     if (kind === 'mode') {
       if (v === 'heating' || v === 'cooling') out[key] = v
+    } else if (kind === 'history') {
+      if (Array.isArray(v)) {
+        const arr = v
+          .filter((e): e is { t: string; v: number } =>
+            !!e && typeof e === 'object' &&
+            typeof (e as any).t === 'string' && typeof (e as any).v === 'number')
+        if (arr.length > 0) out[key] = arr
+      }
     } else if (typeof v === kind) {
       out[key] = v
     }
