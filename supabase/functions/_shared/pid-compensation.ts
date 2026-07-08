@@ -841,15 +841,23 @@ function computeDutyV5(input: {
   // för att nå det inom 1 timme, tillåt inte duty-höjning. Nuvarande kylning
   // räcker — extra duty skjuter förbi målet.
   if (!input.modeJustSwitched && Math.abs(need) > 0.05 && Math.abs(need) < 0.5) {
-    const cycleRatePerMin = prevSmoothed != null && !isStaleSsot && dtMin > 0
-      ? (ssotFiltered - prevSmoothed) / dtMin
-      : 0
-    // Rate mot mål (positiv = konvergerar): cooling vill temp ner, heating upp
-    const rateTowardTargetHr = (isCooling ? -cycleRatePerMin : cycleRatePerMin) * 60
+    // Använd 20-min windowed rate (samma som pre-cool) — EMA-cykel-raten
+    // dämpas till ~1/3 av verklig vid TAU=12min och missar konvergens som
+    // faktiskt räcker för att nå mål inom 1h.
+    const rateSourcePerMin = windowedRatePerMin ?? (
+      prevSmoothed != null && !isStaleSsot && dtMin > 0
+        ? (ssotFiltered - prevSmoothed) / dtMin
+        : 0
+    )
+    // |need| ska krympa: rateTowardTarget = -sign(need) * d(actual)/dt.
+    // (Mode-oberoende — funkar även post-overshoot när cooling ligger under mål.)
+    const needSign = need >= 0 ? 1 : -1
+    const rateTowardTargetHr = -needSign * rateSourcePerMin * 60
     const etaHours = rateTowardTargetHr > 0.01 ? Math.abs(need) / rateTowardTargetHr : Infinity
     if (etaHours <= 1 && duty > lastDutyFrac) {
       duty = lastDutyFrac
-      constraints.push(`approach-freeze(eta=${etaHours.toFixed(2)}h,rate=${rateTowardTargetHr.toFixed(2)}°/h)`)
+      const src = windowedRatePerMin != null ? '20m' : 'cyc'
+      constraints.push(`approach-freeze(eta=${etaHours.toFixed(2)}h,r${src}=${rateTowardTargetHr.toFixed(2)}°/h)`)
     }
   }
 
