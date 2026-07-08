@@ -516,12 +516,14 @@ function computeDutyV5(input: {
   const raw = uP + nextI - dBrake
   let duty = Math.max(0, Math.min(1, raw))
 
-  // ── Rate-based pre-cool + adaptiv K-kalibrering ────────────────────────
-  // Proaktivt: när SSOT är under mål men rör sig UPP mot det, matcha duty
-  // mot inflow-raten så vi möter mål med "0-netto" istället för att låta
-  // 0% → panik-spike efter passering.
-  //
-  //   preCool_duty = ratePerHour × preCoolK           (tak 60%)
+  // ── Rate-baserad regulator (P på position + P på rate) ─────────────────
+  // Symmetrisk kring mål: agerar som en enkel PID inom ±0.5° kring setpoint.
+  //   preCool_duty = ratePerHour × preCoolK  +  need × KP_POS   (0..60%)
+  //     • Rate-term: möt inflow så SSOT möter mål med 0-netto.
+  //     • Position-term: över mål → +bias (kyl mer), under mål → −bias
+  //       (kyl mindre). Vid mål (need≈0) drivs duty enbart av raten.
+  //     • Duty ersätter PID-outputen inne i porten (både höjer OCH sänker),
+  //       så vi kan justera nedåt när raten mattas eller vi glider under.
   //   preCoolK adapteras utifrån OUTCOME av senaste episod:
   //     • overshoot > 0.15°   → K *= 1.10  (för svag pre-cool, öka)
   //     • overshoot 0.02–0.15°→ K oförändrad (perfekt landning)
@@ -530,12 +532,11 @@ function computeDutyV5(input: {
   //   K klampas till [0.10, 1.00]. Startvärde 0.30/°C/h.
   //
   // Aktiv-port: ±0.5° kring mål OCH stigning >0.18°/h.
-  // (Symmetrisk zon förenklar logiken — pre-cool driver duty både strax
-  // under mål och upp till 0.5° över, så länge SSOT stiger. Ovanför +0.5°
-  // tar cool-boost/full-action över; nedanför −0.5° tar past-target-coast
-  // hand om coast från undershoot, och rate-guarden (>0.003°/min) håller
-  // dessa mutuellt exklusiva.)
+  // Ovanför +0.5° tar cool-boost/full-action över; nedanför −0.5° tar
+  // past-target-coast hand om coast från undershoot (rate-guarden > 0.003°/min
+  // håller dem mutuellt exklusiva).
   const K_MIN = 0.10, K_MAX = 1.00, K_DEFAULT = 0.30
+  const KP_POS = 0.40   // 40% duty per °C offset från mål (linjär bias)
   let preCoolK = input.prevState.preCoolK ?? K_DEFAULT
   preCoolK = Math.max(K_MIN, Math.min(K_MAX, preCoolK))
   let preCoolActiveAt = input.prevState.preCoolActiveAt
@@ -551,11 +552,14 @@ function computeDutyV5(input: {
 
   if (preCoolPortOpen) {
     const ratePerHour = ratePerMin! * 60
-    const preCool = Math.min(0.60, ratePerHour * preCoolK)
-    if (preCool > duty) {
-      duty = preCool
-      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,K=${preCoolK.toFixed(2)})`)
-    }
+    const rateTerm = ratePerHour * preCoolK
+    const posTerm  = need * KP_POS
+    const preCool  = Math.max(0, Math.min(0.60, rateTerm + posTerm))
+    duty = preCool   // ersätter PID inom porten — får både höja och sänka
+    constraints.push(
+      `pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,` +
+      `pos=${need.toFixed(2)}°,K=${preCoolK.toFixed(2)})`
+    )
     // Registrera episod-start första cykeln porten öppnas
     if (!preCoolActiveAt) {
       preCoolActiveAt = now
