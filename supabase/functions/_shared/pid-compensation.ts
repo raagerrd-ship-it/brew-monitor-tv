@@ -835,6 +835,24 @@ function computeDutyV5(input: {
   // Hindrar bursts (t.ex. 0→30% på mikro-overshoot). Bypass vid panik, mode-byte
   // eller past-target-coast (måste få stänga snabbt).
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+
+  // ── Approach-freeze: nära mål + inkommande rate klarar 1h ──
+  // När |need| < 0.5°C och SSOT redan konvergerar mot mål tillräckligt snabbt
+  // för att nå det inom 1 timme, tillåt inte duty-höjning. Nuvarande kylning
+  // räcker — extra duty skjuter förbi målet.
+  if (!input.modeJustSwitched && Math.abs(need) > 0.05 && Math.abs(need) < 0.5) {
+    const cycleRatePerMin = prevSmoothed != null && !isStaleSsot && dtMin > 0
+      ? (ssotFiltered - prevSmoothed) / dtMin
+      : 0
+    // Rate mot mål (positiv = konvergerar): cooling vill temp ner, heating upp
+    const rateTowardTargetHr = (isCooling ? -cycleRatePerMin : cycleRatePerMin) * 60
+    const etaHours = rateTowardTargetHr > 0.01 ? Math.abs(need) / rateTowardTargetHr : Infinity
+    if (etaHours <= 1 && duty > lastDutyFrac) {
+      duty = lastDutyFrac
+      constraints.push(`approach-freeze(eta=${etaHours.toFixed(2)}h,rate=${rateTowardTargetHr.toFixed(2)}°/h)`)
+    }
+  }
+
   // Slew gäller även när vi precis passerat mål — det är där mest sågtand
   // uppstår. Bara mode-switch eller stort fel bypassar.
   const slewBypass = input.modeJustSwitched || Math.abs(need) > SLEW_BYPASS_ERR
@@ -1038,6 +1056,16 @@ function computeDutyV5(input: {
     const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
     constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%,drift=${driftSinceLock.toFixed(2)}°)`)
   } else if (isHold && prevInDither && Math.abs(avgError) < HOLD_LOCK_ERR_ENTER && !input.modeJustSwitched) {
+    // Kräv verklig stabilitet: nära mål (|err|<0.10°) OCH låg rate (<0.1°/h)
+    // innan lock får latcha duty. Utan detta låser vi in värdet just när
+    // temperaturen passerar mål med fart — och sitter kvar när vi glider förbi.
+    const entryRateHr = prevSmoothed != null && !isStaleSsot && dtMin > 0
+      ? Math.abs((ssotFiltered - prevSmoothed) / dtMin) * 60
+      : Infinity
+    const stableEnough = Math.abs(avgError) < 0.10 && entryRateHr < 0.1
+    if (!stableEnough) {
+      constraints.push(`hold-lock-defer(err=${avgError.toFixed(2)}°,rate=${entryRateHr.toFixed(2)}°/h)`)
+    } else {
     const expiredTrickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
     holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
     holdLockDuty = Math.max(0, Math.min(1, lastDutyFrac + expiredTrickleDir * 0.01))
@@ -1048,6 +1076,7 @@ function computeDutyV5(input: {
     constraints.push(expiredTrickleDir !== 0
       ? `hold-lock-enter-trickle(${expiredTrickleDir > 0 ? '+' : ''}${expiredTrickleDir}%→${Math.round(duty*100)}%)`
       : `hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
+    }
   }
 
   // ── Bumpless mode-transfer ─────────────────────────────────────────────
@@ -1453,8 +1482,10 @@ export async function learnFeedforwardDuty(
   if (!(perPct > 0)) return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
 
   // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
-  let requiredDuty = ambientGain / (perPct * 100)
-  requiredDuty = Math.max(0, Math.min(0.30, requiredDuty))     // safety-cap 30%
+  // 0.7-faktor = konservativ marginal: hellre PI-lyft vid behov än feedforward
+  // som latchas av hold-lock och driver overshoot.
+  let requiredDuty = 0.7 * ambientGain / (perPct * 100)
+  requiredDuty = Math.max(0, Math.min(0.20, requiredDuty))     // safety-cap 20%
 
   const result = await updateLearnedParam(
     supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
