@@ -835,6 +835,24 @@ function computeDutyV5(input: {
   // Hindrar bursts (t.ex. 0→30% på mikro-overshoot). Bypass vid panik, mode-byte
   // eller past-target-coast (måste få stänga snabbt).
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+
+  // ── Approach-freeze: nära mål + inkommande rate klarar 1h ──
+  // När |need| < 0.5°C och SSOT redan konvergerar mot mål tillräckligt snabbt
+  // för att nå det inom 1 timme, tillåt inte duty-höjning. Nuvarande kylning
+  // räcker — extra duty skjuter förbi målet.
+  if (!input.modeJustSwitched && Math.abs(need) > 0.05 && Math.abs(need) < 0.5) {
+    const cycleRatePerMin = prevSmoothed != null && !isStaleSsot && dtMin > 0
+      ? (ssotFiltered - prevSmoothed) / dtMin
+      : 0
+    // Rate mot mål (positiv = konvergerar): cooling vill temp ner, heating upp
+    const rateTowardTargetHr = (isCooling ? -cycleRatePerMin : cycleRatePerMin) * 60
+    const etaHours = rateTowardTargetHr > 0.01 ? Math.abs(need) / rateTowardTargetHr : Infinity
+    if (etaHours <= 1 && duty > lastDutyFrac) {
+      duty = lastDutyFrac
+      constraints.push(`approach-freeze(eta=${etaHours.toFixed(2)}h,rate=${rateTowardTargetHr.toFixed(2)}°/h)`)
+    }
+  }
+
   // Slew gäller även när vi precis passerat mål — det är där mest sågtand
   // uppstår. Bara mode-switch eller stort fel bypassar.
   const slewBypass = input.modeJustSwitched || Math.abs(need) > SLEW_BYPASS_ERR
