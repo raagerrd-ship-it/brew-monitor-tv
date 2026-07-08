@@ -1056,6 +1056,16 @@ function computeDutyV5(input: {
     const remain = (new Date(holdLockUntil!).getTime() - nowMs) / 60000
     constraints.push(`hold-lock(${remain.toFixed(1)}m@${Math.round(duty*100)}%,drift=${driftSinceLock.toFixed(2)}°)`)
   } else if (isHold && prevInDither && Math.abs(avgError) < HOLD_LOCK_ERR_ENTER && !input.modeJustSwitched) {
+    // Kräv verklig stabilitet: nära mål (|err|<0.10°) OCH låg rate (<0.1°/h)
+    // innan lock får latcha duty. Utan detta låser vi in värdet just när
+    // temperaturen passerar mål med fart — och sitter kvar när vi glider förbi.
+    const entryRateHr = prevSmoothed != null && !isStaleSsot && dtMin > 0
+      ? Math.abs((ssotFiltered - prevSmoothed) / dtMin) * 60
+      : Infinity
+    const stableEnough = Math.abs(avgError) < 0.10 && entryRateHr < 0.1
+    if (!stableEnough) {
+      constraints.push(`hold-lock-defer(err=${avgError.toFixed(2)}°,rate=${entryRateHr.toFixed(2)}°/h)`)
+    } else {
     const expiredTrickleDir = need > 0.05 ? 1 : need < -0.05 ? -1 : 0
     holdLockUntil = new Date(nowMs + HOLD_LOCK_MIN * 60000).toISOString()
     holdLockDuty = Math.max(0, Math.min(1, lastDutyFrac + expiredTrickleDir * 0.01))
@@ -1066,6 +1076,7 @@ function computeDutyV5(input: {
     constraints.push(expiredTrickleDir !== 0
       ? `hold-lock-enter-trickle(${expiredTrickleDir > 0 ? '+' : ''}${expiredTrickleDir}%→${Math.round(duty*100)}%)`
       : `hold-lock-enter(${HOLD_LOCK_MIN}m@${Math.round(duty*100)}%)`)
+    }
   }
 
   // ── Bumpless mode-transfer ─────────────────────────────────────────────
