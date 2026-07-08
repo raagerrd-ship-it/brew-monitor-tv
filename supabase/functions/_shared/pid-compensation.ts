@@ -1482,8 +1482,10 @@ export async function learnFeedforwardDuty(
   if (!(perPct > 0)) return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
 
   // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
-  let requiredDuty = ambientGain / (perPct * 100)
-  requiredDuty = Math.max(0, Math.min(0.30, requiredDuty))     // safety-cap 30%
+  // 0.7-faktor = konservativ marginal: hellre PI-lyft vid behov än feedforward
+  // som latchas av hold-lock och driver overshoot.
+  let requiredDuty = 0.7 * ambientGain / (perPct * 100)
+  requiredDuty = Math.max(0, Math.min(0.20, requiredDuty))     // safety-cap 20%
 
   const result = await updateLearnedParam(
     supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
