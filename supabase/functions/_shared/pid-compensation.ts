@@ -872,13 +872,13 @@ function computeDutyV5(input: {
   }
   if (modeChangedAt && !prevLockActive && need < 1.0) {
     const ageMin = (nowMs - new Date(modeChangedAt).getTime()) / 60000
-    // Antag ~15 min per cykel (matchar SYNC-intervallet). Ramp över 3 cykler.
-    const cycle = Math.floor(ageMin / 15)
-    if (cycle < 3) {
-      const cap = 0.05 * (cycle + 1)   // 5% / 10% / 15%
+    // Tidsbaserad ramp (oberoende av sync-intervall som kan vara 1–15 min):
+    //   0 min → 5%, linjärt +1%/min, fri efter 45 min (50% cap).
+    if (ageMin < 45) {
+      const cap = Math.min(0.50, 0.05 + ageMin * 0.01)
       if (duty > cap) {
         duty = cap
-        constraints.push(`bumpless-transfer(c${cycle},≤${(cap*100).toFixed(0)}%)`)
+        constraints.push(`bumpless-transfer(${ageMin.toFixed(0)}m,≤${(cap*100).toFixed(0)}%)`)
       }
     } else {
       modeChangedAt = undefined   // rampen klar
