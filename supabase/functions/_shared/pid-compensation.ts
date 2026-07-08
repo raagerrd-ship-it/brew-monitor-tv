@@ -485,8 +485,9 @@ function computeDutyV5(input: {
   // ── D-term: D-on-measurement (bromsa när vi närmar oss mål) ──
   // progressRate > 0 = SSOT rör sig åt rätt håll → minska duty proportionellt.
   let dBrake = 0
+  let ratePerMin: number | null = null
   if (prevSmoothed != null && input.prevState.lastSsotAt && !isStaleSsot) {
-    const ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
+    ratePerMin = (ssotFiltered - prevSmoothed) / dtMin
     const progressRate = isCooling ? -ratePerMin : ratePerMin
     // Dither-artefakt-guard: när vi ligger i låg-duty-zonen (<10%) och redan
     // är nära mål levererar HW enstaka 10%-bursts glest utspridda. SSOT-EMA
@@ -506,6 +507,33 @@ function computeDutyV5(input: {
 
   const raw = uP + nextI - dBrake
   let duty = Math.max(0, Math.min(1, raw))
+
+  // ── Rate-based pre-cool ────────────────────────────────────────────────
+  // Proaktivt: när SSOT är under mål men rör sig UPP mot det, starta kyl-duty
+  // i förväg för att möta korsningen mjukt istället för att låta 0% → panik-
+  // duty efter passering (som ger oscillering).
+  //   • Aktiv-zon: 0 – 0.5° under mål (need ∈ [-0.5, 0))
+  //   • Kräver progressRate < 0 (approach) → ratePerMin > 0 (temp stiger)
+  //   • Duty = proximity_factor × rate_factor × 20%
+  //       proximity_factor = 1 - |need| / 0.5   (närmare mål ⇒ större)
+  //       rate_factor      = min(1, ratePerMin × 60 / 1.0)   (1°C/h mättar)
+  //   • Appliceras som duty-golv (Math.max), inte tak — övriga PID-svar får höja mer
+  if (
+    isCooling &&
+    ratePerMin != null &&
+    ratePerMin > 0.003 &&              // >0.18°/h stigning
+    need < 0 && need > -0.5 &&         // 0–0.5° under mål
+    !prevLockActive && !isStaleSsot
+  ) {
+    const proximity = 1 - Math.abs(need) / 0.5             // 0..1
+    const ratePerHour = ratePerMin * 60
+    const rateFactor = Math.min(1, ratePerHour / 1.0)      // saturerar vid 1°C/h
+    const preCool = 0.20 * proximity * rateFactor          // max 20%
+    if (preCool > duty) {
+      duty = preCool
+      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,d=${Math.abs(need).toFixed(2)}°,r=${ratePerHour.toFixed(2)}°/h)`)
+    }
+  }
 
   // Coast-cap gäller bara UTANFÖR deadbandet (need <= -0.10). När vi drivit
   // tillbaka mot target inom ±0.10° tar deadband-/hold-lock-logiken över och
