@@ -113,8 +113,7 @@ const HEAT = { Kp: 0.35, Kd: 3.5 / 60, Ki: 0.10 }
 const DEAD_TIME_HOURS = 0.25   // ~15min probe-latens — τc för lambda-tuning av Kp/Kd (se deriveGains)
 const TRIM_MAX = 0.10          // trimI clamp — small, bias-correction only
 const D_MAX = 0.35             // cap on D-brake so a fast approach can't zero duty outright
-const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel
-const SLEW_BYPASS_ERR = 0.50   // |err|>0.5°C → fri respons
+const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu universellt (se computeDutyV5)
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
@@ -399,9 +398,14 @@ function computeDutyV5(input: {
     }
   }
 
-  // ── Slew-cap: max ±5%/cykel. Bypass endast vid mode-switch eller stort fel. ──
+  // ── Slew-cap: max ±5%/cykel, TILLÄMPAS ALLTID (utom vid mode-switch).
+  // Tidigare fanns ett undantag för |need|>0.5° ("stort fel → fri respons"),
+  // men verklig drift visade att stora fel är precis där duty svänger som
+  // mest — bypass:en stängde av det enda skyddet exakt när det behövdes.
+  // Reglering sker nu kontinuerligt på avstånd (P) + hastighet (D) inom
+  // samma ±5%/cykel-tak oavsett felstorlek — inga specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const slewBypass = input.modeJustSwitched || Math.abs(need) > SLEW_BYPASS_ERR
+  const slewBypass = input.modeJustSwitched
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
