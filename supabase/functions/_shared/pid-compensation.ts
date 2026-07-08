@@ -634,7 +634,14 @@ function computeDutyV5(input: {
   // en lång coast). Utan denna gräns håller past-target-soft(→0%) duty vid 0
   // långt efter att temp korsat tillbaka mot mål, vilket bygger upp
   // termisk-inflow-skuld som trickle-up sen inte hinner betala av.
-  if (need <= -0.10) {
+  //
+  // TRAJEKTORIE-GUARD: Blocket förutsätter "coast från overshoot" (kommer från
+  // över mål). Om SSOT istället STIGER mot mål från under (ratePerMin > 0 i
+  // cooling) är vi i APPROACH-läge, inte coast — då ska pre-cool jobba
+  // ostört. Utan denna guard klampar past-target-soft pre-cool till 0
+  // varje cykel eftersom vi delar samma need-zon (< -0.10).
+  const isCoastingBack = ratePerMin == null || ratePerMin < 0
+  if (need <= -0.10 && isCoastingBack) {
     const prevDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
     // Mode-normaliserad overshoot: `need <= -0.15` betyder "klart förbi mål"
     // oavsett kylning/värmning. Direkt avgError-tecken är inverterat mellan
