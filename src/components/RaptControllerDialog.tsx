@@ -117,6 +117,35 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {/* Minimal Fermentation Session Status */}
           {!isCooler && <FermentationSessionMinimal controllerId={controller.controller_id} />}
 
+          {/* PID-motor toggle */}
+          {isAuthenticated && !isCooler && (
+            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-3 border border-border/30">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-xs text-muted-foreground">PID-motor</Label>
+                <div className="inline-flex rounded-lg bg-muted/50 p-0.5 border border-border/30">
+                  <button
+                    type="button"
+                    onClick={() => updatePidVersion('v5')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      pidVersion === 'v5' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    V5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updatePidVersion('claude')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      pidVersion === 'claude' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Claude
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
