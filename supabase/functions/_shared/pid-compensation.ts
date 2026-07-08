@@ -246,6 +246,16 @@ export async function calculateCompensatedTarget(
   const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
+  // Läs senast lärd ambient_gain (°/h) — används i pre-cool för att dra av
+  // naturlig drift från observerad rate. Fallback 0 = ingen ambient-korrigering.
+  const { data: ambientRow } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', `ambient_gain:${mode}`)
+    .maybeSingle()
+  const ambientGainHr = ambientRow ? (parseFloat(String(ambientRow.learned_value)) || 0) : 0
+
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
   const r = computeDutyV5({
     mode, stepType,
@@ -256,6 +266,7 @@ export async function calculateCompensatedTarget(
     coolingUtilization: coolingUtilization ?? null,
     prevState,
     actualTempAgeMin: actualTempAgeMin ?? null,
+    ambientGainHr,
   })
   const dutyCycle = r.duty
   const integral = r.integral
@@ -309,6 +320,7 @@ function computeDutyV5(input: {
   coolingUtilization: number | null
   prevState: V5PidState
   actualTempAgeMin?: number | null
+  ambientGainHr?: number
 }): { duty: number; integral: number; p: number; constraints: string[]; nextState: V5PidState } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
@@ -583,14 +595,26 @@ function computeDutyV5(input: {
 
   if (preCoolPortOpen) {
     const ratePerHour = preCoolRatePerMin! * 60
-    const rateTerm = ratePerHour * preCoolK
-    const posTerm  = need * KP_POS
-    const preCool  = Math.max(0, Math.min(0.60, rateTerm + posTerm))
+    // Residual-rate: dra av naturlig drift mot ambient (källaren 16–20°C).
+    // Om observerad rate motsvarar naturlig uppvärmning → residual≈0 → ingen
+    // aktiv kylning behövs; ambient handhar drift när vi sänker duty.
+    // Om residual < 0 (tanken faller redan snabbare än naturligt) drar
+    // rate-termen NER duty — förhindrar overshoot när kylan biter för hårt.
+    const ambientHr = Math.max(0, input.ambientGainHr ?? 0)
+    const residualHr = ratePerHour - ambientHr
+    const rateTerm = residualHr * preCoolK
+    // Position-term dämpas när ambient kan dra hem tanken själv:
+    // over target + rate ≤ ambient → naturlig drift räcker → halvera posTerm.
+    const naturalHelps = need > 0 && residualHr <= 0 && ambientHr > 0.02
+    const posGain = naturalHelps ? 0.5 : 1.0
+    const posTerm = need * KP_POS * posGain
+    const preCool = Math.max(0, Math.min(0.60, rateTerm + posTerm))
     duty = preCool   // ersätter PID inom porten — får både höja och sänka
     const rateSrc = windowedRatePerMin != null ? '20m' : 'cyc'
     constraints.push(
       `pre-cool(${(preCool*100).toFixed(0)}%,r${rateSrc}=${ratePerHour.toFixed(2)}°/h,` +
-      `pos=${need.toFixed(2)}°,K=${preCoolK.toFixed(2)})`
+      `res=${residualHr.toFixed(2)}°/h,amb=${ambientHr.toFixed(2)}°/h,` +
+      `pos=${need.toFixed(2)}°${naturalHelps ? '×0.5' : ''},K=${preCoolK.toFixed(2)})`
     )
     // Registrera episod-start första cykeln porten öppnas
     if (!preCoolActiveAt) {
@@ -1435,6 +1459,11 @@ export async function learnFeedforwardDuty(
   const result = await updateLearnedParam(
     supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
   )
+  // Persistera även ambient_gain (°/h) separat så pre-cool kan dra av
+  // naturlig drift från observerad rate (residual-rate-regulering).
+  await updateLearnedParam(
+    supabase, controllerId, `ambient_gain:${mode}`, ambientGain, 0.001, 5.0,
+  ).catch(() => null)
   console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
   return result.newValue || 0
 }
