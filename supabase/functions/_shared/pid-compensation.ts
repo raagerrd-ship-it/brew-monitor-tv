@@ -1075,6 +1075,10 @@ function computeDutyV5(input: {
     holdLockBaseline,
     holdLockLastTrickleAt,
     modeChangedAt,
+    preCoolK,
+    preCoolActiveAt,
+    preCoolEntryTarget,
+    preCoolPeakSsot,
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
