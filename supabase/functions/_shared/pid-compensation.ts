@@ -1435,6 +1435,11 @@ export async function learnFeedforwardDuty(
   const result = await updateLearnedParam(
     supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
   )
+  // Persistera även ambient_gain (°/h) separat så pre-cool kan dra av
+  // naturlig drift från observerad rate (residual-rate-regulering).
+  await updateLearnedParam(
+    supabase, controllerId, `ambient_gain:${mode}`, ambientGain, 0.001, 5.0,
+  ).catch(() => null)
   console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
   return result.newValue || 0
 }
