@@ -735,14 +735,33 @@ export async function learnFeedforwardDuty(
   let requiredDuty = ambientGain / (perPct * 100)
   requiredDuty = Math.max(0, Math.min(0.30, requiredDuty))     // safety-cap 30%
 
+  // Explicit alphaOverride=0.10 istället för utils-defaulten (0.5 första 5
+  // samplen, sedan 0.2, ingen mätkvalitetsviktning): dessa två värden matar
+  // direkt in i kontrollagens Kp/Kd (via deriveGains) och feedforward-biasen,
+  // inte bara ett golv bakom andra skydd som i V5. Ett enskilt avvikande 6h-
+  // fönster (t.ex. glykolmättnad en varm eftermiddag ger falskt låg perPct →
+  // både uppblåst feedforwardDuty OCH uppblåst Kp samtidigt) ska inte kunna
+  // slå igenom 35% på ett steg. process_gain är dessutom en helt ny parameter
+  // (sample_count startar på 0) — utan override hade den kört på den mest
+  // aggressiva delen av default-schemat under sina första ~10h, exakt när
+  // koden är minst validerad.
+  //
+  // maxStepFraction läggs på ovanpå alpha som ett hårt golv/tak per steg —
+  // se learning-utils.ts. Utan detta kan en enda avvikande mätning fortfarande
+  // flytta värdet upp till alpha×hela-spannet i ett enda anrop.
+  const LEARN_ALPHA = 0.10
   const result = await updateLearnedParam(
-    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
+    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30, LEARN_ALPHA, 0.10,
   )
   // Persistera processförstärkningen (°/h per 1% duty) separat — samma
   // kvalitetsgrind (n_resp≥2) som feedforward-dutyn ovan, så deriveGains
   // alltid får en mätning som redan är verifierad "på riktigt".
+  // clampMax sänkt 5.0→1.0: 5.0°C/h per 1% duty är fysiskt orimligt för den
+  // här processen (var bara en aldrig-avsedd-att-nås säkerhetsgräns) — en
+  // realistisk gräns gör maxStepFraction faktiskt meningsfull istället för
+  // att vara 10% av ett spann som aldrig används.
   await updateLearnedParam(
-    supabase, controllerId, `process_gain:${mode}`, perPct, 0.0001, 5.0,
+    supabase, controllerId, `process_gain:${mode}`, perPct, 0.0001, 1.0, LEARN_ALPHA, 0.10,
   ).catch(() => null)
   console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
   return result.newValue || 0

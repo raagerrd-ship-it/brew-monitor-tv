@@ -1,9 +1,19 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
 // ============================================================
 // Shared learning utilities (Single Source of Truth)
 // EMA-based parameter learning for fermentation_learnings table.
 // ============================================================
+
+/** Shape of a row in fermentation_learnings — used to give the batch/multi-
+ *  controller read paths real types instead of falling through to implicit
+ *  `any` (which TypeScript strict mode doesn't always catch automatically
+ *  when the source is `(possiblyAny ?? []).map(...)` — a known inference
+ *  gap, not something specific to this file, but worth typing around). */
+interface LearnedRow {
+  controller_id: string
+  parameter_name: string
+  learned_value: number | string
+  sample_count: number
+}
 
 /** Temperature bucket for context-aware learning */
 export function getTempBucket(targetTemp: number): string {
@@ -32,7 +42,47 @@ export async function getLearnedParam(
   }
 }
 
-/** Update a learned parameter with EMA (exponential moving average) */
+/** Blend a new observation into an existing EMA value, with an optional
+ *  hard cap on how far a single observation can move it. Pure function —
+ *  no DB access — shared by updateLearnedParam and LearnBatch.update so the
+ *  two can't drift out of sync with each other.
+ *
+ *  maxStepFraction is opt-in and OFF by default (undefined): existing
+ *  callers that don't pass it get byte-identical behavior to before. When
+ *  set, it caps |newValue − currentValue| to that fraction of the
+ *  (clampMin, clampMax) range in a single call — e.g. 0.15 means one
+ *  observation can move the stored value by at most 15% of its full range,
+ *  regardless of how far the raw observation itself was off. This guards
+ *  against a single anomalous measurement window (e.g. a glycol-saturation
+ *  afternoon skewing a 6h thermal-response sample) cementing itself into
+ *  the learned value in one step — a real observation still moves the
+ *  value over several calls, just not all at once from one outlier. */
+function blendObservation(
+  currentValue: number,
+  newObservation: number,
+  clampMin: number,
+  clampMax: number,
+  alpha: number,
+  maxStepFraction?: number,
+): number {
+  let newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
+  if (maxStepFraction != null) {
+    const maxStep = maxStepFraction * (clampMax - clampMin)
+    const delta = newValue - currentValue
+    if (Math.abs(delta) > maxStep) {
+      newValue = Math.max(clampMin, Math.min(clampMax, currentValue + Math.sign(delta) * maxStep))
+    }
+  }
+  return newValue
+}
+
+/** Update a learned parameter with EMA (exponential moving average).
+ *  alphaOverride: use a fixed blend rate instead of the default schedule
+ *    (0.5 for the first 5 samples, 0.2 after) — e.g. for parameters that
+ *    feed directly into a control law's gains rather than just a soft
+ *    floor, where you want slower, steadier convergence from the start.
+ *  maxStepFraction: see blendObservation — optional outlier guard, off by
+ *    default so existing callers are unaffected. */
 export async function updateLearnedParam(
   supabase: any,
   controllerId: string,
@@ -40,7 +90,8 @@ export async function updateLearnedParam(
   newObservation: number,
   clampMin: number,
   clampMax: number,
-  alphaOverride?: number
+  alphaOverride?: number,
+  maxStepFraction?: number,
 ): Promise<{ oldValue: number; newValue: number; sampleCount: number }> {
   const { data: existing } = await supabase
     .from('fermentation_learnings')
@@ -52,7 +103,7 @@ export async function updateLearnedParam(
   const sampleCount = existing?.sample_count ?? 0
   const alpha = alphaOverride ?? (sampleCount < 5 ? 0.5 : 0.2) // Learn faster initially
   const currentValue = existing ? parseFloat(String(existing.learned_value)) : newObservation
-  const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
+  const newValue = blendObservation(currentValue, newObservation, clampMin, clampMax, alpha, maxStepFraction)
 
   // Use 6 decimal precision for parameters like SG residuals (≤0.0003),
   // but keep 2 decimals for larger values like temperatures/margins.
@@ -94,7 +145,8 @@ export class LearnBatch {
       .eq('controller_id', this.controllerId)
       .in('parameter_name', paramNames)
 
-    for (const row of data ?? []) {
+    const rows: LearnedRow[] = data ?? []
+    for (const row of rows) {
       this.cache.set(row.parameter_name, {
         value: parseFloat(String(row.learned_value)),
         sampleCount: row.sample_count ?? 0,
@@ -108,19 +160,21 @@ export class LearnBatch {
     return this.cache.get(paramName)
   }
 
-  /** Compute EMA update in memory (no DB call) */
+  /** Compute EMA update in memory (no DB call). See updateLearnedParam for
+   *  what alphaOverride/maxStepFraction do — same semantics here. */
   update(
     paramName: string,
     newObservation: number,
     clampMin: number,
     clampMax: number,
     alphaOverride?: number,
+    maxStepFraction?: number,
   ): { oldValue: number; newValue: number; sampleCount: number } {
     const existing = this.cache.get(paramName)
     const sampleCount = existing?.sampleCount ?? 0
     const alpha = alphaOverride ?? (sampleCount < 5 ? 0.5 : 0.2)
     const currentValue = existing ? existing.value : newObservation
-    const newValue = Math.max(clampMin, Math.min(clampMax, currentValue * (1 - alpha) + newObservation * alpha))
+    const newValue = blendObservation(currentValue, newObservation, clampMin, clampMax, alpha, maxStepFraction)
 
     const precision = Math.abs(newValue) < 0.01 ? 1e6 : 100
     const rounded = Math.round(newValue * precision) / precision
@@ -172,12 +226,13 @@ export async function getLearnedParams(
   }
 
   const { data } = await query
+  const rows: LearnedRow[] = data ?? []
 
   const result = new Map<string, { value: number; sampleCount: number }>()
 
   if (isMulti) {
     // Multi-controller: key = `controllerId:paramName`
-    const dataMap = new Map((data ?? []).map(r => [`${r.controller_id}:${r.parameter_name}`, r]))
+    const dataMap = new Map<string, LearnedRow>(rows.map((r): [string, LearnedRow] => [`${r.controller_id}:${r.parameter_name}`, r]))
     for (const cId of controllerIds) {
       for (const name of paramNames) {
         const row = dataMap.get(`${cId}:${name}`)
@@ -189,7 +244,7 @@ export async function getLearnedParams(
     }
   } else {
     // Single controller: key = paramName (backward-compatible)
-    const dataMap = new Map((data ?? []).map(r => [r.parameter_name, r]))
+    const dataMap = new Map<string, LearnedRow>(rows.map((r): [string, LearnedRow] => [r.parameter_name, r]))
     for (const name of paramNames) {
       const row = dataMap.get(name)
       result.set(name, {
