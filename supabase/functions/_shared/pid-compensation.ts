@@ -553,21 +553,43 @@ function computeDutyV5(input: {
   let preCoolEntryTarget = input.prevState.preCoolEntryTarget
   let preCoolPeakSsot = input.prevState.preCoolPeakSsot
 
+  // Windowed rate: eftersom cykeln kör var 5:e minut ska regleringen basera
+  // sig på trenden över ~20 min, inte den senaste cykelns diff (som fångar
+  // sensorbrus/PWM-burst). Hämta äldsta sample i fönstret 15–25 min bak och
+  // räkna linjär medelrate. Kräver ≥2 samples med ≥12 min spann; annars
+  // faller vi tillbaka på cykel-raten.
+  const WINDOW_MIN = 20
+  const WINDOW_LOW = 12, WINDOW_HIGH = 28
+  const history = input.prevState.ssotHistory ?? []
+  let windowedRatePerMin: number | null = null
+  {
+    const candidates = history
+      .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+      .filter(e => e.ageMin >= WINDOW_LOW && e.ageMin <= WINDOW_HIGH)
+      .sort((a, b) => Math.abs(a.ageMin - WINDOW_MIN) - Math.abs(b.ageMin - WINDOW_MIN))
+    if (candidates.length > 0) {
+      const anchor = candidates[0]
+      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+    }
+  }
+  const preCoolRatePerMin = windowedRatePerMin ?? ratePerMin
+
   const preCoolPortOpen =
     isCooling &&
-    ratePerMin != null &&
-    ratePerMin > 0.003 &&
+    preCoolRatePerMin != null &&
+    preCoolRatePerMin > 0.003 &&
     need > -0.5 && need < 0.5 &&
     !prevLockActive && !isStaleSsot
 
   if (preCoolPortOpen) {
-    const ratePerHour = ratePerMin! * 60
+    const ratePerHour = preCoolRatePerMin! * 60
     const rateTerm = ratePerHour * preCoolK
     const posTerm  = need * KP_POS
     const preCool  = Math.max(0, Math.min(0.60, rateTerm + posTerm))
     duty = preCool   // ersätter PID inom porten — får både höja och sänka
+    const rateSrc = windowedRatePerMin != null ? '20m' : 'cyc'
     constraints.push(
-      `pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,` +
+      `pre-cool(${(preCool*100).toFixed(0)}%,r${rateSrc}=${ratePerHour.toFixed(2)}°/h,` +
       `pos=${need.toFixed(2)}°,K=${preCoolK.toFixed(2)})`
     )
     // Registrera episod-start första cykeln porten öppnas
