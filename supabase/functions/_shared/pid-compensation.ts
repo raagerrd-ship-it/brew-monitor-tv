@@ -246,6 +246,16 @@ export async function calculateCompensatedTarget(
   const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
+  // Läs senast lärd ambient_gain (°/h) — används i pre-cool för att dra av
+  // naturlig drift från observerad rate. Fallback 0 = ingen ambient-korrigering.
+  const { data: ambientRow } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', `ambient_gain:${mode}`)
+    .maybeSingle()
+  const ambientGainHr = ambientRow ? (parseFloat(String(ambientRow.learned_value)) || 0) : 0
+
   void isStaleData // SSOT är källan; staleness påverkar inte PI direkt
   const r = computeDutyV5({
     mode, stepType,
@@ -256,6 +266,7 @@ export async function calculateCompensatedTarget(
     coolingUtilization: coolingUtilization ?? null,
     prevState,
     actualTempAgeMin: actualTempAgeMin ?? null,
+    ambientGainHr,
   })
   const dutyCycle = r.duty
   const integral = r.integral
