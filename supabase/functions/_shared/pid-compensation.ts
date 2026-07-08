@@ -1127,6 +1127,14 @@ function computeDutyV5(input: {
     preCoolActiveAt,
     preCoolEntryTarget,
     preCoolPeakSsot,
+    ssotHistory: (() => {
+      // Rullande fönster: behåll samples upp till 30 min bakåt så vi alltid
+      // har täckning för 20-min-slopen även efter en missad cykel.
+      const prev = input.prevState.ssotHistory ?? []
+      const kept = prev.filter(e => (nowMs - new Date(e.t).getTime()) / 60000 <= 30)
+      kept.push({ t: now, v: ssotFiltered })
+      return kept
+    })(),
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
