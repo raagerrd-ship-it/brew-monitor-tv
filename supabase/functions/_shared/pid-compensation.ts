@@ -509,29 +509,32 @@ function computeDutyV5(input: {
   let duty = Math.max(0, Math.min(1, raw))
 
   // ── Rate-based pre-cool ────────────────────────────────────────────────
-  // Proaktivt: när SSOT är under mål men rör sig UPP mot det, starta kyl-duty
-  // i förväg för att möta korsningen mjukt istället för att låta 0% → panik-
-  // duty efter passering (som ger oscillering).
-  //   • Aktiv-zon: 0 – 0.5° under mål (need ∈ [-0.5, 0))
-  //   • Kräver progressRate < 0 (approach) → ratePerMin > 0 (temp stiger)
-  //   • Duty = proximity_factor × rate_factor × 20%
-  //       proximity_factor = 1 - |need| / 0.5   (närmare mål ⇒ större)
-  //       rate_factor      = min(1, ratePerMin × 60 / 1.0)   (1°C/h mättar)
-  //   • Appliceras som duty-golv (Math.max), inte tak — övriga PID-svar får höja mer
+  // Proaktivt: när SSOT är under mål men rör sig UPP mot det, matcha duty
+  // mot inflow-raten så vi möter mål med "0-netto" istället för att låta
+  // 0% → panik-spike efter passering (oscillering).
+  //
+  // Fysiskt: steady-state-duty som håller emot inflow r är ~r × K där
+  // K = learnedBaseline / förväntad drift. Om learned baseline finns använder
+  // vi den direkt (den är kalibrerad mot verkligt kylsvar); annars fallback
+  // K = 0.30 per °C/h (typiskt för fermentors).
+  //
+  // Aktiv endast som PORT: 0–0.5° under mål OCH stigning >0.18°/h.
+  // Duty-storleken kommer helt från raten — ingen proximity-skalning.
   if (
     isCooling &&
     ratePerMin != null &&
     ratePerMin > 0.003 &&              // >0.18°/h stigning
-    need < 0 && need > -0.5 &&         // 0–0.5° under mål
+    need < 0 && need > -0.5 &&         // 0–0.5° under mål (aktiv-port)
     !prevLockActive && !isStaleSsot
   ) {
-    const proximity = 1 - Math.abs(need) / 0.5             // 0..1
     const ratePerHour = ratePerMin * 60
-    const rateFactor = Math.min(1, ratePerHour / 1.0)      // saturerar vid 1°C/h
-    const preCool = 0.20 * proximity * rateFactor          // max 20%
+    // Rate-till-duty-koefficient: föredra learnedBaseline om den är
+    // kalibrerad (>5%), annars fallback 0.30/°C/h.
+    const K = input.learnedBaseline > 0.05 ? input.learnedBaseline : 0.30
+    const preCool = Math.min(0.60, ratePerHour * K)   // hårdt tak 60%
     if (preCool > duty) {
       duty = preCool
-      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,d=${Math.abs(need).toFixed(2)}°,r=${ratePerHour.toFixed(2)}°/h)`)
+      constraints.push(`pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,K=${K.toFixed(2)})`)
     }
   }
 
