@@ -320,6 +320,7 @@ function computeDutyV5(input: {
   coolingUtilization: number | null
   prevState: V5PidState
   actualTempAgeMin?: number | null
+  ambientGainHr?: number
 }): { duty: number; integral: number; p: number; constraints: string[]; nextState: V5PidState } {
   const constraints: string[] = []
   const isCooling = input.mode === 'cooling'
