@@ -253,7 +253,14 @@ export function SyncedDataDialog({
                                   : 'text-muted-foreground/40'
                           }`}>
                             {point.duty_pct != null
-                              ? `${Math.round(point.duty_pct)}%`
+                              ? (
+                                <span className="inline-flex items-center gap-1 justify-end">
+                                  <span aria-hidden>
+                                    {point.cooling_enabled === true ? '❄️' : point.cooling_enabled === false ? '🔥' : ''}
+                                  </span>
+                                  <span>{Math.round(point.duty_pct)}%</span>
+                                </span>
+                              )
                               : "-"}
                           </td>
                         )}
