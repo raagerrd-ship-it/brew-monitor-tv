@@ -668,6 +668,19 @@ export async function learnFeedforwardDuty(
   mode: 'heating' | 'cooling',
 ): Promise<number> {
   const paramName = `feedforward_duty:${mode}`
+  // Statisk, ICKE-persisterad fallback för det smala engångsfallet: denna
+  // controller_id+mode har ALDRIG körts förut (inget `existing`-värde alls).
+  // feedforward_duty/process_gain nycklas bara på (controller_id, mode) —
+  // inte per bryggning — så en andra brygg på samma rigg får redan förra
+  // brygdens lärda värde gratis via `existing`. Detta täcker bara det
+  // verkliga första-gången-fallet, inte "första 6h denna brygd".
+  // Värdet är er egen observerade typiska feedforward (3–6%), inte en
+  // universell konstant. Skrivs ALDRIG till DB — bara ett bättre "ingen data
+  // än"-gissning för kontrolloopen, motsvarande hur deriveGains redan
+  // faller tillbaka på statisk Kp/Kd när processGain saknas.
+  const FEEDFORWARD_DEFAULT = 0.05
+  const fallback = (existing: { learned_value: unknown } | null | undefined) =>
+    existing ? (parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT) : FEEDFORWARD_DEFAULT
 
   // Cache-hit: skip recompute if <2h old
   const { data: existing } = await supabase
@@ -679,7 +692,7 @@ export async function learnFeedforwardDuty(
   if (existing?.last_updated_at) {
     const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000
     if (hoursSince < 2 && existing.sample_count >= 3) {
-      return parseFloat(String(existing.learned_value)) || 0
+      return parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT
     }
   }
 
@@ -693,7 +706,7 @@ export async function learnFeedforwardDuty(
     .limit(300)
 
   if (!history || history.length < 6) {
-    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+    return fallback(existing)
   }
 
   const ambient: number[] = []            // °/h drift while duty=0
@@ -719,8 +732,14 @@ export async function learnFeedforwardDuty(
     }
   }
 
-  if (ambient.length < 2 || perPctResp.length < 2) {
-    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+  // n_resp/n_amb-krav höjt 2→4: en enstaka mätning (t.ex. under en kort
+  // glykol-mättnadsepisod) ska inte ensam få bestämma perPct. Komplement
+  // till alphaOverride/maxStepFraction i updateLearnedParam-anropen nedan —
+  // detta skyddar INPUT-kvaliteten, de skyddar hur mycket EN redan godkänd
+  // mätning får flytta det lagrade värdet.
+  const MIN_SAMPLES = 4
+  if (ambient.length < MIN_SAMPLES || perPctResp.length < MIN_SAMPLES) {
+    return fallback(existing)
   }
 
   const median = (arr: number[]) => {
@@ -729,7 +748,7 @@ export async function learnFeedforwardDuty(
   }
   const ambientGain = median(ambient)         // °/h
   const perPct = median(perPctResp)           // °/h per 1% duty
-  if (!(perPct > 0)) return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+  if (!(perPct > 0)) return fallback(existing)
 
   // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
   let requiredDuty = ambientGain / (perPct * 100)
