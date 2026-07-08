@@ -49,6 +49,7 @@ interface V5PidState {
   preCoolActiveAt?: string    // pre-cool aktiverad denna cykel — start på utvärderingsfönster
   preCoolEntryTarget?: number // mål vid pre-cool-entry (låser utvärdering mot rätt setpoint)
   preCoolPeakSsot?: number    // max SSOT observerad under pre-cool-fönstret (för overshoot-mätning)
+  ssotHistory?: Array<{ t: string; v: number }>  // rullande SSOT-samplar (senaste ~25 min) för windowed rate
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -86,7 +87,8 @@ const V5_STATE_SCHEMA = {
   preCoolActiveAt: 'string',
   preCoolEntryTarget: 'number',
   preCoolPeakSsot: 'number',
-} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode'>
+  ssotHistory: 'history',
+} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode' | 'history'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
  *  field whose runtime type doesn't match the schema (defends against
@@ -99,6 +101,14 @@ function parseV5State(raw: unknown): V5PidState {
     const v = a[key]
     if (kind === 'mode') {
       if (v === 'heating' || v === 'cooling') out[key] = v
+    } else if (kind === 'history') {
+      if (Array.isArray(v)) {
+        const arr = v
+          .filter((e): e is { t: string; v: number } =>
+            !!e && typeof e === 'object' &&
+            typeof (e as any).t === 'string' && typeof (e as any).v === 'number')
+        if (arr.length > 0) out[key] = arr
+      }
     } else if (typeof v === kind) {
       out[key] = v
     }
@@ -543,21 +553,43 @@ function computeDutyV5(input: {
   let preCoolEntryTarget = input.prevState.preCoolEntryTarget
   let preCoolPeakSsot = input.prevState.preCoolPeakSsot
 
+  // Windowed rate: eftersom cykeln kör var 5:e minut ska regleringen basera
+  // sig på trenden över ~20 min, inte den senaste cykelns diff (som fångar
+  // sensorbrus/PWM-burst). Hämta äldsta sample i fönstret 15–25 min bak och
+  // räkna linjär medelrate. Kräver ≥2 samples med ≥12 min spann; annars
+  // faller vi tillbaka på cykel-raten.
+  const WINDOW_MIN = 20
+  const WINDOW_LOW = 12, WINDOW_HIGH = 28
+  const history = input.prevState.ssotHistory ?? []
+  let windowedRatePerMin: number | null = null
+  {
+    const candidates = history
+      .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+      .filter(e => e.ageMin >= WINDOW_LOW && e.ageMin <= WINDOW_HIGH)
+      .sort((a, b) => Math.abs(a.ageMin - WINDOW_MIN) - Math.abs(b.ageMin - WINDOW_MIN))
+    if (candidates.length > 0) {
+      const anchor = candidates[0]
+      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+    }
+  }
+  const preCoolRatePerMin = windowedRatePerMin ?? ratePerMin
+
   const preCoolPortOpen =
     isCooling &&
-    ratePerMin != null &&
-    ratePerMin > 0.003 &&
+    preCoolRatePerMin != null &&
+    preCoolRatePerMin > 0.003 &&
     need > -0.5 && need < 0.5 &&
     !prevLockActive && !isStaleSsot
 
   if (preCoolPortOpen) {
-    const ratePerHour = ratePerMin! * 60
+    const ratePerHour = preCoolRatePerMin! * 60
     const rateTerm = ratePerHour * preCoolK
     const posTerm  = need * KP_POS
     const preCool  = Math.max(0, Math.min(0.60, rateTerm + posTerm))
     duty = preCool   // ersätter PID inom porten — får både höja och sänka
+    const rateSrc = windowedRatePerMin != null ? '20m' : 'cyc'
     constraints.push(
-      `pre-cool(${(preCool*100).toFixed(0)}%,r=${ratePerHour.toFixed(2)}°/h,` +
+      `pre-cool(${(preCool*100).toFixed(0)}%,r${rateSrc}=${ratePerHour.toFixed(2)}°/h,` +
       `pos=${need.toFixed(2)}°,K=${preCoolK.toFixed(2)})`
     )
     // Registrera episod-start första cykeln porten öppnas
@@ -1095,6 +1127,14 @@ function computeDutyV5(input: {
     preCoolActiveAt,
     preCoolEntryTarget,
     preCoolPeakSsot,
+    ssotHistory: (() => {
+      // Rullande fönster: behåll samples upp till 30 min bakåt så vi alltid
+      // har täckning för 20-min-slopen även efter en missad cykel.
+      const prev = input.prevState.ssotHistory ?? []
+      const kept = prev.filter(e => (nowMs - new Date(e.t).getTime()) / 60000 <= 30)
+      kept.push({ t: now, v: ssotFiltered })
+      return kept
+    })(),
   }
 
   return { duty, integral: nextI, p: uP, constraints, nextState }
