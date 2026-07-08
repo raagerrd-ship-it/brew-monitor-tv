@@ -374,6 +374,17 @@ function computeDutyV5(input: {
   }
 
   // ── Kombinera ──
+  // Ingen särskild "förbi mål"-logik behövs eller ska finnas här. Formeln är
+  // redan kontinuerlig och symmetrisk: vid need=0 (exakt vid mål) blir
+  // duty=ff — rätt, det är den nivå som håller stilla mot en konstant
+  // ambient-drift (t.ex. värme mot en kallare källare, eller kyla mot en
+  // varmare). Vid litet överskott minskar duty en aning under ff; vid stort
+  // överskott äter Kp·need till slut upp hela ff och duty når 0 av sig
+  // självt. Ett tidigare försök att tvinga duty=0 direkt vid need≤0 var
+  // FEL — det slog till även exakt vid need=0 (dvs. exakt vid mål, där ff
+  // fortfarande behövs för att hålla stilla), vilket skapade en konstgjord
+  // bang-bang-cykel runt målet istället för att lita på den släta tapern
+  // som redan fanns. ──
   const rawDuty = ff + trimI + pTerm - dBrake
   let duty = Math.max(0, Math.min(1, rawDuty))
 
@@ -398,18 +409,16 @@ function computeDutyV5(input: {
     }
   }
 
-  // ── Slew-cap: max ±5%/cykel för ökningar och för minskningar medan vi
-  // fortfarande är kvar mot mål. UNDANTAG: om vi redan passerat mål
-  // (need≤0) och duty ändå ska minska, släpper vi direkt utan cap — det är
-  // alltid en säker riktning (motsvarar "sluta trycka, låt passiv drift ta
-  // över"), till skillnad från de slumpmässiga UPPÅT-hoppen som capen finns
-  // för att stoppa. Denna asymmetri låter systemet släppa omedelbart precis
-  // förbi mål utan att återinföra den okontrollerade svängningen vid stort
-  // kvarstående fel (se historik: |need|>0.5-bypass:en gjorde det, och togs
-  // bort eftersom den öppnade upp i FEL riktning också). ──
+  // ── Slew-cap: max ±5%/cykel, TILLÄMPAS ALLTID (utom vid mode-switch).
+  // Ingen bypass vid "förbi mål" längre — se motivering ovan: tapern är
+  // redan slät, det finns inget hopp att släppa fritt ifrån. Ett tidigare
+  // undantag för |need|>0.5° togs bort av samma skäl (verklig drift visade
+  // att stora fel är precis där duty svänger som mest, inte där den behöver
+  // fri respons). Reglering sker kontinuerligt på avstånd (P) + hastighet
+  // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
+  // utan specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const easingOffPastTarget = need <= 0 && duty < lastDutyFrac
-  const slewBypass = input.modeJustSwitched || easingOffPastTarget
+  const slewBypass = input.modeJustSwitched
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
@@ -418,9 +427,8 @@ function computeDutyV5(input: {
       slewLimited = true
       constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→${(Math.sign(delta)*SLEW_PER_CYCLE*100).toFixed(0)}%)`)
     }
-  } else if (easingOffPastTarget) {
-    constraints.push('past-target-release')
   }
+
 
   // ── Anti-windup: om aktuatorn inte kunde leverera vad trimI-tillväxten
   // denna cykel förutsatte (slew eller min-off begränsade duty), återställ
