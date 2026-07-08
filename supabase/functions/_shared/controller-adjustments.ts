@@ -909,7 +909,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // controllerns last_update (uppdateras när ny SSOT skrivs).
     const ssotAgeMin = staleMinutes
 
-    const pidResult = await calculateCompensatedTarget(
+    const pidVersion = (fc as any).pid_version === 'claude' ? 'claude' : 'v5'
+    const pidFn = pidVersion === 'claude' ? calculateCompensatedTargetClaude : calculateCompensatedTarget
+    const pidResult = await pidFn(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil,
