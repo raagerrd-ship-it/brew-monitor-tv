@@ -13,6 +13,8 @@ import { FermentationSessionMinimal } from './fermentation/FermentationSessionMi
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
 import { getDisplayTarget } from '@/lib/temp-display';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TempController {
   id: string;
@@ -57,6 +59,31 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
+
+  // PID-motor: 'v5' (nuvarande) eller 'claude' (V6 feedforward+P+D)
+  const [pidVersion, setPidVersion] = useState<'v5' | 'claude'>('v5');
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('rapt_temp_controllers')
+        .select('pid_version')
+        .eq('controller_id', controller.controller_id)
+        .maybeSingle();
+      if (!cancelled && (data as any)?.pid_version) {
+        setPidVersion((data as any).pid_version === 'claude' ? 'claude' : 'v5');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, controller.controller_id]);
+  const updatePidVersion = async (v: 'v5' | 'claude') => {
+    setPidVersion(v);
+    await supabase
+      .from('rapt_temp_controllers')
+      .update({ pid_version: v } as any)
+      .eq('controller_id', controller.controller_id);
+  };
   // When dual-sensor is OFF, display the user's preferred sensor directly
   // (with fallback) rather than the stored actual_temp, which may lag behind
   // a recent preference toggle until the next sync.
@@ -89,6 +116,35 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
         <div className="space-y-4">
           {/* Minimal Fermentation Session Status */}
           {!isCooler && <FermentationSessionMinimal controllerId={controller.controller_id} />}
+
+          {/* PID-motor toggle */}
+          {isAuthenticated && !isCooler && (
+            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-3 border border-border/30">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-xs text-muted-foreground">PID-motor</Label>
+                <div className="inline-flex rounded-lg bg-muted/50 p-0.5 border border-border/30">
+                  <button
+                    type="button"
+                    onClick={() => updatePidVersion('v5')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      pidVersion === 'v5' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    V5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updatePidVersion('claude')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      pidVersion === 'claude' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Claude
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
+import { calculateCompensatedTarget as calculateCompensatedTargetClaude } from './pid-compensation-claude.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
@@ -908,7 +909,9 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // controllerns last_update (uppdateras när ny SSOT skrivs).
     const ssotAgeMin = staleMinutes
 
-    const pidResult = await calculateCompensatedTarget(
+    const pidVersion = (fc as any).pid_version === 'claude' ? 'claude' : 'v5'
+    const pidFn = pidVersion === 'claude' ? calculateCompensatedTargetClaude : calculateCompensatedTarget
+    const pidResult = await pidFn(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
       pidInputTemp, isStaleData, coolingUtil,
