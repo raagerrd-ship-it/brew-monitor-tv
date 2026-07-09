@@ -343,7 +343,15 @@ function computeDutyV5(input: {
   }
   const cycleRatePerMin = prevSmoothed != null ? (ssotFiltered - prevSmoothed) / dtMin : 0
   const ratePerMin = windowedRatePerMin ?? cycleRatePerMin
-  const approachRatePerMin = isCooling ? -ratePerMin : ratePerMin   // >0 = SSOT rör sig mot mål
+  // approachRatePerMin ska vara >0 närhelst |need| krymper — dvs. både på
+  // väg MOT mål (need>0, minskande) OCH på väg TILLBAKA från en
+  // överskjutning (need<0, växande mot 0). d(need)/dt har motsatt tecken
+  // beroende på vilken sida av mål vi är på, så vi flippar tecknet när
+  // need redan är negativt (redan förbi mål) — annars bromsar D-termen
+  // bara i EN riktning (in mot mål) och aldrig när vi seglar tillbaka från
+  // en överskjutning, trots att samma dödtid gäller åt båda hållen.
+  const dNeedDt = isCooling ? ratePerMin : -ratePerMin
+  const approachRatePerMin = need >= 0 ? -dNeedDt : dNeedDt   // >0 = |need| krymper
   const approachRatePerHour = approachRatePerMin * 60   // Kd är kalibrerad i timmar, se COOL/HEAT-kommentar
 
   // ── D-term: broms proportionell mot approach-rate. Endast broms (aldrig
