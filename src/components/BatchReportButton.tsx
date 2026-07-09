@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { triggerFileDownload } from "@/lib/label-utils";
 
 interface BatchReportButtonProps {
   brewId: string;
@@ -171,7 +172,8 @@ function BatchReportButtonComponent({
         { align: "center" }
       );
 
-      doc.save(`${brewName.replace(/\s+/g, "_")}_rapport.pdf`);
+      const blob = doc.output("blob");
+      triggerFileDownload(blob, `${brewName.replace(/\s+/g, "_")}_rapport.pdf`);
     } catch (err) {
       console.error("PDF generation error:", err);
     } finally {
