@@ -582,19 +582,19 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const STALL_MIN_PROGRESS = 0.05
 
     // Neutral zone: under hold-steg är termisk massa trög nog att återhämta
-    // små över-/undershoots passivt. Asymmetriskt:
-    //   • Övershoot (för varmt): snäv tolerans — jäsning genererar värme, måste
-    //     brytas snabbt annars rusar den.
-    //   • Undershoot (för kallt): bred tolerans — efter en kyl-burst ligger
-    //     glykol/jacka under wort, så wort fortsätter sjunka av tröghet medan
-    //     ambient/kammare oftast ligger över setpoint och lyfter tillbaka temp
-    //     passivt. Att byta till heating här skulle bara motverka den naturliga
-    //     återhämtningen och slösa energi.
+    // små över-/undershoots passivt. Symmetriskt under hold (0.6°): PID:s
+    // pTerm+ff decay hanterar små överskjutningar utan att bygga mode-switch-
+    // tryck. Tidigare asymmetri (HOT=0.00) gav "krypande fel"-flip vid +0.01°.
+    //
+    // BLE-avvägning: MODE_EMERGENCY använder egen tröskel (0.5° BLE / 0.8°
+    // annars) som kräver onWrongSide=true. Med ESCAPE_HOLD=0.60 kan
+    // suggestedMode inte flippa förrän >0.60°, så BLE-nödbromsen skjuts från
+    // nominella 0.5° till effektivt 0.6° — medveten avvägning mot
+    // kort-cykling. BLE kompenserar med MODE_SWITCH_CYCLES=2 (vs 3).
     const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
-    // Övershoot: noll tolerans — så fort vi ligger över target ska vi sluta värma.
-    // Undershoot: bred tolerans under hold (termisk massa + ambient lyfter passivt).
-    const NEUTRAL_BAND_HOT = isHoldStep ? 0.00 : 0.05
-    const NEUTRAL_BAND_COLD = isHoldStep ? 0.50 : 0.05
+    const ESCAPE_HOLD = 0.60
+    const NEUTRAL_BAND_HOT = isHoldStep ? ESCAPE_HOLD : 0.05
+    const NEUTRAL_BAND_COLD = isHoldStep ? ESCAPE_HOLD : 0.05
     let suggestedMode: 'heating' | 'cooling'
     if (actualTemp > actualTarget + NEUTRAL_BAND_HOT) {
       suggestedMode = 'cooling'
@@ -618,33 +618,18 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // Emergency-tröskel också asymmetrisk under hold: överskjutning åt det
     // varma hållet är farlig (jäsningsvärme), men en kall undershoot ska få
     // återhämtas passivt innan vi tvingar heating.
-    const isUndershoot = actualTemp < actualTarget
-    const emergencyThreshold = isHoldStep ? (isUndershoot ? 0.6 : 0.3) : 0.8
+    const emergencyThreshold = isHoldStep ? ESCAPE_HOLD : 0.8
     const emergencyOverride =
       prevMode != null &&
       suggestedMode !== prevMode &&
       rawDistanceToTarget > emergencyThreshold &&
       fc.heating_enabled && fc.cooling_enabled
 
-    if (!emergencyOverride) {
-      // EQUALIZATION GUARD: even without a mature floor, if we were just cooling
-      // (lastDuty > 0 in cooling mode) and the undershoot is mild, the drop is
-      // almost certainly residual jacket-cold diffusing into wort — not real
-      // heat loss. Beer in a >ambient room (e.g. 20°C) physically cannot lose
-      // heat to surroundings, so ambient will lift it back passively. Heating
-      // here would just fight equalization and waste energy.
-      if (
-        suggestedMode === 'heating' &&
-        prevMode === 'cooling' &&
-        lastDutyPct > 0 &&
-        rawDistanceToTarget <= 1.0 &&
-        isHoldStep
-      ) {
-        suggestedMode = 'cooling'
-        log('MODE_EQUALIZATION_HOLD', 'info',
-          `${fc.name}: blockerar heating — nyss kylde (${lastDutyPct}% duty), undershoot ${rawDistanceToTarget.toFixed(2)}° ≤ 1.0° tolkas som termisk utjämning, väntar på passiv återhämtning`)
-      }
-    }
+    // MODE_EQUALIZATION_HOLD-guarden borttagen: med symmetrisk 0.6° neutral-
+    // zon kan suggestedMode inte flippa till heating förrän undershoot >0.6°,
+    // så guardens villkor (undershoot ≤1.0° och suggestedMode=heating från
+    // 0.5°-band) blev dödkod. Passiv återhämtning inom 0.6° hanteras nu av
+    // själva neutralzonen istället för denna specialguard.
 
     // During active profile ramp, force mode to match ramp direction
     let rampOverrideApplied = false
