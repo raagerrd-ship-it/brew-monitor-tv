@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { triggerFileDownload } from "@/lib/label-utils";
 
 interface BatchReportButtonProps {
   brewId: string;
