@@ -591,7 +591,21 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // suggestedMode inte flippa förrän >0.60°, så BLE-nödbromsen skjuts från
     // nominella 0.5° till effektivt 0.6° — medveten avvägning mot
     // kort-cykling. BLE kompenserar med MODE_SWITCH_CYCLES=2 (vs 3).
-    const isHoldStep = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType === 'hold'
+    // Bredbandet (ESCAPE_HOLD) gäller alla fasta-mål-scenarier — inte bara
+    // step_type='hold'. Fysiken är identisk: dödtid + jäsningsvärme +
+    // kortcyklingsrisk. Inkluderar:
+    //   - 'hold' och alla wait_* steg (håller senaste målet tills villkor)
+    //   - 'diacetyl_rest' (fast förhöjt mål)
+    //   - ingen session alls (Custom-brygga: regleras mot manuellt satt
+    //     profile_target_temp utan fermentation_session-rad — vanligast!)
+    // Exkluderar 'ramp' och 'gradual_ramp' där målet aktivt ändras och
+    // ett snävt band gör att mode-switch följer rampen korrekt.
+    const _stepType = ctx.profileStatusMap.get(fc.controller_id)?.currentStepType
+    const FIXED_TARGET_STEPS = new Set([
+      'hold', 'wait_for_gravity_stable', 'wait_for_sg', 'wait_for_temp',
+      'wait_for_acknowledgement', 'diacetyl_rest',
+    ])
+    const isHoldStep = _stepType === undefined || FIXED_TARGET_STEPS.has(_stepType)
     const ESCAPE_HOLD = 0.60
     const NEUTRAL_BAND_HOT = isHoldStep ? ESCAPE_HOLD : 0.05
     const NEUTRAL_BAND_COLD = isHoldStep ? ESCAPE_HOLD : 0.05
