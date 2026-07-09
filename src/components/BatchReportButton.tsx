@@ -172,7 +172,8 @@ function BatchReportButtonComponent({
         { align: "center" }
       );
 
-      doc.save(`${brewName.replace(/\s+/g, "_")}_rapport.pdf`);
+      const blob = doc.output("blob");
+      triggerFileDownload(blob, `${brewName.replace(/\s+/g, "_")}_rapport.pdf`);
     } catch (err) {
       console.error("PDF generation error:", err);
     } finally {
