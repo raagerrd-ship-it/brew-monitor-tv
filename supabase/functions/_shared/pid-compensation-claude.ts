@@ -247,11 +247,19 @@ export async function calculateCompensatedTarget(
 
   const avgError = actualTarget - actualTemp
   const need = mode === 'cooling' ? -avgError : avgError
-  console.log(`🎯 ${mode} ${controllerName}: err=${avgError.toFixed(2)}°, need=${need.toFixed(2)}°, ff=${(r.ff*100).toFixed(1)}%, P=${(r.p*100).toFixed(1)}%, D=${(r.d*100).toFixed(1)}%, trimI=${(r.trimI*100).toFixed(1)}%, gains=${gains.source}(Kp=${gains.Kp.toFixed(2)},Kd=${gains.Kd.toFixed(2)}), duty=${(dutyCycle*100).toFixed(0)}% [${constraints.join(',')}]`)
 
+  // Loggens err/need är RÅ SSOT — pTerm beräknas internt på ssotFiltered
+  // (EMA, τ=12min), en annan siffra. De två kan divergera rejält när EMA:n
+  // fortfarande drar sig mot en äldre, varmare/kallare historik (t.ex. precis
+  // efter en PWM-burst eller ett snabbt temperaturhopp) — utan att båda
+  // visas explicit ser P-termen ut att inte stämma med den loggade need,
+  // vilket kostade en hel felsökningsrunda att reda ut. Visa båda.
   const filteredAvgError = r.nextState.ssotSmoothed != null
     ? actualTarget - r.nextState.ssotSmoothed
     : avgError
+  const needSmoothed = mode === 'cooling' ? -filteredAvgError : filteredAvgError
+
+  console.log(`🎯 ${mode} ${controllerName}: err=${avgError.toFixed(2)}°(raw)/${filteredAvgError.toFixed(2)}°(ema), need=${need.toFixed(2)}°(raw)/${needSmoothed.toFixed(2)}°(ema, pTerm-input), ff=${(r.ff*100).toFixed(1)}%, P=${(r.p*100).toFixed(1)}%, D=${(r.d*100).toFixed(1)}%, trimI=${(r.trimI*100).toFixed(1)}%, gains=${gains.source}(Kp=${gains.Kp.toFixed(2)},Kd=${gains.Kd.toFixed(2)}), duty=${(dutyCycle*100).toFixed(0)}% [${constraints.join(',')}]`)
 
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode,
