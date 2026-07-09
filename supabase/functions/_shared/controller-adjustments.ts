@@ -883,10 +883,14 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     // to merge all writes into a single batch (mode, pressure, duty, effective_target)
     const profileStatus = profileStatusMap.get(fc.controller_id)
     const rawStepType = isProfileOwned ? (profileStatus?.currentStepType ?? (profileStatus ? 'profile' : 'unknown')) : 'standalone'
-    // Normalize wait-type steps AND standalone to 'hold' for PID baseline sharing —
-    // they all behave identically (hold temp). This prevents integral reset when a
-    // profile ends and step_type changes from 'hold' to 'standalone'.
-    const stepType = ['wait_for_sg', 'wait_for_gravity_stable', 'wait_for_acknowledgement', 'standalone'].includes(rawStepType) ? 'hold' : rawStepType
+    // Normalize allt utom ramp/gradual_ramp till 'hold' för PID-baseline-
+    // delning — samma blacklist-princip som isHoldStep ovan (rad ~594) och
+    // av samma skäl: en whitelist av "hold-lika" namn missar nya stegtyper
+    // (vi missade wait_for_gravity_stable och standalone i tur och ordning).
+    // Detta förhindrar också I-term-reset när ett profil-steg växlar mellan
+    // två fast-mål-varianter (t.ex. 'hold' → 'standalone' när en profil tar
+    // slut) — de ska dela lärd baseline, inte nollställas mot varandra.
+    const stepType = (rawStepType === 'ramp' || rawStepType === 'gradual_ramp') ? rawStepType : 'hold'
 
     // === Stale-data detection ===
     // Data is stale if no new sensor reading AND no valid interpolation.
