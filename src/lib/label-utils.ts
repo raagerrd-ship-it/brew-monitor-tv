@@ -35,6 +35,28 @@ export function printCanvasInWindow(canvas: HTMLCanvasElement): void {
   win.document.close();
 }
 
+/** Trigger a file download from a Blob, with mobile fallback. */
+export function triggerFileDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    // iOS Safari does not reliably honour the download attribute;
+    // open the blob in a new tab so the user can use Share → Save to Files.
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /** Download the trimmed canvas as a PDF */
 export async function downloadCanvasAsPdf(canvas: HTMLCanvasElement, name: string, labelType: string): Promise<void> {
   const { default: jsPDF } = await import('jspdf');
@@ -42,5 +64,6 @@ export async function downloadCanvasAsPdf(canvas: HTMLCanvasElement, name: strin
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [50, 70] });
   pdf.addImage(trimmed.toDataURL('image/png'), 'PNG', 0, 0, 50, 70);
   const safeName = (name || 'etikett').replace(/[^a-zA-ZåäöÅÄÖ0-9\s-]/g, '').trim().replace(/\s+/g, '-');
-  pdf.save(`${safeName}-${labelType}.pdf`);
+  const blob = pdf.output('blob');
+  triggerFileDownload(blob, `${safeName}-${labelType}.pdf`);
 }
