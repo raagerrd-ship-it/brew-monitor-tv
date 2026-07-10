@@ -104,6 +104,61 @@ Deno.serve(async (req) => {
       log('RETRY', 'info', `Found ${retriesToProcess.length} pending retry(ies) from previous cycle(s)`);
     }
 
+    // ── SAFETY SWEEP: Overdue PWM OFF reverts ──
+    // execute-pwm-off cron kan missa ett fönster (deploy, latens). Om vi hittar
+    // en PWM OFF med execute_at äldre än 30s måste vi verkställa reverten NU,
+    // annars förblir hårdvarumålet på extremvärdet (t.ex. -5°C kylning) och
+    // tanken kyls/värms okontrollerat tills nästa cron-cykel — som dessutom
+    // kan raderas av nästa burst-schemaläggning innan den fyras.
+    const overdueThresholdIso = new Date(Date.now() - 30_000).toISOString();
+    const { data: overdueOffs } = await supabase
+      .from('pending_rapt_retries')
+      .select('*')
+      .like('reason', '%PWM OFF%')
+      .not('execute_at', 'is', null)
+      .lte('execute_at', overdueThresholdIso)
+      .lt('attempts', 5);
+    if (overdueOffs && overdueOffs.length > 0) {
+      for (const off of overdueOffs) {
+        const overdueSec = Math.round((Date.now() - new Date(off.execute_at).getTime()) / 1000);
+        log('PWM_OFF_OVERDUE', 'fail', `Förfallen PWM OFF upptäckt för ${off.controller_id} (${overdueSec}s sen) — kör revert → ${off.target_temp}°C nu`, {
+          controller_id: off.controller_id, target_temp: off.target_temp, overdue_seconds: overdueSec,
+        });
+        try {
+          const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+            body: JSON.stringify({
+              controllerId: off.controller_id,
+              action: 'setTargetTemperature',
+              value: off.target_temp,
+              source: 'pwm',
+              pwm_label: `PWM OFF (overdue sweep): → ${off.target_temp}°`,
+            }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (resp.ok) {
+            await supabase.from('pending_rapt_retries').delete().eq('id', off.id);
+            await supabase.from('rapt_temp_controllers')
+              .update({ target_temp: off.target_temp, updated_at: new Date().toISOString() })
+              .eq('controller_id', off.controller_id);
+            log('PWM_OFF_OVERDUE', 'pass', `Overdue PWM OFF verkställd för ${off.controller_id} → ${off.target_temp}°C`);
+          } else {
+            log('PWM_OFF_OVERDUE', 'fail', `Overdue PWM OFF misslyckades (HTTP ${resp.status}) — lämnar rad kvar för execute-pwm-off-retry`);
+          }
+        } catch (err) {
+          log('PWM_OFF_OVERDUE', 'fail', `Overdue PWM OFF error: ${String(err).slice(0, 160)}`);
+        }
+      }
+      // Ladda om retriesToProcess så att raderade rader inte används i resten av cykeln
+      const { data: refreshed } = await supabase
+        .from('pending_rapt_retries')
+        .select('*')
+        .order('created_at', { ascending: true });
+      retriesToProcess.length = 0;
+      retriesToProcess.push(...((refreshed ?? []) as typeof retriesToProcess));
+    }
+
     // ── Load controllers (use injected data from orchestrator if available) ──
     let allControllers: TempController[];
     if (reqBody?.injected_controllers) {
