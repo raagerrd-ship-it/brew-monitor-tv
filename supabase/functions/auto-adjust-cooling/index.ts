@@ -105,12 +105,12 @@ Deno.serve(async (req) => {
     }
 
     // ── SAFETY SWEEP: Overdue PWM OFF reverts ──
-    // execute-pwm-off cron kan missa ett fönster (deploy, latens). Om vi hittar
-    // en PWM OFF med execute_at äldre än 30s måste vi verkställa reverten NU,
-    // annars förblir hårdvarumålet på extremvärdet (t.ex. -5°C kylning) och
-    // tanken kyls/värms okontrollerat tills nästa cron-cykel — som dessutom
-    // kan raderas av nästa burst-schemaläggning innan den fyras.
-    const overdueThresholdIso = new Date(Date.now() - 30_000).toISOString();
+    // execute-pwm-off cron kan missa ett fönster (deploy, latens). Vi vill fånga
+    // en missad revert redan NÄSTA minut — inte vänta ytterligare en cykel.
+    // Därför: alla rader med execute_at <= now() räknas som förfallna. Om
+    // execute-pwm-off råkar köra samtidigt är RAPT-kommandot idempotent och
+    // delete no-op:ar om raden redan är borta.
+    const overdueThresholdIso = new Date().toISOString();
     const { data: overdueOffs } = await supabase
       .from('pending_rapt_retries')
       .select('*')
