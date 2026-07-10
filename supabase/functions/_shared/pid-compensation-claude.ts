@@ -175,6 +175,7 @@ async function persistPidState(
  *  0 = ingen mätning ännu → deriveGains faller tillbaka på statiska defaults. */
 async function getProcessGain(
   supabase: any, controllerId: string, mode: 'heating' | 'cooling',
+  deltaT: number | null,
 ): Promise<number> {
   const { data } = await supabase
     .from('fermentation_learnings')
@@ -184,7 +185,12 @@ async function getProcessGain(
     .maybeSingle()
   if (!data) return 0
   const v = parseFloat(String(data.learned_value))
-  return Number.isFinite(v) && v > 0 ? v : 0
+  if (!(Number.isFinite(v) && v > 0)) return 0
+  // Denormalisera lagrat värde (normaliserat mot ΔT_ref) till effektiv gain
+  // vid aktuell ΔT. Vid större ΔT → mer °C-förändring per %-duty (Q ∝ ΔT).
+  // Endast cooling har fysikalisk mening att skala mot glykol-ΔT.
+  if (mode !== 'cooling' || deltaT == null) return v
+  return v * (deltaT / DELTA_T_REF)
 }
 
 /** Härled Kp/Kd från uppmätt processförstärkning istället för att låta dem
