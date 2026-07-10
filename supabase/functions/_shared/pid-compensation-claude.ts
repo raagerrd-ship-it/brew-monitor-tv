@@ -1,6 +1,30 @@
 import { getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
+// ΔT-normalisering (kontinuerlig, inte hinkad)
+//
+// Lagrade `feedforward_duty` och `process_gain` normaliseras till referens-ΔT
+// (10°C) mellan target_temp och glykol-temp. Skalas vid läsning/skrivning så
+// samma EMA-serie förblir fysikaliskt konsistent oavsett glykolens temperatur.
+//
+// Newtons avkylning: Q ∝ ΔT. Vid dubbelt så stor ΔT ger samma duty dubbelt så
+// stark kylning — utan denna skalning skulle en enda EMA över blandade
+// ΔT-lägen ge fel svar i båda ändarna.
+//
+// Använder `target_temp − glycol_temp` (inte `actual_temp`): ff mäts per
+// definition vid jämvikt (actual≈target) så target ÄR rätt delta där, och
+// dessutom en renare signal utan actual_temps EMA-fördröjning och brus.
+// ============================================================
+const DELTA_T_REF = 10.0
+const DELTA_T_MIN = 3.0
+
+function computeDeltaT(target: number, glycolTemp: number | null | undefined): number | null {
+  if (glycolTemp == null || !Number.isFinite(glycolTemp)) return null
+  if (!Number.isFinite(target)) return null
+  return Math.max(DELTA_T_MIN, target - glycolTemp)
+}
+
+// ============================================================
 // PID Control & Thermal Learning (V6: feedforward + P + D)
 //
 // Designprinciper (dödtidsdominerad process: ~15 min probe-latens, 60L massa):
