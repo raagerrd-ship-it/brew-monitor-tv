@@ -736,8 +736,15 @@ export async function learnFeedforwardDuty(
   supabase: any,
   controllerId: string,
   mode: 'heating' | 'cooling',
+  deltaT?: number | null,
 ): Promise<number> {
   const paramName = `feedforward_duty:${mode}`
+  // ΔT-skalning: lagrat ff normaliseras mot DELTA_T_REF (större ΔT → mindre
+  // ff behövs för balans). Motsatt riktning mot process_gain. Endast cooling
+  // har glykol-ΔT-koppling. `null` deltaT → ingen skalning (bakåtkompat).
+  const useDeltaScaling = mode === 'cooling' && deltaT != null && Number.isFinite(deltaT) && deltaT > 0
+  const denorm = (stored: number) => useDeltaScaling ? stored * (DELTA_T_REF / (deltaT as number)) : stored
+  const norm   = (observed: number) => useDeltaScaling ? observed * ((deltaT as number) / DELTA_T_REF) : observed
   // Statisk, ICKE-persisterad fallback för det smala engångsfallet: denna
   // controller_id+mode har ALDRIG körts förut (inget `existing`-värde alls).
   // feedforward_duty/process_gain nycklas bara på (controller_id, mode) —
@@ -750,7 +757,7 @@ export async function learnFeedforwardDuty(
   // faller tillbaka på statisk Kp/Kd när processGain saknas.
   const FEEDFORWARD_DEFAULT = 0.05
   const fallback = (existing: { learned_value: unknown } | null | undefined) =>
-    existing ? (parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT) : FEEDFORWARD_DEFAULT
+    existing ? denorm(parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT) : FEEDFORWARD_DEFAULT
 
   // Cache-hit: skip recompute if <2h old
   const { data: existing } = await supabase
@@ -762,7 +769,7 @@ export async function learnFeedforwardDuty(
   if (existing?.last_updated_at) {
     const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000
     if (hoursSince < 2 && existing.sample_count >= 3) {
-      return parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT
+      return denorm(parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT)
     }
   }
 
@@ -839,8 +846,12 @@ export async function learnFeedforwardDuty(
   // se learning-utils.ts. Utan detta kan en enda avvikande mätning fortfarande
   // flytta värdet upp till alpha×hela-spannet i ett enda anrop.
   const LEARN_ALPHA = 0.10
+  // Normalisera observationen till ΔT_ref-referensramen INNAN den skrivs så
+  // EMA:n förblir konsistent oavsett vilken ΔT observationen togs vid.
+  const requiredDutyNormalized = norm(requiredDuty)
+  const perPctNormalized = useDeltaScaling ? perPct * (DELTA_T_REF / (deltaT as number)) : perPct
   const result = await updateLearnedParam(
-    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30, LEARN_ALPHA, 0.10,
+    supabase, controllerId, paramName, requiredDutyNormalized, 0.001, 0.30, LEARN_ALPHA, 0.10,
   )
   // Persistera processförstärkningen (°/h per 1% duty) separat — samma
   // kvalitetsgrind (n_resp≥2) som feedforward-dutyn ovan, så deriveGains
@@ -850,8 +861,9 @@ export async function learnFeedforwardDuty(
   // realistisk gräns gör maxStepFraction faktiskt meningsfull istället för
   // att vara 10% av ett spann som aldrig används.
   await updateLearnedParam(
-    supabase, controllerId, `process_gain:${mode}`, perPct, 0.0001, 1.0, LEARN_ALPHA, 0.10,
+    supabase, controllerId, `process_gain:${mode}`, perPctNormalized, 0.0001, 1.0, LEARN_ALPHA, 0.10,
   ).catch(() => null)
-  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
-  return result.newValue || 0
+  const dtStr = useDeltaScaling ? ` ΔT=${(deltaT as number).toFixed(1)}°` : ''
+  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]${dtStr}: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}% effective=${(denorm(result.newValue)*100).toFixed(1)}%`)
+  return denorm(result.newValue) || 0
 }
