@@ -230,6 +230,7 @@ export async function calculateCompensatedTarget(
   modeJustSwitched?: boolean,
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
+  glycolTemp?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -250,13 +251,18 @@ export async function calculateCompensatedTarget(
   if (!Number.isFinite(persistedTrimI) || Math.abs(persistedTrimI) > TRIM_MAX) persistedTrimI = 0
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
+  // ΔT mellan aktuellt mål och glykol — driver kontinuerlig normalisering av
+  // både feedforward_duty och process_gain. `null` = ingen glykol-data → fall
+  // tillbaka på oskaladat värde (bakåtkompatibelt).
+  const deltaT = mode === 'cooling' ? computeDeltaT(actualTarget, glycolTemp) : null
+
   // The learned steady-state duty — this is the primary signal now, not a floor.
-  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaT).catch(() => 0)
 
   // Kp/Kd derived from measured process gain (see deriveGains) instead of a
   // second adaptive loop — falls back to static defaults until enough real
   // response samples exist.
-  const processGainPerPct = await getProcessGain(supabase, controllerId, mode).catch(() => 0)
+  const processGainPerPct = await getProcessGain(supabase, controllerId, mode, deltaT).catch(() => 0)
   const gainDefaults = mode === 'cooling' ? COOL : HEAT
   const gains = deriveGains(processGainPerPct, gainDefaults)
 
