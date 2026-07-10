@@ -219,6 +219,7 @@ export async function calculateCompensatedTarget(
   modeJustSwitched?: boolean,
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
+  glycolTemp?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -242,7 +243,11 @@ export async function calculateCompensatedTarget(
   // Feedforward duty-floor: empiriskt beräknat "ambient_gain / cool_response".
   // Använd max(convergens-lärd, feedforward) som effektiv baseline så att
   // seed-golvet fångar verkligt behov även innan konvergensen hunnit ikapp.
-  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  // ΔT-normalisering (mot glykol) applicerad inuti learnFeedforwardDuty.
+  const deltaTv5 = (mode === 'cooling' && glycolTemp != null && Number.isFinite(glycolTemp))
+    ? Math.max(3.0, actualTarget - glycolTemp)
+    : null
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaTv5).catch(() => 0)
   const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
