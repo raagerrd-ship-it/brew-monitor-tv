@@ -930,6 +930,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       modeJustSwitched,
       8,
       ssotAgeMin,
+      ctx.glycolTemp ?? null,
     )
 
     // ── Emergency: no-heat undershoot coast ──
