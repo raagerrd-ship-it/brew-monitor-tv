@@ -537,6 +537,9 @@ Deno.serve(async (req) => {
       baseTargetMap,
       skipLearning: systemIsIdle,
       sharedUtilizations,
+      glycolTemp: coolerControllerData
+        ? (parseFloat(String(coolerControllerData.current_temp ?? '')) || null)
+        : null,
     };
 
     // Circuit-breaker: hämta öppna kretsar för aktiva controllers så PID
