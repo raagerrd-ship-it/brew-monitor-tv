@@ -1,6 +1,30 @@
 import { getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
+// ΔT-normalisering (kontinuerlig, inte hinkad)
+//
+// Lagrade `feedforward_duty` och `process_gain` normaliseras till referens-ΔT
+// (10°C) mellan target_temp och glykol-temp. Skalas vid läsning/skrivning så
+// samma EMA-serie förblir fysikaliskt konsistent oavsett glykolens temperatur.
+//
+// Newtons avkylning: Q ∝ ΔT. Vid dubbelt så stor ΔT ger samma duty dubbelt så
+// stark kylning — utan denna skalning skulle en enda EMA över blandade
+// ΔT-lägen ge fel svar i båda ändarna.
+//
+// Använder `target_temp − glycol_temp` (inte `actual_temp`): ff mäts per
+// definition vid jämvikt (actual≈target) så target ÄR rätt delta där, och
+// dessutom en renare signal utan actual_temps EMA-fördröjning och brus.
+// ============================================================
+const DELTA_T_REF = 10.0
+const DELTA_T_MIN = 3.0
+
+function computeDeltaT(target: number, glycolTemp: number | null | undefined): number | null {
+  if (glycolTemp == null || !Number.isFinite(glycolTemp)) return null
+  if (!Number.isFinite(target)) return null
+  return Math.max(DELTA_T_MIN, target - glycolTemp)
+}
+
+// ============================================================
 // PID Control & Thermal Learning (V6: feedforward + P + D)
 //
 // Designprinciper (dödtidsdominerad process: ~15 min probe-latens, 60L massa):
@@ -151,6 +175,7 @@ async function persistPidState(
  *  0 = ingen mätning ännu → deriveGains faller tillbaka på statiska defaults. */
 async function getProcessGain(
   supabase: any, controllerId: string, mode: 'heating' | 'cooling',
+  deltaT: number | null,
 ): Promise<number> {
   const { data } = await supabase
     .from('fermentation_learnings')
@@ -160,7 +185,12 @@ async function getProcessGain(
     .maybeSingle()
   if (!data) return 0
   const v = parseFloat(String(data.learned_value))
-  return Number.isFinite(v) && v > 0 ? v : 0
+  if (!(Number.isFinite(v) && v > 0)) return 0
+  // Denormalisera lagrat värde (normaliserat mot ΔT_ref) till effektiv gain
+  // vid aktuell ΔT. Vid större ΔT → mer °C-förändring per %-duty (Q ∝ ΔT).
+  // Endast cooling har fysikalisk mening att skala mot glykol-ΔT.
+  if (mode !== 'cooling' || deltaT == null) return v
+  return v * (deltaT / DELTA_T_REF)
 }
 
 /** Härled Kp/Kd från uppmätt processförstärkning istället för att låta dem
@@ -200,6 +230,7 @@ export async function calculateCompensatedTarget(
   modeJustSwitched?: boolean,
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
+  glycolTemp?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -220,13 +251,18 @@ export async function calculateCompensatedTarget(
   if (!Number.isFinite(persistedTrimI) || Math.abs(persistedTrimI) > TRIM_MAX) persistedTrimI = 0
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
+  // ΔT mellan aktuellt mål och glykol — driver kontinuerlig normalisering av
+  // både feedforward_duty och process_gain. `null` = ingen glykol-data → fall
+  // tillbaka på oskaladat värde (bakåtkompatibelt).
+  const deltaT = mode === 'cooling' ? computeDeltaT(actualTarget, glycolTemp) : null
+
   // The learned steady-state duty — this is the primary signal now, not a floor.
-  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaT).catch(() => 0)
 
   // Kp/Kd derived from measured process gain (see deriveGains) instead of a
   // second adaptive loop — falls back to static defaults until enough real
   // response samples exist.
-  const processGainPerPct = await getProcessGain(supabase, controllerId, mode).catch(() => 0)
+  const processGainPerPct = await getProcessGain(supabase, controllerId, mode, deltaT).catch(() => 0)
   const gainDefaults = mode === 'cooling' ? COOL : HEAT
   const gains = deriveGains(processGainPerPct, gainDefaults)
 
@@ -700,8 +736,15 @@ export async function learnFeedforwardDuty(
   supabase: any,
   controllerId: string,
   mode: 'heating' | 'cooling',
+  deltaT?: number | null,
 ): Promise<number> {
   const paramName = `feedforward_duty:${mode}`
+  // ΔT-skalning: lagrat ff normaliseras mot DELTA_T_REF (större ΔT → mindre
+  // ff behövs för balans). Motsatt riktning mot process_gain. Endast cooling
+  // har glykol-ΔT-koppling. `null` deltaT → ingen skalning (bakåtkompat).
+  const useDeltaScaling = mode === 'cooling' && deltaT != null && Number.isFinite(deltaT) && deltaT > 0
+  const denorm = (stored: number) => useDeltaScaling ? stored * (DELTA_T_REF / (deltaT as number)) : stored
+  const norm   = (observed: number) => useDeltaScaling ? observed * ((deltaT as number) / DELTA_T_REF) : observed
   // Statisk, ICKE-persisterad fallback för det smala engångsfallet: denna
   // controller_id+mode har ALDRIG körts förut (inget `existing`-värde alls).
   // feedforward_duty/process_gain nycklas bara på (controller_id, mode) —
@@ -714,7 +757,7 @@ export async function learnFeedforwardDuty(
   // faller tillbaka på statisk Kp/Kd när processGain saknas.
   const FEEDFORWARD_DEFAULT = 0.05
   const fallback = (existing: { learned_value: unknown } | null | undefined) =>
-    existing ? (parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT) : FEEDFORWARD_DEFAULT
+    existing ? denorm(parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT) : FEEDFORWARD_DEFAULT
 
   // Cache-hit: skip recompute if <2h old
   const { data: existing } = await supabase
@@ -726,7 +769,7 @@ export async function learnFeedforwardDuty(
   if (existing?.last_updated_at) {
     const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000
     if (hoursSince < 2 && existing.sample_count >= 3) {
-      return parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT
+      return denorm(parseFloat(String(existing.learned_value)) || FEEDFORWARD_DEFAULT)
     }
   }
 
@@ -803,8 +846,12 @@ export async function learnFeedforwardDuty(
   // se learning-utils.ts. Utan detta kan en enda avvikande mätning fortfarande
   // flytta värdet upp till alpha×hela-spannet i ett enda anrop.
   const LEARN_ALPHA = 0.10
+  // Normalisera observationen till ΔT_ref-referensramen INNAN den skrivs så
+  // EMA:n förblir konsistent oavsett vilken ΔT observationen togs vid.
+  const requiredDutyNormalized = norm(requiredDuty)
+  const perPctNormalized = useDeltaScaling ? perPct * (DELTA_T_REF / (deltaT as number)) : perPct
   const result = await updateLearnedParam(
-    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30, LEARN_ALPHA, 0.10,
+    supabase, controllerId, paramName, requiredDutyNormalized, 0.001, 0.30, LEARN_ALPHA, 0.10,
   )
   // Persistera processförstärkningen (°/h per 1% duty) separat — samma
   // kvalitetsgrind (n_resp≥2) som feedforward-dutyn ovan, så deriveGains
@@ -814,8 +861,9 @@ export async function learnFeedforwardDuty(
   // realistisk gräns gör maxStepFraction faktiskt meningsfull istället för
   // att vara 10% av ett spann som aldrig används.
   await updateLearnedParam(
-    supabase, controllerId, `process_gain:${mode}`, perPct, 0.0001, 1.0, LEARN_ALPHA, 0.10,
+    supabase, controllerId, `process_gain:${mode}`, perPctNormalized, 0.0001, 1.0, LEARN_ALPHA, 0.10,
   ).catch(() => null)
-  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
-  return result.newValue || 0
+  const dtStr = useDeltaScaling ? ` ΔT=${(deltaT as number).toFixed(1)}°` : ''
+  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]${dtStr}: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}% effective=${(denorm(result.newValue)*100).toFixed(1)}%`)
+  return denorm(result.newValue) || 0
 }

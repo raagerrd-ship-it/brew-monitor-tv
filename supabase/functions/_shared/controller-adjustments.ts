@@ -57,6 +57,10 @@ export interface ControllerAdjustmentContext {
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
   /** Circuit-breaker: controllers vars RAPT-writes är pausade pga konsekutiva fel. */
   openCircuitControllerIds?: Set<string>
+  /** Glykolkylarens aktuella temperatur (°C). Används av PID för kontinuerlig
+   *  ΔT-normalisering av lärda parametrar (feedforward_duty, process_gain)
+   *  mot referens ΔT=10°. `null`/`undefined` → ingen ΔT-skalning (fallback). */
+  glycolTemp?: number | null
 }
 
 /**
@@ -926,6 +930,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       modeJustSwitched,
       8,
       ssotAgeMin,
+      ctx.glycolTemp ?? null,
     )
 
     // ── Emergency: no-heat undershoot coast ──

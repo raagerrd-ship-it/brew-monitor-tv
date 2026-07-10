@@ -219,6 +219,7 @@ export async function calculateCompensatedTarget(
   modeJustSwitched?: boolean,
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
+  glycolTemp?: number | null,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
@@ -242,7 +243,11 @@ export async function calculateCompensatedTarget(
   // Feedforward duty-floor: empiriskt beräknat "ambient_gain / cool_response".
   // Använd max(convergens-lärd, feedforward) som effektiv baseline så att
   // seed-golvet fångar verkligt behov även innan konvergensen hunnit ikapp.
-  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode).catch(() => 0)
+  // ΔT-normalisering (mot glykol) applicerad inuti learnFeedforwardDuty.
+  const deltaTv5 = (mode === 'cooling' && glycolTemp != null && Number.isFinite(glycolTemp))
+    ? Math.max(3.0, actualTarget - glycolTemp)
+    : null
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaTv5).catch(() => 0)
   const effectiveBaseline = Math.max(learnedBaseline, feedforwardDuty ?? 0)
   const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
 
@@ -1424,8 +1429,17 @@ export async function learnFeedforwardDuty(
   supabase: any,
   controllerId: string,
   mode: 'heating' | 'cooling',
+  deltaT?: number | null,
 ): Promise<number> {
   const paramName = `feedforward_duty:${mode}`
+  // ΔT-skalning: lagrat värde är normaliserat mot ΔT_ref=10° (target−glycol).
+  // Vid läsning skalas det till aktuell ΔT (mindre ΔT → mer ff behövs);
+  // vid skrivning normaliseras observationen tillbaka mot ΔT_ref. Bara
+  // cooling — heating har ingen glykol-koppling.
+  const DELTA_T_REF = 10.0
+  const useDeltaScaling = mode === 'cooling' && deltaT != null && Number.isFinite(deltaT) && deltaT > 0
+  const denorm = (stored: number) => useDeltaScaling ? stored * (DELTA_T_REF / (deltaT as number)) : stored
+  const norm = (observed: number) => useDeltaScaling ? observed * ((deltaT as number) / DELTA_T_REF) : observed
 
   // Cache-hit: skip recompute if <2h old
   const { data: existing } = await supabase
@@ -1437,7 +1451,7 @@ export async function learnFeedforwardDuty(
   if (existing?.last_updated_at) {
     const hoursSince = (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000
     if (hoursSince < 2 && existing.sample_count >= 3) {
-      return parseFloat(String(existing.learned_value)) || 0
+      return denorm(parseFloat(String(existing.learned_value)) || 0)
     }
   }
 
@@ -1451,7 +1465,7 @@ export async function learnFeedforwardDuty(
     .limit(300)
 
   if (!history || history.length < 6) {
-    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+    return existing ? denorm(parseFloat(String(existing.learned_value)) || 0) : 0
   }
 
   const ambient: number[] = []            // °/h drift while duty=0
@@ -1478,7 +1492,7 @@ export async function learnFeedforwardDuty(
   }
 
   if (ambient.length < 2 || perPctResp.length < 2) {
-    return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+    return existing ? denorm(parseFloat(String(existing.learned_value)) || 0) : 0
   }
 
   const median = (arr: number[]) => {
@@ -1487,7 +1501,7 @@ export async function learnFeedforwardDuty(
   }
   const ambientGain = median(ambient)         // °/h
   const perPct = median(perPctResp)           // °/h per 1% duty
-  if (!(perPct > 0)) return existing ? parseFloat(String(existing.learned_value)) || 0 : 0
+  if (!(perPct > 0)) return existing ? denorm(parseFloat(String(existing.learned_value)) || 0) : 0
 
   // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
   // 0.7-faktor = konservativ marginal: hellre PI-lyft vid behov än feedforward
@@ -1496,13 +1510,14 @@ export async function learnFeedforwardDuty(
   requiredDuty = Math.max(0, Math.min(0.20, requiredDuty))     // safety-cap 20%
 
   const result = await updateLearnedParam(
-    supabase, controllerId, paramName, requiredDuty, 0.001, 0.30,
+    supabase, controllerId, paramName, norm(requiredDuty), 0.001, 0.30,
   )
   // Persistera även ambient_gain (°/h) separat så pre-cool kan dra av
   // naturlig drift från observerad rate (residual-rate-regulering).
   await updateLearnedParam(
     supabase, controllerId, `ambient_gain:${mode}`, ambientGain, 0.001, 5.0,
   ).catch(() => null)
-  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}%`)
-  return result.newValue || 0
+  const dtStr = useDeltaScaling ? ` ΔT=${(deltaT as number).toFixed(1)}°` : ''
+  console.log(`🔮 Feedforward duty ${controllerId} [${mode}]${dtStr}: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}% effective=${(denorm(result.newValue)*100).toFixed(1)}%`)
+  return denorm(result.newValue) || 0
 }
