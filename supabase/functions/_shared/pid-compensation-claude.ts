@@ -244,6 +244,7 @@ export async function calculateCompensatedTarget(
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
   glycolTemp?: number | null,
+  isActiveBrew: boolean = false,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'
