@@ -75,6 +75,9 @@ interface V5PidState {
   lastDutyPct?: number
   lastZeroDutyAt?: string     // min-off-skydd (kylning)
   lastMode?: 'heating' | 'cooling'
+  /** Rullande hold-fönster för direkt ssFloor-observation. Nollställs vid
+   *  mode-flip, för stort fel, eller efter uppdatering. Se observeHoldSsFloor. */
+  holdWindow?: { count: number; dutySum: number; mode: 'heating' | 'cooling'; firstTs: string }
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -95,7 +98,8 @@ const V5_STATE_SCHEMA = {
   lastDutyPct: 'number',
   lastZeroDutyAt: 'string',
   lastMode: 'mode',
-} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode' | 'history'>
+  holdWindow: 'holdWindow',
+} as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode' | 'history' | 'holdWindow'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
  *  field whose runtime type doesn't match the schema (defends against
@@ -115,6 +119,15 @@ function parseV5State(raw: unknown): V5PidState {
             !!e && typeof e === 'object' &&
             typeof (e as any).t === 'string' && typeof (e as any).v === 'number')
         if (arr.length > 0) out[key] = arr
+      }
+    } else if (kind === 'holdWindow') {
+      if (v && typeof v === 'object') {
+        const w = v as any
+        if (
+          typeof w.count === 'number' && typeof w.dutySum === 'number' &&
+          (w.mode === 'heating' || w.mode === 'cooling') &&
+          typeof w.firstTs === 'string'
+        ) out[key] = { count: w.count, dutySum: w.dutySum, mode: w.mode, firstTs: w.firstTs }
       }
     } else if (typeof v === kind) {
       out[key] = v
