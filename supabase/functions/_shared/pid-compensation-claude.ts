@@ -311,11 +311,22 @@ export async function calculateCompensatedTarget(
 
   console.log(`🎯 ${mode} ${controllerName}: err=${avgError.toFixed(2)}°(raw)/${filteredAvgError.toFixed(2)}°(ema), need=${need.toFixed(2)}°(raw)/${needSmoothed.toFixed(2)}°(ema, pTerm-input), ff=${(r.ff*100).toFixed(1)}%, P=${(r.p*100).toFixed(1)}%, D=${(r.d*100).toFixed(1)}%, trimI=${(r.trimI*100).toFixed(1)}%, gains=${gains.source}(Kp=${gains.Kp.toFixed(2)},Kd=${gains.Kd.toFixed(2)}), duty=${(dutyCycle*100).toFixed(0)}% [${constraints.join(',')}]`)
 
+  // ── Direkt ssFloor-observation vid stabilt hold ──
+  // När aktiv tank (brew status='Jäsning') sitter stilla vid target ÄR
+  // uttagen duty den sanna steady-state-dutyn. Muterar r.nextState.holdWindow
+  // så persistPidState nedan skriver ihop det med resten av state:t. En
+  // eventuell ff-write kedjas efter persist för att undvika race mot samma rad.
+  const holdCommit = updateHoldWindow(
+    mode, filteredAvgError, dutyCycle, r.nextState, isActiveBrew,
+  )
+
   const persistPromise = persistPidState(
     supabase, controllerId, deltaBucket, mode,
     r.p, r.trimI, filteredAvgError, dutyCycle, r.nextState,
     feedforwardDuty ?? 0,
-  )
+  ).then(() => holdCommit
+    ? commitHoldSsFloor(supabase, controllerId, mode, holdCommit, feedforwardDuty ?? 0, controllerName)
+    : undefined)
 
   return {
     ctrlTargetPid: Math.round(actualTarget * 10) / 10,
