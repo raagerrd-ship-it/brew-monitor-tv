@@ -892,3 +892,78 @@ export async function learnFeedforwardDuty(
   console.log(`🔮 Feedforward duty ${controllerId} [${mode}]${dtStr}: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}% effective=${(denorm(result.newValue)*100).toFixed(1)}%`)
   return denorm(result.newValue) || 0
 }
+
+// ============================================================
+// Direkt ssFloor-observation vid stabilt hold
+//
+// Kompletterar physics-baserade `learnFeedforwardDuty`. Vid |err| ≤ 0.15°C
+// i ≥3 påföljande cykler samma mode ÄR uttagen duty per definition
+// steady-state — ingen derivata behövs. Uppdaterar samma `feedforward_duty:
+// {mode}`-nyckel med försiktig alpha så den fysik-baserade EMA:n inte hoppar.
+// Aktiveras bara för aktiva tankar (brew status='Jäsning') — inaktiva/lagrade
+// tankar rör inte biasen.
+// ============================================================
+const HOLD_ERR_MAX = 0.15
+const HOLD_MIN_CYCLES = 3
+const HOLD_LEARN_ALPHA = 0.05
+const HOLD_MAX_STEP = 0.05
+
+/** Kör synkront på PID-state (ren mutation). Returnerar en "commit"-payload
+ *  om fönstret nådde N cykler och ska skrivas till fermentation_learnings,
+ *  annars null. Muterar `nextState.holdWindow` in-place. */
+function updateHoldWindow(
+  mode: 'heating' | 'cooling',
+  filteredAvgError: number,
+  dutyCycle: number,
+  nextState: V5PidState,
+  isActiveBrew: boolean,
+): { mode: 'heating' | 'cooling'; medDuty: number; count: number; err: number } | null {
+  if (!isActiveBrew) { nextState.holdWindow = undefined; return null }
+  if (!Number.isFinite(filteredAvgError) || Math.abs(filteredAvgError) > HOLD_ERR_MAX) {
+    nextState.holdWindow = undefined
+    return null
+  }
+  const prev = nextState.holdWindow
+  const modeMatches = prev && prev.mode === mode
+  const nowIso = new Date().toISOString()
+  const nextWindow = modeMatches
+    ? { count: prev!.count + 1, dutySum: prev!.dutySum + dutyCycle, mode, firstTs: prev!.firstTs }
+    : { count: 1, dutySum: dutyCycle, mode, firstTs: nowIso }
+
+  if (nextWindow.count >= HOLD_MIN_CYCLES) {
+    const medDuty = nextWindow.dutySum / nextWindow.count
+    nextState.holdWindow = undefined  // nollställ efter commit
+    return { mode, medDuty, count: nextWindow.count, err: filteredAvgError }
+  }
+  nextState.holdWindow = nextWindow
+  return null
+}
+
+/** Skriv observerad hold-duty till `feedforward_duty:{mode}` med
+ *  försiktig alpha så en enskild slump-observation inte flyttar EMA:n mer
+ *  än 5% av spannet. Körs i bakgrunden efter persistPidState så vi inte
+ *  race:ar samma rad. */
+async function commitHoldSsFloor(
+  supabase: any,
+  controllerId: string,
+  mode: 'heating' | 'cooling',
+  commit: { medDuty: number; count: number; err: number },
+  currentFf: number,
+  controllerName: string,
+): Promise<void> {
+  const paramName = `feedforward_duty:${mode}`
+  // Notera: här skrivs det RÅ observerade värdet (inte ΔT-normaliserat) —
+  // physics-learnern hanterar ΔT-normalisering själv. Vid nästa cykel läser
+  // physics-learnern det aktuella värdet och normaliserar i egen takt.
+  // För cooling under kraftigt avvikande ΔT (t.ex. glykol 5° vs referens 10°)
+  // kan detta introducera en liten skalfel — accepteras eftersom alpha=0.05
+  // och maxStep=0.05 gör felet mycket litet per commit.
+  const result = await updateLearnedParam(
+    supabase, controllerId, paramName, commit.medDuty, 0.001, 0.30, HOLD_LEARN_ALPHA, HOLD_MAX_STEP,
+  ).catch((err: unknown) => {
+    console.error(`hold-ssFloor commit failed for ${controllerId} [${mode}]:`, err)
+    return null
+  })
+  if (!result) return
+  console.log(`🔒 hold-ssFloor ${controllerName} [${mode}]: ${commit.count} cykler @ err=${commit.err.toFixed(2)}° medduty=${(commit.medDuty*100).toFixed(1)}% → ff ${(currentFf*100).toFixed(1)}%→${(result.newValue*100).toFixed(1)}%`)
+}
