@@ -616,8 +616,11 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     const isRampStep = rawStepTypeForHoldCheck === 'ramp' || rawStepTypeForHoldCheck === 'gradual_ramp'
     const isHoldStep = !isRampStep
     const ESCAPE_HOLD = 0.60
-    const NEUTRAL_BAND_HOT = isHoldStep ? ESCAPE_HOLD : 0.05
-    const NEUTRAL_BAND_COLD = isHoldStep ? ESCAPE_HOLD : 0.05
+    // Symmetrisk 0.6° neutralzon även under ramp — PID får fortfarande
+    // reglera duty inom aktivt läge, men mode-flip kräver >0.6° fel så
+    // små överskjutningar kring det rörliga målet inte triggar 🔥↔❄️-pingpong.
+    const NEUTRAL_BAND_HOT = ESCAPE_HOLD
+    const NEUTRAL_BAND_COLD = ESCAPE_HOLD
     let suggestedMode: 'heating' | 'cooling'
     if (actualTemp > actualTarget + NEUTRAL_BAND_HOT) {
       suggestedMode = 'cooling'
