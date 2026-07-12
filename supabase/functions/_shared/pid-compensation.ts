@@ -220,6 +220,10 @@ export async function calculateCompensatedTarget(
   coolingPwmWindowMin: number = 8,
   actualTempAgeMin?: number | null,
   glycolTemp?: number | null,
+  // Ignoreras av V5 — bara Claude-loopen konsumerar hold-observationer.
+  // Deklareras här för signatur-parity med Claude-varianten så call site
+  // kan skicka samma argumentlista oavsett pid_version.
+  _isActiveBrew?: boolean,
 ): Promise<{ ctrlTargetPid: number; dutyCycle?: number; pCorrection?: number; iCorrection?: number; learnedBaseline?: number; deltaBucket?: string; convergenceCount?: number; constraints?: string[]; persistPromise?: Promise<void>; coolingPwmWindowMin?: number }> {
   const constraints: string[] = []
   const deltaBucket = 'low'

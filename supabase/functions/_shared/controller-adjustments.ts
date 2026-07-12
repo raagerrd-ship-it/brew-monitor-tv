@@ -926,6 +926,10 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
 
     const pidVersion = (fc as any).pid_version === 'claude' ? 'claude' : 'v5'
     const pidFn = pidVersion === 'claude' ? calculateCompensatedTargetClaude : calculateCompensatedTarget
+    // Aktiv tank = controller har en pågående fermentation_session (brew i
+    // status 'Jäsning'). Endast aktiva tankar bidrar till hold-ssFloor så
+    // omtappade/lagrade tankar inte flyttar biasen.
+    const isActiveBrew = ctx.sessionBrewIdMap.has(fc.controller_id)
     const pidResult = await pidFn(
       supabase, fc.controller_id, pidEffectiveTarget, ctrlTarget,
       fc.name || fc.controller_id, pidMode, stepType,
@@ -934,6 +938,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       8,
       ssotAgeMin,
       ctx.glycolTemp ?? null,
+      isActiveBrew,
     )
 
     // ── Emergency: no-heat undershoot coast ──
