@@ -78,6 +78,12 @@ interface V5PidState {
   /** Rullande hold-fönster för direkt ssFloor-observation. Nollställs vid
    *  mode-flip, för stort fel, eller efter uppdatering. Se observeHoldSsFloor. */
   holdWindow?: { count: number; dutySum: number; mode: 'heating' | 'cooling'; firstTs: string }
+  /** Senaste cykelns fönstrade drift-hastighet i °C/timme (samma signal
+   *  D-termen använder). Persisteras som en delad kontraktspunkt så
+   *  mode-väljaren i controller-adjustments.ts kan läsa den från
+   *  föregående cykel utan att duplicera beräkningen. `null` = kunde inte
+   *  beräknas (kall start, för kort historik). */
+  windowedRateHourly?: number
 }
 
 // ── V5PidState schema ────────────────────────────────────────────────────
@@ -99,6 +105,7 @@ const V5_STATE_SCHEMA = {
   lastZeroDutyAt: 'string',
   lastMode: 'mode',
   holdWindow: 'holdWindow',
+  windowedRateHourly: 'number',
 } as const satisfies Record<keyof V5PidState, 'number' | 'string' | 'boolean' | 'mode' | 'history' | 'holdWindow'>
 
 /** Parse persisted sensor_anchor JSONB back into V5PidState, dropping any
@@ -154,9 +161,14 @@ const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu 
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
-const RATE_WINDOW_MIN = 20     // D-termens rate mäts över ~20min, inte enstaka cykel — matchar dödtiden, ignorerar PWM-dither-brus
-const RATE_WINDOW_LOW = 12, RATE_WINDOW_HIGH = 28
-const HISTORY_KEEP_MIN = 30    // hur länge ssotHistory-samples sparas
+// D-termens rate mäts över ~35min (bredare än probe-latensen ×2) så vi
+// alltid har minst två färska avläsningar från den långsammaste sensorn
+// (15-min-takt) oavsett var i cykeln vi råkar vara. Tidigare 20min-fönster
+// kunde falla tillbaka på cykel-raten när sensorn hackade — dålig
+// D-broms just efter en mode-flip var en direkt konsekvens.
+const RATE_WINDOW_MIN = 35
+const RATE_WINDOW_LOW = 25, RATE_WINDOW_HIGH = 45
+const HISTORY_KEEP_MIN = 60    // måste rymma RATE_WINDOW_HIGH + marginal för nästa cykel
 
 /** Persist PID state to controller_learned_compensation. */
 async function persistPidState(
@@ -263,7 +275,32 @@ export async function calculateCompensatedTarget(
 
   let persistedTrimI = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
   if (!Number.isFinite(persistedTrimI) || Math.abs(persistedTrimI) > TRIM_MAX) persistedTrimI = 0
-  const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
+  let prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
+
+  // ── Historik-seedning vid mode-flip ──
+  // State är keyat per (controller, mode), så en switch cooling→heating
+  // (eller vice versa) hämtar en syskon-rad som kan sakna ssotHistory helt.
+  // D-termen skulle då starta blank precis vid mode-flippen — där vi som
+  // mest behöver att den bromsar. Wortens temperaturhistorik är dock
+  // FYSISKT samma oavsett läge (samma probe, samma vätska), så seed:a
+  // ssotHistory från det gamla lägets rad. Endast historiken — inte trimI,
+  // inte lastMode, inte holdWindow — de nollställs som förut på flip.
+  if (modeJustSwitched && (!prevState.ssotHistory || prevState.ssotHistory.length === 0)) {
+    const otherMode = mode === 'cooling' ? 'heating' : 'cooling'
+    const { data: otherRow } = await supabase
+      .from('controller_learned_compensation')
+      .select('sensor_anchor')
+      .eq('controller_id', controllerId)
+      .eq('delta_bucket', deltaBucket)
+      .eq('mode', otherMode)
+      .eq('step_type', 'v6')
+      .maybeSingle()
+    const otherState = parseV5State(otherRow?.sensor_anchor)
+    if (otherState.ssotHistory && otherState.ssotHistory.length > 0) {
+      prevState = { ...prevState, ssotHistory: otherState.ssotHistory }
+      console.log(`🔁 mode-flip seed ${controllerName}: ${otherMode}→${mode}, seedade ${otherState.ssotHistory.length} history-samples`)
+    }
+  }
 
   // ΔT mellan aktuellt mål och glykol — driver kontinuerlig normalisering av
   // både feedforward_duty och process_gain. `null` = ingen glykol-data → fall
@@ -530,6 +567,11 @@ function computeDutyV5(input: {
     lastDutyPct: Math.round(duty * 100),
     lastZeroDutyAt,
     lastMode: input.mode,
+    // Delad kontraktspunkt: samma windowed rate D-termen använder,
+    // persisteras för att kunna läsas av mode-väljaren nästa cykel utan
+    // duplicerad beräkning. `undefined` när historiken är för kort så att
+    // nedströmskonsumenter kan skilja "vet inte" från "vet, och det är 0".
+    windowedRateHourly: windowedRatePerMin != null ? windowedRatePerMin * 60 : undefined,
   }
 
   return { duty, trimI, p: pTerm, d: dBrake, ff, constraints, nextState }
