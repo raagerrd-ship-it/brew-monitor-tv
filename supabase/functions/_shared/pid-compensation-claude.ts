@@ -542,6 +542,11 @@ function computeDutyV5(input: {
     lastDutyPct: Math.round(duty * 100),
     lastZeroDutyAt,
     lastMode: input.mode,
+    // Delad kontraktspunkt: samma windowed rate D-termen använder,
+    // persisteras för att kunna läsas av mode-väljaren nästa cykel utan
+    // duplicerad beräkning. `undefined` när historiken är för kort så att
+    // nedströmskonsumenter kan skilja "vet inte" från "vet, och det är 0".
+    windowedRateHourly: windowedRatePerMin != null ? windowedRatePerMin * 60 : undefined,
   }
 
   return { duty, trimI, p: pTerm, d: dBrake, ff, constraints, nextState }
