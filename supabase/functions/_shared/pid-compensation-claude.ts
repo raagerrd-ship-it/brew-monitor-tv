@@ -275,7 +275,32 @@ export async function calculateCompensatedTarget(
 
   let persistedTrimI = learnedRow ? parseFloat(String(learnedRow.accumulated_integral)) : 0
   if (!Number.isFinite(persistedTrimI) || Math.abs(persistedTrimI) > TRIM_MAX) persistedTrimI = 0
-  const prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
+  let prevState: V5PidState = parseV5State(learnedRow?.sensor_anchor)
+
+  // ── Historik-seedning vid mode-flip ──
+  // State är keyat per (controller, mode), så en switch cooling→heating
+  // (eller vice versa) hämtar en syskon-rad som kan sakna ssotHistory helt.
+  // D-termen skulle då starta blank precis vid mode-flippen — där vi som
+  // mest behöver att den bromsar. Wortens temperaturhistorik är dock
+  // FYSISKT samma oavsett läge (samma probe, samma vätska), så seed:a
+  // ssotHistory från det gamla lägets rad. Endast historiken — inte trimI,
+  // inte lastMode, inte holdWindow — de nollställs som förut på flip.
+  if (modeJustSwitched && (!prevState.ssotHistory || prevState.ssotHistory.length === 0)) {
+    const otherMode = mode === 'cooling' ? 'heating' : 'cooling'
+    const { data: otherRow } = await supabase
+      .from('controller_learned_compensation')
+      .select('sensor_anchor')
+      .eq('controller_id', controllerId)
+      .eq('delta_bucket', deltaBucket)
+      .eq('mode', otherMode)
+      .eq('step_type', 'v6')
+      .maybeSingle()
+    const otherState = parseV5State(otherRow?.sensor_anchor)
+    if (otherState.ssotHistory && otherState.ssotHistory.length > 0) {
+      prevState = { ...prevState, ssotHistory: otherState.ssotHistory }
+      console.log(`🔁 mode-flip seed ${controllerName}: ${otherMode}→${mode}, seedade ${otherState.ssotHistory.length} history-samples`)
+    }
+  }
 
   // ΔT mellan aktuellt mål och glykol — driver kontinuerlig normalisering av
   // både feedforward_duty och process_gain. `null` = ingen glykol-data → fall
