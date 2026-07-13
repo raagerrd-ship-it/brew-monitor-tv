@@ -1,58 +1,92 @@
-## Problem
+# Steg 1+2+3: pid_mode-kolumn + reset av alla tre controllers (Green, Gul, Blå)
 
-Green pendlar mellan cool→heat idag. Rot-orsak:
-- `feedforward_duty:heating` = 11% (senast uppdaterad 2026-07-08, 4 dagar gammal)
-- `feedforward_duty:cooling` = 1.6% (senast uppdaterad 2026-07-09)
+Kör som en sammanhängande sekvens. Inga övriga ändringar (mode-switch, trimI-tak, PID-formel, D-fönster, seed-logik, hold-observer förblir orörda). Step 4 (0.35°/0.20°C/h early switching) är oberoende och ingår inte här.
 
-Befintlig `learnFeedforwardDuty` räknar physics-baserat (ambient-drift ÷ per-pct-respons) från senaste 6h historik. Kräver `n_amb ≥ 4` OCH `n_resp ≥ 4` distinkta perioder — dvs både renodlade duty=0-perioder OCH renodlade duty>2%-perioder med tydlig temperaturderivata. Under pendel-läge blandas dessa: temp oscillerar runt målet, duty hoppar mellan 0 och 30%, ingendera fasen håller sig länge nog med tydlig derivata. Learner faller ner i `fallback(existing)` och stale-värdet lever kvar. Med fel bias-duty kompenserar trimI + P för mycket → överskjutning → mode-flip.
+## Operativ sekvensering (explicit)
 
-## Lösning
+1. **Migration deployas först** — kolumnen `pid_mode` måste existera i DB innan någon kod som skriver eller läser den körs.
+2. **Kod-deploy efter migrationen är landad** — controller-adjustments.ts (skriv) + pid-compensation-claude.ts (läs).
+3. Steg 2-verifiering väntar minst en PID-cykel efter kod-deploy.
+4. Steg 3 (reset) körs endast efter att Steg 2 verifierat OK.
 
-Lägg till en **direkt hold-observation** som körs varje PID-cykel parallellt med den fysik-baserade learner:n. När wort är stabilt vid target är det ju precis då den utkommenderade duty ÄR den sanna ssFloor — det behövs ingen derivataberäkning.
+## Steg 1 — `pid_mode`-kolumn
 
-Kriterier för giltig hold-observation:
-1. Controller tillhör en brygga med `status = 'jäser'` (aktiv tank)
-2. `|actualTarget - actualTemp| ≤ 0.15°C` i minst 3 påföljande PID-cykler (~15 min)
-3. Samma `mode` genom hela fönstret (ingen flip)
-4. Ingen PWM-burst eller manuell override under fönstret
+**Migration (deployas först, ensam):** Lägg till `pid_mode text` (nullable) på `temp_controller_history`. NULL = "pre-fix legacy". `cooling_enabled` behålls oförändrat, ingen backfill, inga index.
 
-När kriterierna är uppfyllda: EMA-blend medianduty från fönstret in i `feedforward_duty:{mode}` med alpha=0.05 och maxStepFraction=0.05 (försiktigare än physics-learner så en enskild slump-observation inte kan flytta värdet mer än 5% av spannet).
+**Kod (deployas efter att migrationen är landad):**
 
-Detta ger `learnFeedforwardDuty` en andra datakälla som fungerar när fysikmätningarna inte konvergerar, och gäller specifikt för aktiva tankar (jäser-status) — inaktiva/lagrade tankar rör inte biasen.
+- `supabase/functions/_shared/controller-adjustments.ts` — skriv `pid_mode: 'heating' | 'cooling'` i PID-loopens history-insert, härlett från vilket läge PID faktiskt kör i just den cykeln (inte från `cooling_enabled`).
+- `supabase/functions/_shared/pid-compensation-claude.ts` → `learnFeedforwardDuty` — byt filter från `cooling_enabled !== wantCoolingEnabled` till `pid_mode !== mode`. Rader med `pid_mode = NULL` (pre-fix) exkluderas automatiskt av `!==`-jämförelsen mot en icke-null-sträng — önskat beteende, ingen explicit IS NOT NULL behövs.
 
-## Teknisk implementation
+## Steg 2 — Pre-reset verifiering
 
-**Ny tabell:** ingen. Fönstret hålls i `sensor_anchor` JSONB (samma rad som PID-state redan lagras i `controller_learned_compensation`).
+Efter kod-deploy, vänta minst en PID-cykel, kör:
 
-**Filer:**
+```sql
+SELECT recorded_at, controller_id, pid_mode, cooling_enabled, duty_pct
+FROM temp_controller_history
+WHERE recorded_at >= now() - interval '30 minutes'
+ORDER BY recorded_at DESC LIMIT 20;
+```
 
-1. `supabase/functions/_shared/pid-compensation-claude.ts`
-   - Utöka `V5PidState`-typen med `holdWindow: { count: number, dutySum: number, mode: string, startedAt: string } | null`.
-   - Ny funktion `observeHoldSsFloor(supabase, controllerId, mode, actualTarget, actualTemp, dutyCycle, prevState, activeBrewStatus) → { nextHoldWindow, didUpdate }`:
-     - Om `|err| > 0.15` eller mode-flip eller inte "jäser" → nollställ fönster, return.
-     - Annars öka `count`, addera duty. Vid `count >= 3` → beräkna median (använd running mean-approx: `sum/count`), anropa `updateLearnedParam` med `alpha=0.05, maxStepFraction=0.05`, nollställ fönstret, logga.
-   - Anropa i `calculateCompensatedTargetV5` efter `computeDutyV5` men innan `persistPidState`. Pass through `activeBrewStatus` som ny parameter.
+Bekräfta att nya rader har `pid_mode` satt (`'heating'` eller `'cooling'`, inte NULL). **Om NULL → stoppa, gå inte vidare till Steg 3.** Koden når inte insert-vägen som förväntat, undersök innan reset.
 
-2. `supabase/functions/_shared/controller-adjustments.ts` (call site)
-   - Hämta redan-läst brew-status för denna controller (finns i orchestrator-payload). Skicka in som ny parameter till `calculateCompensatedTargetV5`.
+## Steg 3 — Reset av Green, Gul, Blå
 
-**Beteende:**
-- Aktiv tank i hold vid target → ssFloor konvergerar löpande mot faktisk hold-duty.
-- Aktiv tank i ramp/pendel → hold-observationen står stilla, physics-learner kör som förr.
-- Inaktiv tank (omtappad/lagras) → observationen skippas, biasen fryses.
+Endast efter att Steg 2 verifierat OK.
 
-**Loggning:**
-`🔒 hold-ssFloor Green [heating]: 3 cykler @ err=0.08° medduty=18.7% → ff 11.0%→11.4%`
+**Controllers:**
+- Green: `6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d`
+- Gul: `618b29b0-fa02-4f27-a8f1-a215f44235b3`
+- Blå: `ffa62be4-d6f7-4533-83b4-57ad93c3ac01`
+
+**SQL:**
+
+```sql
+DELETE FROM fermentation_learnings
+WHERE controller_id IN (
+  '6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d',
+  '618b29b0-fa02-4f27-a8f1-a215f44235b3',
+  'ffa62be4-d6f7-4533-83b4-57ad93c3ac01'
+);
+
+UPDATE controller_learned_compensation
+SET
+  <alla numeriska fält> = 0,
+  sensor_anchor = '{}'::jsonb,
+  updated_at = now()
+WHERE controller_id IN (
+  '6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d',
+  '618b29b0-fa02-4f27-a8f1-a215f44235b3',
+  'ffa62be4-d6f7-4533-83b4-57ad93c3ac01'
+);
+```
+
+Exakt kolumnlista bekräftas mot schemat innan körning. `process_gain:*` och `cool_response:*` sitter som fermentation_learnings-rader under andra `parameter_name`-nycklar och deletas automatiskt av DELETE ovan — inga separata åtgärder behövs.
+
+## Förväntat beteende efter reset (Green, aktiv)
+
+- **ff = 5.0%** första loggraden (FEEDFORWARD_DEFAULT via fallback(null), verifierat i tre av tre kodpaths).
+- **1%-risk:** om första Supabase-queryn timeoutar → `catch(() => 0)` ger 0% en cykel, sedan 5% nästa. Självläkande.
+- **trimI = 0** initialt, kan bidra upp till +10% via cykler.
+- **D-term inaktiv ~35 min** medan ssotHistory byggs upp till RATE_WINDOW_LOW=25 min.
+- **Duty domineras av P·need** första 1–2h.
+- **Physics-learner** behöver `n_amb ≥ 4` OCH `n_resp ≥ 4` i rätt läge (nu korrekt attribuerat).
+- **Första `🔒 hold-ssFloor` skriver real ff** ~1h efter reset.
+
+## Disciplincheck efter körning
+
+Första logg-raden för Green: bekräfta `ff=5.0%` (inte `0.0%`). Om 0% → catch()-fallet inträffade, förvänta 5% nästa cykel. Om 0% kvarstår >2 cykler → verklig bugg, undersök.
 
 ## Verifiering
 
-1. Enhetscheck: `observeHoldSsFloor` med syntetisk fönster-input returnerar korrekt medelvärde och nollställer efter uppdatering.
-2. Efter deploy: kolla att `fermentation_learnings.last_updated_at` för `feedforward_duty:heating` på Green uppdateras inom en hold-period (senast nästa gång Green sitter still vid target 15 min i sträck).
-3. Följ auto_cooling_decision_logs över kommande 12h — förvänta färre mode-flips och mindre trimI-amplitud när ff närmar sig faktiskt hold-behov.
+```sql
+SELECT controller_id, COUNT(*) FROM fermentation_learnings
+WHERE controller_id IN (<tre ovan>) GROUP BY 1;
+-- förväntat: 0 rader
 
-## Icke-mål
-
-- Ingen ändring av physics-learner (`learnFeedforwardDuty`) — den fortsätter köra i parallell.
-- Ingen ändring av mode-switch-logik eller trimI-taken.
-- Ingen ändring för Skogens Sus (V5-PID) — patchen gäller Claude-loopen.
-- Ingen migration behövs; `sensor_anchor.holdWindow` är bara ett nytt fält i befintlig JSONB.
+SELECT controller_id, sensor_anchor, updated_at, <numeriska fält>
+FROM controller_learned_compensation
+WHERE controller_id IN (<tre ovan>);
+-- förväntat: alla numeriska = 0, sensor_anchor = '{}', updated_at färskt
+```

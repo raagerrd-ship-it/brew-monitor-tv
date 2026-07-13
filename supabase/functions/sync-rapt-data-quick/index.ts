@@ -1395,24 +1395,36 @@ Deno.serve(async (req) => {
           .in('controller_id', recordIds),
         supabase
           .from('fermentation_learnings')
-          .select('controller_id, learned_value, last_updated_at')
-          .eq('parameter_name', 'pid_last_duty')
+          .select('controller_id, parameter_name, learned_value, last_updated_at')
+          .in('parameter_name', ['pid_last_duty', 'pid_current_mode'])
           .in('controller_id', recordIds),
       ]);
       const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
       // Stale guard: treat duty older than 15 min as 0 (controller inactive)
       const DUTY_STALE_MS = 15 * 60 * 1000;
       const nowMs = Date.now();
-      const dutyMap = new Map((dutyRows || []).map((d: any) => {
+      const dutyMap = new Map<string, number>();
+      const modeMap = new Map<string, 'heating' | 'cooling'>();
+      for (const d of (dutyRows || []) as any[]) {
         const ageMs = d.last_updated_at ? nowMs - new Date(d.last_updated_at).getTime() : Infinity;
-        const val = ageMs > DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value));
-        return [d.controller_id, val];
-      }));
+        if (d.parameter_name === 'pid_last_duty') {
+          const val = ageMs > DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value));
+          dutyMap.set(d.controller_id, val);
+        } else if (d.parameter_name === 'pid_current_mode') {
+          // Only trust mode if fresh (same stale window as duty)
+          if (ageMs <= DUTY_STALE_MS) {
+            const v = parseFloat(String(d.learned_value));
+            if (v === 1) modeMap.set(d.controller_id, 'heating');
+            else if (v === 2) modeMap.set(d.controller_id, 'cooling');
+          }
+        }
+      }
 
       // Insert temp history + delta history in parallel
       const historyRecords = controllersToRecord.map(c => {
         const post = postAutoMap.get(c.controller_id);
         const dutyPct = dutyMap.get(c.controller_id);
+        const pidMode = modeMap.get(c.controller_id) ?? null;
         return {
           controller_id: c.controller_id,
           current_temp: c.actual_temp ?? c.current_temp ?? c.pill_temp,
@@ -1421,6 +1433,7 @@ Deno.serve(async (req) => {
           profile_target_temp: post?.profile_target_temp ?? c.target_temp,
           duty_pct: dutyPct != null && Number.isFinite(dutyPct) ? dutyPct : null,
           actual_temp: c.actual_temp ?? null,
+          pid_mode: pidMode,
         };
       });
 

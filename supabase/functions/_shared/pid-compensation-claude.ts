@@ -843,7 +843,7 @@ export async function learnFeedforwardDuty(
   const sixHoursAgo = new Date(Date.now() - 6 * 3_600_000).toISOString()
   const { data: history } = await supabase
     .from('temp_controller_history')
-    .select('actual_temp, duty_pct, recorded_at, cooling_enabled')
+    .select('actual_temp, duty_pct, recorded_at, pid_mode')
     .eq('controller_id', controllerId)
     .gte('recorded_at', sixHoursAgo)
     .order('recorded_at', { ascending: true })
@@ -857,17 +857,15 @@ export async function learnFeedforwardDuty(
   const perPctResp: number[] = []         // °/h per 1% duty while duty>0
 
   // Läges-filter: en rad räknas bara som prov för `mode` om BÅDA raderna i
-  // paret hade det aktiva läget (cooling_enabled=true för cooling, false för
-  // heating). Utan detta filter förorenar rader från motsatt läge — som
-  // ofrånkomligen finns inom 6h-fönstret för controllers som växlar läge —
-  // både ambient_gain och perPctResp. Bugfix, ingen ny mekanism.
-  const wantCoolingEnabled = mode === 'cooling'
+  // paret har `pid_mode === mode`. Rader från pre-fix-perioden har pid_mode
+  // = NULL och exkluderas automatiskt av !==-jämförelsen mot en icke-null-
+  // sträng — önskat beteende (ren attribuering framåt, ingen backfill).
   for (let i = 1; i < history.length; i++) {
     const p = history[i - 1] as any
     const c = history[i] as any
-    // Bara par där båda raderna matchar det efterfrågade läget
-    if (p.cooling_enabled !== wantCoolingEnabled) continue
-    if (c.cooling_enabled !== wantCoolingEnabled) continue
+    // Bara par där båda raderna kördes i det efterfrågade PID-läget
+    if (p.pid_mode !== mode) continue
+    if (c.pid_mode !== mode) continue
     const pt = parseFloat(String(p.actual_temp))
     const ct = parseFloat(String(c.actual_temp))
     if (!Number.isFinite(pt) || !Number.isFinite(ct)) continue
