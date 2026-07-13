@@ -1,6 +1,18 @@
 import { getTempBucket, updateLearnedParam } from './learning-utils.ts'
 
 // ============================================================
+// ⚠️  DO NOT MODIFY THIS FILE ⚠️
+//
+// This is the LEGACY V5 PID implementation. The active PID for all
+// current controllers (Mjöd/Green, Skogens Sus/Blå) is the Claude/V6
+// loop in `pid-compensation-claude.ts` — modify that file instead.
+//
+// Only touch this file if the user EXPLICITLY says "v5" / "gamla PID:n"
+// / "pid-compensation.ts". Otherwise all PID tuning, learning fixes,
+// hysteresis changes, feedforward logic etc. go into the -claude file.
+// ============================================================
+
+// ============================================================
 // PID Control & Thermal Learning (V5: SSOT-only)
 //
 // Designprinciper (dödtidsdominerad process: ~15 min probe-latens, 60L massa):
