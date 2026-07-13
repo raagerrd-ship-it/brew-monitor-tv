@@ -1784,6 +1784,7 @@ export type Database = {
           current_temp: number
           duty_pct: number | null
           id: string
+          pid_mode: string | null
           profile_target_temp: number | null
           recorded_at: string
           target_temp: number
@@ -1796,6 +1797,7 @@ export type Database = {
           current_temp: number
           duty_pct?: number | null
           id?: string
+          pid_mode?: string | null
           profile_target_temp?: number | null
           recorded_at?: string
           target_temp: number
@@ -1808,6 +1810,7 @@ export type Database = {
           current_temp?: number
           duty_pct?: number | null
           id?: string
+          pid_mode?: string | null
           profile_target_temp?: number | null
           recorded_at?: string
           target_temp?: number

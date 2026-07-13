@@ -1,0 +1,1 @@
+ALTER TABLE public.temp_controller_history ADD COLUMN IF NOT EXISTS pid_mode text;
