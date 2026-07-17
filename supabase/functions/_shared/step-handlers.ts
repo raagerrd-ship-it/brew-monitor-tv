@@ -107,25 +107,52 @@ export function isGravityStable(sgData: SgDataPoint[], stableDays: number, thres
   if (!sgData || sgData.length < 2) return false
 
   const sortedData = sortSgDataDesc(sgData)
+  const now = Date.now()
+  const windowMs = stableDays * 24 * 60 * 60 * 1000
 
-  const currentSg = sortedData[0].value
-  let stableFromDate = new Date(sortedData[0].date)
+  // 1) All readings within the stability window
+  const windowReadings = sortedData.filter(
+    (r) => now - new Date(r.date).getTime() <= windowMs,
+  )
 
-  for (let i = 1; i < sortedData.length; i++) {
-    const reading = sortedData[i]
-    if (reading.value > currentSg + threshold) {
-      break
-    }
-    stableFromDate = new Date(reading.date)
+  // Need enough coverage: at least 4 samples/day and the oldest sample must be old enough
+  const minSamples = Math.max(8, stableDays * 4)
+  if (windowReadings.length < minSamples) {
+    console.log(`Gravity stability: only ${windowReadings.length} samples in ${stableDays}d window (need ≥${minSamples})`)
+    return false
+  }
+  const oldestAgeHours = (now - new Date(windowReadings[windowReadings.length - 1].date).getTime()) / 3_600_000
+  if (oldestAgeHours < stableDays * 24 * 0.9) {
+    console.log(`Gravity stability: window only covers ${oldestAgeHours.toFixed(1)}h (need ~${stableDays * 24}h)`)
+    return false
   }
 
-  const now = new Date()
-  const stableHours = (now.getTime() - stableFromDate.getTime()) / (1000 * 60 * 60)
-  const stableDaysActual = stableHours / 24
+  // 2) Bidirectional check — max spread across full window
+  const values = windowReadings.map((r) => r.value)
+  const maxV = Math.max(...values)
+  const minV = Math.min(...values)
+  const spread = maxV - minV
 
-  console.log(`Gravity stability: current SG ${currentSg.toFixed(4)}, stable since ${stableFromDate.toISOString()}, ${stableDaysActual.toFixed(2)} days (need ${stableDays} days)`)
+  // 3) Reference = median of last ~2h (noise-robust) vs median of oldest ~2h in window
+  const recentCutoff = now - 2 * 60 * 60 * 1000
+  const recent = windowReadings.filter((r) => new Date(r.date).getTime() >= recentCutoff).map((r) => r.value)
+  const oldCutoff = now - windowMs + 2 * 60 * 60 * 1000
+  const old = windowReadings.filter((r) => new Date(r.date).getTime() <= oldCutoff).map((r) => r.value)
+  const median = (arr: number[]) => {
+    if (arr.length === 0) return NaN
+    const s = [...arr].sort((a, b) => a - b)
+    const m = Math.floor(s.length / 2)
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+  }
+  const recentMedian = median(recent.length ? recent : values.slice(0, Math.min(6, values.length)))
+  const oldMedian = median(old.length ? old : values.slice(-Math.min(6, values.length)))
+  const medianDelta = Math.abs(recentMedian - oldMedian)
 
-  return stableDaysActual >= stableDays
+  const stable = spread <= threshold && medianDelta <= threshold
+  console.log(
+    `Gravity stability: window=${stableDays}d samples=${windowReadings.length} spread=${spread.toFixed(4)} medianΔ=${medianDelta.toFixed(4)} (threshold=${threshold}) → ${stable ? 'STABLE' : 'not stable'} [recent=${recentMedian.toFixed(4)}, old=${oldMedian.toFixed(4)}]`,
+  )
+  return stable
 }
 
 export function isSgConditionMet(sgData: SgDataPoint[], targetSg: number, comparison: string): boolean {
