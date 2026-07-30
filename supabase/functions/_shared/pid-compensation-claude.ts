@@ -158,6 +158,12 @@ const DEAD_TIME_HOURS = 0.25   // ~15min probe-latens — τc för lambda-tuning
 const TRIM_MAX = 0.10          // trimI clamp — small, bias-correction only
 const D_MAX = 0.35             // cap on D-brake so a fast approach can't zero duty outright
 const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu universellt (se computeDutyV5)
+// Nära mål behöver duty inte röra sig fort — där är felet redan inom
+// mätbruset och en snabb duty-ramp (5%/cykel × 5min = 60%/h) hinner
+// bygga upp mer kyla/värme än probe-latensen visar → limit-cykel.
+// Halverad takt innanför NEAR_TARGET_BAND dämpar just den svängningen.
+const NEAR_TARGET_BAND = 0.30  // |need| under detta = "vid mål"
+const SLEW_NEAR_TARGET = 0.02  // max ±2 procentenheter duty/cykel vid mål
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
@@ -532,14 +538,15 @@ function computeDutyV5(input: {
   // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
   // utan specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+  const slewLimit = Math.abs(need) <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
   const slewBypass = input.modeJustSwitched
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
-    if (Math.abs(delta) > SLEW_PER_CYCLE) {
-      duty = Math.max(0, Math.min(1, lastDutyFrac + Math.sign(delta) * SLEW_PER_CYCLE))
+    if (Math.abs(delta) > slewLimit) {
+      duty = Math.max(0, Math.min(1, lastDutyFrac + Math.sign(delta) * slewLimit))
       slewLimited = true
-      constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→${(Math.sign(delta)*SLEW_PER_CYCLE*100).toFixed(0)}%)`)
+      constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→${(Math.sign(delta)*slewLimit*100).toFixed(0)}%)`)
     }
   }
 
