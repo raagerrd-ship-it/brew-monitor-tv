@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_temp_controllers ADD COLUMN IF NOT EXISTS pill_probe_drift_streak integer NOT NULL DEFAULT 0;
