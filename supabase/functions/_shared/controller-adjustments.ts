@@ -304,6 +304,9 @@ async function executePwmDutyCycle(
           target_temp: revertTarget,
           reason: `⚡ PWM OFF: hw → ${revertTarget}° (${burstSeconds}s burst, ${dutyPct}% duty, ${mode})`,
           execute_at: executeAt,
+          // Glykoltemp vid burst-start → mid-burst-vakten i auto-adjust-cooling
+          // kan korta bursten om kylaren blir kallare medan den pågår.
+          glycol_temp_at_start: mode === 'cooling' ? (ctx.glycolTemp ?? null) : null,
         })),
       // Reset P-term during burst (probe changes artificially from extreme target)
       supabase.from('controller_learned_compensation')
