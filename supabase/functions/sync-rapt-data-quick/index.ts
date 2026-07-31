@@ -341,6 +341,26 @@ Deno.serve(async (req) => {
 
         const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
         const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
+
+        // Drift-sampling gate: only measure pill−probe offset when the controller is
+        // truly idle (duty 0%) and no PWM OFF-revert is pending.
+        const selIds = selectedControllersData.map((c: any) => c.id);
+        const [{ data: driftDutyRows }, { data: pendingOffRows }] = await Promise.all([
+          supabase.from('fermentation_learnings')
+            .select('controller_id, learned_value, last_updated_at')
+            .eq('parameter_name', 'pid_last_duty')
+            .in('controller_id', selIds),
+          supabase.from('pending_rapt_retries').select('controller_id').in('controller_id', selIds),
+        ]);
+        const DRIFT_DUTY_STALE_MS = 15 * 60 * 1000;
+        const driftNow = Date.now();
+        const driftDutyMap = new Map<string, number>();
+        for (const d of (driftDutyRows || []) as any[]) {
+          const ageMs = d.last_updated_at ? driftNow - new Date(d.last_updated_at).getTime() : Infinity;
+          driftDutyMap.set(d.controller_id, ageMs > DRIFT_DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value)));
+        }
+        const pendingOffSet = new Set((pendingOffRows || []).map((r: any) => r.controller_id));
+
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
         const driftAlerts: { controllerId: string; controllerName: string; offset: number; baseline: number }[] = [];
