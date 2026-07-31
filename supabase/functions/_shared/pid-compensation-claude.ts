@@ -546,6 +546,21 @@ function computeDutyV5(input: {
   const rawDuty = ff + trimI + pTerm - dBrake
   let duty = Math.max(0, Math.min(1, rawDuty))
 
+  // ── Anti-windup vid mättnad (back-calculation): när duty klampas (typiskt
+  // mot 0) får trimI inte behålla den del av sig själv som aldrig levererades
+  // till aktuatorn. Utan detta kunde ett gammalt negativt trimI (från en
+  // tidigare överkylning) äta upp hela P-termen i timmar → duty låst på 0%
+  // medan temperaturen sakta drev uppåt. Ki·need (0.06·0.15 ≈ 0.9%/h) tog
+  // ~18h att beta av. Korrigeringen tar bort exakt överskottet direkt. ──
+  const satCorrection = duty - rawDuty
+  let persistedBase = input.persistedTrimI
+  if (satCorrection !== 0 && !isStaleSsot) {
+    const clampTrim = (v: number) => Math.max(-TRIM_MAX, Math.min(TRIM_MAX, v))
+    trimI = clampTrim(trimI + satCorrection)
+    persistedBase = clampTrim(persistedBase + satCorrection)
+    constraints.push(`trim-desat(${(satCorrection*100).toFixed(1)}%)`)
+  }
+
   // ── Extern säkerhet: kompressor/glykol-mättnad ──
   if (isCooling && input.coolingUtilization != null && input.coolingUtilization >= 0.90) {
     duty = Math.min(duty, ff + 0.10)
@@ -597,7 +612,7 @@ function computeDutyV5(input: {
   // trimI till förra cykelns värde — annars fortsätter den växa mot ett svar
   // som ännu inte landat. ──
   if (slewLimited || minOffBlocked) {
-    trimI = input.persistedTrimI
+    trimI = persistedBase
     constraints.push('trim-freeze-clamped')
   }
 
