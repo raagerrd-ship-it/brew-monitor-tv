@@ -164,6 +164,10 @@ const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu 
 // Halverad takt innanför NEAR_TARGET_BAND dämpar just den svängningen.
 const NEAR_TARGET_BAND = 0.30  // |need| under detta = "vid mål"
 const SLEW_NEAR_TARGET = 0.02  // max ±2 procentenheter duty/cykel vid mål
+// Innanför mätbruset (±0.1°) ska duty i praktiken stå still. Där är det bara
+// D-bromsens av/på-slag (0 ↔ D_MAX ≈ 10%) som driver limit-cykeln 3%↔12%.
+const NOISE_BAND = 0.10        // |need| under detta = ren sensorbrus-zon
+const SLEW_NOISE_BAND = 0.01   // max ±1 procentenhet duty/cykel i brus-zonen
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
