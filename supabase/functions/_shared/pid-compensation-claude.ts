@@ -344,7 +344,7 @@ export async function calculateCompensatedTarget(
   const deltaT = mode === 'cooling' ? computeDeltaT(actualTarget, glycolTemp) : null
 
   // The learned steady-state duty — this is the primary signal now, not a floor.
-  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaT).catch(() => 0)
+  const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaT, actualTarget).catch(() => 0)
   // (learnFeedforwardDuty normaliserar varje historik-sample mot sin EGEN
   //  ΔT — se per-sample-lookupen där. `deltaT` här används bara vid läsning.)
 
@@ -852,6 +852,7 @@ export async function learnFeedforwardDuty(
   controllerId: string,
   mode: 'heating' | 'cooling',
   deltaT?: number | null,
+  actualTarget?: number | null,
 ): Promise<number> {
   const paramName = `feedforward_duty:${mode}`
   // ΔT-skalning: lagrat ff normaliseras mot DELTA_T_REF (större ΔT → mindre
@@ -901,6 +902,46 @@ export async function learnFeedforwardDuty(
     return fallback(existing)
   }
 
+  // ── Per-sample ΔT (glykol varierar INOM lärfönstret) ──
+  // Glykolkylaren loggar sina egna rader i temp_controller_history, så vi kan
+  // slå upp glykoltemp vid varje sample-tidpunkt. Att normalisera medianen
+  // efteråt mot en enda "nu"-ΔT är fel när kylaren svängt flera grader under
+  // fönstret — då skalas varje mätning med fel faktor.
+  let glycolSeries: { t: number; temp: number }[] = []
+  if (useDeltaScaling) {
+    const { data: coolerRow } = await supabase
+      .from('rapt_temp_controllers')
+      .select('controller_id')
+      .eq('is_glycol_cooler', true)
+      .limit(1)
+      .maybeSingle()
+    if (coolerRow?.controller_id) {
+      const { data: coolerHist } = await supabase
+        .from('temp_controller_history')
+        .select('actual_temp, recorded_at')
+        .eq('controller_id', coolerRow.controller_id)
+        .gte('recorded_at', sixHoursAgo)
+        .order('recorded_at', { ascending: true })
+        .limit(300)
+      glycolSeries = ((coolerHist ?? []) as any[])
+        .map(r => ({ t: new Date(r.recorded_at).getTime(), temp: parseFloat(String(r.actual_temp)) }))
+        .filter(r => Number.isFinite(r.temp))
+    }
+  }
+  const GLYCOL_MAX_AGE_MS = 10 * 60_000
+  const targetForDelta = Number.isFinite(actualTarget as number) ? (actualTarget as number) : null
+  /** ΔT vid en given tidpunkt, eller null om ingen glykolmätning nära nog. */
+  const deltaTAt = (ts: number): number | null => {
+    if (!useDeltaScaling || targetForDelta == null || glycolSeries.length === 0) return null
+    let best: { t: number; temp: number } | null = null
+    for (const g of glycolSeries) {
+      if (best == null || Math.abs(g.t - ts) < Math.abs(best.t - ts)) best = g
+    }
+    if (!best || Math.abs(best.t - ts) > GLYCOL_MAX_AGE_MS) return null
+    return Math.max(DELTA_T_MIN, targetForDelta - best.temp)
+  }
+  const sampleDeltas: number[] = []
+
   const ambient: number[] = []            // °/h drift while duty=0
   const perPctResp: number[] = []         // °/h per 1% duty while duty>0
 
@@ -924,7 +965,13 @@ export async function learnFeedforwardDuty(
 
     if (mode === 'cooling') {
       if (duty <= 0.5 && rate > 0.02) ambient.push(rate)
-      if (duty >= 2 && rate < -0.02) perPctResp.push(-rate / duty)     // °/h per 1%
+      if (duty >= 2 && rate < -0.02) {
+        // Normalisera DENNA mätning mot ΔT_ref med ΔT som rådde just då.
+        // Saknas glykoldata nära i tid → falla tillbaka på cykelns ΔT.
+        const dtSample = deltaTAt(new Date(c.recorded_at).getTime()) ?? (deltaT as number)
+        sampleDeltas.push(dtSample)
+        perPctResp.push((-rate / duty) * (DELTA_T_REF / dtSample))     // °/h per 1%, ΔT_ref-ram
+      }
     } else {
       if (duty <= 0.5 && rate < -0.02) ambient.push(-rate)
       if (duty >= 2 && rate > 0.02) perPctResp.push(rate / duty)
@@ -945,8 +992,8 @@ export async function learnFeedforwardDuty(
     const s = [...arr].sort((a, b) => a - b)
     return s[Math.floor(s.length / 2)]
   }
-  const ambientGain = median(ambient)         // °/h
-  const perPct = median(perPctResp)           // °/h per 1% duty
+  const ambientGain = median(ambient)         // °/h (glykol-oberoende)
+  const perPct = median(perPctResp)           // °/h per 1% duty — REDAN ΔT_ref-normaliserad (cooling)
   if (!(perPct > 0)) return fallback(existing)
 
   // required duty (fraction) = (°/h ambient) / (°/h per 1% * 100)
@@ -968,10 +1015,10 @@ export async function learnFeedforwardDuty(
   // se learning-utils.ts. Utan detta kan en enda avvikande mätning fortfarande
   // flytta värdet upp till alpha×hela-spannet i ett enda anrop.
   const LEARN_ALPHA = 0.10
-  // Normalisera observationen till ΔT_ref-referensramen INNAN den skrivs så
-  // EMA:n förblir konsistent oavsett vilken ΔT observationen togs vid.
-  const requiredDutyNormalized = norm(requiredDuty)
-  const perPctNormalized = useDeltaScaling ? perPct * (DELTA_T_REF / (deltaT as number)) : perPct
+  // perPct är redan normaliserad per sample (se ovan), så requiredDuty som
+  // härleds ur den ligger också i ΔT_ref-ramen — ingen efterhandsskalning.
+  const requiredDutyNormalized = requiredDuty
+  const perPctNormalized = perPct
   const result = await updateLearnedParam(
     supabase, controllerId, paramName, requiredDutyNormalized, 0.001, 0.30, LEARN_ALPHA, 0.10,
   )
@@ -985,7 +1032,9 @@ export async function learnFeedforwardDuty(
   await updateLearnedParam(
     supabase, controllerId, `process_gain:${mode}`, perPctNormalized, 0.0001, 1.0, LEARN_ALPHA, 0.10,
   ).catch(() => null)
-  const dtStr = useDeltaScaling ? ` ΔT=${(deltaT as number).toFixed(1)}°` : ''
+  const dtStr = useDeltaScaling
+    ? ` ΔT_now=${(deltaT as number).toFixed(1)}°${sampleDeltas.length > 0 ? ` ΔT_samples=${Math.min(...sampleDeltas).toFixed(1)}–${Math.max(...sampleDeltas).toFixed(1)}°` : ''}`
+    : ''
   console.log(`🔮 Feedforward duty ${controllerId} [${mode}]${dtStr}: ambient=${ambientGain.toFixed(2)}°/h, response=${perPct.toFixed(3)}°/h/%, need=${(requiredDuty*100).toFixed(1)}% (n_amb=${ambient.length}, n_resp=${perPctResp.length}) → stored=${(result.newValue*100).toFixed(1)}% effective=${(denorm(result.newValue)*100).toFixed(1)}%`)
   return denorm(result.newValue) || 0
 }
