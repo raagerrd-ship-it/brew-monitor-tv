@@ -1265,6 +1265,7 @@ export type Database = {
           min_target_temp: number | null
           name: string
           pid_version: string
+          pill_probe_drift_streak: number
           pill_probe_offset: number | null
           pill_probe_offset_baseline: number | null
           pill_probe_offset_updated_at: string | null
@@ -1300,6 +1301,7 @@ export type Database = {
           min_target_temp?: number | null
           name: string
           pid_version?: string
+          pill_probe_drift_streak?: number
           pill_probe_offset?: number | null
           pill_probe_offset_baseline?: number | null
           pill_probe_offset_updated_at?: string | null
@@ -1335,6 +1337,7 @@ export type Database = {
           min_target_temp?: number | null
           name?: string
           pid_version?: string
+          pill_probe_drift_streak?: number
           pill_probe_offset?: number | null
           pill_probe_offset_baseline?: number | null
           pill_probe_offset_updated_at?: string | null
