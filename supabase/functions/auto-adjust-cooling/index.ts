@@ -112,20 +112,22 @@ Deno.serve(async (req) => {
     // mot ΔT_start/ΔT_nu. Körs före overdue-svepet så en nedtrimmad revert
     // fångas direkt av samma cykel.
     try {
-      const { data: liveOffs } = await supabase
+      const { data: liveOffsRaw } = await supabase
         .from('pending_rapt_retries')
         .select('*')
         .like('reason', '%PWM OFF%')
         .not('execute_at', 'is', null)
         .not('glycol_temp_at_start', 'is', null)
         .gt('execute_at', new Date().toISOString());
+      const liveOffs = (liveOffsRaw ?? []) as any[];
       if (liveOffs && liveOffs.length > 0) {
-        const { data: coolerNow } = await supabase
+        const { data: coolerNowRaw } = await supabase
           .from('rapt_temp_controllers')
           .select('actual_temp, current_temp')
           .eq('is_glycol_cooler', true)
           .limit(1)
           .maybeSingle();
+        const coolerNow = coolerNowRaw as any;
         const glycolNow = coolerNow
           ? parseFloat(String(coolerNow.actual_temp ?? coolerNow.current_temp))
           : NaN;
@@ -134,12 +136,12 @@ Deno.serve(async (req) => {
           .from('rapt_temp_controllers')
           .select('controller_id, profile_target_temp')
           .in('controller_id', ids);
-        const targetMap = new Map((targetRows ?? []).map((r: any) => [r.controller_id, parseFloat(String(r.profile_target_temp))]));
+        const targetMap = new Map(((targetRows ?? []) as any[]).map((r: any) => [r.controller_id as string, parseFloat(String(r.profile_target_temp))]));
 
-        for (const off of liveOffs as any[]) {
+        for (const off of liveOffs) {
           const tgt = targetMap.get(off.controller_id);
           const glycolStart = parseFloat(String(off.glycol_temp_at_start));
-          if (!Number.isFinite(glycolNow) || !Number.isFinite(glycolStart) || !Number.isFinite(tgt)) continue;
+          if (tgt == null || !Number.isFinite(glycolNow) || !Number.isFinite(glycolStart) || !Number.isFinite(tgt)) continue;
           const dtStart = Math.max(3, tgt - glycolStart);
           const dtNow = Math.max(3, tgt - glycolNow);
           if (dtNow - dtStart <= 1.5) continue;   // glykolen inte nämnvärt kallare
