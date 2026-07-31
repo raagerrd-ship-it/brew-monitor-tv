@@ -105,6 +105,71 @@ Deno.serve(async (req) => {
     }
 
     // ── SAFETY SWEEP: Overdue PWM OFF reverts ──
+    // ── MID-BURST GLYKOL-VAKT ──
+    // Duty beräknas vid cykelstart utifrån ΔT (mål − glykol) DÅ. Faller
+    // glykolen under bursten ökar ΔT och samma sekunder levererar mer kyla än
+    // beräknat → överkylning. Kortar därför återstående burst proportionellt
+    // mot ΔT_start/ΔT_nu. Körs före overdue-svepet så en nedtrimmad revert
+    // fångas direkt av samma cykel.
+    try {
+      const { data: liveOffs } = await supabase
+        .from('pending_rapt_retries')
+        .select('*')
+        .like('reason', '%PWM OFF%')
+        .not('execute_at', 'is', null)
+        .not('glycol_temp_at_start', 'is', null)
+        .gt('execute_at', new Date().toISOString());
+      if (liveOffs && liveOffs.length > 0) {
+        const { data: coolerNow } = await supabase
+          .from('rapt_temp_controllers')
+          .select('actual_temp, current_temp')
+          .eq('is_glycol_cooler', true)
+          .limit(1)
+          .maybeSingle();
+        const glycolNow = coolerNow
+          ? parseFloat(String(coolerNow.actual_temp ?? coolerNow.current_temp))
+          : NaN;
+        const ids = liveOffs.map((o: any) => o.controller_id);
+        const { data: targetRows } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, profile_target_temp')
+          .in('controller_id', ids);
+        const targetMap = new Map((targetRows ?? []).map((r: any) => [r.controller_id, parseFloat(String(r.profile_target_temp))]));
+
+        for (const off of liveOffs as any[]) {
+          const tgt = targetMap.get(off.controller_id);
+          const glycolStart = parseFloat(String(off.glycol_temp_at_start));
+          if (!Number.isFinite(glycolNow) || !Number.isFinite(glycolStart) || !Number.isFinite(tgt)) continue;
+          const dtStart = Math.max(3, tgt - glycolStart);
+          const dtNow = Math.max(3, tgt - glycolNow);
+          if (dtNow - dtStart <= 1.5) continue;   // glykolen inte nämnvärt kallare
+
+          const burstMatch = String(off.reason).match(/(\d+)s burst/);
+          if (!burstMatch) continue;
+          const burstSeconds = parseInt(burstMatch[1]);
+          const executeMs = new Date(off.execute_at).getTime();
+          const burstStartMs = executeMs - burstSeconds * 1000;
+          const trimmedSeconds = Math.max(30, Math.round(burstSeconds * (dtStart / dtNow)));
+          if (trimmedSeconds >= burstSeconds) continue;
+          const newExecuteMs = Math.max(Date.now(), burstStartMs + trimmedSeconds * 1000);
+          if (newExecuteMs >= executeMs) continue;
+
+          await supabase.from('pending_rapt_retries')
+            .update({ execute_at: new Date(newExecuteMs).toISOString() })
+            .eq('id', off.id);
+          log('PWM_TRIM_GLYCOL', 'action',
+            `${off.controller_id}: glykol ${glycolStart.toFixed(1)}°→${glycolNow.toFixed(1)}° (ΔT ${dtStart.toFixed(1)}→${dtNow.toFixed(1)}°) — kortar burst ${burstSeconds}s → ${trimmedSeconds}s`, {
+              controller_id: off.controller_id,
+              glycol_start: glycolStart, glycol_now: glycolNow,
+              delta_t_start: dtStart, delta_t_now: dtNow,
+              burst_seconds: burstSeconds, trimmed_seconds: trimmedSeconds,
+            });
+        }
+      }
+    } catch (err) {
+      log('PWM_TRIM_GLYCOL', 'fail', `Glykol-vakt error: ${String(err).slice(0, 160)}`);
+    }
+
     // execute-pwm-off cron kan missa ett fönster (deploy, latens). Vi vill fånga
     // en missad revert redan NÄSTA minut — inte vänta ytterligare en cykel.
     // Därför: alla rader med execute_at <= now() räknas som förfallna. Om
