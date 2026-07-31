@@ -637,6 +637,50 @@ Deno.serve(async (req) => {
             console.log(`SENSOR_DRIFT: ${da.controllerName} offset=${da.offset.toFixed(2)}° baseline=${da.baseline.toFixed(2)}°`);
           }
         }
+
+        // ── PWM OFF-verifiering: hw-target matchar inte skickad revert → skicka om + larma ──
+        for (const mm of pwmOffMismatches) {
+          console.error(`PWM_OFF_UNVERIFIED: ${mm.controllerName} hw=${mm.actual}° förväntat=${mm.expected}° — skickar om`);
+          let resendOk = false;
+          try {
+            const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify({
+                controllerId: mm.controllerId,
+                action: 'setTargetTemperature',
+                value: mm.expected,
+                source: 'pwm',
+                pwm_label: `PWM OFF re-send (overifierad): → ${mm.expected}°`,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            resendOk = resp.ok;
+          } catch (e) {
+            console.error(`PWM_OFF_RESEND_ERROR: ${mm.controllerName}: ${e}`);
+          }
+          // Behåll förväntat värde men nollställ klockan → verifieras igen nästa sync.
+          await supabase.from('rapt_temp_controllers')
+            .update({ pwm_off_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq('controller_id', mm.controllerId);
+
+          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const { data: recentPwm } = await supabase
+            .from('pending_notifications')
+            .select('id')
+            .eq('type', 'pwm_off_unverified')
+            .eq('controller_id', mm.controllerId)
+            .gte('created_at', thirtyMinAgo)
+            .limit(1);
+          if (!recentPwm || recentPwm.length === 0) {
+            await supabase.from('pending_notifications').insert({
+              type: 'pwm_off_unverified',
+              controller_id: mm.controllerId,
+              title: `PWM OFF ej bekräftad: ${mm.controllerName}`,
+              body: `Hårdvaran står på ${mm.actual ?? '–'}° men skulle ha ${mm.expected}° efter PWM OFF. Kommandot ${resendOk ? 'har skickats om' : 'kunde inte skickas om'}.`,
+            });
+          }
+        }
       }
 
       tPhase1Upsert = Date.now() - tUpsertStart;
