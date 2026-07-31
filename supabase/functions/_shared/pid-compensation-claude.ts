@@ -220,6 +220,7 @@ export async function syncActuatedDuty(
     .limit(1).maybeSingle()
   if (!data?.sensor_anchor) return
   const anchor = { ...(data.sensor_anchor as Record<string, unknown>), lastDutyPct: actuatedPct }
+  if (actuatedPct === 0 && !anchor.lastZeroDutyAt) anchor.lastZeroDutyAt = new Date().toISOString()
   await supabase.from('controller_learned_compensation')
     .update({ sensor_anchor: anchor, latest_d_damping: actuatedPct / 100 })
     .eq('id', data.id)
