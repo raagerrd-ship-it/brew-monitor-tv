@@ -401,6 +401,7 @@ Deno.serve(async (req) => {
             pill_probe_offset: existing?.pill_probe_offset ?? null,
             pill_probe_offset_baseline: existing?.pill_probe_offset_baseline ?? null,
             pill_probe_offset_updated_at: existing?.pill_probe_offset_updated_at ?? null,
+            pill_probe_drift_streak: existing?.pill_probe_drift_streak ?? 0,
             updated_at: new Date().toISOString()
           };
 
@@ -450,7 +451,16 @@ Deno.serve(async (req) => {
           const atColdExtreme = hwTarget != null && hwTarget <= minBound + 0.5;
           const atHotExtreme = hwTarget != null && hwTarget >= maxBound - 0.5;
           const pwmActive = atColdExtreme || atHotExtreme;
-          if (pillTemp != null && currentTemp != null && !pwmActive) {
+          // Idle gate: duty must be 0% and no pending PWM OFF-revert, and the probe
+          // must be thermally settled (probe moved <0.15° since last sync). Otherwise
+          // the "offset" just measures cooling transients, not sensor drift.
+          const dutyNow = driftDutyMap.get(controller.id) ?? 0;
+          const prevProbe = existing?.current_temp != null ? Number(existing.current_temp) : null;
+          const probeSettled = prevProbe == null || currentTemp == null
+            ? false
+            : Math.abs(Number(currentTemp) - prevProbe) < 0.15;
+          const idleForSampling = dutyNow <= 0 && !pendingOffSet.has(controller.id) && probeSettled;
+          if (pillTemp != null && currentTemp != null && !pwmActive && idleForSampling) {
             const rawOffset = pillTemp - Number(currentTemp);
             const prevOffset = existing?.pill_probe_offset != null ? Number(existing.pill_probe_offset) : null;
             // First-seen: seed with raw sample so calibration is available immediately.
@@ -462,24 +472,37 @@ Deno.serve(async (req) => {
             const baseline = existing?.pill_probe_offset_baseline != null
               ? Number(existing.pill_probe_offset_baseline)
               : null;
+            const prevStreak = existing?.pill_probe_drift_streak ?? 0;
+            // Relative threshold: a tank with a 4° base offset must not alarm on
+            // normal variation. 25% of baseline, never tighter than 1.0°.
+            const driftThreshold = baseline == null ? 1.0 : Math.max(1.0, Math.abs(baseline) * 0.25);
             if (baseline == null) {
               updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
-            } else if (Math.abs(newOffset - baseline) > 1.0 && hasActiveSession) {
-              driftAlerts.push({
-                controllerId: controller.id,
-                controllerName: existing?.name || controller.name || controller.id,
-                offset: newOffset,
-                baseline,
-              });
-              // Learn the new stable pill/probe relationship after alerting once,
-              // otherwise the same offset change keeps re-alerting forever.
-              updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
+              updateData.pill_probe_drift_streak = 0;
+            } else if (Math.abs(newOffset - baseline) > driftThreshold && hasActiveSession) {
+              const streak = prevStreak + 1;
+              if (streak >= 3) {
+                driftAlerts.push({
+                  controllerId: controller.id,
+                  controllerName: existing?.name || controller.name || controller.id,
+                  offset: newOffset,
+                  baseline,
+                });
+                // Learn the new stable pill/probe relationship after alerting once,
+                // otherwise the same offset change keeps re-alerting forever.
+                updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
+                updateData.pill_probe_drift_streak = 0;
+              } else {
+                updateData.pill_probe_drift_streak = streak;
+                console.log(`SENSOR_DRIFT_PENDING: ${existing?.name || controller.id} offset=${newOffset.toFixed(2)}° baseline=${baseline.toFixed(2)}° thr=${driftThreshold.toFixed(2)}° streak=${streak}/3`);
+              }
             } else {
               // Slow baseline tracking for normal movement between pill and probe.
               updateData.pill_probe_offset_baseline = Math.round((baseline * 0.99 + newOffset * 0.01) * 1000) / 1000;
+              updateData.pill_probe_drift_streak = 0;
             }
-          } else if (pillTemp != null && currentTemp != null && pwmActive) {
-            console.log(`OFFSET_SKIP_PWM: ${existing?.name || controller.id} hwTarget=${hwTarget}° probe=${currentTemp}° (cold=${atColdExtreme} hot=${atHotExtreme})`);
+          } else if (pillTemp != null && currentTemp != null) {
+            console.log(`OFFSET_SKIP: ${existing?.name || controller.id} pwm=${pwmActive} duty=${driftDutyMap.get(controller.id) ?? 0}% pendingOff=${pendingOffSet.has(controller.id)} settled=${probeSettled}`);
           }
 
           if (linkedPillId) updateData.linked_pill_id = linkedPillId;
