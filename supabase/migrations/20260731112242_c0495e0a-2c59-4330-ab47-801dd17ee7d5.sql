@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_rapt_retries ADD COLUMN IF NOT EXISTS glycol_temp_at_start numeric;
