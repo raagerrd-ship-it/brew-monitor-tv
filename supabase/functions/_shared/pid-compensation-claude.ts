@@ -164,6 +164,10 @@ const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu 
 // Halverad takt innanför NEAR_TARGET_BAND dämpar just den svängningen.
 const NEAR_TARGET_BAND = 0.30  // |need| under detta = "vid mål"
 const SLEW_NEAR_TARGET = 0.02  // max ±2 procentenheter duty/cykel vid mål
+// Innanför mätbruset (±0.1°) ska duty i praktiken stå still. Där är det bara
+// D-bromsens av/på-slag (0 ↔ D_MAX ≈ 10%) som driver limit-cykeln 3%↔12%.
+const NOISE_BAND = 0.10        // |need| under detta = ren sensorbrus-zon
+const SLEW_NOISE_BAND = 0.01   // max ±1 procentenhet duty/cykel i brus-zonen
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
@@ -516,7 +520,13 @@ function computeDutyV5(input: {
     trimI = 0
     constraints.push('mode-reset')
   } else if (!isStaleSsot) {
-    trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * need * dtMin / 60))
+    if (Math.abs(need) <= NOISE_BAND) {
+      // Inom mätbruset finns inget verkligt bias-fel att integrera bort —
+      // trimI håller redan den nivå som tog oss hit. Frys den.
+      constraints.push('trim-freeze-noise')
+    } else {
+      trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * need * dtMin / 60))
+    }
   }
 
   // ── Kombinera ──
@@ -564,7 +574,10 @@ function computeDutyV5(input: {
   // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
   // utan specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const slewLimit = Math.abs(need) <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
+  const absNeed = Math.abs(need)
+  const slewLimit = absNeed <= NOISE_BAND
+    ? SLEW_NOISE_BAND
+    : absNeed <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
   const slewBypass = input.modeJustSwitched
   let slewLimited = false
   if (!slewBypass) {
