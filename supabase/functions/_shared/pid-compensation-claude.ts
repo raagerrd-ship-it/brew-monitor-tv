@@ -612,7 +612,7 @@ function computeDutyV5(input: {
   // trimI till förra cykelns värde — annars fortsätter den växa mot ett svar
   // som ännu inte landat. ──
   if (slewLimited || minOffBlocked) {
-    trimI = input.persistedTrimI
+    trimI = persistedBase
     constraints.push('trim-freeze-clamped')
   }
 
