@@ -1,92 +1,52 @@
-# Steg 1+2+3: pid_mode-kolumn + reset av alla tre controllers (Green, Gul, Blå)
+## Problemet, verifierat
 
-Kör som en sammanhängande sekvens. Inga övriga ändringar (mode-switch, trimI-tak, PID-formel, D-fönster, seed-logik, hold-observer förblir orörda). Step 4 (0.35°/0.20°C/h early switching) är oberoende och ingår inte här.
+Tre separata fel, alla med samma rot: **glykoltemperaturen behandlas som en konstant per cykel.**
 
-## Operativ sekvensering (explicit)
+1. **Inlärningen normaliserar hela 6h-fönstret med en enda ΔT** (`pid-compensation-claude.ts` rad 971–972: `norm(requiredDuty)` / `perPct * (DELTA_T_REF/deltaT)`). ΔT tas från glykolens värde *just nu*. Historiken innehåller par från timmar då glykolen låg helt annorlunda — senaste 90 min svängde kylaren 6,9 → 8,9° i loggen. Varje sample skalas alltså med fel faktor.
+2. **`commitHoldSsFloor` skriver rå duty utan ΔT-normalisering alls** (rad 1050–1055, erkänt i kommentaren). Hold-observationer förorenar den normaliserade EMA:n.
+3. **Ingen mid-burst-hänsyn.** Duty beslutas vid cykelstart utifrån ΔT då; faller glykolen 2° mitt i bursten levereras ~30–50 % mer kyla än beräknat. Det är exakt det som hände på Gul kl 13:00–13:15 (glykol 8,9 → 6,9°, probe 12,86 → 11,17°).
 
-1. **Migration deployas först** — kolumnen `pid_mode` måste existera i DB innan någon kod som skriver eller läser den körs.
-2. **Kod-deploy efter migrationen är landad** — controller-adjustments.ts (skriv) + pid-compensation-claude.ts (läs).
-3. Steg 2-verifiering väntar minst en PID-cykel efter kod-deploy.
-4. Steg 3 (reset) körs endast efter att Steg 2 verifierat OK.
+Punkt 1 och 2 är rena beräkningsfel. Punkt 3 är ett reglerproblem som normalisering inte kan lösa — den behöver en egen mekanism.
 
-## Steg 1 — `pid_mode`-kolumn
+## Vad som byggs
 
-**Migration (deployas först, ensam):** Lägg till `pid_mode text` (nullable) på `temp_controller_history`. NULL = "pre-fix legacy". `cooling_enabled` behålls oförändrat, ingen backfill, inga index.
+### Steg 1 — Per-sample ΔT vid inlärning (kärnfixen)
 
-**Kod (deployas efter att migrationen är landad):**
+`temp_controller_history` innehåller redan glykolkylarens egna rader (controller `7e57bd3c…`), så historisk glykoltemp finns per tidpunkt.
 
-- `supabase/functions/_shared/controller-adjustments.ts` — skriv `pid_mode: 'heating' | 'cooling'` i PID-loopens history-insert, härlett från vilket läge PID faktiskt kör i just den cykeln (inte från `cooling_enabled`).
-- `supabase/functions/_shared/pid-compensation-claude.ts` → `learnFeedforwardDuty` — byt filter från `cooling_enabled !== wantCoolingEnabled` till `pid_mode !== mode`. Rader med `pid_mode = NULL` (pre-fix) exkluderas automatiskt av `!==`-jämförelsen mot en icke-null-sträng — önskat beteende, ingen explicit IS NOT NULL behövs.
+- Hämta kylarens historik för samma 6h-fönster i `learnFeedforwardDuty`.
+- Bygg en lookup som ger närmaste glykolvärde (±10 min, annars hoppa över paret).
+- Normalisera **varje** sample vid insamling istället för medianen efteråt:
+  - `perPctResp.push(normPerPct(-rate/duty, ΔT_sample))`
+  - `ambient` är glykol-oberoende och lämnas orört.
+- `requiredDuty` blir då `ambientGain / (perPctNormalized × 100)` — redan i ΔT_ref-ramen, ingen efterhandsskalning behövs.
+- Vid läsning (`denorm`) används fortsatt nuvarande ΔT — det är rätt, det är där vi ska agera.
 
-## Steg 2 — Pre-reset verifiering
+Verifiera: loggraden `🔮 Feedforward duty` skriver ut spridningen av ΔT över samplen, så vi ser direkt om fönstret var blandat.
 
-Efter kod-deploy, vänta minst en PID-cykel, kör:
+### Steg 2 — Normalisera hold-ssFloor-observationen
 
-```sql
-SELECT recorded_at, controller_id, pid_mode, cooling_enabled, duty_pct
-FROM temp_controller_history
-WHERE recorded_at >= now() - interval '30 minutes'
-ORDER BY recorded_at DESC LIMIT 20;
-```
+`commitHoldSsFloor` tar emot aktuell ΔT och skriver `norm(medDuty)` istället för rådutyn. Hold-observationen är per definition tagen vid den ΔT som råder just då, så den är exakt normaliserbar — till skillnad från physics-learnerns blandade fönster.
 
-Bekräfta att nya rader har `pid_mode` satt (`'heating'` eller `'cooling'`, inte NULL). **Om NULL → stoppa, gå inte vidare till Steg 3.** Koden når inte insert-vägen som förväntat, undersök innan reset.
+### Steg 3 — Mid-burst glykol-vakt (det normalisering inte kan lösa)
 
-## Steg 3 — Reset av Green, Gul, Blå
+I minutsvepet i `auto-adjust-cooling` (samma ställe som overdue-PWM-OFF-sweepen):
 
-Endast efter att Steg 2 verifierat OK.
+- För varje pending PWM OFF-rad: jämför glykoltemp nu mot glykoltemp när bursten startade.
+- Har ΔT ökat mer än 1,5° (glykolen blivit kallare) → skala ned återstående burst-tid med `ΔT_start / ΔT_nu` och flytta fram `execute_at` därefter, aldrig kortare än 30 s totalt.
+- Logga som eget beslutssteg (`PWM_TRIM_GLYCOL`) så det syns i beslutsloggen.
 
-**Controllers:**
-- Green: `6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d`
-- Gul: `618b29b0-fa02-4f27-a8f1-a215f44235b3`
-- Blå: `ffa62be4-d6f7-4533-83b4-57ad93c3ac01`
+Kräver att burst-start-ΔT sparas: lägg `glycol_temp_at_start` på `pending_rapt_retries` (nullable numeric, ingen backfill).
 
-**SQL:**
+## Alternativ som övervägdes och väljs bort
 
-```sql
-DELETE FROM fermentation_learnings
-WHERE controller_id IN (
-  '6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d',
-  '618b29b0-fa02-4f27-a8f1-a215f44235b3',
-  'ffa62be4-d6f7-4533-83b4-57ad93c3ac01'
-);
+- **Hinkad glykol-dimension i lärnyckeln** — tidigare diskuterat och förkastat: splittrar dataunderlaget och ger diskontinuiteter vid hinkgräns. Kontinuerlig normalisering är strikt bättre.
+- **Låta kylaren hålla stabilare glykol istället** (snävare hysteres på kylaren) — botar symptomet på systemnivå men kostar kompressorstarter och löser inte att lärdata redan är blandad. Kan övervägas separat senare.
+- **Bara Steg 3, hoppa över 1–2** — då fortsätter ff/process_gain drifta fel varje gång glykolen ändras mellan lärfönster. Steg 1 är den faktiska "målmatchning blir fel"-fixen.
 
-UPDATE controller_learned_compensation
-SET
-  <alla numeriska fält> = 0,
-  sensor_anchor = '{}'::jsonb,
-  updated_at = now()
-WHERE controller_id IN (
-  '6fbbc7db-cc77-49c8-be48-4f07ebb6ff5d',
-  '618b29b0-fa02-4f27-a8f1-a215f44235b3',
-  'ffa62be4-d6f7-4533-83b4-57ad93c3ac01'
-);
-```
+## Teknisk detalj
 
-Exakt kolumnlista bekräftas mot schemat innan körning. `process_gain:*` och `cool_response:*` sitter som fermentation_learnings-rader under andra `parameter_name`-nycklar och deletas automatiskt av DELETE ovan — inga separata åtgärder behövs.
-
-## Förväntat beteende efter reset (Green, aktiv)
-
-- **ff = 5.0%** första loggraden (FEEDFORWARD_DEFAULT via fallback(null), verifierat i tre av tre kodpaths).
-- **1%-risk:** om första Supabase-queryn timeoutar → `catch(() => 0)` ger 0% en cykel, sedan 5% nästa. Självläkande.
-- **trimI = 0** initialt, kan bidra upp till +10% via cykler.
-- **D-term inaktiv ~35 min** medan ssotHistory byggs upp till RATE_WINDOW_LOW=25 min.
-- **Duty domineras av P·need** första 1–2h.
-- **Physics-learner** behöver `n_amb ≥ 4` OCH `n_resp ≥ 4` i rätt läge (nu korrekt attribuerat).
-- **Första `🔒 hold-ssFloor` skriver real ff** ~1h efter reset.
-
-## Disciplincheck efter körning
-
-Första logg-raden för Green: bekräfta `ff=5.0%` (inte `0.0%`). Om 0% → catch()-fallet inträffade, förvänta 5% nästa cykel. Om 0% kvarstår >2 cykler → verklig bugg, undersök.
-
-## Verifiering
-
-```sql
-SELECT controller_id, COUNT(*) FROM fermentation_learnings
-WHERE controller_id IN (<tre ovan>) GROUP BY 1;
--- förväntat: 0 rader
-
-SELECT controller_id, sensor_anchor, updated_at, <numeriska fält>
-FROM controller_learned_compensation
-WHERE controller_id IN (<tre ovan>);
--- förväntat: alla numeriska = 0, sensor_anchor = '{}', updated_at färskt
-```
+- Filer: `supabase/functions/_shared/pid-compensation-claude.ts` (Steg 1+2), `supabase/functions/auto-adjust-cooling/index.ts` (Steg 3), migration för `pending_rapt_retries.glycol_temp_at_start` + `execute-pwm-off`/burst-schemaläggning i `controller-adjustments.ts` som sätter fältet.
+- V5 (`pid-compensation.ts`) lämnas orörd — den är fryst fallback.
+- Inga lärda värden nollställs. Steg 1 ger en jämnare EMA framåt; befintliga värden konvergerar om av sig själva inom ~1–2 dygn.
+- Deploy: `auto-adjust-cooling`, `run-automation`, `execute-pwm-off`.
