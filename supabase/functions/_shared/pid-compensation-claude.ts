@@ -520,7 +520,13 @@ function computeDutyV5(input: {
     trimI = 0
     constraints.push('mode-reset')
   } else if (!isStaleSsot) {
-    trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * need * dtMin / 60))
+    if (Math.abs(need) <= NOISE_BAND) {
+      // Inom mätbruset finns inget verkligt bias-fel att integrera bort —
+      // trimI håller redan den nivå som tog oss hit. Frys den.
+      constraints.push('trim-freeze-noise')
+    } else {
+      trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * need * dtMin / 60))
+    }
   }
 
   // ── Kombinera ──
@@ -568,7 +574,10 @@ function computeDutyV5(input: {
   // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
   // utan specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const slewLimit = Math.abs(need) <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
+  const absNeed = Math.abs(need)
+  const slewLimit = absNeed <= NOISE_BAND
+    ? SLEW_NOISE_BAND
+    : absNeed <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
   const slewBypass = input.modeJustSwitched
   let slewLimited = false
   if (!slewBypass) {
