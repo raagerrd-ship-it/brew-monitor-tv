@@ -1638,8 +1638,6 @@ export type Database = {
           selected_group_id: string | null
           selected_group_name: string | null
           show_on_dashboard: boolean
-          spotify_client_id: string | null
-          spotify_client_secret: string | null
           track_change_offset_seconds: number
           updated_at: string
         }
@@ -1655,8 +1653,6 @@ export type Database = {
           selected_group_id?: string | null
           selected_group_name?: string | null
           show_on_dashboard?: boolean
-          spotify_client_id?: string | null
-          spotify_client_secret?: string | null
           track_change_offset_seconds?: number
           updated_at?: string
         }
@@ -1672,8 +1668,6 @@ export type Database = {
           selected_group_id?: string | null
           selected_group_name?: string | null
           show_on_dashboard?: boolean
-          spotify_client_id?: string | null
-          spotify_client_secret?: string | null
           track_change_offset_seconds?: number
           updated_at?: string
         }
