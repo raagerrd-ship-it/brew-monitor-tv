@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
 
         const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
           supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id, target_temp, current_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, actual_temp, pill_temp, pill_probe_offset, pill_probe_offset_baseline, pill_probe_offset_updated_at, pill_probe_drift_streak')
+          supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id, target_temp, current_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, actual_temp, pill_temp, pill_probe_offset, pill_probe_offset_baseline, pill_probe_offset_updated_at, pill_probe_drift_streak, pwm_off_expected_target, pwm_off_sent_at')
             .in('controller_id', selectedControllersData.map((c: any) => c.id)),
         ]);
         const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
@@ -364,6 +364,8 @@ Deno.serve(async (req) => {
         const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
         const controllerUpdates: Record<string, any>[] = [];
         const driftAlerts: { controllerId: string; controllerName: string; offset: number; baseline: number }[] = [];
+        // PWM OFF read-back: controllers där hw-target inte matchar senast skickad revert
+        const pwmOffMismatches: { controllerId: string; controllerName: string; expected: number; actual: number | null }[] = [];
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
@@ -451,6 +453,25 @@ Deno.serve(async (req) => {
           const atColdExtreme = hwTarget != null && hwTarget <= minBound + 0.5;
           const atHotExtreme = hwTarget != null && hwTarget >= maxBound - 0.5;
           const pwmActive = atColdExtreme || atHotExtreme;
+          // ── Verifiera att PWM OFF faktiskt landat i hårdvaran ──
+          // Vi jämför RAPT:s rapporterade target mot det revert-värde vi senast
+          // skickade. Kollas först 45 s efter sändning och bara om ingen ny
+          // OFF ligger pending för samma controller.
+          const expectedOff = existing?.pwm_off_expected_target != null ? Number(existing.pwm_off_expected_target) : null;
+          const offSentAtMs = existing?.pwm_off_sent_at ? Date.parse(String(existing.pwm_off_sent_at)) : null;
+          if (expectedOff != null && offSentAtMs != null && !pendingOffSet.has(controller.id) && Date.now() - offSentAtMs > 45_000) {
+            if (hwTarget != null && Math.abs(hwTarget - expectedOff) <= 0.15) {
+              updateData.pwm_off_expected_target = null;
+              updateData.pwm_off_sent_at = null;
+            } else {
+              pwmOffMismatches.push({
+                controllerId: controller.id,
+                controllerName: existing?.name ?? controller.id,
+                expected: expectedOff,
+                actual: hwTarget,
+              });
+            }
+          }
           // Idle gate: duty must be 0% and no pending PWM OFF-revert, and the probe
           // must be thermally settled (probe moved <0.15° since last sync). Otherwise
           // the "offset" just measures cooling transients, not sensor drift.
@@ -614,6 +635,50 @@ Deno.serve(async (req) => {
               body: `Pill-probe-offset ${da.offset.toFixed(2)}° (baseline ${da.baseline.toFixed(2)}°). Kolla pillens batteri/läge eller probens kontakt.`,
             });
             console.log(`SENSOR_DRIFT: ${da.controllerName} offset=${da.offset.toFixed(2)}° baseline=${da.baseline.toFixed(2)}°`);
+          }
+        }
+
+        // ── PWM OFF-verifiering: hw-target matchar inte skickad revert → skicka om + larma ──
+        for (const mm of pwmOffMismatches) {
+          console.error(`PWM_OFF_UNVERIFIED: ${mm.controllerName} hw=${mm.actual}° förväntat=${mm.expected}° — skickar om`);
+          let resendOk = false;
+          try {
+            const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify({
+                controllerId: mm.controllerId,
+                action: 'setTargetTemperature',
+                value: mm.expected,
+                source: 'pwm',
+                pwm_label: `PWM OFF re-send (overifierad): → ${mm.expected}°`,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            resendOk = resp.ok;
+          } catch (e) {
+            console.error(`PWM_OFF_RESEND_ERROR: ${mm.controllerName}: ${e}`);
+          }
+          // Behåll förväntat värde men nollställ klockan → verifieras igen nästa sync.
+          await supabase.from('rapt_temp_controllers')
+            .update({ pwm_off_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq('controller_id', mm.controllerId);
+
+          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const { data: recentPwm } = await supabase
+            .from('pending_notifications')
+            .select('id')
+            .eq('type', 'pwm_off_unverified')
+            .eq('controller_id', mm.controllerId)
+            .gte('created_at', thirtyMinAgo)
+            .limit(1);
+          if (!recentPwm || recentPwm.length === 0) {
+            await supabase.from('pending_notifications').insert({
+              type: 'pwm_off_unverified',
+              controller_id: mm.controllerId,
+              title: `PWM OFF ej bekräftad: ${mm.controllerName}`,
+              body: `Hårdvaran står på ${mm.actual ?? '–'}° men skulle ha ${mm.expected}° efter PWM OFF. Kommandot ${resendOk ? 'har skickats om' : 'kunde inte skickas om'}.`,
+            });
           }
         }
       }

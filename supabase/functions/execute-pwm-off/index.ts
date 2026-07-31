@@ -167,7 +167,13 @@ Deno.serve(async (req) => {
       // at the burst value (-5°C for cooling, maxTemp for heating) to match
       // the actual hardware state. Only now can we safely update.
       await supabase.from("rapt_temp_controllers")
-        .update({ target_temp: retry.target_temp, updated_at: new Date().toISOString() })
+        .update({
+          target_temp: retry.target_temp,
+          // Read-back-verifiering: nästa sync jämför hw-target mot detta värde.
+          pwm_off_expected_target: retry.target_temp,
+          pwm_off_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq("controller_id", retry.controller_id);
 
       // Create decision log for PWM OFF
