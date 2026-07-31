@@ -968,6 +968,7 @@ export type Database = {
           controller_id: string
           created_at: string
           execute_at: string | null
+          glycol_temp_at_start: number | null
           id: string
           reason: string
           target_temp: number
@@ -977,6 +978,7 @@ export type Database = {
           controller_id: string
           created_at?: string
           execute_at?: string | null
+          glycol_temp_at_start?: number | null
           id?: string
           reason: string
           target_temp: number
@@ -986,6 +988,7 @@ export type Database = {
           controller_id?: string
           created_at?: string
           execute_at?: string | null
+          glycol_temp_at_start?: number | null
           id?: string
           reason?: string
           target_temp?: number
