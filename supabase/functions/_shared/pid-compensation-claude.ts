@@ -860,7 +860,6 @@ export async function learnFeedforwardDuty(
   // har glykol-ΔT-koppling. `null` deltaT → ingen skalning (bakåtkompat).
   const useDeltaScaling = mode === 'cooling' && deltaT != null && Number.isFinite(deltaT) && deltaT > 0
   const denorm = (stored: number) => useDeltaScaling ? stored * (DELTA_T_REF / (deltaT as number)) : stored
-  const norm   = (observed: number) => useDeltaScaling ? observed * ((deltaT as number) / DELTA_T_REF) : observed
   // Statisk, ICKE-persisterad fallback för det smala engångsfallet: denna
   // controller_id+mode har ALDRIG körts förut (inget `existing`-värde alls).
   // feedforward_duty/process_gain nycklas bara på (controller_id, mode) —
@@ -1096,20 +1095,21 @@ async function commitHoldSsFloor(
   commit: { medDuty: number; count: number; err: number },
   currentFf: number,
   controllerName: string,
+  deltaT: number | null,
 ): Promise<void> {
   const paramName = `feedforward_duty:${mode}`
-  // Notera: här skrivs det RÅ observerade värdet (inte ΔT-normaliserat) —
-  // physics-learnern hanterar ΔT-normalisering själv. Vid nästa cykel läser
-  // physics-learnern det aktuella värdet och normaliserar i egen takt.
-  // För cooling under kraftigt avvikande ΔT (t.ex. glykol 5° vs referens 10°)
-  // kan detta introducera en liten skalfel — accepteras eftersom alpha=0.05
-  // och maxStep=0.05 gör felet mycket litet per commit.
+  // Hold-observationen är tagen vid EN känd ΔT (just nu), så den kan
+  // normaliseras exakt till ΔT_ref-ramen innan den skrivs — annars förorenar
+  // den samma EMA som physics-learnern håller normaliserad.
+  const useDeltaScaling = mode === 'cooling' && deltaT != null && Number.isFinite(deltaT) && deltaT > 0
+  const observed = useDeltaScaling ? commit.medDuty * ((deltaT as number) / DELTA_T_REF) : commit.medDuty
   const result = await updateLearnedParam(
-    supabase, controllerId, paramName, commit.medDuty, 0.001, 0.30, HOLD_LEARN_ALPHA, HOLD_MAX_STEP,
+    supabase, controllerId, paramName, observed, 0.001, 0.30, HOLD_LEARN_ALPHA, HOLD_MAX_STEP,
   ).catch((err: unknown) => {
     console.error(`hold-ssFloor commit failed for ${controllerId} [${mode}]:`, err)
     return null
   })
   if (!result) return
-  console.log(`🔒 hold-ssFloor ${controllerName} [${mode}]: ${commit.count} cykler @ err=${commit.err.toFixed(2)}° medduty=${(commit.medDuty*100).toFixed(1)}% → ff ${(currentFf*100).toFixed(1)}%→${(result.newValue*100).toFixed(1)}%`)
+  const dtStr = useDeltaScaling ? ` ΔT=${(deltaT as number).toFixed(1)}°→norm ${(observed*100).toFixed(1)}%` : ''
+  console.log(`🔒 hold-ssFloor ${controllerName} [${mode}]: ${commit.count} cykler @ err=${commit.err.toFixed(2)}° medduty=${(commit.medDuty*100).toFixed(1)}%${dtStr} → ff ${(currentFf*100).toFixed(1)}%→${(result.newValue*100).toFixed(1)}%`)
 }
