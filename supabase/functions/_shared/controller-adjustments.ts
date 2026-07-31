@@ -205,7 +205,9 @@ async function executePwmDutyCycle(
       .eq('parameter_name', slotParam)
       .maybeSingle()
     lastSlot = slotRow ? Math.floor(parseFloat(String(slotRow.learned_value))) : -1
-    subTenMinGapSlots = Math.max(1, Math.floor(10 / Math.max(1, highSlots)))
+    // Max 3 slots (15 min) mellan låg-duty bursts → golv ~3,3 % effektiv duty.
+    // Kortare gap ger snabbare reaktion och mindre "kall stöt" per burst.
+    subTenMinGapSlots = Math.min(3, Math.max(1, Math.floor(10 / Math.max(1, highSlots))))
     const slotsSinceBurst = lastSlot >= 0 ? currentSlot - lastSlot : Infinity
     if (dutyPct === 0 && slotsSinceBurst >= subTenMinGapSlots) {
       dutyPct = dutyHigh
