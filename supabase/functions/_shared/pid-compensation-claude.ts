@@ -201,6 +201,31 @@ async function persistPidState(
 }
 
 /** Läs senast uppmätt processförstärkning (°/h per 1% duty) — persisteras av
+ *  learnFeedforwardDuty från samma verkliga historik som feedforward-dutyn.
+ *  (se nedan) */
+
+/** Skriv tillbaka den duty som faktiskt aktuerades (efter downstream-cap) till
+ *  PID:ns state. Utan detta ratchar slew-capen mot PID:ns egen önskade duty
+ *  istället för den verkliga, och nästa fria cykel kan hoppa till t.ex. 14%. */
+export async function syncActuatedDuty(
+  supabase: any,
+  controllerId: string,
+  mode: 'heating' | 'cooling',
+  actuatedPct: number,
+): Promise<void> {
+  const { data } = await supabase
+    .from('controller_learned_compensation')
+    .select('id, sensor_anchor')
+    .eq('controller_id', controllerId).eq('mode', mode).eq('step_type', 'v6')
+    .limit(1).maybeSingle()
+  if (!data?.sensor_anchor) return
+  const anchor = { ...(data.sensor_anchor as Record<string, unknown>), lastDutyPct: actuatedPct }
+  await supabase.from('controller_learned_compensation')
+    .update({ sensor_anchor: anchor, latest_d_damping: actuatedPct / 100 })
+    .eq('id', data.id)
+}
+
+/** (forts.) Läs senast uppmätt processförstärkning (°/h per 1% duty) —
  *  learnFeedforwardDuty från samma verkliga historik som feedforward-dutyn,
  *  så den delar exakt samma 2h-cache/kvalitetsgrind (≥2 respons-samples).
  *  0 = ingen mätning ännu → deriveGains faller tillbaka på statiska defaults. */
