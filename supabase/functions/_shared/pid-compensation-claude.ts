@@ -345,6 +345,8 @@ export async function calculateCompensatedTarget(
 
   // The learned steady-state duty — this is the primary signal now, not a floor.
   const feedforwardDuty = await learnFeedforwardDuty(supabase, controllerId, mode, deltaT).catch(() => 0)
+  // (learnFeedforwardDuty normaliserar varje historik-sample mot sin EGEN
+  //  ΔT — se per-sample-lookupen där. `deltaT` här används bara vid läsning.)
 
   // Kp/Kd derived from measured process gain (see deriveGains) instead of a
   // second adaptive loop — falls back to static defaults until enough real
@@ -398,7 +400,7 @@ export async function calculateCompensatedTarget(
     r.p, r.trimI, filteredAvgError, dutyCycle, r.nextState,
     feedforwardDuty ?? 0,
   ).then(() => holdCommit
-    ? commitHoldSsFloor(supabase, controllerId, mode, holdCommit, feedforwardDuty ?? 0, controllerName)
+    ? commitHoldSsFloor(supabase, controllerId, mode, holdCommit, feedforwardDuty ?? 0, controllerName, deltaT)
     : undefined)
 
   return {
