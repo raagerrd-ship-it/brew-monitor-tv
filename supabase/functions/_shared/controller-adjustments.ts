@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { round1, TempController, setControllerTargetTemp, calculateCompensatedTarget, RaptUpdateBatch } from './temp-utils.ts'
-import { calculateCompensatedTarget as calculateCompensatedTargetClaude } from './pid-compensation-claude.ts'
+import { calculateCompensatedTarget as calculateCompensatedTargetClaude, syncActuatedDuty } from './pid-compensation-claude.ts'
 import { logAdjustment, AdjustmentResult } from './adjustment-logger.ts'
 import { calculateSingleUtilization } from './cooler-management.ts'
 import { getTempBucket, getLearnedParam, updateLearnedParam } from './learning-utils.ts'
@@ -960,6 +960,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         ;(pidResult.constraints ??= []).push('no-heat-undershoot-coast')
         log('DUTY_FORCE_ZERO', 'action',
           `${fc.name}: probe ${round1(actualTemp)}° ≥0.3° under mål ${round1(actualTarget)}° och heating ej aktiverat → tvingar duty 0% (PID ville ${requestedPct}%)`)
+        await syncActuatedDuty(supabase, fc.controller_id, pidMode, 0)
       } else {
         // Linjär soft-cap: 0% vid err=0.3, upp till 3% vid err≈0
         const softCapPct = Math.max(0, Math.round(3 * (1 - err / 0.3)))
@@ -969,6 +970,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
           ;(pidResult.constraints ??= []).push(`no-heat-soft-approach(${cappedPct}%)`)
           log('DUTY_SOFT_CAP', 'action',
             `${fc.name}: probe ${round1(actualTemp)}° närmar mål ${round1(actualTarget)}° (err ${err.toFixed(2)}°) → mjuk-cap duty ${cappedPct}% (PID ville ${requestedPct}%)`)
+          await syncActuatedDuty(supabase, fc.controller_id, pidMode, cappedPct)
         }
       }
     }
