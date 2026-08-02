@@ -795,7 +795,7 @@ function computeDutyV5(input: {
     ssotHistory: (() => {
       const prev = input.prevState.ssotHistory ?? []
       const kept = prev.filter(e => (nowMs - new Date(e.t).getTime()) / 60000 <= HISTORY_KEEP_MIN)
-      kept.push({ t: now, v: ssotFiltered })
+      kept.push({ t: now, v: ssotFiltered, r: input.actualTemp })
       return kept
     })(),
     trimI,
