@@ -648,15 +648,26 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
       actualTemp > actualTarget + WRONG_SIDE_MIN_ERR ? 'cooling'
       : actualTemp < actualTarget - WRONG_SIDE_MIN_ERR ? 'heating'
       : null
-    const onWrongSideNow = wrongSideMode != null && prevMode != null && wrongSideMode !== prevMode
     const wrongSideSinceSec = pressureMap.get('mode_wrong_side_since') ?? 0
+    // Latchande timer: 0.15° startar klockan, men den nollställs INTE så fort
+    // temperaturen råkar hamna inuti brusbandet igen — bara när den faktiskt
+    // korsat målet. Utan detta räckte ett enda sample inom ±0.15° för att
+    // starta om räkningen, så 60-minutersgränsen aldrig nåddes (Blå 2026-08-02:
+    // låg 18.2–18.4° mot mål 18.0° i timmar utan att flippa).
+    const stillWrongSideMode: 'heating' | 'cooling' | null =
+      actualTemp > actualTarget ? 'cooling'
+      : actualTemp < actualTarget ? 'heating'
+      : null
+    const timerRunning = wrongSideSinceSec > 0
+    const activeWrongMode = timerRunning ? stillWrongSideMode : wrongSideMode
+    const onWrongSideNow = activeWrongMode != null && prevMode != null && activeWrongMode !== prevMode
     let wrongSideSince = onWrongSideNow ? (wrongSideSinceSec > 0 ? wrongSideSinceSec : Date.now() / 1000) : 0
     if (onWrongSideNow && wrongSideSince > 0) {
       const wrongSideMin = (Date.now() / 1000 - wrongSideSince) / 60
       if (wrongSideMin >= WRONG_SIDE_TIMEOUT_MIN && fc.heating_enabled && fc.cooling_enabled) {
         log('MODE_WRONG_SIDE_TIMEOUT', 'action',
-          `${fc.name}: ${Math.round(wrongSideMin)} min på fel sida (${round1(actualTemp)}° mot mål ${round1(actualTarget)}°) — tvingar läge ${wrongSideMode}`)
-        suggestedMode = wrongSideMode!
+          `${fc.name}: ${Math.round(wrongSideMin)} min på fel sida (${round1(actualTemp)}° mot mål ${round1(actualTarget)}°) — tvingar läge ${activeWrongMode}`)
+        suggestedMode = activeWrongMode!
         wrongSideSince = 0
       }
     }
