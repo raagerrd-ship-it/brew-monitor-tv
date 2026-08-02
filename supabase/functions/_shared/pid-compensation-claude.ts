@@ -184,6 +184,12 @@ const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sa
 const RATE_WINDOW_MIN = 35
 const RATE_WINDOW_LOW = 25, RATE_WINDOW_HIGH = 45
 const HISTORY_KEEP_MIN = 60    // måste rymma RATE_WINDOW_HIGH + marginal för nästa cykel
+// Minsta ålder för en fallback-ankarpunkt när 25–45min-fönstret är tomt.
+// Utan detta faller D-termen tillbaka på cykel-raten (1min) där verklig
+// termisk rörelse ligger under upplösningen → D=0% och ingen broms.
+const RATE_FALLBACK_MIN_AGE = 8
+// Läckage av trimI när vi faktiskt närmar oss mål (duty per timme).
+const TRIM_LEAK_PER_HOUR = 0.05
 
 /** Persist PID state to controller_learned_compensation. */
 async function persistPidState(
