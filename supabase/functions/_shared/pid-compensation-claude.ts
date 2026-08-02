@@ -157,17 +157,17 @@ const HEAT = { Kp: 0.35, Kd: 3.5 / 60, Ki: 0.10 }
 const DEAD_TIME_HOURS = 0.25   // ~15min probe-latens — τc för lambda-tuning av Kp/Kd (se deriveGains)
 const TRIM_MAX = 0.10          // trimI clamp — small, bias-correction only
 const D_MAX = 0.35             // cap on D-brake so a fast approach can't zero duty outright
-const SLEW_PER_CYCLE = 0.05    // max ±5 procentenheter duty/cykel, gäller nu universellt (se computeDutyV5)
+const SLEW_PER_CYCLE = 0.05    // max +5 procentenheter duty per 5 min; nedtrappning får bromsa direkt
 // Nära mål behöver duty inte röra sig fort — där är felet redan inom
 // mätbruset och en snabb duty-ramp (5%/cykel × 5min = 60%/h) hinner
 // bygga upp mer kyla/värme än probe-latensen visar → limit-cykel.
 // Halverad takt innanför NEAR_TARGET_BAND dämpar just den svängningen.
 const NEAR_TARGET_BAND = 0.30  // |need| under detta = "vid mål"
-const SLEW_NEAR_TARGET = 0.02  // max ±2 procentenheter duty/cykel vid mål
+const SLEW_NEAR_TARGET = 0.02  // max +2 procentenheter duty per 5 min vid mål
 // Innanför mätbruset (±0.1°) ska duty i praktiken stå still. Där är det bara
 // D-bromsens av/på-slag (0 ↔ D_MAX ≈ 10%) som driver limit-cykeln 3%↔12%.
 const NOISE_BAND = 0.10        // |need| under detta = ren sensorbrus-zon
-const SLEW_NOISE_BAND = 0.01   // max ±1 procentenhet duty/cykel i brus-zonen
+const SLEW_NOISE_BAND = 0.01   // max +1 procentenhet duty per 5 min i brus-zonen
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
@@ -600,22 +600,20 @@ function computeDutyV5(input: {
     }
   }
 
-  // ── Slew-cap: max ±5%/cykel, TILLÄMPAS ALLTID (utom vid mode-switch).
-  // Ingen bypass vid "förbi mål" längre — se motivering ovan: tapern är
-  // redan slät, det finns inget hopp att släppa fritt ifrån. Ett tidigare
-  // undantag för |need|>0.5° togs bort av samma skäl (verklig drift visade
-  // att stora fel är precis där duty svänger som mest, inte där den behöver
-  // fri respons). Reglering sker kontinuerligt på avstånd (P) + hastighet
-  // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
-  // utan specialfall. ──
+  // ── Slew-cap för UPPTRAPPNING, tidsnormaliserad mot 5-minuterscykeln som
+  // gränserna kalibrerades för. Orkestratorn kan köra tätare (observerat 1 min),
+  // och ett fast +5% per anrop gav då +25% på fem minuter innan probe-dödtiden
+  // hann visa responsen. Nedtrappning begränsas inte: när D/P väl ser rörelsen
+  // måste aktuatorn kunna bromsa direkt, inte fortsätta kyla/värma i flera cykler. ──
   // State is stored per mode, so after a flip prevState.lastDutyPct belongs
   // to the last time this mode ran and may be stale/high. A newly selected
   // mode must always start from zero and enter through the normal slew cap.
   const lastDutyFrac = input.modeJustSwitched ? 0 : (input.prevState.lastDutyPct ?? 0) / 100
   const absNeed = Math.abs(needCtl)
-  const slewLimit = absNeed <= NOISE_BAND
+  const baseSlewLimit = absNeed <= NOISE_BAND
     ? SLEW_NOISE_BAND
     : absNeed <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
+  const slewLimit = baseSlewLimit * (dtMin / 5)
   // Ett lägesbyte nollställer trimI men får inte kringgå aktuatorns slew-cap.
   // Det nya läget startar från 0% verklig duty; bypass här gav observerade
   // starter direkt på 12–16% och byggde nästa överskjutning.
@@ -623,10 +621,10 @@ function computeDutyV5(input: {
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
-    if (Math.abs(delta) > slewLimit) {
-      duty = Math.max(0, Math.min(1, lastDutyFrac + Math.sign(delta) * slewLimit))
+    if (delta > slewLimit) {
+      duty = Math.max(0, Math.min(1, lastDutyFrac + slewLimit))
       slewLimited = true
-      constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→${(Math.sign(delta)*slewLimit*100).toFixed(0)}%)`)
+      constraints.push(`slew-cap(${(delta*100).toFixed(1)}%→+${(slewLimit*100).toFixed(1)}%/${dtMin.toFixed(1)}m)`)
     }
   }
 
