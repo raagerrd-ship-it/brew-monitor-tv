@@ -755,7 +755,13 @@ function computeDutyV5(input: {
   // trimI till förra cykelns värde — annars fortsätter den växa mot ett svar
   // som ännu inte landat. ──
   if (slewLimited || minOffBlocked) {
-    trimI = persistedBase
+    // Frys mot förra cykelns nivå — men behåll aldrig MER än vad läckaget
+    // tillåter, annars nollar frysningen inflygningsdämpningen varje cykel.
+    trimI = persistedBase > 0
+      ? Math.min(persistedBase, Math.max(trimI, 0))
+      : persistedBase < 0
+        ? Math.max(persistedBase, Math.min(trimI, 0))
+        : persistedBase
     constraints.push('trim-freeze-clamped')
   }
 
