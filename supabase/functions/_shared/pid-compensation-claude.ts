@@ -572,24 +572,32 @@ function computeDutyV5(input: {
   // brus. Faller tillbaka på cykel-raten om historiken är för kort (cold start). ──
   const history = input.prevState.ssotHistory ?? []
   let windowedRatePerMin: number | null = null
+  let rawWindowedRatePerMin: number | null = null
   {
-    const candidates = history
-      .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+    const aged = history.map(e => ({
+      ageMin: (nowMs - new Date(e.t).getTime()) / 60000,
+      v: e.v,
+      r: e.r,
+    }))
+    const inWindow = aged
       .filter(e => e.ageMin >= RATE_WINDOW_LOW && e.ageMin <= RATE_WINDOW_HIGH)
       .sort((a, b) => Math.abs(a.ageMin - RATE_WINDOW_MIN) - Math.abs(b.ageMin - RATE_WINDOW_MIN))
-    if (candidates.length > 0) {
-      const anchor = candidates[0]
-      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
-    } else {
+    let anchor = inWindow[0]
+    if (!anchor) {
       // Fallback: äldsta punkt som är minst RATE_FALLBACK_MIN_AGE gammal.
       // Bättre en något kortare bas än att tappa D-bromsen helt.
-      const aged = history
-        .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+      anchor = aged
         .filter(e => e.ageMin >= RATE_FALLBACK_MIN_AGE)
-        .sort((a, b) => b.ageMin - a.ageMin)
-      if (aged.length > 0) {
-        windowedRatePerMin = (ssotFiltered - aged[0].v) / aged[0].ageMin
-        constraints.push(`rate-fallback(${aged[0].ageMin.toFixed(0)}m)`)
+        .sort((a, b) => b.ageMin - a.ageMin)[0]
+      if (anchor) constraints.push(`rate-fallback(${anchor.ageMin.toFixed(0)}m)`)
+    }
+    if (anchor) {
+      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+      // Rå rate parallellt: EMA:n släpar (~12min) och kan fortfarande peka
+      // uppåt flera cykler efter att den verkliga temperaturen vänt nedåt —
+      // då slås D-bromsen av precis när den behövs som mest.
+      if (anchor.r != null) {
+        rawWindowedRatePerMin = (input.actualTemp - anchor.r) / anchor.ageMin
       }
     }
   }
