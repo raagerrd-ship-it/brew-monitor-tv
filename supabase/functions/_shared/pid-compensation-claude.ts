@@ -154,7 +154,12 @@ function parseV5State(raw: unknown): V5PidState {
 // enheter som räkningen nedan (approachRatePerHour) faktiskt använder.
 const COOL = { Kp: 0.22, Kd: 5.0 / 60, Ki: 0.06 }
 const HEAT = { Kp: 0.35, Kd: 3.5 / 60, Ki: 0.10 }
-const DEAD_TIME_HOURS = 0.25   // ~15min probe-latens — τc för lambda-tuning av Kp/Kd (se deriveGains)
+// Default-dödtid när inget per-controller-värde lärts in ännu. Faktisk dödtid
+// mäts per tank (se learnDeadTime) — tankar med stor termisk massa kan coasta
+// 45–60 min efter duty=0, och då är Kp från τc=0.25h 3–4× för aggressiv.
+const DEAD_TIME_DEFAULT_HOURS = 0.25
+const DEAD_TIME_MIN = 0.15
+const DEAD_TIME_MAX = 1.25
 const TRIM_MAX = 0.10          // trimI clamp — small, bias-correction only
 const D_MAX = 0.35             // cap on D-brake so a fast approach can't zero duty outright
 const SLEW_PER_CYCLE = 0.05    // max +5 procentenheter duty per 5 min; nedtrappning får bromsa direkt
@@ -254,6 +259,79 @@ async function getProcessGain(
   return v * (deltaT / DELTA_T_REF)
 }
 
+/** Per-controller dödtid (h) — lärd av learnDeadTime, annars default. */
+async function getDeadTime(supabase: any, controllerId: string): Promise<number> {
+  const { data } = await supabase
+    .from('fermentation_learnings')
+    .select('learned_value')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', 'dead_time_hours')
+    .maybeSingle()
+  const v = data ? parseFloat(String(data.learned_value)) : NaN
+  if (!Number.isFinite(v)) return DEAD_TIME_DEFAULT_HOURS
+  return Math.max(DEAD_TIME_MIN, Math.min(DEAD_TIME_MAX, v))
+}
+
+/** Mät dödtiden ur verklig historik: tiden från duty→0% tills temperaturens
+ *  riktning vänder (coasting). Median av senaste dygnets coast-segment,
+ *  EMA-inlärd. 2h-cache via last_updated_at. */
+export async function learnDeadTime(supabase: any, controllerId: string): Promise<void> {
+  const { data: existing } = await supabase
+    .from('fermentation_learnings')
+    .select('last_updated_at')
+    .eq('controller_id', controllerId)
+    .eq('parameter_name', 'dead_time_hours')
+    .maybeSingle()
+  if (existing?.last_updated_at &&
+      (Date.now() - new Date(existing.last_updated_at).getTime()) / 3_600_000 < 2) return
+
+  const since = new Date(Date.now() - 24 * 3_600_000).toISOString()
+  const { data: history } = await supabase
+    .from('temp_controller_history')
+    .select('actual_temp, duty_pct, recorded_at')
+    .eq('controller_id', controllerId)
+    .gte('recorded_at', since)
+    .order('recorded_at', { ascending: true })
+    .limit(1500)
+  if (!history || history.length < 10) return
+
+  const rows = history
+    .filter((r: any) => r.actual_temp != null)
+    .map((r: any) => ({
+      t: new Date(r.recorded_at).getTime(),
+      temp: Number(r.actual_temp),
+      duty: Number(r.duty_pct ?? 0),
+    }))
+
+  const coasts: number[] = []
+  for (let i = 1; i < rows.length; i++) {
+    if (!(rows[i - 1].duty > 0 && rows[i].duty === 0)) continue
+    // riktning temperaturen rörde sig med när duty stängdes av
+    const dir = Math.sign(rows[i].temp - rows[i - 1].temp)
+    if (dir === 0) continue
+    for (let j = i + 1; j < rows.length && rows[j].duty === 0; j++) {
+      const step = rows[j].temp - rows[j - 1].temp
+      if (Math.abs(step) < 0.02) continue        // brus — inte en vändning
+      if (Math.sign(step) !== dir) {
+        const h = (rows[j].t - rows[i].t) / 3_600_000
+        if (h >= DEAD_TIME_MIN && h <= DEAD_TIME_MAX) coasts.push(h)
+        i = j
+        break
+      }
+    }
+  }
+  if (coasts.length < 2) return
+
+  coasts.sort((a, b) => a - b)
+  const median = coasts[Math.floor(coasts.length / 2)]
+  const result = await updateLearnedParam(
+    supabase, controllerId, 'dead_time_hours', median, DEAD_TIME_MIN, DEAD_TIME_MAX, 0.20, 0.15,
+  ).catch(() => null)
+  if (result) {
+    console.log(`⏱️ Dödtid ${controllerId}: median=${median.toFixed(2)}h (n=${coasts.length}) → ${result.newValue.toFixed(2)}h`)
+  }
+}
+
 /** Härled Kp/Kd från uppmätt processförstärkning istället för att låta dem
  *  vara en egen fri-löpande adaptiv loop (vilket är precis den typen av
  *  interagerande självjustering som orsakade instabilitet tidigare).
@@ -267,12 +345,18 @@ async function getProcessGain(
 function deriveGains(
   processGainPerPct: number,
   defaults: { Kp: number; Kd: number },
+  deadTimeHours: number,
 ): { Kp: number; Kd: number; source: 'measured' | 'default' } {
-  if (!(processGainPerPct > 0)) return { Kp: defaults.Kp, Kd: defaults.Kd, source: 'default' }
-  const tauC = DEAD_TIME_HOURS
+  // Även utan uppmätt processgain måste en lång dödtid dämpa Kp — annars
+  // gasar en trög tank ihjäl sig innan svaret ens syns.
+  const lagScale = DEAD_TIME_DEFAULT_HOURS / deadTimeHours
+  if (!(processGainPerPct > 0)) {
+    return { Kp: defaults.Kp * lagScale, Kd: defaults.Kp * lagScale * deadTimeHours, source: 'default' }
+  }
+  const tauC = deadTimeHours
   let Kp = 1 / (processGainPerPct * 100 * tauC)
-  Kp = Math.max(defaults.Kp * 0.3, Math.min(defaults.Kp * 3, Kp))
-  const Kd = Kp * DEAD_TIME_HOURS
+  Kp = Math.max(defaults.Kp * lagScale * 0.3, Math.min(defaults.Kp * lagScale * 3, Kp))
+  const Kd = Kp * deadTimeHours
   return { Kp, Kd, source: 'measured' }
 }
 
@@ -353,7 +437,10 @@ export async function calculateCompensatedTarget(
   // response samples exist.
   const processGainPerPct = await getProcessGain(supabase, controllerId, mode, deltaT).catch(() => 0)
   const gainDefaults = mode === 'cooling' ? COOL : HEAT
-  const gains = deriveGains(processGainPerPct, gainDefaults)
+  const deadTimeHours = await getDeadTime(supabase, controllerId).catch(() => DEAD_TIME_DEFAULT_HOURS)
+  const gains = deriveGains(processGainPerPct, gainDefaults, deadTimeHours)
+  if (deadTimeHours !== DEAD_TIME_DEFAULT_HOURS) constraints.push(`DEAD_TIME=${deadTimeHours.toFixed(2)}h`)
+  await learnDeadTime(supabase, controllerId).catch(() => null)
 
   void isStaleData // SSOT är källan; staleness hanteras via actualTempAgeMin nedan
   const r = computeDutyV5({
