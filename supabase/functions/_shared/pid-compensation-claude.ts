@@ -70,7 +70,7 @@ interface V5PidState {
   lastSsot?: number
   lastSsotAt?: string
   ssotSmoothed?: number       // EMA av SSOT — dämpar sensorjitter före PID
-  ssotHistory?: Array<{ t: string; v: number }>  // rullande ~30min för D-termens windowed rate
+  ssotHistory?: Array<{ t: string; v: number; r?: number }>  // v = EMA, r = rå SSOT; rullande ~30min för D-termens windowed rate
   trimI?: number              // liten, begränsad bias-trim ovanpå feedforward
   lastDutyPct?: number
   lastZeroDutyAt?: string     // min-off-skydd (kylning)
@@ -572,24 +572,32 @@ function computeDutyV5(input: {
   // brus. Faller tillbaka på cykel-raten om historiken är för kort (cold start). ──
   const history = input.prevState.ssotHistory ?? []
   let windowedRatePerMin: number | null = null
+  let rawWindowedRatePerMin: number | null = null
   {
-    const candidates = history
-      .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+    const aged = history.map(e => ({
+      ageMin: (nowMs - new Date(e.t).getTime()) / 60000,
+      v: e.v,
+      r: e.r,
+    }))
+    const inWindow = aged
       .filter(e => e.ageMin >= RATE_WINDOW_LOW && e.ageMin <= RATE_WINDOW_HIGH)
       .sort((a, b) => Math.abs(a.ageMin - RATE_WINDOW_MIN) - Math.abs(b.ageMin - RATE_WINDOW_MIN))
-    if (candidates.length > 0) {
-      const anchor = candidates[0]
-      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
-    } else {
+    let anchor = inWindow[0]
+    if (!anchor) {
       // Fallback: äldsta punkt som är minst RATE_FALLBACK_MIN_AGE gammal.
       // Bättre en något kortare bas än att tappa D-bromsen helt.
-      const aged = history
-        .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+      anchor = aged
         .filter(e => e.ageMin >= RATE_FALLBACK_MIN_AGE)
-        .sort((a, b) => b.ageMin - a.ageMin)
-      if (aged.length > 0) {
-        windowedRatePerMin = (ssotFiltered - aged[0].v) / aged[0].ageMin
-        constraints.push(`rate-fallback(${aged[0].ageMin.toFixed(0)}m)`)
+        .sort((a, b) => b.ageMin - a.ageMin)[0]
+      if (anchor) constraints.push(`rate-fallback(${anchor.ageMin.toFixed(0)}m)`)
+    }
+    if (anchor) {
+      windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+      // Rå rate parallellt: EMA:n släpar (~12min) och kan fortfarande peka
+      // uppåt flera cykler efter att den verkliga temperaturen vänt nedåt —
+      // då slås D-bromsen av precis när den behövs som mest.
+      if (anchor.r != null) {
+        rawWindowedRatePerMin = (input.actualTemp - anchor.r) / anchor.ageMin
       }
     }
   }
@@ -604,13 +612,28 @@ function computeDutyV5(input: {
   // en överskjutning, trots att samma dödtid gäller åt båda hållen.
   const dNeedDt = isCooling ? ratePerMin : -ratePerMin
   const approachRatePerMin = need >= 0 ? -dNeedDt : dNeedDt   // >0 = |need| krymper
+  // Samma räkning på den råa raten. Vi tar den MEST bromsande av de två:
+  // EMA:n är trögare och kan visa "stiger fortfarande" flera cykler efter att
+  // temperaturen faktiskt vänt — då ska den råa raten få bestämma.
+  const rawApproachPerMin = rawWindowedRatePerMin != null
+    ? (() => {
+        const dRaw = isCooling ? rawWindowedRatePerMin : -rawWindowedRatePerMin
+        return need >= 0 ? -dRaw : dRaw
+      })()
+    : null
+  const effApproachPerMin = rawApproachPerMin != null
+    ? Math.max(approachRatePerMin, rawApproachPerMin)
+    : approachRatePerMin
+  if (rawApproachPerMin != null && rawApproachPerMin > approachRatePerMin + 0.001) {
+    constraints.push('raw-rate-brake')
+  }
   // Om vi redan är förbi mål (need<0) OCH |need| växer, rör vi oss BORT från
   // mål på fel sida. Tidigare gav det approachRate<0 → D-bromsen slogs av helt
   // och ff+trimI dök upp igen precis när vi passerade målet. Samma dödtid
   // gäller åt båda håll: bromsa på beloppet istället för att sluta bromsa.
-  const approachRatePerHour = (need < 0 && approachRatePerMin < 0)
-    ? Math.abs(approachRatePerMin) * 60
-    : approachRatePerMin * 60   // Kd är kalibrerad i timmar, se COOL/HEAT-kommentar
+  const approachRatePerHour = (need < 0 && effApproachPerMin < 0)
+    ? Math.abs(effApproachPerMin) * 60
+    : effApproachPerMin * 60   // Kd är kalibrerad i timmar, se COOL/HEAT-kommentar
 
   // ── D-term: broms proportionell mot approach-rate. Endast broms (aldrig
   // acceleration) — P-termen sköter redan hur mycket kraft felet kräver. ──
@@ -772,7 +795,7 @@ function computeDutyV5(input: {
     ssotHistory: (() => {
       const prev = input.prevState.ssotHistory ?? []
       const kept = prev.filter(e => (nowMs - new Date(e.t).getTime()) / 60000 <= HISTORY_KEEP_MIN)
-      kept.push({ t: now, v: ssotFiltered })
+      kept.push({ t: now, v: ssotFiltered, r: input.actualTemp })
       return kept
     })(),
     trimI,
