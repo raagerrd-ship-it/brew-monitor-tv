@@ -607,7 +607,10 @@ function computeDutyV5(input: {
   const slewLimit = absNeed <= NOISE_BAND
     ? SLEW_NOISE_BAND
     : absNeed <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
-  const slewBypass = input.modeJustSwitched
+  // Ett lägesbyte nollställer trimI men får inte kringgå aktuatorns slew-cap.
+  // Det nya läget startar från 0% verklig duty; bypass här gav observerade
+  // starter direkt på 12–16% och byggde nästa överskjutning.
+  const slewBypass = false
   let slewLimited = false
   if (!slewBypass) {
     const delta = duty - lastDutyFrac
