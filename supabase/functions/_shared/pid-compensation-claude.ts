@@ -452,6 +452,18 @@ function computeDutyV5(input: {
 
   const avgError = input.actualTarget - ssotFiltered
   const need = isCooling ? -avgError : avgError   // >0 = aktuatorn ska jobba hårdare
+  // ── Konservativ need: EMA:n (tau=12min) ligger ovanpå ~15min dödtid, så
+  // efter en snabb rörelse kan filtret ligga 0.5–0.6° efter verkligheten.
+  // Blå observerades kyla 10% när SSOT redan låg 0.45° UNDER mål, enbart för
+  // att EMA:n fortfarande "såg" 18.2°. Det är fas-lagget, inte basnivån, som
+  // driver limit-cykeln. Vi tar därför alltid den MINSTA av filtrerad och rå
+  // need för P-term, trimI och slew-band: filtret får fortfarande dämpa hur
+  // snabbt vi gasar upp, men det får aldrig hålla kvar gas när råmätningen
+  // säger att vi passerat mål. Ensidigt — kan bara sänka duty, aldrig höja. ──
+  const rawAvgError = input.actualTarget - input.actualTemp
+  const rawNeed = isCooling ? -rawAvgError : rawAvgError
+  const needCtl = Math.min(need, rawNeed)
+  if (needCtl < need - 0.05) constraints.push(`raw-need-override(${needCtl.toFixed(2)}°)`)
   // Kp/Kd kommer från deriveGains (uppmätt processförstärkning eller statisk
   // fallback) — Ki är fortfarande en liten statisk trim, ingen anledning att
   // härleda den, den ska bara nudge:a bort residual bias, inte bära lasten.
@@ -504,7 +516,7 @@ function computeDutyV5(input: {
   // förbi mål) sänker duty UNDER feedforward så vi släpper av och låter
   // systemet glida tillbaka istället för att fortsätta kyla på ff-nivå rakt
   // igenom målet. (Total duty klampas till [0,1] längre ner — inte här.) ──
-  const pTerm = K.Kp * need
+  const pTerm = K.Kp * needCtl
 
   // ── Feedforward: lärd steady-state-duty. Detta ÄR biasen — duty kollapsar
   // inte mot 0 nära mål utan landar här. ──
@@ -522,12 +534,12 @@ function computeDutyV5(input: {
     trimI = 0
     constraints.push('mode-reset')
   } else if (!isStaleSsot) {
-    if (Math.abs(need) <= NOISE_BAND) {
+    if (Math.abs(needCtl) <= NOISE_BAND) {
       // Inom mätbruset finns inget verkligt bias-fel att integrera bort —
       // trimI håller redan den nivå som tog oss hit. Frys den.
       constraints.push('trim-freeze-noise')
     } else {
-      trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * need * dtMin / 60))
+      trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * needCtl * dtMin / 60))
     }
   }
 
@@ -591,7 +603,7 @@ function computeDutyV5(input: {
   // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
   // utan specialfall. ──
   const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
-  const absNeed = Math.abs(need)
+  const absNeed = Math.abs(needCtl)
   const slewLimit = absNeed <= NOISE_BAND
     ? SLEW_NOISE_BAND
     : absNeed <= NEAR_TARGET_BAND ? SLEW_NEAR_TARGET : SLEW_PER_CYCLE
