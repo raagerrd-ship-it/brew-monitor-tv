@@ -184,6 +184,12 @@ const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sa
 const RATE_WINDOW_MIN = 35
 const RATE_WINDOW_LOW = 25, RATE_WINDOW_HIGH = 45
 const HISTORY_KEEP_MIN = 60    // måste rymma RATE_WINDOW_HIGH + marginal för nästa cykel
+// Minsta ålder för en fallback-ankarpunkt när 25–45min-fönstret är tomt.
+// Utan detta faller D-termen tillbaka på cykel-raten (1min) där verklig
+// termisk rörelse ligger under upplösningen → D=0% och ingen broms.
+const RATE_FALLBACK_MIN_AGE = 8
+// Läckage av trimI när vi faktiskt närmar oss mål (duty per timme).
+const TRIM_LEAK_PER_HOUR = 0.05
 
 /** Persist PID state to controller_learned_compensation. */
 async function persistPidState(
@@ -574,6 +580,17 @@ function computeDutyV5(input: {
     if (candidates.length > 0) {
       const anchor = candidates[0]
       windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+    } else {
+      // Fallback: äldsta punkt som är minst RATE_FALLBACK_MIN_AGE gammal.
+      // Bättre en något kortare bas än att tappa D-bromsen helt.
+      const aged = history
+        .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+        .filter(e => e.ageMin >= RATE_FALLBACK_MIN_AGE)
+        .sort((a, b) => b.ageMin - a.ageMin)
+      if (aged.length > 0) {
+        windowedRatePerMin = (ssotFiltered - aged[0].v) / aged[0].ageMin
+        constraints.push(`rate-fallback(${aged[0].ageMin.toFixed(0)}m)`)
+      }
     }
   }
   const cycleRatePerMin = prevSmoothed != null ? (ssotFiltered - prevSmoothed) / dtMin : 0
@@ -633,6 +650,16 @@ function computeDutyV5(input: {
       constraints.push('trim-freeze-noise')
     } else {
       trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * needCtl * dtMin / 60))
+    }
+    // ── Trim-läckage vid inflygning: när vi rör oss mot mål (approachRate>0)
+    // ska integratorn trappas ner, inte ligga kvar på taket och trycka upp
+    // duty hela vägen in. Utan detta fortsätter duty klättra via slew-capen
+    // trots att felet krymper. ──
+    if (approachRatePerHour > 0 && trimI !== 0) {
+      const leak = TRIM_LEAK_PER_HOUR * (dtMin / 60)
+      const decayed = trimI > 0 ? Math.max(0, trimI - leak) : Math.min(0, trimI + leak)
+      if (decayed !== trimI) constraints.push(`trim-leak(${((decayed - trimI) * 100).toFixed(2)}%)`)
+      trimI = decayed
     }
   }
 
@@ -728,7 +755,13 @@ function computeDutyV5(input: {
   // trimI till förra cykelns värde — annars fortsätter den växa mot ett svar
   // som ännu inte landat. ──
   if (slewLimited || minOffBlocked) {
-    trimI = persistedBase
+    // Frys mot förra cykelns nivå — men behåll aldrig MER än vad läckaget
+    // tillåter, annars nollar frysningen inflygningsdämpningen varje cykel.
+    trimI = persistedBase > 0
+      ? Math.min(persistedBase, Math.max(trimI, 0))
+      : persistedBase < 0
+        ? Math.max(persistedBase, Math.min(trimI, 0))
+        : persistedBase
     constraints.push('trim-freeze-clamped')
   }
 
