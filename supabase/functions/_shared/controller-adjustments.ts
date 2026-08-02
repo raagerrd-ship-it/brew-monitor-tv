@@ -422,6 +422,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     'thermal_rate_heating', 'thermal_rate_cooling',
     'est_prev_actual_temp_at',
     'was_ramp_active',
+    'mode_wrong_side_since',
   ]
   const bucketParams = TEMP_BUCKETS.flatMap(b => [
     `thermal_rate_heating:${b}`, `thermal_rate_cooling:${b}`,
@@ -634,6 +635,30 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
     } else {
       // Inom neutralzonen: behåll föregående läge (eller default cooling om okänt)
       suggestedMode = prevMode ?? (actualTemp > actualTarget ? 'cooling' : 'heating')
+    }
+
+    // ── Tidsfaktor: långvarigt fel på "fel" sida får flippa läget ──
+    // Neutralzonen (0.6°) låter små avvikelser drivas av passivt. Men om vi
+    // ligger på fel sida av målet i över en timme utan att komma tillbaka är
+    // passiv återhämtning uppenbart otillräcklig — då släpper vi flippen även
+    // inom bandet. Tröskeln 0.15° filtrerar sensorbrus kring setpoint.
+    const WRONG_SIDE_MIN_ERR = 0.15
+    const WRONG_SIDE_TIMEOUT_MIN = 60
+    const wrongSideMode: 'heating' | 'cooling' | null =
+      actualTemp > actualTarget + WRONG_SIDE_MIN_ERR ? 'cooling'
+      : actualTemp < actualTarget - WRONG_SIDE_MIN_ERR ? 'heating'
+      : null
+    const onWrongSideNow = wrongSideMode != null && prevMode != null && wrongSideMode !== prevMode
+    const wrongSideSinceSec = pressureMap.get('mode_wrong_side_since') ?? 0
+    let wrongSideSince = onWrongSideNow ? (wrongSideSinceSec > 0 ? wrongSideSinceSec : Date.now() / 1000) : 0
+    if (onWrongSideNow && wrongSideSince > 0) {
+      const wrongSideMin = (Date.now() / 1000 - wrongSideSince) / 60
+      if (wrongSideMin >= WRONG_SIDE_TIMEOUT_MIN && fc.heating_enabled && fc.cooling_enabled) {
+        log('MODE_WRONG_SIDE_TIMEOUT', 'action',
+          `${fc.name}: ${Math.round(wrongSideMin)} min på fel sida (${round1(actualTemp)}° mot mål ${round1(actualTarget)}°) — tvingar läge ${wrongSideMode}`)
+        suggestedMode = wrongSideMode!
+        wrongSideSince = 0
+      }
     }
 
     // SAFETY FIRST: detect emergency BEFORE inlärda golv-block kan tysta nödbromsen.
@@ -1034,6 +1059,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
         { controller_id: fc.controller_id, parameter_name: 'pid_last_duty', learned_value: computedDutyPct, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'was_ramp_active', learned_value: rampRateLimited ? 1 : 0, sample_count: 1, last_updated_at: now },
         { controller_id: fc.controller_id, parameter_name: 'est_prev_actual_temp_at', learned_value: lastUpdateMs / 1000, sample_count: 1, last_updated_at: now },
+        { controller_id: fc.controller_id, parameter_name: 'mode_wrong_side_since', learned_value: wrongSideSince, sample_count: 1, last_updated_at: now },
       ]
       if (currentStepIndex != null) {
         rows.push({ controller_id: fc.controller_id, parameter_name: 'mode_last_step_index', learned_value: currentStepIndex, sample_count: 1, last_updated_at: now })
