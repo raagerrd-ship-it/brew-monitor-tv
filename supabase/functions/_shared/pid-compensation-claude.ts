@@ -651,6 +651,16 @@ function computeDutyV5(input: {
     } else {
       trimI = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimI + K.Ki * needCtl * dtMin / 60))
     }
+    // ── Trim-läckage vid inflygning: när vi rör oss mot mål (approachRate>0)
+    // ska integratorn trappas ner, inte ligga kvar på taket och trycka upp
+    // duty hela vägen in. Utan detta fortsätter duty klättra via slew-capen
+    // trots att felet krymper. ──
+    if (approachRatePerHour > 0 && trimI !== 0) {
+      const leak = TRIM_LEAK_PER_HOUR * (dtMin / 60)
+      const decayed = trimI > 0 ? Math.max(0, trimI - leak) : Math.min(0, trimI + leak)
+      if (decayed !== trimI) constraints.push(`trim-leak(${((decayed - trimI) * 100).toFixed(2)}%)`)
+      trimI = decayed
+    }
   }
 
   // ── Kombinera ──
