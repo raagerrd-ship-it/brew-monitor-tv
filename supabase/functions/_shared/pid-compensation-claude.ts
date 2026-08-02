@@ -580,6 +580,17 @@ function computeDutyV5(input: {
     if (candidates.length > 0) {
       const anchor = candidates[0]
       windowedRatePerMin = (ssotFiltered - anchor.v) / anchor.ageMin
+    } else {
+      // Fallback: äldsta punkt som är minst RATE_FALLBACK_MIN_AGE gammal.
+      // Bättre en något kortare bas än att tappa D-bromsen helt.
+      const aged = history
+        .map(e => ({ ageMin: (nowMs - new Date(e.t).getTime()) / 60000, v: e.v }))
+        .filter(e => e.ageMin >= RATE_FALLBACK_MIN_AGE)
+        .sort((a, b) => b.ageMin - a.ageMin)
+      if (aged.length > 0) {
+        windowedRatePerMin = (ssotFiltered - aged[0].v) / aged[0].ageMin
+        constraints.push(`rate-fallback(${aged[0].ageMin.toFixed(0)}m)`)
+      }
     }
   }
   const cycleRatePerMin = prevSmoothed != null ? (ssotFiltered - prevSmoothed) / dtMin : 0
