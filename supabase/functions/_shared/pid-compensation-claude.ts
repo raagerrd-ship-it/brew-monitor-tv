@@ -608,7 +608,10 @@ function computeDutyV5(input: {
   // fri respons). Reglering sker kontinuerligt på avstånd (P) + hastighet
   // (D) ovanpå en fast bas (feedforward) inom samma ±5%/cykel-tak, alltid,
   // utan specialfall. ──
-  const lastDutyFrac = (input.prevState.lastDutyPct ?? 0) / 100
+  // State is stored per mode, so after a flip prevState.lastDutyPct belongs
+  // to the last time this mode ran and may be stale/high. A newly selected
+  // mode must always start from zero and enter through the normal slew cap.
+  const lastDutyFrac = input.modeJustSwitched ? 0 : (input.prevState.lastDutyPct ?? 0) / 100
   const absNeed = Math.abs(needCtl)
   const slewLimit = absNeed <= NOISE_BAND
     ? SLEW_NOISE_BAND
