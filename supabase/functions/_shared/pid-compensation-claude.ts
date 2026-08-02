@@ -70,7 +70,7 @@ interface V5PidState {
   lastSsot?: number
   lastSsotAt?: string
   ssotSmoothed?: number       // EMA av SSOT — dämpar sensorjitter före PID
-  ssotHistory?: Array<{ t: string; v: number }>  // rullande ~30min för D-termens windowed rate
+  ssotHistory?: Array<{ t: string; v: number; r?: number }>  // v = EMA, r = rå SSOT; rullande ~30min för D-termens windowed rate
   trimI?: number              // liten, begränsad bias-trim ovanpå feedforward
   lastDutyPct?: number
   lastZeroDutyAt?: string     // min-off-skydd (kylning)
