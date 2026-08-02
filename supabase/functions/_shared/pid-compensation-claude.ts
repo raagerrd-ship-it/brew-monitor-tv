@@ -627,6 +627,13 @@ function computeDutyV5(input: {
     }
   }
 
+  // ── Monoton spärr förbi mål: när vi redan passerat mål (needCtl<0) får duty
+  // aldrig ÖKA jämfört med förra cykeln — bara ligga kvar eller sjunka mot 0. ──
+  if (needCtl < 0 && duty > lastDutyFrac) {
+    duty = lastDutyFrac
+    constraints.push('past-target-monotonic')
+  }
+
 
   // ── Anti-windup: om aktuatorn inte kunde leverera vad trimI-tillväxten
   // denna cykel förutsatte (slew eller min-off begränsade duty), återställ
