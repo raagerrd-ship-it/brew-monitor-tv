@@ -500,7 +500,13 @@ function computeDutyV5(input: {
   // en överskjutning, trots att samma dödtid gäller åt båda hållen.
   const dNeedDt = isCooling ? ratePerMin : -ratePerMin
   const approachRatePerMin = need >= 0 ? -dNeedDt : dNeedDt   // >0 = |need| krymper
-  const approachRatePerHour = approachRatePerMin * 60   // Kd är kalibrerad i timmar, se COOL/HEAT-kommentar
+  // Om vi redan är förbi mål (need<0) OCH |need| växer, rör vi oss BORT från
+  // mål på fel sida. Tidigare gav det approachRate<0 → D-bromsen slogs av helt
+  // och ff+trimI dök upp igen precis när vi passerade målet. Samma dödtid
+  // gäller åt båda håll: bromsa på beloppet istället för att sluta bromsa.
+  const approachRatePerHour = (need < 0 && approachRatePerMin < 0)
+    ? Math.abs(approachRatePerMin) * 60
+    : approachRatePerMin * 60   // Kd är kalibrerad i timmar, se COOL/HEAT-kommentar
 
   // ── D-term: broms proportionell mot approach-rate. Endast broms (aldrig
   // acceleration) — P-termen sköter redan hur mycket kraft felet kräver. ──
