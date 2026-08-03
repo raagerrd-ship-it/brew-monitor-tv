@@ -190,6 +190,41 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Pi-styrda tankar ─────────────────────────────────────────
+    // Regleringen sker lokalt på Pi:n; måltemperaturen bor i pi_setpoint,
+    // inte i RAPT:s target_temp (som är kvar på gamla värden). Glykolkylaren
+    // ligger fortfarande på RAPT och måste följa dessa mål.
+    const piActuatedControllerIds = new Set<string>();
+    const piTargets = new Map<string, number>();
+    {
+      const piIds = allControllers
+        .filter(c => (c as any).actuation === 'pi')
+        .map(c => c.controller_id);
+      if (piIds.length > 0) {
+        const { data: setpoints } = await supabase
+          .from('pi_setpoint')
+          .select('controller_id, target_temp, enabled, mode_allowed')
+          .in('controller_id', piIds);
+        const spMap = new Map((setpoints ?? []).map((s: any) => [s.controller_id, s]));
+        for (const c of allControllers) {
+          if ((c as any).actuation !== 'pi') continue;
+          const sp: any = spMap.get(c.controller_id);
+          const target = sp ? parseFloat(String(sp.target_temp)) : NaN;
+          if (!sp || sp.enabled === false || sp.mode_allowed === 'off' || !isFinite(target)) {
+            (c as any).cooling_enabled = false;
+            (c as any).heating_enabled = false;
+            log('PI_TANK', 'info', `${c.name}: Pi-tank inaktiv — ingår inte i kylarens målberäkning`);
+            continue;
+          }
+          piActuatedControllerIds.add(c.controller_id);
+          piTargets.set(c.controller_id, target);
+          (c as any).target_temp = target;
+          (c as any).cooling_enabled = sp.mode_allowed !== 'heating';
+          log('PI_TANK', 'info', `${c.name}: mål ${target}° från Pi-setpoint (kylare följer)`);
+        }
+      }
+    }
+
     // Auto-follow: all controllers with active cooling or heating, excluding the glycol cooler
     const allActiveControllers = allControllers.filter(c =>
       !(c as any).is_glycol_cooler && (c.cooling_enabled || c.heating_enabled)
