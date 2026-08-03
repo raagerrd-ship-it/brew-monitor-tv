@@ -59,7 +59,9 @@ def api_capture(sensor: str):
     except (KeyError, TypeError, ValueError):
         return jsonify({"error": "Ange ett referensvärde"}), 400
 
-    raw = hub.capture_average(sensor if sensor in SENSOR_KEYS else "")
+    if sensor not in SENSOR_KEYS:
+        return jsonify({"error": "Okänd givare"}), 404
+    raw = hub.capture_average(sensor)
     if raw is None:
         return jsonify({"error": "Ingen giltig avläsning från givaren"}), 400
     try:
