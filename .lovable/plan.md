@@ -25,7 +25,7 @@ Moln                                Pi (lokalt)
                                     PID 1 Hz mot PT100
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
-  historik, inlärning, UI    <-     telemetri var 10:e s
+  historik, inlärning, UI    <-     snabbsynk 10 s / full synk 60 s
 ```
 
 **Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
@@ -48,6 +48,27 @@ Moln                                Pi (lokalt)
 - Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
 - Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
+
+## Tvådelad synk mot molnet
+
+Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
+
+**Snabbsynk — var 10:e sekund, litet paket**
+- Bara det som ska kännas levande i UI:t: tanktemp (PT100), glykoltemp, aktuellt läge, aktuell duty, relä på/av.
+- Skrivs till en singleton-rad per controller (`pi_live_state`) med UPSERT — ingen historikrad, ingen tillväxt i databasen. UI:t prenumererar via realtime och känns direkt.
+- Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
+- Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
+
+**Full synk — var 60:e sekund, aggregerat**
+- Det som behövs för historik, grafer och inlärning: min/medel/max tanktemp under minuten, faktiskt levererad on-tid per läge (sekunder), PID-termer (ff, trimI, P, D), antal reläslag, glykol min/max.
+- Skrivs som en historikrad. 1440 rader/dygn och tank — hanterbart, och betydligt mindre än 10-sekundersrader (8640/dygn).
+- Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov var 10:e sekund.
+
+**Vid nätavbrott**
+- Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
+- Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
+
+Om 10 s visar sig vara onödigt tätt för UI-känslan går snabbsynken att glesa till 15–30 s utan att något annat påverkas — den är frikopplad från regleringen.
 
 ## Säkerhet
 
