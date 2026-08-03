@@ -50,11 +50,15 @@ Moln                                Pi (lokalt)
 
 ## Säkerhet
 
-- Målvärdet har `expires_at`. Tappar Pi:n internet kör den vidare på senaste målet i 6 timmar — den kan det, för den har både sensor och regulator lokalt. Därefter säkert viloläge: allt av.
+- **Internetbortfall stänger inte av något.** Pi:n har sensor, regulator och aktuator lokalt, så den fortsätter hålla senaste målet hur länge som helst. Att slå av allt mitt i en jäsning vore farligare än att hålla ett något gammalt målvärde — en tank som driftar fritt förstör batchen, ett fruset målvärde gör det inte.
+- Målvärdet sparas persistent på disk så det överlever en omstart av Pi:n under avbrottet.
+- `expires_at` blir därför bara en informationsflagga: Pi:n loggar och rapporterar "setpoint stale" (och visar det i UI:t när kontakten är tillbaka), men fortsätter reglera. Vill du kunna tvinga fram avstängning finns molnets `max_duty_pct = 0` — men den kräver ju kontakt, så den är inte en failsafe utan ett manuellt stopp.
+- Det som *ska* stänga av är lokala fel, inte molnfel: sensorbortfall, temperatur utanför hårda gränser, eller relä som stått på för länge. Se punkterna nedan.
+- Enda undantaget värt att bevaka: en profil som skulle ha rampat vidare står stilla under avbrottet. Vi larmar när kontakten återkommer och molnet räknar då om steget mot faktisk tid, i stället för att hoppa i temperatur.
 - Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger.
 - Värmen har en egen övertemperaturspärr (hårt tak) och kräver färsk sensordata — ingen PT100-avläsning på 60 s betyder värme av.
-- Watchdog i molnet: larmar om ingen telemetri på 2 min.
-- Molnet kan alltid tvinga stopp genom att sätta duty-tak 0 i setpoint-raden.
+- Sensorbortfall: ingen giltig PT100-avläsning på 60 s → båda reläerna av. Här är avstängning rätt svar, för då reglerar vi blint.
+- Watchdog i molnet: larmar om ingen telemetri på 2 min (nu ett *kommunikations*larm, inte en anledning att stoppa regleringen).
 
 ## Etapper
 
