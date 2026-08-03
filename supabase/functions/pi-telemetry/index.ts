@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const { data: learnings } = await supabase
       .from("fermentation_learnings")
       .select("parameter_name, learned_value")
-      .eq("controller_id", controller_id);
+      .eq("controller_id", sp.controller_id);
 
     const params: Record<string, any> = {};
     if (learnings) {
