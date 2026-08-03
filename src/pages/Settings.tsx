@@ -19,6 +19,7 @@ import { CombinedControllerChart } from "@/components/controller-chart";
 import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
 import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { PumpStatusPanel } from "@/components/PumpStatusPanel";
+import { PiTankSettings } from "@/components/PiTankSettings";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -607,6 +608,9 @@ export default function Settings() {
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
             <DeviceDiscoveryButton />
+            <SettingsSection icon={Thermometer} title="Pi-tankar" description="Aktivera/inaktivera reglering och begränsa tillåtet läge per Pi-styrd tank">
+              <PiTankSettings />
+            </SettingsSection>
             <SettingsSection icon={Thermometer} title="Cirkulationspumpar" description="Körstatus samt senaste start/stopp för Gul, Grön och Blå">
               <PumpStatusPanel />
             </SettingsSection>

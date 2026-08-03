@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     const { data: sp } = await supabase
       .from("pi_setpoint")
       .select("*")
-      .eq("controller_id", controller_id)
+      .like("controller_id", `${controller_id}%`)
       .maybeSingle();
 
     if (!sp) return null;
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const { data: learnings } = await supabase
       .from("fermentation_learnings")
       .select("parameter_name, learned_value")
-      .eq("controller_id", controller_id);
+      .eq("controller_id", sp.controller_id);
 
     const params: Record<string, any> = {};
     if (learnings) {
@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
       setpoint: {
         target_temp: parseFloat(String(sp.target_temp)),
         mode_allowed: sp.mode_allowed,
+        enabled: sp.enabled !== false,
         max_duty_pct: parseFloat(String(sp.max_duty_pct)),
         pwm_period_s: sp.pwm_period_s,
         min_on_s: sp.min_on_s,
@@ -113,6 +114,8 @@ Deno.serve(async (req) => {
         pid_terms: data.pid_terms ?? null,
         constraints_hit: data.constraints_hit ?? null,
         sensor_source: data.sensor_source ?? null,
+        enabled: data.enabled ?? null,
+        mode_allowed: data.mode_allowed ?? null,
         last_heartbeat: new Date().toISOString(),
       }, { onConflict: "controller_id" });
 

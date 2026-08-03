@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Waves } from "lucide-react";
 
 const PUMPS = [
-  { key: "gul", label: "Gul", controllerId: null, color: "hsl(45 90% 55%)" },
+  { key: "gul", label: "Gul", controllerId: "618b29b0", color: "hsl(45 90% 55%)" },
   { key: "gron", label: "Grön", controllerId: "6fbbc7db", color: "hsl(142 60% 50%)" },
   { key: "bla", label: "Blå", controllerId: "ffa62be4", color: "hsl(210 90% 60%)" },
 ] as const;
