@@ -1348,6 +1348,7 @@ export type Database = {
           pill_temp: number | null
           preferred_sensor: string
           profile_target_temp: number | null
+          pt100_temp: number | null
           pwm_off_expected_target: number | null
           pwm_off_sent_at: string | null
           target_temp: number | null
@@ -1387,6 +1388,7 @@ export type Database = {
           pill_temp?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
+          pt100_temp?: number | null
           pwm_off_expected_target?: number | null
           pwm_off_sent_at?: string | null
           target_temp?: number | null
@@ -1426,6 +1428,7 @@ export type Database = {
           pill_temp?: number | null
           preferred_sensor?: string
           profile_target_temp?: number | null
+          pt100_temp?: number | null
           pwm_off_expected_target?: number | null
           pwm_off_sent_at?: string | null
           target_temp?: number | null
