@@ -25,7 +25,7 @@ Moln                                Pi (lokalt)
                                     PID 1 Hz mot PT100
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
-  historik, inlärning, UI    <-     telemetri var 10:e s
+  historik, inlärning, UI    <-     snabbsynk 10 s / full synk 60 s
 ```
 
 **Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
@@ -49,6 +49,27 @@ Moln                                Pi (lokalt)
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
 - Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
 
+## Tvådelad synk mot molnet
+
+Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
+
+**Snabbsynk — var 10:e sekund, litet paket**
+- Bara det som ska kännas levande i UI:t: tanktemp (PT100), glykoltemp, aktuellt läge, aktuell duty, relä på/av.
+- Skrivs till en singleton-rad per controller (`pi_live_state`) med UPSERT — ingen historikrad, ingen tillväxt i databasen. UI:t prenumererar via realtime och känns direkt.
+- Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
+- Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
+
+**Full synk — var 60:e sekund, aggregerat**
+- Det som behövs för historik, grafer och inlärning: min/medel/max tanktemp under minuten, faktiskt levererad on-tid per läge (sekunder), PID-termer (ff, trimI, P, D), antal reläslag, glykol min/max.
+- Skrivs som en historikrad. 1440 rader/dygn och tank — hanterbart, och betydligt mindre än 10-sekundersrader (8640/dygn).
+- Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov var 10:e sekund.
+
+**Vid nätavbrott**
+- Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
+- Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
+
+Om 10 s visar sig vara onödigt tätt för UI-känslan går snabbsynken att glesa till 15–30 s utan att något annat påverkas — den är frikopplad från regleringen.
+
 ## Säkerhet
 
 - **Internetbortfall stänger inte av något.** Pi:n har sensor, regulator och aktuator lokalt, så den fortsätter hålla senaste målet hur länge som helst. Att slå av allt mitt i en jäsning vore farligare än att hålla ett något gammalt målvärde — en tank som driftar fritt förstör batchen, ett fruset målvärde gör det inte.
@@ -65,8 +86,8 @@ Moln                                Pi (lokalt)
 
 **Etapp 1 — mätning först**
 - PT100 + MAX31865 monteras, Pi:n rapporterar temperaturer till molnet. Ingen styrning ännu.
-- Nya tabeller: `pi_probe_readings`, `pi_relay_state`.
-- Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`.
+- Nya tabeller: `pi_live_state` (singleton per controller, UPSERT från snabbsynken) och `pi_probe_readings` (aggregerade minutrader från full synk).
+- Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`. Tar emot båda synknivåerna; fältet `kind` (`live` eller `rollup`) avgör vilken väg som körs.
 - Vi jämför PT100 mot Pill/probe i några dygn och ser hur stor sensorlatensen faktiskt varit.
 - BLE-sniffern rör vi inte — den kör redan och matar `ingest-pill-ble`.
 
@@ -111,7 +132,7 @@ Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma m�
 
 ## Teknisk detalj
 
-- Två edge-funktioner totalt: `pi-control` (GET setpoint + params) och `pi-telemetry` (POST temperaturer, relästatus, levererad on-tid per läge, PID-termer).
+- Två edge-funktioner totalt: `pi-control` (GET setpoint + params, som fallback när piggyback inte används) och `pi-telemetry` (POST, både snabbsynk och minutaggregat; svarar med ny setpoint när `setpoint_version` skiljer sig).
 - Pi:n pratar aldrig direkt med databasen — bara genom dessa två.
 - RLS: `pi_setpoint`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated`, skrivbara endast via `service_role`.
 - PID-koden portas från `pid-compensation-claude.ts` till Python med bevarad struktur och parameternamn, så en bugg fixad på ena sidan går att spegla på den andra.
