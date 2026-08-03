@@ -105,5 +105,67 @@ def api_reset(sensor: str):
     return jsonify(_state(sensor))
 
 
+# ── Regulator control endpoints (local override + status) ─────────────
+
+_regulator_ref = None  # set by regulator.py when running in-process
+
+def set_regulator(reg):
+    global _regulator_ref
+    _regulator_ref = reg
+
+
+@app.get("/api/status")
+def api_status():
+    if _regulator_ref is None:
+        return jsonify({"running": False, "message": "Regulatorn är inte startad"})
+    tanks = []
+    for cid, t in _regulator_ref.tanks.items():
+        temp = hub.corrected(t.sensor_key)
+        tanks.append({
+            "controller_id": cid,
+            "name": t.name,
+            "temp": temp,
+            "target": t.target_temp,
+            "mode": t.mode,
+            "duty_pct": round(t.current_duty * 100),
+        })
+    glycol = hub.corrected("glycol")
+    return jsonify({
+        "running": True,
+        "glycol_temp": glycol,
+        "compressor_on": _regulator_ref.relays.compressor.is_on,
+        "tanks": tanks,
+    })
+
+
+@app.post("/api/target/<controller_id>")
+def api_set_target(controller_id: str):
+    if _regulator_ref is None:
+        return jsonify({"error": "Regulatorn är inte startad"}), 503
+    body = request.get_json(silent=True) or {}
+    try:
+        target = float(body["target_temp"])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "Ange target_temp"}), 400
+    if not (-10 <= target <= 40):
+        return jsonify({"error": "Måste vara mellan -10 och 40°C"}), 400
+    tank = _regulator_ref.tanks.get(controller_id)
+    if not tank:
+        return jsonify({"error": "Okänd controller"}), 404
+    tank.target_temp = target
+    log = getattr(_regulator_ref, '_log_override', None)
+    if log:
+        log.info(f"Local override: {tank.name} → {target}°C")
+    return jsonify({"controller_id": controller_id, "target_temp": target})
+
+
+@app.post("/api/estop")
+def api_estop():
+    if _regulator_ref is None:
+        return jsonify({"error": "Regulatorn är inte startad"}), 503
+    _regulator_ref.relays.all_off()
+    return jsonify({"estop": True})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8321)))

@@ -1031,6 +1031,114 @@ export type Database = {
         }
         Relationships: []
       }
+      pi_live_state: {
+        Row: {
+          actual_temp: number | null
+          constraints_hit: string[] | null
+          controller_id: string
+          cooling_relay_on: boolean
+          created_at: string
+          duty_pct: number
+          glycol_temp: number | null
+          heating_relay_on: boolean
+          id: string
+          last_heartbeat: string
+          mode: string | null
+          pid_terms: Json | null
+          sensor_source: string | null
+          target_temp: number | null
+          updated_at: string
+        }
+        Insert: {
+          actual_temp?: number | null
+          constraints_hit?: string[] | null
+          controller_id: string
+          cooling_relay_on?: boolean
+          created_at?: string
+          duty_pct?: number
+          glycol_temp?: number | null
+          heating_relay_on?: boolean
+          id?: string
+          last_heartbeat?: string
+          mode?: string | null
+          pid_terms?: Json | null
+          sensor_source?: string | null
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Update: {
+          actual_temp?: number | null
+          constraints_hit?: string[] | null
+          controller_id?: string
+          cooling_relay_on?: boolean
+          created_at?: string
+          duty_pct?: number
+          glycol_temp?: number | null
+          heating_relay_on?: boolean
+          id?: string
+          last_heartbeat?: string
+          mode?: string | null
+          pid_terms?: Json | null
+          sensor_source?: string | null
+          target_temp?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pi_setpoint: {
+        Row: {
+          controller_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          max_duty_pct: number
+          min_off_s: number
+          min_on_s: number
+          mode_allowed: string
+          params: Json
+          params_version: number
+          pwm_period_s: number
+          set_at: string
+          set_by: string
+          target_temp: number
+          updated_at: string
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          max_duty_pct?: number
+          min_off_s?: number
+          min_on_s?: number
+          mode_allowed?: string
+          params?: Json
+          params_version?: number
+          pwm_period_s?: number
+          set_at?: string
+          set_by?: string
+          target_temp: number
+          updated_at?: string
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          max_duty_pct?: number
+          min_off_s?: number
+          min_on_s?: number
+          mode_allowed?: string
+          params?: Json
+          params_version?: number
+          pwm_period_s?: number
+          set_at?: string
+          set_by?: string
+          target_temp?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pid_event_throttle: {
         Row: {
           controller_id: string
@@ -1244,6 +1352,7 @@ export type Database = {
       rapt_temp_controllers: {
         Row: {
           actual_temp: number | null
+          actuation: string
           controller_id: string
           cooling_enabled: boolean | null
           cooling_hysteresis: number | null
@@ -1282,6 +1391,7 @@ export type Database = {
         }
         Insert: {
           actual_temp?: number | null
+          actuation?: string
           controller_id: string
           cooling_enabled?: boolean | null
           cooling_hysteresis?: number | null
@@ -1320,6 +1430,7 @@ export type Database = {
         }
         Update: {
           actual_temp?: number | null
+          actuation?: string
           controller_id?: string
           cooling_enabled?: boolean | null
           cooling_hysteresis?: number | null
