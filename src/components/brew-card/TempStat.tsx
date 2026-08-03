@@ -215,7 +215,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
               {showCompensatedMarker && (
                 <p><span style={{ color: 'hsl(38 92% 50% / 0.7)' }}>┊</span> Kompenserat: {compensatedT.toFixed(1)}°</p>
               )}
-              {hasBoth && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>}
+              {hasBoth && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Actual: {displayTemp.toFixed(1)}°</p>}
               {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
               {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
             </div>

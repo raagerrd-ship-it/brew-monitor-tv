@@ -125,7 +125,7 @@ export function SyncedDataDialog({
   }, [open, brewId, fetchSnapshots]);
 
   const hasControllerData = !!controllerId && snapshots.some((s) => s.controller_temp != null);
-  // SSOT: always show actual_temp as "Snitt" (it already reflects the user's
+  // SSOT: always show actual_temp as "Actual" (it already reflects the user's
   // preferred sensor / dual-fusion choice — backend writes it that way).
   const hasAvgTemp = hasControllerData && snapshots.some(
     (s) => s.actual_temp != null || s.auto_target_temp != null,
@@ -189,7 +189,7 @@ export function SyncedDataDialog({
                     <th className="text-right py-2 font-medium">SG</th>
                     <th className="text-right py-2 font-medium">Pill</th>
                     {hasAvgTemp && (
-                      <th className="text-right py-2 font-medium">Snitt</th>
+                      <th className="text-right py-2 font-medium">Actual</th>
                     )}
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Ctrl</th>
