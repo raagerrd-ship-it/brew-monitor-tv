@@ -52,7 +52,7 @@ export function PiTankSettings() {
     load();
   }, []);
 
-  const update = async (id: string, patch: Partial<Row>) => {
+  const update = async (id: string, patch: { enabled?: boolean; mode_allowed?: string }) => {
     setRows((prev) => prev.map((r) => (r.controller_id === id ? { ...r, ...patch } : r)));
     await supabase
       .from("pi_setpoint")
