@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
 
   // Find all scheduled PWM OFF commands that are due
   const { data: pendingOffs, error } = await supabase
+
     .from("pending_rapt_retries")
     .select("*")
     .like("reason", "%PWM OFF%")
