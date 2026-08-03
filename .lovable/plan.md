@@ -20,12 +20,13 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 ```text
 Moln                                Pi (lokalt)
   fermenteringsprofiler
-  -> target_temp per tank    ->     pi_setpoint (pollas var 10:e s)
+  -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
   lärda parametrar           ->     Kp/Kd/ff/dödtid per läge
                                     PID 1 Hz mot PT100
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
-  historik, inlärning, UI    <-     snabbsynk 10 s / full synk 60 s
+  historik, inlärning, UI    <-     snabbsynk 30 s / full synk 5 min
+                             <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
 **Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
