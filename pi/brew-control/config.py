@@ -31,9 +31,9 @@ class TankConfig:
 # Verified against physical wiring (cables are reversed vs. the natural order):
 # IN1=12 komp, IN2=26, IN3=25, IN4=24, IN5=23, IN6=22, IN7=27, IN8=17 CO2.
 TANKS = [
-    TankConfig("tank1", "6fbbc7db", "Grön (Mjöd)", 26, 25),
+    TankConfig("tank1", "618b29b0", "Gul", 26, 25),
     TankConfig("tank2", "ffa62be4", "Blå (Skogens Sus)", 24, 23),
-    TankConfig("tank3", "618b29b0", "Gul", 22, 27),
+    TankConfig("tank3", "6fbbc7db", "Grön (Mjöd)", 22, 27),
 ]
 
 GLYCOL_SENSOR_KEY = "glycol"
