@@ -20,12 +20,13 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 ```text
 Moln                                Pi (lokalt)
   fermenteringsprofiler
-  -> target_temp per tank    ->     pi_setpoint (pollas var 10:e s)
+  -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
   lärda parametrar           ->     Kp/Kd/ff/dödtid per läge
                                     PID 1 Hz mot PT100
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
-  historik, inlärning, UI    <-     snabbsynk 10 s / full synk 60 s
+  historik, inlärning, UI    <-     snabbsynk 30 s / full synk 5 min
+                             <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
 **Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
@@ -70,6 +71,30 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 - Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
 
 
+
+## Lokalt UI på Pi:n
+
+När hela regleringen ändå kör lokalt är det bara rimligt att också kunna styra den lokalt. Pi:n serverar en liten webbsida på LAN:et (t.ex. `http://brewpi.local`) som fungerar oavsett om internet finns — den pratar bara med Pi:ns egen loop, aldrig via molnet.
+
+**Vad man kan göra**
+- **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank.
+- **Se status och larm** — tanktemp, måltemp, aktuellt läge, duty, relä på/av, glykoltemp, samt när molnet senast svarade. Lokala larm (sensorfel, gränsvärde, interlock) syns här även när inga push-notiser kan skickas.
+
+Ingen nödstoppsknapp och inget manuellt lägesval i första versionen — säkerhetsavstängning sker automatiskt i loopen, och att tvinga läge förbi PID:n är precis den sortens ingrepp som skapat problem tidigare. Kan läggas till senare.
+
+**Konfliktlösning via tidsstämpel**
+
+Tidsstämpel är rätt lösning här, och den gör att vi slipper hela "vem vinner"-frågan. Varje målvärdesändring bär `set_at` (tidpunkt) och `set_by` (`profile`, `cloud_manual` eller `local_ui`):
+
+- Pi:n behåller alltid den **senaste** ändringen, oavsett varifrån den kom. Sätter du 18,5° lokalt kl 10:00 och profilen rampar till 19,0° kl 11:00, vinner profilen — den är nyare.
+- Din lokala ändring skickas upp vid nästa lyckade synk och skriver molnets målvärde med samma tidsstämpel. Molnets UI visar "satt lokalt på Pi:n 10:00" i stället för att tyst skriva över.
+- Skulle profilen ha ändrat målet *medan* internet låg nere tar den över när kontakten återkommer — men bara om dess tidsstämpel är nyare än din lokala ändring.
+
+Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (eller monoton fallback), så att en klockförskjutning under strömavbrott inte kan få en gammal ändring att se ny ut.
+
+**Teknik**
+- Liten FastAPI-app i samma process som reglerloopen (eller egen process mot samma SQLite), serverad över LAN. Ingen molnberoende, inget Supabase-inloggningsflöde — enkel PIN eller enbart LAN-åtkomst.
+- Samma sida fungerar både som 7-tums kioskvy (1024x600) på Pi:n och i mobilen på nätverket.
 
 ## Säkerhet
 
