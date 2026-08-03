@@ -50,6 +50,36 @@ Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
 **Etapp 3 — rensning**
 - När Pi-kylan gått stabilt kan PWM-hacket mot RAPT tas bort helt för kyla.
 
+## Förenklingar som följer med
+
+Det här är den stora vinsten utöver bättre kylupplösning — mycket av komplexiteten vi byggt de senaste veckorna finns bara för att kompensera för RAPT-hacket och kan tas bort för Pi-styrda tankar:
+
+- **`execute-pwm-off` (30 s-cron)** behövs inte alls — Pi:n äger av-slaget lokalt. Croner blir kvar bara så länge någon tank fortfarande står på `cool_actuation = 'rapt'`.
+- **Orphan-extreme-vakten**, **PWM-OFF-bekräftelselogiken** och **read-back-verifieringen** försvinner: det finns inget extremt måltemp att fastna på.
+- **Mid-burst-glykolvakten** ersätts av att Pi:n läser glykol-PT100 varje sekund och kan avbryta pågående on-fas direkt.
+- **PWM-dithering / slot-rotation** (10-slots-modellen för 1 %-upplösning) tas bort — `duty_debt` på Pi:n gör samma sak exakt.
+- **`subTenMinGapSlots`-clamp och burstlängdsberäkningar** i `controller-adjustments.ts` blir död kod för Pi-tankar.
+
+## Snabbare reglering (etapp 2b, efter PT100-bytet)
+
+Med 1 Hz-sensordata i stället för 15 min Pill-latens kan reglerloopen skärpas rejält:
+
+- EMA-filtret på `actual_temp` kortas från ~12 min till 2–3 min. Fasfördröjningen som tvingade oss till "conservative need" och rå-hastighetsbroms försvinner till största delen.
+- PID-cykeln kan gå från 5 min till 1–2 min.
+- Effektiv dödtid faller från ~40 min till ~10 min, vilket i sin tur tillåter högre `Kp` utan pendling och gör D-bromsen träffsäker.
+- Slew-gränserna räknas redan per minut, så de följer med automatiskt.
+
+Detta görs som ett eget steg efter att PT100 validerats — inte samtidigt som reläbytet, så att vi kan isolera vad som förbättrade vad.
+
+## Kaskadreglering (etapp 3, valfritt)
+
+När allt ovan är på plats kan Pi:n köra en snabb inre loop:
+
+- **Yttre loop (moln, 1–2 min):** PID på tanktemperatur -> sätter ett *kyleffektbehov* i stället för rå duty.
+- **Inre loop (Pi, 1 Hz):** översätter behovet till faktisk on-tid kompenserat för aktuell glykoltemperatur — samma effekt levereras vare sig glykolen står på 8° eller 2°.
+
+Det tar bort hela ΔT-normaliseringen och glykolvakterna ur molnkoden, och gör att inlärda parametrar (`process_gain`, `feedforward_duty`) blir stabila över tid i stället för att drifta med glykoltemperaturen. Jag tar inte med det i första implementationen — det står här som riktning.
+
 ## UI
 
 - Relästatus per tank i controller-kortet (liten pump-ikon som lyser vid on-fas).
