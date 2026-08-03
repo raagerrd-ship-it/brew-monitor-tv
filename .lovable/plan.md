@@ -24,7 +24,9 @@ Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
 ```
 
 - Molnet skickar bara `duty_pct` och `mode` per tank — ingen tidsstyrning.
-- Pi:n äger PWM-fönstret lokalt (5 min-period, 1 s upplösning → 0.3 % duty-upplösning i stället för dagens 2 %).
+- Pi:n äger PWM-fönstret lokalt (5 min-period, 1 s upplösning).
+- Minsta på-tid 5 s: pumpen behöver några sekunder innan den byggt tryck i kylledningen, så kortare pulser ger nästan ingen verklig kyla. En begärd duty som motsvarar mindre än 5 s körs inte som en stympad puls utan skjuts upp och ackumuleras till nästa fönster — t.ex. 1 % (3 s) blir en 6-sekunders puls varannan cykel i stället för två verkningslösa 3-sekunderspulser. Även minsta av-tid sätts till 5 s så pumpen inte kortcyklar.
+- Effektiv upplösning blir därmed ~1.7 % per fönster, men med ackumuleringen kan godtyckligt låg duty levereras korrekt över tid — mot dagens 2 % golv där korta bursts dessutom levererades opålitligt.
 - Failsafe: tappar Pi:n kontakt med molnet kör den vidare på senaste duty i 30 min, därefter stänger den av alla pumpar. Watchdog i molnet larmar om Pi:n inte hörts på 2 min.
 - Glykolreläet styrs av en enkel hysteres på glykol-PT100 (t.ex. på under 7°, av på 4°) — inte av PID.
 
@@ -63,3 +65,4 @@ Pi-koden ligger utanför det här projektet. Jag levererar ett färdigt Python-s
 - RLS: `pi_actuation`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated` (UI), skrivbara endast via `service_role`.
 - Pi:n skriver aldrig direkt mot databasen — allt går genom de två edge-funktionerna.
 - `pi_actuation.expires_at` sätts till `now() + 30 min` av molnet; Pi:n använder den som sin egen failsafe-klocka så att regeln är samma på båda sidor.
+- Pi:n håller en `duty_debt`-räknare per tank (kvarvarande sekunder som inte kunde levereras p.g.a. 5-sekundersgolvet) och rapporterar faktiskt levererad on-tid per fönster via `pi-telemetry`, så molnets inlärning ser verklig kyla i stället för begärd.
