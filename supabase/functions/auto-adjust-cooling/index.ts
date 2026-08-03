@@ -614,6 +614,8 @@ Deno.serve(async (req) => {
 
     const pwmBursts: import('../_shared/controller-adjustments.ts').PwmBurst[] = [];
     const baseTargetMap = new Map<string, number>();
+    // Pi-tankar får sitt mål direkt från pi_setpoint (ingen RAPT-PID kör dem)
+    for (const [id, t] of piTargets) baseTargetMap.set(id, t);
     const sharedUtilizations = new Map<string, import('../_shared/cooler-management.ts').UtilizationResult>();
 
     const controllerCtx: ControllerAdjustmentContext = {
@@ -627,6 +629,7 @@ Deno.serve(async (req) => {
       baseTargetMap,
       skipLearning: systemIsIdle,
       sharedUtilizations,
+      piActuatedControllerIds,
       glycolTemp: coolerControllerData
         ? (parseFloat(String(coolerControllerData.current_temp ?? '')) || null)
         : null,
