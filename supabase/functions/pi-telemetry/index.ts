@@ -27,9 +27,11 @@ Deno.serve(async (req) => {
   const { kind, controller_id, data } = body;
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
   async function writeBackToController(d: any) {
-    if (d.actual_temp == null) return;
+    if (d.actual_temp == null && d.pt100_temp == null) return;
 
-    // SSOT: actual_temp = snitt av PT100 (Pi) och pill när dubbla givare är på.
+    // SSOT: actual_temp = current_temp = snittet av PT100 och pill.
+    // Pi:n räknar snittet lokalt (det den reglerar mot) och skickar det som
+    // actual_temp, plus råvärdena pt100_temp/pill_temp.
     const { data: ctrl } = await supabase
       .from("rapt_temp_controllers")
       .select("controller_id, pill_temp, dual_sensor_enabled")
@@ -37,13 +39,18 @@ Deno.serve(async (req) => {
       .eq("actuation", "pi")
       .maybeSingle();
 
-    const probe = Number(d.actual_temp);
-    const pill = ctrl?.pill_temp != null ? Number(ctrl.pill_temp) : null;
-    const fused = ctrl?.dual_sensor_enabled && pill != null ? (probe + pill) / 2 : probe;
+    const probe = d.pt100_temp != null ? Number(d.pt100_temp) : Number(d.actual_temp);
+    const pill = d.pill_temp != null
+      ? Number(d.pill_temp)
+      : (ctrl?.pill_temp != null ? Number(ctrl.pill_temp) : null);
+    const fused = d.actual_temp != null
+      ? Number(d.actual_temp)
+      : (ctrl?.dual_sensor_enabled && pill != null ? (probe + pill) / 2 : probe);
 
     const patch: Record<string, any> = {
       actual_temp: fused,
-      current_temp: probe,
+      current_temp: fused,
+      pt100_temp: probe,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
       cooling_enabled: d.mode === "cooling",
