@@ -23,17 +23,18 @@ Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
   <-  PT100 var 10:e s     <-  temperaturer + relästatus
 ```
 
-- Molnet skickar bara `duty_pct` och `mode` per tank — ingen tidsstyrning.
-- Pi:n äger PWM-fönstret lokalt (5 min-period, 1 s upplösning).
-- Minsta på-tid 5 s: pumpen behöver några sekunder innan den byggt tryck i kylledningen, så kortare pulser ger nästan ingen verklig kyla. En begärd duty som motsvarar mindre än 5 s körs inte som en stympad puls utan skjuts upp och ackumuleras till nästa fönster — t.ex. 1 % (3 s) blir en 6-sekunders puls varannan cykel i stället för två verkningslösa 3-sekunderspulser. Även minsta av-tid sätts till 5 s så pumpen inte kortcyklar.
-- Effektiv upplösning blir därmed ~1.7 % per fönster, men med ackumuleringen kan godtyckligt låg duty levereras korrekt över tid — mot dagens 2 % golv där korta bursts dessutom levererades opålitligt.
+- Molnet skickar bara `duty_pct`, `mode` och `pwm_period_s` per tank — ingen tidsstyrning utom periodlängden.
+- Pi:n äger PWM-fönstret lokalt (1 s upplösning). Perioden är konfigurerbar per tank i `pi_actuation.pwm_period_s`, default **180 s (3 min)**.
+- Minsta på-tid 5 s: pumpen behöver några sekunder innan den byggt tryck i kylledningen, så kortare pulser ger nästan ingen verklig kyla. En begärd duty som motsvarar mindre än 5 s körs inte som en stympad puls utan skjuts upp och ackumuleras till nästa fönster — t.ex. 1 % på 3 min (1.8 s) blir en 5-sekunders puls var 3:e fönster i stället för en verkningslös kortpuls.
+- Minsta av-tid 5 s: pumpen får inte kortcykla av/på snabbare än så. En duty som skulle kräva ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
+- Effektiv upplösning vid 3 min-period blir ~2.8 %, men med ackumuleringen kan godtyckligt låg duty levereras korrekt över tid — mot dagens 2 % golv där korta bursts dessutom levererades opålitligt.
 - Failsafe: tappar Pi:n kontakt med molnet kör den vidare på senaste duty i 30 min, därefter stänger den av alla pumpar. Watchdog i molnet larmar om Pi:n inte hörts på 2 min.
 - Glykolreläet styrs av en enkel hysteres på glykol-PT100 (t.ex. på under 7°, av på 4°) — inte av PID.
 
 ## Etapper
 
 **Etapp 1 — kyla via relä, PT100 som extra sensor**
-- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `updated_at`, `expires_at`.
+- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `pwm_period_s` (default 180), `min_on_s` (default 5), `min_off_s` (default 5), `updated_at`, `expires_at`.
 - Ny edge-funktion `pi-control` (GET): Pi hämtar aktuella duty-värden, autentiseras med samma `PI_BLE_INGEST_SECRET`-mönster som BLE-ingesten.
 - Ny edge-funktion `pi-telemetry` (POST): Pi rapporterar PT100-temperaturer, reläläge, faktisk levererad on-tid per fönster.
 - Ny tabell `pi_probe_readings` för PT100-data, samt `pi_relay_state`.
