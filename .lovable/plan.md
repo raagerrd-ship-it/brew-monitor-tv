@@ -43,9 +43,10 @@ Moln                                Pi (lokalt)
 - Lägesval kyla/värme med samma tvåstegs-hysteres som idag (neutralband, tidsvillkorad flip, direkt flip vid stort fel) plus 1-timmarslatchen — men nu lokalt på färsk sensordata i stället för på 5-minuterscykel.
 - Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock), och det krävs en minsta paus vid lägesbyte.
 - ΔT-kompensation lokalt: on-tiden skalas mot aktuell glykoltemperatur, så samma kyleffekt levereras vare sig glykolen står på 8° eller 2°. Detta ersätter både ΔT-normaliseringen och mid-burst-glykolvakten i molnet.
-- PWM-fönster default **180 s (3 min)**, konfigurerbart per tank och per läge. Värmen kan gå med kortare fönster eftersom den inte har pumpens tryckuppbyggnad.
-- **Minsta på-tid 5 s för kyla** — pumpen behöver bygga tryck. Kortare begärd on-tid ackumuleras i en `duty_debt`-räknare och levereras som en 5-sekunderspuls när skulden räcker till.
-- **Minsta av-tid 5 s** — ingen kortcykling. Ett för kort av-brott förlängs till 5 s och överskottet dras från nästa fönster.
+- PWM-fönster default **180 s (3 min)**, konfigurerbart per tank och per läge.
+- **Minsta på-tid 5 s och minsta av-tid 5 s — gäller både kyla och värme.** För kylan behöver pumpen bygga tryck i ledningen; för värmen undviker vi kortcykling av reläet och elementet. Samma regel, samma kod, båda lägena.
+- Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
+- Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
 - Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
 
 ## Säkerhet
