@@ -8,7 +8,7 @@ const PUMPS = [
   { key: "bla", label: "Blå", controllerId: "ffa62be4", color: "hsl(210 90% 60%)" },
 ] as const;
 
-type Marks = Record<string, { start?: string; stop?: string }>;
+type Marks = Record<string, { start?: string; stop?: string; last?: boolean }>;
 
 const STORAGE_KEY = "pump-status-marks";
 
@@ -44,6 +44,7 @@ export function PumpStatusPanel() {
       if (!mounted) return;
 
       const next: Record<string, boolean | null> = {};
+      const stamps: Record<string, string> = {};
       for (const pump of PUMPS) {
         if (!pump.controllerId) {
           next[pump.key] = null; // ingen telemetri (RAPT-styrd)
@@ -51,28 +52,31 @@ export function PumpStatusPanel() {
         }
         const row = data?.find((r) => r.controller_id === pump.controllerId);
         next[pump.key] = row ? !!(row.cooling_relay_on || row.heating_relay_on) : null;
+        if (row?.updated_at) stamps[pump.key] = row.updated_at as string;
       }
 
-      setRunning((prev) => {
-        const stamp = new Date().toISOString();
-        setMarks((prevMarks) => {
-          let changed = false;
-          const updated = { ...prevMarks };
-          for (const pump of PUMPS) {
-            const before = prev[pump.key];
-            const after = next[pump.key];
-            if (before == null || after == null || before === after) continue;
+      setMarks((prevMarks) => {
+        let changed = false;
+        const updated = { ...prevMarks };
+        for (const pump of PUMPS) {
+          const after = next[pump.key];
+          if (after == null) continue;
+          const before = updated[pump.key]?.last;
+          const stamp = stamps[pump.key] ?? new Date().toISOString();
+          // Första observationen: sätt tidpunkt direkt så rutan inte står tom
+          if (before === undefined || before !== after) {
             updated[pump.key] = {
               ...updated[pump.key],
               [after ? "start" : "stop"]: stamp,
+              last: after,
             };
             changed = true;
           }
-          if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-          return changed ? updated : prevMarks;
-        });
-        return next;
+        }
+        if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        return changed ? updated : prevMarks;
       });
+      setRunning(next);
     };
 
     load();
