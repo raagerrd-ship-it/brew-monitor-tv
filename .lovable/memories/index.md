@@ -29,6 +29,7 @@
 - [Step Logic](mem://architecture/fermentation/isolated-step-logic) — 7-day limits, SG stability requirements.
 - [Hardware Mode Guard](mem://logic/automation/hardware-capability-mode-guard) — Force PID mode to match physical capabilities.
 - [Local-First Pi](mem://architecture/local-first/pi-migration-plan) — Offline Pi #2 node/SQLite setup and delta syncs.
+- [Pi GPIO Pinout](mem://architecture/local-first/pi-gpio-pinout) — Fast GPIO-tilldelning: PT100 CS 5/6/13/19, reläer 17/27, 22/23, 24/25, kompressor 26.
 
 ### RAPT Integration
 - [API Resilience](mem://architecture/rapt/api-retry-and-cleanup-logic) — 3-retry loops, delays on 404/502/503.
