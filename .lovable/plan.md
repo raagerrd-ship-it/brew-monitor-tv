@@ -21,17 +21,19 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 Moln                                Pi (lokalt)
   fermenteringsprofiler
   -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
-  lärda parametrar           ->     Kp/Kd/ff/dödtid per läge
-                                    PID 1 Hz mot PT100
+  ff/Kp/Kd/dödtid (långsamt) ->     PID-beslut var 180:e s mot PT100
+                                    trimI ägs lokalt av Pi:n
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
   historik, inlärning, UI    <-     snabbsynk 30 s / full synk 5 min
                              <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
-**Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
+**Molnet äger:** profilsteg och rampning, målvärde, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, UI.
 
-**Pi:n äger:** mätning (PT100), PID mot målet, lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+**Pi:n äger:** mätning (PT100), PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+
+Den uppdelningen är viktig: molnet får inte också integrera bort samma fel som Pi:n redan integrerar bort — då får vi två integratorer som jagar varandra och exakt den windup vi just byggt bort. Molnet lär bara långsamt (timmar/dygn) på levererad on-tid, Pi:n reglerar snabbt (minuter).
 
 **Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
 
@@ -40,6 +42,7 @@ Moln                                Pi (lokalt)
 ## Så här fungerar Pi-loopen
 
 - Läser PT100 var 1:a sekund, filtrerar lätt (2–3 min EMA räcker när sensorn sitter direkt på tanken).
+- **Men reglerbeslutet tas inte varje sekund** — det tas en gång per PWM-fönster (180 s). Processen har tiotals minuters dödtid; att räkna om duty varje sekund tillför ingen styrning, bara brusförstärkning i D-termen och en duty som ändras mitt i ett pågående fönster. Snabb mätning + långsamt beslut är rätt kombination. 1 Hz-datan används till D-termen (linjär regression över 60 s i stället för en differens mellan två sampel) och till säkerhetsvakterna, som *får* agera direkt.
 - PID: `duty = ff + trimI + Kp·fel − Kd·temphastighet`. Samma formel som molnets V6 — porteras rakt av till Python, inte omskriven.
 - Lägesval kyla/värme med samma tvåstegs-hysteres som idag (neutralband, tidsvillkorad flip, direkt flip vid stort fel) plus 1-timmarslatchen — men nu lokalt på färsk sensordata i stället för på 5-minuterscykel.
 - Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock), och det krävs en minsta paus vid lägesbyte.
@@ -48,7 +51,8 @@ Moln                                Pi (lokalt)
 - **Minsta på-tid 5 s och minsta av-tid 5 s — gäller både kyla och värme.** För kylan behöver pumpen bygga tryck i ledningen; för värmen undviker vi kortcykling av reläet och elementet. Samma regel, samma kod, båda lägena.
 - Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
-- Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
+- Glykolreläet: hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°) — **men bara när minst en tank faktiskt efterfrågar kyla**. Att hålla glykolen kall dygnet runt för en tank som drar 3 % duty är både onödig el och orsaken till de stora ΔT-svängningar vi kämpat med. Kylaren startar på behov och får en minsta gångtid så den inte kortcyklar.
+- **Samordning mellan tankar:** Pi:n ser alla tre tankarna, så on-faserna fasförskjuts i stället för att råka sammanfalla. Två pumpar samtidigt sänker glykoltemperaturen dubbelt så fort och gör ΔT-kompensationen till en jakt. Med lokal samordning blir lasten jämn — något molnet aldrig kunnat göra, eftersom varje tank räknades för sig.
 
 ## Tvådelad synk mot molnet
 
@@ -123,6 +127,7 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Ny kolumn på `rapt_temp_controllers`: `actuation` = `rapt` eller `pi`. En tank i taget flyttas över.
 - `auto-adjust-cooling` skriver målvärde till `pi_setpoint` för Pi-tankar i stället för att räkna duty och manipulera RAPT-mål.
 - Inlärning körs fortfarande i molnet, men på telemetri från Pi:n (faktiskt levererad on-tid, inte begärd).
+- **Ärv inte dagens lärda värden rakt av.** Nuvarande `dead_time_hours` (Blå 0,72 h), `process_gain` och `ff_duty` är inlärda på en sensor med ~15 min latens och på RAPT:s trubbiga aktuering. Med PT100 direkt på tanken försvinner en stor del av den dödtiden, och för aggressiv Kp blir följden. Vi startar därför konservativt: behåll dagens dödtid som startvärde (för hög dödtid ger *lugn* reglering, inte översläng), sätt `ff` från uppmätt hålleffekt de första dygnen och låt molnet lära om därifrån. Nollställningen som stod i etapp 4 flyttas hit — den hör hemma när PID:n byter sensorbild, inte senare.
 - Värmen går fortfarande via RAPT här, så vi byter en sak i taget.
 
 **Etapp 3 — värme på Pi**
@@ -130,7 +135,8 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - RAPT-controllerns egen termostat neutraliseras (mål långt utanför arbetsområdet) så den aldrig kan slå till parallellt.
 
 **Etapp 4 — PT100 som SSOT och rensning**
-- `actual_temp` byts till PT100 för Pi-tankar. Lärda `dead_time_hours` och `process_gain` nollställs — de är inlärda på en 15 min långsammare sensor.
+- `actual_temp` byts till PT100 för Pi-tankar (omlärningen av dödtid/gain skedde redan i etapp 2).
+- **Molnets V6-PID slutar räkna för Pi-tankar helt** — den får inte ligga och producera duty parallellt "för säkerhets skull". Två regulatorer på samma tank är den enda verkliga risken i hela det här bygget. V6 blir kvar orörd, men bara för `actuation = 'rapt'`.
 - För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
 - `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
