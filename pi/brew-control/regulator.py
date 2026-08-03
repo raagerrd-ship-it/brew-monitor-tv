@@ -26,7 +26,7 @@ from collections import deque
 from statistics import fmean
 
 import config
-from pid import V6PidState, compute_duty, derive_gains, COOL, HEAT, DEFAULT_PARAMS if False else None
+from pid import V6PidState, compute_duty, derive_gains, COOL, HEAT
 import cloud_sync
 from constraints import DutyCommand, ConstraintChain, default_chain, ConstraintViolation
 from relay import RelayHub
