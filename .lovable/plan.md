@@ -77,7 +77,9 @@ Glykolen ska inte köras som en dum termostat på ett fast börvärde. Pi:n ser 
 - **Litet behov (hålldrift, några procents duty)** → måttlig marginal, t.ex. 4–5° under kallaste målet. Det räcker gott för att parera 0,3 °C/h passiv drift.
 - **Stort behov (kallcrash, aktiv rampning ner, hög jäsningsvärme)** → full marginal ner mot minvärdet. Här *vill* vi ha kyleffekt.
 - Börvärdet ändras med rampbegränsning (t.ex. max några grader per 10 min) så tanksidan aldrig ser ett språng i kyleffekt mitt i en burst — det var precis det som brände Gul i morse.
-- Hysteres runt börvärdet som förut, plus minsta gångtid och minsta stopptid på kompressorn så den inte kortcyklar.
+- **Kylaren styrs av ett eget relä från Pi:n**, precis som pumparna och värmen. Pi:n håller glykolen på börvärdet med egen hysteres mot glykol-PT100 (t.ex. slå till vid bör +1°, slå ifrån vid bör −1°) och egna minsta gång-/stopptider på kompressorn. Ingen RAPT-termostat är inblandad.
+- Kompressorn har hårdare tidskrav än pumparna: minsta gångtid i minuter, inte sekunder, och en minsta stopptid så trycket hinner utjämnas. Egna värden, inte pumparnas 5 s.
+- Frysskydd lokalt: hård undre gräns på glykoltemperaturen som bryter reläet oavsett vad börvärdesräkningen säger, och kompressorn stannar om glykolgivaren tystnar.
 - Föraviserat behov: vet Pi:n att en kallcrash är beställd, sänks glykolen *innan* tanken börjar ropa, i stället för att tanken får vänta på en varm kylare.
 
 **Varför det här är rätt**
@@ -163,10 +165,11 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - **Ärv inte dagens lärda värden rakt av.** Nuvarande `dead_time_hours` (Blå 0,72 h), `process_gain` och `ff_duty` är inlärda på en sensor med ~15 min latens och på RAPT:s trubbiga aktuering. Med PT100 direkt på tanken försvinner en stor del av den dödtiden, och för aggressiv Kp blir följden. Vi startar därför konservativt: behåll dagens dödtid som startvärde (för hög dödtid ger *lugn* reglering, inte översläng), sätt `ff` från uppmätt hålleffekt de första dygnen och låt molnet lära om därifrån. Nollställningen som stod i etapp 4 flyttas hit — den hör hemma när PID:n byter sensorbild, inte senare.
 - Värmen går fortfarande via RAPT här, så vi byter en sak i taget.
 
-**Etapp 2b — glykolkylaren behovsstyrd**
-- Pi:n tar över glykolens börvärde enligt avsnittet ovan (viloläge 15°, marginal efter behov, rampbegränsat).
-- Så länge kylaren sitter på RAPT sätts börvärdet via RAPT-mål; när den flyttas till Pi-relä sköts det med lokal hysteres i stället. Logiken för *vilket* börvärde som ska gälla är densamma i båda fallen.
+**Etapp 2b — glykolkylaren på relä och behovsstyrd**
+- Kompressorn flyttas till ett Pi-relä (fjärde reläet utöver tankarnas pumpar), med glykol-PT100 som enda givare.
+- Pi:n räknar börvärdet enligt avsnittet ovan (viloläge 15°, marginal efter behov, rampbegränsat) och håller det med egen hysteres, egna minsta gång-/stopptider och frysskydd.
 - Görs efter att minst en tank kyls via relä, så vi kan mäta ΔT-stabiliteten före och efter.
+- RAPT-glykolcontrollerns egen termostat neutraliseras här (mål utanför arbetsområdet) tills enheten kopplas bort helt.
 
 **Etapp 3 — värme på Pi**
 - Värmeelementen flyttas till Pi-reläerna och Pi:n tar över lägesvalet helt.
@@ -179,6 +182,12 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
 - `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
 - RAPT-vägen ligger kvar orörd så länge någon tank står på `actuation = 'rapt'`.
+
+**Etapp 5 — RAPT bort helt**
+- När alla tre tankarna plus glykolkylaren går på Pi-reläer, och PT100 + BLE täcker all mätning, finns inget kvar som behöver RAPT.
+- Då tas bort: `sync-rapt-data-quick`, `rapt-update-controller`, `rapt-watchdog`, `rapt-pill-telemetry`, `execute-pwm-off`, RAPT-circuit-breakern, token-cachen och alla RAPT-secrets, samt V5- och V6-PID:n i molnet.
+- `rapt_temp_controllers` behålls som tankregister (namn, gränser, koppling till bryggd) men slutar vara en spegling av extern hårdvara — de RAPT-specifika kolumnerna (hysteres, PWM-fält, utilisation, run time) städas bort i en egen migration.
+- Detta görs *sist* och som ett eget steg. Så länge något kan behöva backas till RAPT ligger vägen kvar.
 
 ## Hårdvara
 
