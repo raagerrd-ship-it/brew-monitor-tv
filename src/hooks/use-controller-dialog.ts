@@ -34,6 +34,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [piHeartbeat, setPiHeartbeat] = useState<string | null>(null);
   const [piCoolingOn, setPiCoolingOn] = useState(false);
   const [piHeatingOn, setPiHeatingOn] = useState(false);
+  const [piTarget, setPiTarget] = useState<number | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -90,6 +91,16 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         setPiCoolingOn(!!live?.cooling_relay_on);
         setPiHeatingOn(!!live?.heating_relay_on);
         setPiHeartbeat(live?.last_heartbeat ?? null);
+
+        const { data: sp } = await supabase
+          .from('pi_setpoint')
+          .select('target_temp')
+          .eq('controller_id', controller.controller_id)
+          .maybeSingle();
+        if (sp?.target_temp != null) {
+          setPiTarget(Number(sp.target_temp));
+          setTargetTemp(Math.round(Number(sp.target_temp)));
+        }
         return;
       }
 
@@ -322,5 +333,6 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     dutyMode,
     isPi,
     piHeartbeat,
+    piTarget,
   };
 }
