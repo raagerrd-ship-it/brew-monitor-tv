@@ -100,6 +100,18 @@ Glykolen ska inte köras som en dum termostat på ett fast börvärde. Pi:n ser 
 - Kylaren jobbar mot ett varmare medium när den ändå jobbar → bättre verkningsgrad, mindre el, längre kompressorliv.
 - Riskerna vi bevakar: en varm glykol ger långsammare respons om behovet plötsligt kommer. Det hanteras av föraviseringen ovan, av att marginalen aldrig går under ett golv när någon tank är i aktiv jäsning, och av att viloläget bara gäller när *alla* tankar är i neutralband.
 
+**Kompressorskydd**
+
+Kompressorn är den dyraste och känsligaste delen i hela riggen, och den enda som kan förstöras av ett programfel. Skydden ligger därför *under* börvärdeslogiken — de kan bara hindra en tillslagning, aldrig tvingas förbi av PID, profil eller UI:
+
+- **Minsta gångtid** — när kompressorn väl startat får den gå i minst ~5 minuter, även om glykolen nått börvärdet. Oljan hinner cirkulera och trycket utjämnas.
+- **Minsta stopptid** — minst ~5 minuter av innan omstart tillåts, så den aldrig startar mot högt tryck på sugsidan. Detta är det viktigaste skyddet och får aldrig kringgås, inte ens av "brådskande" behov.
+- **Max antal starter per timme** — hårt tak (t.ex. 6). Nås taket får kompressorn gå längre pass i stället, genom att hysteresbandet vidgas automatiskt tills startfrekvensen är nere igen.
+- **Startfördröjning efter strömavbrott** — Pi:n väntar några minuter efter uppstart innan kompressorn får slås till, och tankarnas pumpar startas inte förrän glykolen är inom rimligt område.
+- **Frysskydd och sensorkrav** — hård undre gräns på glykoltemperaturen bryter reläet oavsett börvärde, och saknas färsk glykolavläsning i 60 s stannar kompressorn. Vi kyler aldrig blint.
+- **Bred hysteres i stället för finreglering** — glykolen behöver inte hålla ±0,1°. Ett band på ±1–1,5° runt börvärdet ger långa, glesa pass, vilket både är skonsammare och effektivare. Börvärdesramper begränsas dessutom i takt så att ett stort språng inte blir en startstorm.
+- Skydden implementeras som en egen liten tillståndsmaskin i Pi-loopen med persistent tidsstämpel för senaste start/stopp på disk, så att en omstart av Pi:n inte nollställer stopptidsräknaren.
+
 ## Tvådelad synk mot molnet
 
 Regleringen behöver inte molnet alls — inte ens för profilsteg — så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
