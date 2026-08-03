@@ -23,14 +23,14 @@ except Exception:
 
 # BCM pins (see pi-gpio-pinout memory)
 RELAYS = {
-    "tank1_heat": 17,
-    "tank1_cool": 27,
-    "tank2_heat": 22,
+    "tank1_heat": 26,
+    "tank1_cool": 25,
+    "tank2_heat": 24,
     "tank2_cool": 23,
-    "tank3_heat": 24,
-    "tank3_cool": 25,
-    "kompressor": 26,
-    "co2": 12,
+    "tank3_heat": 22,
+    "tank3_cool": 27,
+    "kompressor": 12,
+    "co2": 17,
     "relief": 16,
 }
 
