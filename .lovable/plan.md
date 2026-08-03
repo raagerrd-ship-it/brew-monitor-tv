@@ -132,7 +132,7 @@ Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma m�
 
 ## Teknisk detalj
 
-- Två edge-funktioner totalt: `pi-control` (GET setpoint + params, som fallback när piggyback inte används) och `pi-telemetry` (POST, både snabbsynk och minutaggregat; svarar med ny setpoint när `setpoint_version` skiljer sig).
+- Två edge-funktioner totalt: `pi-control` (GET setpoint + params, som fallback när piggyback inte används) och `pi-telemetry` (POST, både snabbsynk och 5-minutsaggregat; svarar med ny setpoint när `setpoint_version` skiljer sig).
 - Pi:n pratar aldrig direkt med databasen — bara genom dessa två.
 - RLS: `pi_setpoint`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated`, skrivbara endast via `service_role`.
 - PID-koden portas från `pid-compensation-claude.ts` till Python med bevarad struktur och parameternamn, så en bugg fixad på ena sidan går att spegla på den andra.
