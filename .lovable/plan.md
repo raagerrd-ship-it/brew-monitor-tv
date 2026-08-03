@@ -1,10 +1,10 @@
-# PT100-kalibrering (2-punkts) för glykol och varje tank
+# PT100-kalibrering (2-punkts) — lokalt på Pi:n
 
-Ger dig möjlighet att kalibrera varje PT100-givare mot en referens (is-bad och varmt vatten), spara korrigeringen i molnet och verifiera att avläsningen stämmer efteråt.
+Kalibreringen hör hemma där mätningen sker. Pi:n äger givarna, så den äger också korrigeringen: rådata korrigeras direkt efter MAX31865-avläsningen, före filter, PID och all rapportering. Molnet ser bara färdiga, korrigerade värden och behöver inte veta något om kalibrering.
 
-## Så fungerar det
+Fördelen: kalibreringen fungerar även utan internet, den kan aldrig komma i otakt med sensoravläsningen, och ingen molnrunda ligger i den kritiska mätvägen.
 
-Varje givare (glykol, tank 1–3) får en **2-punktskalibrering**: du mäter vid en låg och en hög referenstemperatur, anger vad referenstermometern visar, och systemet räknar fram förstärkning och offset.
+## Så räknas det
 
 ```text
 korrigerad = rå * gain + offset
@@ -14,42 +14,41 @@ offset = ref_låg - rå_låg * gain
 
 Med bara en punkt sparad används gain = 1 (ren offsetjustering), så du kan börja enkelt och fylla på andra punkten senare.
 
-## Flöde i UI:t
+## Var kalibreringen bor
 
-Ny sektion **Sensorkalibrering** under Inställningar → Enheter, en rad per givare:
+`pi/brew-control/calibration.json`, en post per givare (`glycol`, `tank1`, `tank2`, `tank3`) med låg punkt (rå + referens + tidpunkt), hög punkt, samt härledda `gain`/`offset`. Filen skrivs atomiskt (temp-fil + rename) så en avbruten skrivning aldrig lämnar en trasig kalibrering, och läses in vid start samt när filen ändrats.
 
-1. Live rå-temperatur och korrigerad temperatur visas sida vid sida, uppdaterat löpande.
-2. "Fånga låg punkt" — du sänker givaren i isbad, väntar tills värdet står still, anger referensvärdet (t.ex. 0,0°) och sparar. Den råa avläsningen fångas automatiskt.
+## Flöde i det lokala UI:t
+
+Ny sida **Kalibrering** i Pi:ns LAN-webbgränssnitt (samma som redan planeras för lokala börvärden), en rad per givare:
+
+1. Live rå-temperatur och korrigerad temperatur sida vid sida, uppdaterat varje sekund.
+2. "Fånga låg punkt" — givaren i isbad, vänta tills värdet står still, ange referensvärdet (t.ex. 0,0°). Rå-avläsningen fångas som ett medel över de senaste 30 sekunderna så en enstaka spik inte förstör punkten.
 3. "Fånga hög punkt" — samma sak i varmt vatten (t.ex. 40–50°).
-4. Resultatet visas som gain/offset plus avvikelsen i varje punkt, och kan nollställas.
-5. **Verifiering**: knapp "Verifiera" som jämför korrigerat värde mot ett referensvärde du skriver in och visar avvikelse; historiken över de senaste verifieringarna listas så du ser om en givare driver över tid.
+4. Resultatet visas som gain/offset plus avvikelsen i varje punkt, med möjlighet att nollställa eller skriva in gain/offset manuellt.
+5. **Verifiering** — knapp där du anger vad referenstermometern visar just nu; Pi:n loggar rå, korrigerad, referens och avvikelse. De senaste kontrollerna listas så du ser om en givare driver över tid.
 
-Manuell justering finns kvar: du kan skriva in gain och offset direkt om du hellre vill det.
+En stabilitetsindikator ("står stilla" / "rör sig") visas innan du får fånga en punkt, så du inte råkar kalibrera mitt i ett tempsvep.
+
+## Molnets roll
+
+Ingen. Pi:n rapporterar som planerat korrigerad temperatur i telemetrin, och skickar med rå-avläsningen som extrafält i fast sync så att dashboarden kan visa "rå vs korrigerad" om du vill felsöka. Inga nya tabeller, inga nya policies.
 
 ## Teknisk del
 
-**Databas** — ny tabell `sensor_calibration` (en rad per givare):
-- `sensor_key` (unik: `glycol`, `tank1`, `tank2`, `tank3`), `label`
-- `low_raw`, `low_ref`, `low_captured_at`
-- `high_raw`, `high_ref`, `high_captured_at`
-- `gain` (default 1), `offset` (default 0), härledda vid spara
-- `updated_at`
-- RLS: läs för `authenticated` och `anon` (Pi:n läser via anon-nyckel som övriga Pi-tjänster), skriv endast `authenticated` + `service_role`; GRANT enligt policy.
+Allt ligger i Python-projektet `pi/brew-control/` (samma mönster som `pi/brew-ble`):
 
-Ny tabell `sensor_calibration_checks` för verifieringshistorik: `sensor_key`, `raw`, `corrected`, `reference`, `deviation`, `created_at`. Läs för authenticated/anon, insert för authenticated.
-
-**Pi-sidan** (`pi/brew-control/`, samma mönster som `pi/brew-ble`):
-- Läser `sensor_calibration` vid start och var 60:e sekund, cachar lokalt i JSON så kalibreringen gäller även offline.
-- Applicerar `rå * gain + offset` direkt efter MAX31865-avläsningen, före filter och PID. All reglering och all telemetri använder korrigerat värde; råvärdet rapporteras också så UI:t kan visa båda.
-
-**Frontend**:
-- `src/components/SensorCalibration.tsx` + `src/hooks/use-sensor-calibration.ts` (realtime-prenumeration enligt befintligt mönster).
-- Renderas i `TabsContent value="devices"` i `src/pages/Settings.tsx`.
-- Beräkningen av gain/offset läggs i `src/lib/sensor-calibration.ts` så den är testbar; enhetstest för tvåpunktsformeln och enpunktsfallet.
+- `calibration.py` — dataklass per givare, tvåpunktsberäkning, enpunktsfall, atomisk läs/skriv av `calibration.json`, samt `apply(raw)`.
+- Sensorlagret applicerar `apply()` direkt efter MAX31865-avläsningen. Inget nedströms lager (filter, PID, telemetri, failsafe) ser rådata annat än som separat rapporterat fält.
+- Rimlighetsspärr vid spara: `gain` måste hamna inom 0,9–1,1 och `offset` inom ±5°, annars avvisas punkten med förklaring — en orimlig kalibrering är nästan alltid en felmätning.
+- Verifieringsloggen skrivs till `calibration_checks.jsonl`, roterad vid 1 MB.
+- Enhetstest för tvåpunktsformeln, enpunktsfallet och rimlighetsspärren.
+- Det lokala webb-UI:t får endpoints `GET /api/calibration`, `POST /api/calibration/<sensor>/capture`, `POST /api/calibration/<sensor>/verify`, `POST /api/calibration/<sensor>/reset`.
 
 ## Ordning
 
-1. Migration för de två tabellerna → verifiera med en läsfråga.
-2. `sensor-calibration.ts` + test → testet passerar.
-3. UI-komponent inkopplad i Inställningar → punkterna går att fånga, spara och nollställa.
-4. Pi-läsning av kalibreringen dokumenteras och kodas när Pi-tjänsten byggs i Etapp 1 (hårdvaran är inte inkopplad än) — tills dess visar UI:t rådata från befintliga källor.
+1. `calibration.py` + tester → testerna passerar.
+2. Inkoppling i sensorlagret → korrigerat värde används överallt, rått värde rapporteras separat.
+3. Endpoints + kalibreringssidan i det lokala UI:t → punkter går att fånga, verifiera och nollställa.
+
+Arbetet görs som en del av Etapp 1 i Pi-planen, när PT100-givarna är fysiskt inkopplade.
