@@ -254,14 +254,19 @@ class Regulator:
             self._stop.wait(config.PWM_PERIOD_S)
 
     def _tick_tank(self, tank: TankRegulator, glycol_temp: Optional[float], now: float):
-        temp = self.sensors.corrected(tank.sensor_key)
-        if temp is None or not math.isfinite(temp):
+        probe = self.sensors.corrected(tank.sensor_key)
+        if probe is None or not math.isfinite(probe):
             log.warning(f"{tank.name}: no sensor data — skipping")
             tank_relay = self.relays.get_tank(tank.controller_id)
             if tank_relay:
                 tank_relay.all_off()
             tank.current_duty = 0
             return
+
+        # SSOT: reglera mot snittet av PT100 och pill (actual_temp).
+        temp = self._fused_temp(tank, probe, now)
+        tank.last_pt100 = probe
+        tank.last_fused = temp
 
         # Buffer for rollup
         tank.temp_buffer.append((now, temp))
@@ -347,7 +352,9 @@ class Regulator:
             )
             tank.pwm_thread.start()
 
-        log.info(f"{tank.name}: T={temp:.2f}° → {tank.target_temp}° | "
+        log.info(f"{tank.name}: T={temp:.2f}° (pt100={probe:.2f}°"
+                 f"{f', pill={tank.pill_temp:.2f}°' if tank.pill_temp is not None else ''})"
+                 f" → {tank.target_temp}° | "
                  f"{tank.mode} duty={duty*100:.0f}% | "
                  f"ff={result['ff']*100:.0f}% trim={result['trim_i']*100:.1f}% "
                  f"p={result['p']*100:.1f}% d={result['d']*100:.1f}% | "
@@ -355,6 +362,14 @@ class Regulator:
 
         # Save state
         tank.save_state(self.conn)
+
+    def _fused_temp(self, tank: TankRegulator, probe: float, now: float) -> float:
+        """actual_temp = snitt av PT100 och pill när pillen är färsk."""
+        if not tank.dual_sensor_enabled or tank.pill_temp is None:
+            return probe
+        if tank.pill_updated_at is not None and (now - tank.pill_updated_at) > PILL_MAX_AGE_S:
+            return probe
+        return (probe + tank.pill_temp) / 2
 
     def _manage_compressor(self, glycol_temp: Optional[float], now: float):
         """Demand-controlled glycol: run if any tank is cooling and glycol > target."""
@@ -390,20 +405,23 @@ class Regulator:
     def _post_live(self, glycol_temp: Optional[float], now: float):
         """Post live telemetry for all tanks + glycol."""
         for tank in self.tanks.values():
-            temp = self.sensors.corrected(tank.sensor_key)
+            probe = self.sensors.corrected(tank.sensor_key)
+            temp = self._fused_temp(tank, probe, now) if probe is not None else tank.last_fused
             tank_relay = self.relays.get_tank(tank.controller_id)
             cooling_on = tank_relay and tank_relay.cool.is_on
             heating_on = tank_relay and tank_relay.heat.is_on
 
             data = {
                 "actual_temp": temp,
+                "pt100_temp": probe,
+                "pill_temp": tank.pill_temp,
                 "target_temp": tank.target_temp,
                 "mode": tank.mode,
                 "duty_pct": round(tank.current_duty * 100),
                 "cooling_relay_on": cooling_on,
                 "heating_relay_on": heating_on,
                 "glycol_temp": glycol_temp,
-                "sensor_source": "pt100",
+                "sensor_source": "pt100+pill" if (temp is not None and probe is not None and temp != probe) else "pt100",
             }
             cloud_sync.post_telemetry("live", tank.controller_id, data,
                                        tank.last_setpoint_version)
