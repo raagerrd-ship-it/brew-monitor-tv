@@ -53,11 +53,12 @@ Moln                                Pi (lokalt)
 
 Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
 
-**Snabbsynk — var 10:e sekund, litet paket**
+**Snabbsynk — var 30:e sekund, litet paket**
 - Bara det som ska kännas levande i UI:t: tanktemp (PT100), glykoltemp, aktuellt läge, aktuell duty, relä på/av.
 - Skrivs till en singleton-rad per controller (`pi_live_state`) med UPSERT — ingen historikrad, ingen tillväxt i databasen. UI:t prenumererar via realtime och känns direkt.
 - Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
 - Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
+- 30 s är tillräckligt färskt: jäsningstempen rör sig ~0,3 °C/h, watchdogen (2 min) fångar ändå 4 missade pulser, och setpoint-fördröjningen är försumbar mot tankens dödtid. DB-skrivningar blir 2 880/tank/dygn i stället för 8 640.
 
 **Full synk — var 5:e minut, aggregerat**
 - Det som behövs för historik, grafer och inlärning: min/medel/max tanktemp under perioden, faktiskt levererad on-tid per läge (sekunder), PID-termer (ff, trimI, P, D), antal reläslag, glykol min/max.
