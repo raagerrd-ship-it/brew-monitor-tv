@@ -1,99 +1,94 @@
-# Pi-styrd kyla via reläbrygga
+# Pi-styrd kyla: hela reglerloopen lokalt
 
-Flytta kylaktueringen från RAPT-controllernas temperaturmål till direkta reläer på Raspberry Pi:n (samma Pi som BLE-scannar). Värmen ligger kvar på RAPT som idag. PID-hjärnan ligger kvar i molnet — Pi:n blir en dum men snabb och pålitlig aktuator.
+Flytta både PWM-motorn **och** PID-regleringen till Raspberry Pi:n (samma Pi som BLE-scannar). Molnet skickar bara **önskad temperatur** per tank. Värmen ligger kvar på RAPT tills vidare.
 
-## Varför detta löser dagens problem
+Detta är en ändring mot tidigare version av planen, där molnet räknade duty och Pi:n bara var en dum aktuator. Att flytta hela loopen är bättre — motiveringen står nedan.
 
-Dagens kyla styrs genom att skriva ett extremt måltemp (-5°) till RAPT och sedan reverta. Det ger de fel vi jagat i veckor: burst-upplösning på ~30 s i bästa fall, tappade revert-kommandon som låser full kyla i 20 min, API-latens, och 15 min sensorfördröjning från Pill/probe. Med reläer och PT100 direkt på Pi:n försvinner hela den kedjan.
+## Varför hela loopen, inte bara PWM
 
-## Hårdvara som kopplas in
+Om molnet räknar duty var 5:e minut och Pi:n bara verkställer, sitter vi fortfarande med:
 
-- 3 cirkulationspumpar — en per tank (Blå, Gul, Grön), ett relä var
-- Glykolkylaren på ett fjärde relä (valfritt, kan lämnas manuell i steg 1)
-- 4 st PT100 med MAX31865-kort — en per tank plus en i glykoltanken
+- Reglercykel på 5 min trots att PT100 ger data varje sekund.
+- Glykoltemperaturens svängningar måste kompenseras i förväg i molnet (ΔT-normalisering, mid-burst-vakt) — Pi:n ser dem direkt men får inte agera.
+- Varje internetstörning eller cron-miss blir ett reglerhål.
 
-## Så här fungerar det
+Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vägen. Molnet blir det den är bra på — profiler, historik, inlärning, UI, notiser.
+
+## Ansvarsfördelning
 
 ```text
-Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
-  beräknar duty% + mode   ->   pi_actuation (tabell)
-                               Pi pollar var 5:e s
-                               kör PWM-fönster själv
-                               slår relä on/off
-  <-  PT100 var 10:e s     <-  temperaturer + relästatus
+Moln                                Pi (lokalt)
+  fermenteringsprofiler
+  -> target_temp per tank    ->     pi_setpoint (pollas var 10:e s)
+  lärda parametrar           ->     Kp/Kd/ff/dödtid
+                                    PID 1 Hz mot PT100
+                                    PWM-fönster + reläer
+  historik, inlärning, UI    <-     telemetri var 10:e s
+  <- värme via RAPT (oförändrat)
 ```
 
-- Molnet skickar bara `duty_pct`, `mode` och `pwm_period_s` per tank — ingen tidsstyrning utom periodlängden.
-- Pi:n äger PWM-fönstret lokalt (1 s upplösning). Perioden är konfigurerbar per tank i `pi_actuation.pwm_period_s`, default **180 s (3 min)**.
-- Minsta på-tid 5 s: pumpen behöver några sekunder innan den byggt tryck i kylledningen, så kortare pulser ger nästan ingen verklig kyla. En begärd duty som motsvarar mindre än 5 s körs inte som en stympad puls utan skjuts upp och ackumuleras till nästa fönster — t.ex. 1 % på 3 min (1.8 s) blir en 5-sekunders puls var 3:e fönster i stället för en verkningslös kortpuls.
-- Minsta av-tid 5 s: pumpen får inte kortcykla av/på snabbare än så. En duty som skulle kräva ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
-- Effektiv upplösning vid 3 min-period blir ~2.8 %, men med ackumuleringen kan godtyckligt låg duty levereras korrekt över tid — mot dagens 2 % golv där korta bursts dessutom levererades opålitligt.
-- Failsafe: tappar Pi:n kontakt med molnet kör den vidare på senaste duty i 30 min, därefter stänger den av alla pumpar. Watchdog i molnet larmar om Pi:n inte hörts på 2 min.
-- Glykolreläet styrs av en enkel hysteres på glykol-PT100 (t.ex. på under 7°, av på 4°) — inte av PID.
+**Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, värmestyrning via RAPT.
+
+**Pi:n äger:** mätning (PT100), PID mot målet, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+
+## Så här fungerar Pi-loopen
+
+- Läser PT100 var 1:a sekund, filtrerar lätt (2–3 min EMA räcker när sensorn sitter direkt på tanken).
+- PID: `duty = ff + trimI + Kp·fel − Kd·temphastighet`. Samma formel som molnets V6 — porteras rakt av till Python, inte omskriven.
+- ΔT-kompensation lokalt: on-tiden skalas mot aktuell glykoltemperatur, så samma kyleffekt levereras vare sig glykolen står på 8° eller 2°. Detta ersätter både ΔT-normaliseringen och mid-burst-glykolvakten i molnet.
+- PWM-fönster default **180 s (3 min)**, konfigurerbart per tank.
+- **Minsta på-tid 5 s** — pumpen behöver bygga tryck. Kortare begärd on-tid ackumuleras i en `duty_debt`-räknare och levereras som en 5-sekunderspuls när skulden räcker till.
+- **Minsta av-tid 5 s** — ingen kortcykling. Ett för kort av-brott förlängs till 5 s och överskottet dras från nästa fönster.
+- Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
+
+## Säkerhet
+
+- Målvärdet har `expires_at`. Tappar Pi:n internet kör den vidare på senaste målet i 6 timmar — den kan det, för den har både sensor och regulator lokalt. Därefter går den till ett säkert viloläge (kyla av).
+- Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid, max duty. Överskrids något stängs reläet oavsett vad PID säger.
+- Watchdog i molnet: larmar om ingen telemetri på 2 min.
+- Molnet kan alltid tvinga stopp genom att sätta duty-tak 0 i setpoint-raden.
 
 ## Etapper
 
-**Etapp 1 — kyla via relä, PT100 som extra sensor**
-- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `pwm_period_s` (default 180), `min_on_s` (default 5), `min_off_s` (default 5), `updated_at`, `expires_at`.
-- Ny edge-funktion `pi-control` (GET): Pi hämtar aktuella duty-värden, autentiseras med samma `PI_BLE_INGEST_SECRET`-mönster som BLE-ingesten.
-- Ny edge-funktion `pi-telemetry` (POST): Pi rapporterar PT100-temperaturer, reläläge, faktisk levererad on-tid per fönster.
-- Ny tabell `pi_probe_readings` för PT100-data, samt `pi_relay_state`.
-- Ny kolumn på `rapt_temp_controllers`: `cool_actuation` = `rapt` (dagens) eller `pi`. Alla tre aktiva sätts till `pi` efter test.
-- `auto-adjust-cooling` skriver duty till `pi_actuation` i stället för att manipulera RAPT-mål när `cool_actuation = 'pi'`. Ingen PID-matematik ändras.
-- `execute-pwm-off`, mid-burst-glykolvakten och orphan-vakten hoppar över Pi-styrda tankar — de behövs inte längre där.
-- Värme: oförändrat, RAPT sköter det via nuvarande väg.
+**Etapp 1 — mätning först**
+- PT100 + MAX31865 monteras, Pi:n rapporterar temperaturer till molnet. Ingen styrning ännu.
+- Nya tabeller: `pi_probe_readings`, `pi_relay_state`.
+- Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`.
+- Vi jämför PT100 mot Pill/probe i några dygn och ser hur stor sensorlatensen faktiskt varit.
 
-**Etapp 2 — PT100 som SSOT**
-- När PT100-data validerats mot Pill/probe i några dygn byts `actual_temp` till PT100 för de tankar som har en. Det tar bort ~15 min sensorlatens, vilket i sin tur låter oss halvera dödtidskonstanten och skärpa D-bromsen.
-- Läropparametrar (`dead_time_hours`, `process_gain`) nollställs vid bytet eftersom de är inlärda på en långsammare sensor.
+**Etapp 2 — kyla via relä, PID på Pi**
+- Ny tabell `pi_setpoint`: per controller `target_temp`, `mode`, `max_duty_pct`, `pwm_period_s` (180), `min_on_s` (5), `min_off_s` (5), `params` (JSONB med lärda värden), `expires_at`.
+- Ny edge-funktion `pi-control` (GET): Pi hämtar målvärde + parametrar.
+- Ny kolumn på `rapt_temp_controllers`: `cool_actuation` = `rapt` eller `pi`. En tank i taget flyttas över.
+- `auto-adjust-cooling` skriver målvärde till `pi_setpoint` för Pi-tankar i stället för att räkna duty och manipulera RAPT-mål.
+- Inlärning körs fortfarande i molnet, men på telemetri från Pi:n (faktiskt levererad on-tid, inte begärd).
 
-**Etapp 3 — rensning**
-- När Pi-kylan gått stabilt kan PWM-hacket mot RAPT tas bort helt för kyla.
+**Etapp 3 — PT100 som SSOT och rensning**
+- `actual_temp` byts till PT100 för Pi-tankar. Lärda `dead_time_hours` och `process_gain` nollställs — de är inlärda på en 15 min långsammare sensor.
+- För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
+- Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
+- RAPT-vägen ligger kvar orörd så länge någon tank står på `cool_actuation = 'rapt'`.
 
-## Förenklingar som följer med
+## Hårdvara
 
-Det här är den stora vinsten utöver bättre kylupplösning — mycket av komplexiteten vi byggt de senaste veckorna finns bara för att kompensera för RAPT-hacket och kan tas bort för Pi-styrda tankar:
-
-- **`execute-pwm-off` (30 s-cron)** behövs inte alls — Pi:n äger av-slaget lokalt. Croner blir kvar bara så länge någon tank fortfarande står på `cool_actuation = 'rapt'`.
-- **Orphan-extreme-vakten**, **PWM-OFF-bekräftelselogiken** och **read-back-verifieringen** försvinner: det finns inget extremt måltemp att fastna på.
-- **Mid-burst-glykolvakten** ersätts av att Pi:n läser glykol-PT100 varje sekund och kan avbryta pågående on-fas direkt.
-- **PWM-dithering / slot-rotation** (10-slots-modellen för 1 %-upplösning) tas bort — `duty_debt` på Pi:n gör samma sak exakt.
-- **`subTenMinGapSlots`-clamp och burstlängdsberäkningar** i `controller-adjustments.ts` blir död kod för Pi-tankar.
-
-## Snabbare reglering (etapp 2b, efter PT100-bytet)
-
-Med 1 Hz-sensordata i stället för 15 min Pill-latens kan reglerloopen skärpas rejält:
-
-- EMA-filtret på `actual_temp` kortas från ~12 min till 2–3 min. Fasfördröjningen som tvingade oss till "conservative need" och rå-hastighetsbroms försvinner till största delen.
-- PID-cykeln kan gå från 5 min till 1–2 min.
-- Effektiv dödtid faller från ~40 min till ~10 min, vilket i sin tur tillåter högre `Kp` utan pendling och gör D-bromsen träffsäker.
-- Slew-gränserna räknas redan per minut, så de följer med automatiskt.
-
-Detta görs som ett eget steg efter att PT100 validerats — inte samtidigt som reläbytet, så att vi kan isolera vad som förbättrade vad.
-
-## Kaskadreglering (etapp 3, valfritt)
-
-När allt ovan är på plats kan Pi:n köra en snabb inre loop:
-
-- **Yttre loop (moln, 1–2 min):** PID på tanktemperatur -> sätter ett *kyleffektbehov* i stället för rå duty.
-- **Inre loop (Pi, 1 Hz):** översätter behovet till faktisk on-tid kompenserat för aktuell glykoltemperatur — samma effekt levereras vare sig glykolen står på 8° eller 2°.
-
-Det tar bort hela ΔT-normaliseringen och glykolvakterna ur molnkoden, och gör att inlärda parametrar (`process_gain`, `feedforward_duty`) blir stabila över tid i stället för att drifta med glykoltemperaturen. Jag tar inte med det i första implementationen — det står här som riktning.
+- 3 reläer för cirkulationspumpar (Blå, Gul, Grön), ett fjärde för glykolkylaren.
+- 4 st PT100 med MAX31865 — en per tank plus en i glykoltanken.
 
 ## UI
 
-- Relästatus per tank i controller-kortet (liten pump-ikon som lyser vid on-fas).
-- PT100-temperatur visas bredvid Pill/probe i sensorraden.
-- Växel i inställningar per controller: kyla via RAPT eller Pi.
+- Relästatus per tank i controller-kortet (pump-ikon som lyser vid on-fas).
+- PT100-temperatur bredvid Pill/probe i sensorraden.
+- Växel per controller i inställningar: kyla via RAPT eller Pi.
+- Duty och PID-termer visas som idag, men läses från Pi-telemetrin.
 
 ## Vad du behöver göra på Pi:n
 
-Pi-koden ligger utanför det här projektet. Jag levererar ett färdigt Python-skript (relästyrning + MAX31865-avläsning + poll/rapport-loop + failsafe) som du kör som en systemd-tjänst bredvid BLE-scannern, plus GPIO-pinnkarta. Behöver veta vilken relämodul (aktiv hög/låg) och vilka GPIO-pinnar som är lediga.
+Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma mönster som `pi/brew-ble`): PID-loop, MAX31865-avläsning, relästyrning, poll/rapport, failsafe, systemd-unit. Jag behöver veta relämodulens typ (aktiv hög/låg) och vilka GPIO-pinnar som är lediga bredvid BLE-scannern.
 
 ## Teknisk detalj
 
-- Autentisering: `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`, service-role-klient i edge-funktionen, samma mönster som `ingest-pill-ble`.
-- RLS: `pi_actuation`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated` (UI), skrivbara endast via `service_role`.
-- Pi:n skriver aldrig direkt mot databasen — allt går genom de två edge-funktionerna.
-- `pi_actuation.expires_at` sätts till `now() + 30 min` av molnet; Pi:n använder den som sin egen failsafe-klocka så att regeln är samma på båda sidor.
-- Pi:n håller en `duty_debt`-räknare per tank (kvarvarande sekunder som inte kunde levereras p.g.a. 5-sekundersgolvet) och rapporterar faktiskt levererad on-tid per fönster via `pi-telemetry`, så molnets inlärning ser verklig kyla i stället för begärd.
+- Två edge-funktioner totalt: `pi-control` (GET setpoint + params) och `pi-telemetry` (POST temperaturer, relästatus, levererad on-tid, PID-termer).
+- Pi:n pratar aldrig direkt med databasen — bara genom dessa två.
+- RLS: `pi_setpoint`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated`, skrivbara endast via `service_role`.
+- PID-koden portas från `pid-compensation-claude.ts` till Python med bevarad struktur och parameternamn, så en bugg fixad på ena sidan går att spegla på den andra.
+- Enda risken värd att nämna: vi får två implementationer av samma reglerlogik. Därför flyttas bara *reglersteget* — inlärningen stannar i molnet och Pi:n får sina parametrar därifrån.
