@@ -51,7 +51,8 @@ Den uppdelningen är viktig: molnet får inte också integrera bort samma fel so
 - **Minsta på-tid 5 s och minsta av-tid 5 s — gäller både kyla och värme.** För kylan behöver pumpen bygga tryck i ledningen; för värmen undviker vi kortcykling av reläet och elementet. Samma regel, samma kod, båda lägena.
 - Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
-- Glykolreläet: enkel hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°).
+- Glykolreläet: hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°) — **men bara när minst en tank faktiskt efterfrågar kyla**. Att hålla glykolen kall dygnet runt för en tank som drar 3 % duty är både onödig el och orsaken till de stora ΔT-svängningar vi kämpat med. Kylaren startar på behov och får en minsta gångtid så den inte kortcyklar.
+- **Samordning mellan tankar:** Pi:n ser alla tre tankarna, så on-faserna fasförskjuts i stället för att råka sammanfalla. Två pumpar samtidigt sänker glykoltemperaturen dubbelt så fort och gör ΔT-kompensationen till en jakt. Med lokal samordning blir lasten jämn — något molnet aldrig kunnat göra, eftersom varje tank räknades för sig.
 
 ## Tvådelad synk mot molnet
 
