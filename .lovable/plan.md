@@ -69,7 +69,7 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 - Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
 - Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
 
-Om 10 s visar sig vara onödigt tätt för UI-känslan går snabbsynken att glesa till 15–30 s utan att något annat påverkas — den är frikopplad från regleringen.
+
 
 ## Säkerhet
 
