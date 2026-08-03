@@ -407,6 +407,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // ── Pre-filter active controllers ──────────────────────────
   const activeControllers = followedControllersFullData.filter(fc =>
     !cooloffControllerIds.has(fc.controller_id) &&
+    !(ctx.piActuatedControllerIds?.has(fc.controller_id)) &&
     (fc.heating_enabled || fc.cooling_enabled)
   )
 
