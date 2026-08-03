@@ -1,0 +1,1 @@
+ALTER TABLE public.rapt_temp_controllers ADD COLUMN IF NOT EXISTS pt100_temp numeric;
