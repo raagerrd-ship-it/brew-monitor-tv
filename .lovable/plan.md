@@ -135,7 +135,8 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - RAPT-controllerns egen termostat neutraliseras (mål långt utanför arbetsområdet) så den aldrig kan slå till parallellt.
 
 **Etapp 4 — PT100 som SSOT och rensning**
-- `actual_temp` byts till PT100 för Pi-tankar. Lärda `dead_time_hours` och `process_gain` nollställs — de är inlärda på en 15 min långsammare sensor.
+- `actual_temp` byts till PT100 för Pi-tankar (omlärningen av dödtid/gain skedde redan i etapp 2).
+- **Molnets V6-PID slutar räkna för Pi-tankar helt** — den får inte ligga och producera duty parallellt "för säkerhets skull". Två regulatorer på samma tank är den enda verkliga risken i hela det här bygget. V6 blir kvar orörd, men bara för `actuation = 'rapt'`.
 - För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
 - `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
