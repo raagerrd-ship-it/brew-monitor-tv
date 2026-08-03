@@ -28,16 +28,17 @@ class TankConfig:
 
 
 # ── Relay mapping (BCM, active-low) ────────────────────────────────────
-# Matches relay_test.py and the hardware spec.
+# Verified against physical wiring (cables are reversed vs. the natural order):
+# IN1=12 komp, IN2=26, IN3=25, IN4=24, IN5=23, IN6=22, IN7=27, IN8=17 CO2.
 TANKS = [
-    TankConfig("tank1", "6fbbc7db", "Grön (Mjöd)", 17, 27),
-    TankConfig("tank2", "ffa62be4", "Blå (Skogens Sus)", 22, 23),
-    TankConfig("tank3", "", "Tank 3", 24, 25),
+    TankConfig("tank1", "6fbbc7db", "Grön (Mjöd)", 26, 25),
+    TankConfig("tank2", "ffa62be4", "Blå (Skogens Sus)", 24, 23),
+    TankConfig("tank3", "", "Tank 3", 22, 27),
 ]
 
 GLYCOL_SENSOR_KEY = "glycol"
-COMPRESSOR_PIN = 26          # BCM GPIO for glycol compressor relay
-CO2_PIN = 12                 # reserve
+COMPRESSOR_PIN = 12          # BCM GPIO for glycol compressor relay (IN1)
+CO2_PIN = 17                 # reserve (IN8)
 RELIEF_PIN = 16              # reserve
 
 # ── PWM / timing ───────────────────────────────────────────────────────
