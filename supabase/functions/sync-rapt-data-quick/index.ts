@@ -366,6 +366,8 @@ Deno.serve(async (req) => {
         const driftAlerts: { controllerId: string; controllerName: string; offset: number; baseline: number }[] = [];
         // PWM OFF read-back: controllers där hw-target inte matchar senast skickad revert
         const pwmOffMismatches: { controllerId: string; controllerName: string; expected: number; actual: number | null }[] = [];
+        // Föräldralösa PWM-extremer: hw står kvar på burst-värdet men ingen OFF ligger pending
+        const orphanExtremes: { controllerId: string; controllerName: string; hwTarget: number; revertTo: number; mode: 'cooling' | 'heating' }[] = [];
 
         for (const controller of selectedControllersData) {
           const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
@@ -453,6 +455,22 @@ Deno.serve(async (req) => {
           const atColdExtreme = hwTarget != null && hwTarget <= minBound + 0.5;
           const atHotExtreme = hwTarget != null && hwTarget >= maxBound - 0.5;
           const pwmActive = atColdExtreme || atHotExtreme;
+          // ── SÄKERHET: hw står på ett PWM-extremvärde men det finns ingen pending
+          // OFF-rad → bursten har tappats bort och hårdvaran kyler/värmer för fullt
+          // tills nästa PID-cykel. Revert direkt.
+          if (pwmActive && !pendingOffSet.has(controller.id) && currentTemp != null) {
+            const probe = Number(currentTemp);
+            const revertTo = Math.round(
+              Math.min(maxBound, Math.max(minBound, atColdExtreme ? probe + 2 : probe - 2)) * 10
+            ) / 10;
+            orphanExtremes.push({
+              controllerId: controller.id,
+              controllerName: existing?.name ?? controller.id,
+              hwTarget: hwTarget as number,
+              revertTo,
+              mode: atColdExtreme ? 'cooling' : 'heating',
+            });
+          }
           // ── Verifiera att PWM OFF faktiskt landat i hårdvaran ──
           // Vi jämför RAPT:s rapporterade target mot det revert-värde vi senast
           // skickade. Kollas först 45 s efter sändning och bara om ingen ny
@@ -678,6 +696,56 @@ Deno.serve(async (req) => {
               controller_id: mm.controllerId,
               title: `PWM OFF ej bekräftad: ${mm.controllerName}`,
               body: `Hårdvaran står på ${mm.actual ?? '–'}° men skulle ha ${mm.expected}° efter PWM OFF. Kommandot ${resendOk ? 'har skickats om' : 'kunde inte skickas om'}.`,
+            });
+          }
+        }
+
+        // ── Föräldralösa PWM-extremer: tvinga revert omedelbart ──
+        for (const oe of orphanExtremes) {
+          console.error(`PWM_ORPHAN_EXTREME: ${oe.controllerName} hw=${oe.hwTarget}° (${oe.mode}) utan pending OFF — reverterar till ${oe.revertTo}°`);
+          let revertOk = false;
+          try {
+            const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+              body: JSON.stringify({
+                controllerId: oe.controllerId,
+                action: 'setTargetTemperature',
+                value: oe.revertTo,
+                source: 'pwm',
+                pwm_label: `PWM OFF nödrevert (föräldralös burst): → ${oe.revertTo}°`,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            revertOk = resp.ok;
+          } catch (e) {
+            console.error(`PWM_ORPHAN_REVERT_ERROR: ${oe.controllerName}: ${e}`);
+          }
+          if (revertOk) {
+            await supabase.from('rapt_temp_controllers')
+              .update({
+                target_temp: oe.revertTo,
+                pwm_off_expected_target: oe.revertTo,
+                pwm_off_sent_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('controller_id', oe.controllerId);
+          }
+
+          const thirtyMinAgo2 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const { data: recentOrphan } = await supabase
+            .from('pending_notifications')
+            .select('id')
+            .eq('type', 'pwm_orphan_extreme')
+            .eq('controller_id', oe.controllerId)
+            .gte('created_at', thirtyMinAgo2)
+            .limit(1);
+          if (!recentOrphan || recentOrphan.length === 0) {
+            await supabase.from('pending_notifications').insert({
+              type: 'pwm_orphan_extreme',
+              controller_id: oe.controllerId,
+              title: `PWM fastnat på ${oe.mode === 'cooling' ? 'full kyla' : 'full värme'}: ${oe.controllerName}`,
+              body: `Hårdvaran stod kvar på ${oe.hwTarget}° utan pågående burst. Nödrevert till ${oe.revertTo}° ${revertOk ? 'skickad' : 'MISSLYCKADES'}.`,
             });
           }
         }
