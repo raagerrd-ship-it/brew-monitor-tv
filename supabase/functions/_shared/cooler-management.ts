@@ -233,6 +233,23 @@ export async function runCoolerCooling(ctx: CoolerContext): Promise<AdjustmentRe
   // ── Calculate cooling utilization per controller ───────────
   const utilizations = await calculateCoolingUtilizations(ctx, controllersWithCooling)
 
+  // ── Pi-styrda tankar: RAPT:s cooling_run_time är fruset, så behovet måste
+  //    läsas från Pi:ns live-duty istället. ────────────────────────────────
+  {
+    const { data: piStates } = await supabase
+      .from('pi_live_state')
+      .select('controller_id, duty_pct, mode')
+    for (const u of utilizations) {
+      const st = (piStates ?? []).find((p: any) => u.controllerId.startsWith(p.controller_id))
+      if (!st) continue
+      const duty = st.mode === 'cooling' ? Number(st.duty_pct ?? 0) / 100 : 0
+      u.utilization = duty
+      u.recentUtilization = duty
+      u.midUtilization = duty
+      u.isActivelyCooling = duty > 0
+    }
+  }
+
   for (const u of utilizations) {
     const c = controllersWithCooling.find(c => c.controller_id === u.controllerId)
     const pwmBurst = ctx.pwmBursts?.find(b => b.controller_id === u.controllerId)
