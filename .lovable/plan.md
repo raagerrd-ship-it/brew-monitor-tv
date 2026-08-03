@@ -19,8 +19,8 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 
 ```text
 Moln                                Pi (lokalt)
-  fermenteringsprofiler
-  -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
+  profileditor (skapa/ändra)
+  -> hela profilen             ->   profilen cachas lokalt och körs av Pi:n
   ff/Kp/Kd/dödtid (långsamt) ->     PID-beslut var 180:e s mot PT100
                                     trimI ägs lokalt av Pi:n
                                     lägesval kyla/värme
@@ -29,13 +29,25 @@ Moln                                Pi (lokalt)
                              <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
-**Molnet äger:** profilsteg och rampning, målvärde, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, UI.
+**Molnet äger:** att *skapa och ändra* profiler, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, visualisering. Ingenting i molnet behövs för att regleringen ska fortsätta.
 
-**Pi:n äger:** **hela sensorbilden inklusive `actual_temp` (SSOT)**, PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, **glykolkylarens börvärde**, all säkerhet i realtid.
+**Pi:n äger:** **hela sensorbilden inklusive `actual_temp` (SSOT)**, **att köra profilen och räkna fram målvärdet**, PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, **glykolkylarens börvärde**, all säkerhet i realtid.
+
+Grundregeln: **allt som behövs för att hålla en jäsning igång finns på Pi:n.** Molnet är författarverktyg och skyltfönster — profiler skapas där och allt visualiseras där, men om internet försvinner i en vecka märker jäsningen ingen skillnad.
 
 Den uppdelningen är viktig: molnet får inte också integrera bort samma fel som Pi:n redan integrerar bort — då får vi två integratorer som jagar varandra och exakt den windup vi just byggt bort. Molnet lär bara långsamt (timmar/dygn) på levererad on-tid, Pi:n reglerar snabbt (minuter).
 
 **Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
+
+## Profilen körs på Pi:n
+
+Om molnet räknar ut vilket profilsteg som gäller är systemet inte offline-dugligt — en ramp som skulle ha startat under ett avbrott uteblir, och det är precis den sortens tyst fel som förstör en batch. Därför flyttas även profilkörningen ner.
+
+- Molnet är **profileditor**: du skapar och ändrar profiler i webb-UI:t som idag (`fermentation_profiles` / `fermentation_profile_steps`), och startar en session mot en tank.
+- Hela profilen — alla steg med temperaturer, tider, ramper och villkor — skickas ner som ett paket och lagras i Pi:ns SQLite. Bara när profilen *ändras* skickas ett nytt paket (versionsnummer i snabbsynkens svar, samma piggyback som setpointen).
+- Pi:n kör stegmotorn lokalt: håller reda på vilket steg som är aktivt, hur länge det pågått, kör ramperna mot sin egen klocka och räknar fram `target_temp` varje loop. Stegbyten loggas lokalt och skickas upp vid nästa lyckade synk.
+- Villkor som bygger på SG (attenuation, gravity stable, `target_sg`) fungerar också offline, eftersom pill-datan kommer från BLE-sniffern på samma Pi. Det är den enda anledningen att detta går att göra alls.
+- Molnet blir konsument: `fermentation_sessions` och `fermentation_step_log` speglar vad Pi:n redan gjort, i stället för att driva det. Vill du hoppa ett steg manuellt gör du det i molnet — det blir en profiländring som Pi:n hämtar, eller direkt i det lokala UI:t om nätet ligger nere.
 
 ## Pi:n bygger SSOT, inte molnet
 
@@ -90,13 +102,13 @@ Glykolen ska inte köras som en dum termostat på ett fast börvärde. Pi:n ser 
 
 ## Tvådelad synk mot molnet
 
-Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
+Regleringen behöver inte molnet alls — inte ens för profilsteg — så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
 
 **Snabbsynk — var 30:e sekund, litet paket**
 - Bara det som ska kännas levande i UI:t: tanktemp (PT100), glykoltemp, aktuellt läge, aktuell duty, relä på/av.
 - Skrivs till en singleton-rad per controller (`pi_live_state`) med UPSERT — ingen historikrad, ingen tillväxt i databasen. UI:t prenumererar via realtime och känns direkt.
 - Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
-- Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
+- Nedladdning piggybackar på svaret: Pi:n skickar sina nuvarande versionsnummer (profil + parametrar), molnet svarar med ny profil eller nya lärda parametrar bara när något ändrats. Alltså ingen separat poll.
 - 30 s är tillräckligt färskt: jäsningstempen rör sig ~0,3 °C/h, watchdogen (2 min) fångar ändå 4 missade pulser, och setpoint-fördröjningen är försumbar mot tankens dödtid. DB-skrivningar blir 2 880/tank/dygn i stället för 8 640.
 
 **Full synk — var 5:e minut, aggregerat**
@@ -105,8 +117,10 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 - Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov.
 
 **Vid nätavbrott**
+- Regleringen påverkas inte alls: profil, målvärde, PID och säkerhet ligger på Pi:n.
 - Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
-- Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
+- Full synk, stegbyten och lokala målvärdesändringar köas i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik och inga stegbyten går förlorade.
+- Molnets vy blir alltså gammal under avbrottet, men fylls i efteråt — grafen får inget hål.
 
 
 
@@ -115,7 +129,8 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 När hela regleringen ändå kör lokalt är det bara rimligt att också kunna styra den lokalt. Pi:n serverar en liten webbsida på LAN:et (t.ex. `http://brewpi.local`) som fungerar oavsett om internet finns — den pratar bara med Pi:ns egen loop, aldrig via molnet.
 
 **Vad man kan göra**
-- **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank.
+- **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank. Ett manuellt värde pausar profilen för den tanken tills du släpper tillbaka den.
+- **Se profilen** — vilket steg som körs, hur långt in i steget vi är, vad nästa steg är. Plus möjlighet att gå vidare till nästa steg manuellt, eftersom molnet inte är nåbart.
 - **Se status och larm** — tanktemp, måltemp, aktuellt läge, duty, relä på/av, glykoltemp, samt när molnet senast svarade. Lokala larm (sensorfel, gränsvärde, interlock) syns här även när inga push-notiser kan skickas.
 
 Ingen nödstoppsknapp och inget manuellt lägesval i första versionen — säkerhetsavstängning sker automatiskt i loopen, och att tvinga läge förbi PID:n är precis den sortens ingrepp som skapat problem tidigare. Kan läggas till senare.
@@ -140,7 +155,7 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Målvärdet sparas persistent på disk så det överlever en omstart av Pi:n under avbrottet.
 - `expires_at` blir därför bara en informationsflagga: Pi:n loggar och rapporterar "setpoint stale" (och visar det i UI:t när kontakten är tillbaka), men fortsätter reglera. Vill du kunna tvinga fram avstängning finns molnets `max_duty_pct = 0` — men den kräver ju kontakt, så den är inte en failsafe utan ett manuellt stopp.
 - Det som *ska* stänga av är lokala fel, inte molnfel: sensorbortfall, temperatur utanför hårda gränser, eller relä som stått på för länge. Se punkterna nedan.
-- Enda undantaget värt att bevaka: en profil som skulle ha rampat vidare står stilla under avbrottet. Vi larmar när kontakten återkommer och molnet räknar då om steget mot faktisk tid, i stället för att hoppa i temperatur.
+- Profilen står *inte* stilla under ett avbrott — den körs lokalt. Det som pausas är bara möjligheten att *ändra* profilen, och det får vänta tills nätet är tillbaka eller göras i det lokala UI:t.
 - Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger.
 - Värmen har en egen övertemperaturspärr (hårt tak) och kräver färsk sensordata — ingen PT100-avläsning på 60 s betyder värme av.
 - Sensorbortfall: ingen giltig PT100-avläsning på 60 s → SSOT-bygget faller tillbaka på pill (BLE) om den är färsk, annars bryts båda reläerna. Blir vi helt utan giltig källa reglerar vi blint, och då är avstängning rätt svar.
@@ -182,6 +197,11 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
 - `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
 - RAPT-vägen ligger kvar orörd så länge någon tank står på `actuation = 'rapt'`.
+
+**Etapp 4b — profilmotorn flyttas till Pi**
+- Profilpaketet (steg, ramper, villkor) laddas ner och cachas i Pi:ns SQLite; Pi:n kör stegmotorn lokalt och rapporterar stegbyten uppåt.
+- Molnets `fermentation-step-executor` slutar driva Pi-tankar och blir spegling. Görs efter etapp 4 så att bara *en* part äger målvärdet vid varje tidpunkt.
+- Efter detta steg är systemet fullt offline-dugligt: en jäsning kan starta, rampa, crasha och avslutas helt utan internet.
 
 **Etapp 5 — RAPT bort helt**
 - När alla tre tankarna plus glykolkylaren går på Pi-reläer, och PT100 + BLE täcker all mätning, finns inget kvar som behöver RAPT.
