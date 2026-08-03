@@ -25,6 +25,26 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const { kind, controller_id, data } = body;
+  // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
+  async function writeBackToController(d: any) {
+    const patch: Record<string, any> = {
+      actual_temp: d.actual_temp ?? null,
+      current_temp: d.actual_temp ?? null,
+      current_temp_updated_at: new Date().toISOString(),
+      last_update: new Date().toISOString(),
+      cooling_enabled: d.mode === "cooling",
+      heating_enabled: d.mode === "heating",
+      updated_at: new Date().toISOString(),
+    };
+    if (d.actual_temp == null) return;
+    const { error } = await supabase
+      .from("rapt_temp_controllers")
+      .update(patch)
+      .like("controller_id", `${controller_id}%`)
+      .eq("actuation", "pi");
+    if (error) console.error("controller writeback failed:", error.message);
+  }
+
 
   if (!controller_id || !kind) {
     return new Response(JSON.stringify({ error: "Missing controller_id or kind" }), {
@@ -101,6 +121,8 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    await writeBackToController(data);
 
     // Return updated setpoint so Pi can piggyback
     const setpointResponse = await getSetpointResponse(data.setpoint_version);
