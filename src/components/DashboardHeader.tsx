@@ -15,7 +15,6 @@ import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
-import { PlugControl } from "./PlugControl";
 import { PiHealthChip } from "./PiHealthChip";
 import { HeaderIconButton } from "./header/HeaderIconButton";
 
@@ -134,7 +133,6 @@ export function DashboardHeader({
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
-              {!isTvMode && <PlugControl />}
               {!isTvMode && <PiHealthChip />}
 
               {!isTvMode && (
