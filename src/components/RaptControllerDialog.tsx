@@ -56,6 +56,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor,
     preferredSensor, setPreferredSensor, originalTarget,
     dutyCyclePct, dutyMode,
+    isPi, piHeartbeat, piTarget,
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
@@ -92,7 +93,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     : preferredSensor === 'probe'
       ? (currentController.current_temp ?? currentController.pill_temp ?? currentController.actual_temp)
       : (currentController.pill_temp ?? currentController.current_temp ?? currentController.actual_temp);
-  const { actualTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
+  const { actualTarget: raptTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
+  const actualTarget = isPi ? piTarget : raptTarget;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,7 +120,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {!isCooler && <FermentationSessionMinimal controllerId={controller.controller_id} />}
 
           {/* PID-motor toggle */}
-          {isAuthenticated && !isCooler && (
+          {isAuthenticated && !isCooler && !isPi && (
             <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-3 border border-border/30">
               <div className="flex items-center justify-between gap-3">
                 <Label className="text-xs text-muted-foreground">PID-motor</Label>
@@ -234,8 +236,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </div>
           )}
 
-          {/* Dual Sensor Toggle — only for non-cooler controllers with a pill */}
-          {!isCooler && currentController.pill_temp != null && isAuthenticated && (
+          {/* Dual Sensor Toggle — only for non-cooler RAPT-styrda controllers with a pill */}
+          {!isCooler && !isPi && currentController.pill_temp != null && isAuthenticated && (
             <div className="space-y-2">
               <div className="flex items-center justify-between py-2 px-1">
                 <div className="space-y-0.5">
@@ -281,7 +283,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <span className={`text-xs font-medium ${
                 isActivelyHeating ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground/60'
               }`}>
-                {!currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
+                {!isPi && !currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
               </span>
             </div>
             
@@ -295,7 +297,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <span className={`text-xs font-medium ${
                 isActivelyCooling ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground/60'
               }`}>
-                {!currentController.cooling_enabled ? 'Inaktiv' : isActivelyCooling ? 'Kyler' : 'Standby'}
+                {!isPi && !currentController.cooling_enabled ? 'Inaktiv' : isActivelyCooling ? 'Kyler' : 'Standby'}
               </span>
             </div>
           </div>
@@ -310,8 +312,8 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </div>
             <div className="flex items-center gap-1.5">
               <RefreshCw className="w-3 h-3" />
-              <span>Synk: {lastSync 
-                ? formatDistanceToNow(new Date(lastSync), { addSuffix: true, locale: sv })
+              <span>{isPi ? 'Pi' : 'Synk'}: {(isPi ? piHeartbeat : lastSync)
+                ? formatDistanceToNow(new Date((isPi ? piHeartbeat : lastSync) as string), { addSuffix: true, locale: sv })
                 : '—'}</span>
             </div>
           </div>
