@@ -33,7 +33,7 @@ class TankConfig:
 TANKS = [
     TankConfig("tank1", "6fbbc7db", "Grön (Mjöd)", 26, 25),
     TankConfig("tank2", "ffa62be4", "Blå (Skogens Sus)", 24, 23),
-    TankConfig("tank3", "", "Tank 3", 22, 27),
+    TankConfig("tank3", "618b29b0", "Gul", 22, 27),
 ]
 
 GLYCOL_SENSOR_KEY = "glycol"
