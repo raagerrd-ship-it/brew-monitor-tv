@@ -34,7 +34,7 @@ Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
 ## Etapper
 
 **Etapp 1 — kyla via relä, PT100 som extra sensor**
-- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `updated_at`, `expires_at`.
+- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `pwm_period_s` (default 180), `min_on_s` (default 5), `min_off_s` (default 5), `updated_at`, `expires_at`.
 - Ny edge-funktion `pi-control` (GET): Pi hämtar aktuella duty-värden, autentiseras med samma `PI_BLE_INGEST_SECRET`-mönster som BLE-ingesten.
 - Ny edge-funktion `pi-telemetry` (POST): Pi rapporterar PT100-temperaturer, reläläge, faktisk levererad on-tid per fönster.
 - Ny tabell `pi_probe_readings` för PT100-data, samt `pi_relay_state`.
