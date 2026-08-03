@@ -778,6 +778,14 @@ function computeDutyV5(input: {
     constraints.push('past-target-monotonic')
   }
 
+  // ── Kontinuerligt hållgolv: nära mål ska duty landa på ff, inte 0. Läggs
+  // EFTER monoton spärr och slew-cap (golvet är per definition den nivå som
+  // håller stilla — det är ingen upptrappning) men respekterar min-off. ──
+  if (ff > 0 && !minOffBlocked && absNeed <= HOLD_FLOOR_BAND && duty < ff) {
+    duty = ff
+    constraints.push(`hold-floor(${(ff * 100).toFixed(1)}%)`)
+  }
+
 
   // ── Anti-windup: om aktuatorn inte kunde leverera vad trimI-tillväxten
   // denna cykel förutsatte (slew eller min-off begränsade duty), återställ
