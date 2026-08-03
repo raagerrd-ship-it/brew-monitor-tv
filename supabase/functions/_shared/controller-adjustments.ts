@@ -57,6 +57,9 @@ export interface ControllerAdjustmentContext {
   sharedUtilizations: Map<string, import('./cooler-management.ts').UtilizationResult>
   /** Circuit-breaker: controllers vars RAPT-writes är pausade pga konsekutiva fel. */
   openCircuitControllerIds?: Set<string>
+  /** Tankar som regleras av Pi:n. Ingen RAPT-PID/PWM körs för dessa —
+   *  de ingår bara i kylarens target-beräkning. */
+  piActuatedControllerIds?: Set<string>
   /** Glykolkylarens aktuella temperatur (°C). Används av PID för kontinuerlig
    *  ΔT-normalisering av lärda parametrar (feedforward_duty, process_gain)
    *  mot referens ΔT=10°. `null`/`undefined` → ingen ΔT-skalning (fallback). */
@@ -404,6 +407,7 @@ async function runPidControl(ctx: ControllerAdjustmentContext): Promise<Adjustme
   // ── Pre-filter active controllers ──────────────────────────
   const activeControllers = followedControllersFullData.filter(fc =>
     !cooloffControllerIds.has(fc.controller_id) &&
+    !(ctx.piActuatedControllerIds?.has(fc.controller_id)) &&
     (fc.heating_enabled || fc.cooling_enabled)
   )
 
