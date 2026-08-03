@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PT100-kalibrering</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: Inter, system-ui, sans-serif; margin: 0; padding: 16px;
+         background: #10141a; color: #e8edf4; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+          border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .name { font-weight: 600; }
+  .temps { display: flex; gap: 18px; margin: 10px 0; }
+  .temp small { display: block; opacity: .6; font-size: 11px; }
+  .temp b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .still { background: rgba(64,200,120,.2); color: #7ee2a8; }
+  .moving { background: rgba(240,180,60,.2); color: #f0c060; }
+  .meta { font-size: 12px; opacity: .7; line-height: 1.6; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button, input { font: inherit; border-radius: 8px; border: 1px solid rgba(255,255,255,.15);
+                  background: rgba(255,255,255,.08); color: inherit; padding: 6px 10px; }
+  button { cursor: pointer; }
+  input { width: 82px; }
+  .err { color: #ff8b8b; font-size: 12px; margin-top: 6px; }
+  ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; opacity: .75; }
+</style>
+</head>
+<body>
+<h1>PT100-kalibrering</h1>
+<div id="list"></div>
+
+<script>
+const fmt = (v, d = 2) => v === null || v === undefined ? "–" : v.toFixed(d);
+const errors = {};
+
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Något gick fel");
+  return data;
+}
+
+function ask(key, label) {
+  const value = prompt(`${label} – vad visar referenstermometern? (°C)`);
+  if (value === null) return null;
+  const num = parseFloat(value.replace(",", "."));
+  if (Number.isNaN(num)) { errors[key] = "Ogiltigt referensvärde"; render(cache); return null; }
+  return num;
+}
+
+async function action(key, label, fn) {
+  const ref = ask(key, label);
+  if (ref === null) return;
+  try { delete errors[key]; await fn(ref); } catch (e) { errors[key] = e.message; }
+  await load();
+}
+
+function card(s) {
+  const checks = s.checks.map(c =>
+    `<li>${new Date(c.created_at * 1000).toLocaleString("sv-SE")}: ${fmt(c.corrected)}° mot ${fmt(c.reference)}° (${c.deviation >= 0 ? "+" : ""}${fmt(c.deviation)}°)</li>`
+  ).join("");
+  const point = (p, dev) => p
+    ? `${fmt(p.raw)}° rå → ${fmt(p.ref)}° ref (avvikelse ${dev >= 0 ? "+" : ""}${fmt(dev)}°)`
+    : "ej fångad";
+  return `<div class="card">
+    <div class="row">
+      <span class="name">${s.label}</span>
+      <span class="pill ${s.stable ? "still" : "moving"}">${s.stable ? "står stilla" : "rör sig"}</span>
+    </div>
+    <div class="temps">
+      <div class="temp"><small>Rå</small><b>${fmt(s.raw)}°</b></div>
+      <div class="temp"><small>Korrigerad</small><b>${fmt(s.corrected)}°</b></div>
+    </div>
+    <div class="meta">
+      Förstärkning ${s.gain.toFixed(4)} · Offset ${s.offset >= 0 ? "+" : ""}${s.offset.toFixed(2)}°<br>
+      Låg punkt: ${point(s.low, s.deviation.low)}<br>
+      Hög punkt: ${point(s.high, s.deviation.high)}
+    </div>
+    <div class="actions">
+      <button data-act="low" data-key="${s.sensor_key}">Fånga låg punkt</button>
+      <button data-act="high" data-key="${s.sensor_key}">Fånga hög punkt</button>
+      <button data-act="verify" data-key="${s.sensor_key}">Verifiera</button>
+      <button data-act="reset" data-key="${s.sensor_key}">Nollställ</button>
+      <input id="g-${s.sensor_key}" value="${s.gain.toFixed(4)}" title="Förstärkning">
+      <input id="o-${s.sensor_key}" value="${s.offset.toFixed(2)}" title="Offset">
+      <button data-act="manual" data-key="${s.sensor_key}">Spara manuellt</button>
+    </div>
+    ${errors[s.sensor_key] ? `<div class="err">${errors[s.sensor_key]}</div>` : ""}
+    ${checks ? `<ul>${checks}</ul>` : ""}
+  </div>`;
+}
+
+let cache = [];
+function render(sensors) {
+  cache = sensors;
+  document.getElementById("list").innerHTML = sensors.map(card).join("");
+}
+
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-act]");
+  if (!btn) return;
+  const key = btn.dataset.key;
+  const label = cache.find(s => s.sensor_key === key).label;
+  const base = `/api/calibration/${key}`;
+  if (btn.dataset.act === "reset") {
+    try { delete errors[key]; await post(`${base}/reset`, {}); } catch (e) { errors[key] = e.message; }
+    return load();
+  }
+  if (btn.dataset.act === "manual") {
+    try {
+      delete errors[key];
+      await post(`${base}/manual`, {
+        gain: parseFloat(document.getElementById(`g-${key}`).value.replace(",", ".")),
+        offset: parseFloat(document.getElementById(`o-${key}`).value.replace(",", ".")),
+      });
+    } catch (e) { errors[key] = e.message; }
+    return load();
+  }
+  if (btn.dataset.act === "verify") {
+    return action(key, label, ref => post(`${base}/verify`, { reference: ref }));
+  }
+  return action(key, label, ref => post(`${base}/capture`, { point: btn.dataset.act, reference: ref }));
+});
+
+async function load() {
+  const data = await (await fetch("/api/calibration")).json();
+  render(data.sensors);
+}
+load();
+setInterval(load, 1000);
+</script>
+</body>
+</html>
