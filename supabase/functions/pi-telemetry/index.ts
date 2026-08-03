@@ -27,16 +27,29 @@ Deno.serve(async (req) => {
   const { kind, controller_id, data } = body;
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
   async function writeBackToController(d: any) {
+    if (d.actual_temp == null) return;
+
+    // SSOT: actual_temp = snitt av PT100 (Pi) och pill när dubbla givare är på.
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id, pill_temp, dual_sensor_enabled")
+      .like("controller_id", `${controller_id}%`)
+      .eq("actuation", "pi")
+      .maybeSingle();
+
+    const probe = Number(d.actual_temp);
+    const pill = ctrl?.pill_temp != null ? Number(ctrl.pill_temp) : null;
+    const fused = ctrl?.dual_sensor_enabled && pill != null ? (probe + pill) / 2 : probe;
+
     const patch: Record<string, any> = {
-      actual_temp: d.actual_temp ?? null,
-      current_temp: d.actual_temp ?? null,
+      actual_temp: fused,
+      current_temp: probe,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
       cooling_enabled: d.mode === "cooling",
       heating_enabled: d.mode === "heating",
       updated_at: new Date().toISOString(),
     };
-    if (d.actual_temp == null) return;
     const { data: rows, error } = await supabase
       .from("rapt_temp_controllers")
       .update(patch)
