@@ -86,8 +86,8 @@ Om 10 s visar sig vara onödigt tätt för UI-känslan går snabbsynken att gles
 
 **Etapp 1 — mätning först**
 - PT100 + MAX31865 monteras, Pi:n rapporterar temperaturer till molnet. Ingen styrning ännu.
-- Nya tabeller: `pi_probe_readings`, `pi_relay_state`.
-- Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`.
+- Nya tabeller: `pi_live_state` (singleton per controller, UPSERT från snabbsynken) och `pi_probe_readings` (aggregerade minutrader från full synk).
+- Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`. Tar emot båda synknivåerna; fältet `kind` (`live` eller `rollup`) avgör vilken väg som körs.
 - Vi jämför PT100 mot Pill/probe i några dygn och ser hur stor sensorlatensen faktiskt varit.
 - BLE-sniffern rör vi inte — den kör redan och matar `ingest-pill-ble`.
 
@@ -132,7 +132,7 @@ Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma m�
 
 ## Teknisk detalj
 
-- Två edge-funktioner totalt: `pi-control` (GET setpoint + params) och `pi-telemetry` (POST temperaturer, relästatus, levererad on-tid per läge, PID-termer).
+- Två edge-funktioner totalt: `pi-control` (GET setpoint + params, som fallback när piggyback inte används) och `pi-telemetry` (POST, både snabbsynk och minutaggregat; svarar med ny setpoint när `setpoint_version` skiljer sig).
 - Pi:n pratar aldrig direkt med databasen — bara genom dessa två.
 - RLS: `pi_setpoint`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated`, skrivbara endast via `service_role`.
 - PID-koden portas från `pid-compensation-claude.ts` till Python med bevarad struktur och parameternamn, så en bugg fixad på ena sidan går att spegla på den andra.
