@@ -241,13 +241,8 @@ class Regulator:
         # Buffer for rollup
         tank.temp_buffer.append((now, temp))
 
-        sensor_age_s = (now - (self.sensors._raw.get(tank.sensor_key) and now or now))
-        # Use the sensor hub's window to estimate freshness
         recent = self.sensors._recent(tank.sensor_key)
-        if recent:
-            sensor_age_s = now - recent[-1][0]
-        else:
-            sensor_age_s = 999
+        sensor_age_s = (now - recent[-1][0]) if recent else 999
 
         # ── Mode selection ──
         new_mode = select_mode(tank, temp, tank.target_temp, now)
