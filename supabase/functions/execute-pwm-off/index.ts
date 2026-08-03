@@ -61,9 +61,68 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── MID-BURST GLYKOL-VAKT ──
+  // Duty beräknas vid burst-start utifrån ΔT (mål − glykol) DÅ. Faller glykolen
+  // under bursten ökar ΔT och samma sekunder levererar mer kyla än beräknat →
+  // överkylning. Kortar därför återstående burst proportionellt mot ΔT_start/ΔT_nu.
+  // Ligger här (var 30:e sekund) så även korta burstar (<5 min) hinner trimmas.
+  try {
+    const { data: liveOffsRaw } = await supabase
+      .from("pending_rapt_retries")
+      .select("*")
+      .like("reason", "%PWM OFF%")
+      .not("execute_at", "is", null)
+      .not("glycol_temp_at_start", "is", null)
+      .gt("execute_at", new Date().toISOString());
+    const liveOffs = (liveOffsRaw ?? []) as any[];
+    if (liveOffs.length > 0) {
+      const { data: coolerNow } = await supabase
+        .from("rapt_temp_controllers")
+        .select("actual_temp, current_temp")
+        .eq("is_glycol_cooler", true)
+        .limit(1)
+        .maybeSingle();
+      const glycolNow = coolerNow
+        ? parseFloat(String((coolerNow as any).actual_temp ?? (coolerNow as any).current_temp))
+        : NaN;
+      const { data: targetRows } = await supabase
+        .from("rapt_temp_controllers")
+        .select("controller_id, profile_target_temp")
+        .in("controller_id", liveOffs.map((o) => o.controller_id));
+      const targetMap = new Map(
+        ((targetRows ?? []) as any[]).map((r) => [r.controller_id as string, parseFloat(String(r.profile_target_temp))])
+      );
+
+      for (const off of liveOffs) {
+        const tgt = targetMap.get(off.controller_id);
+        const glycolStart = parseFloat(String(off.glycol_temp_at_start));
+        if (tgt == null || !Number.isFinite(glycolNow) || !Number.isFinite(glycolStart) || !Number.isFinite(tgt)) continue;
+        const dtStart = Math.max(3, tgt - glycolStart);
+        const dtNow = Math.max(3, tgt - glycolNow);
+        if (dtNow - dtStart <= 1.5) continue; // glykolen inte nämnvärt kallare
+
+        const burstMatch = String(off.reason).match(/(\d+)s burst/);
+        if (!burstMatch) continue;
+        const burstSeconds = parseInt(burstMatch[1]);
+        const executeMs = new Date(off.execute_at).getTime();
+        const burstStartMs = executeMs - burstSeconds * 1000;
+        const trimmedSeconds = Math.max(20, Math.round(burstSeconds * (dtStart / dtNow)));
+        if (trimmedSeconds >= burstSeconds) continue;
+        const newExecuteMs = Math.max(Date.now(), burstStartMs + trimmedSeconds * 1000);
+        if (newExecuteMs >= executeMs) continue;
+
+        await supabase.from("pending_rapt_retries")
+          .update({ execute_at: new Date(newExecuteMs).toISOString() })
+          .eq("id", off.id);
+        console.log(`PWM_TRIM_GLYCOL: ${off.controller_id} glykol ${glycolStart.toFixed(1)}°→${glycolNow.toFixed(1)}° (ΔT ${dtStart.toFixed(1)}→${dtNow.toFixed(1)}°) — burst ${burstSeconds}s → ${trimmedSeconds}s`);
+      }
+    }
+  } catch (err) {
+    console.error(`PWM_TRIM_GLYCOL error: ${String(err).slice(0, 160)}`);
+  }
+
   // Find all scheduled PWM OFF commands that are due
   const { data: pendingOffs, error } = await supabase
-
     .from("pending_rapt_retries")
     .select("*")
     .like("reason", "%PWM OFF%")
