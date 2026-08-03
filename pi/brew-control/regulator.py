@@ -33,6 +33,19 @@ from relay import RelayHub
 
 log = logging.getLogger(__name__)
 
+# Pill-värdet kommer via molnet (RAPT-sync). Äldre än detta → strunta i det.
+PILL_MAX_AGE_S = 3600
+
+
+def _parse_ts(ts) -> Optional[float]:
+    if not ts:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
 # ── State persistence ──────────────────────────────────────────────────
 
 def _init_db(db_path):
@@ -66,6 +79,13 @@ class TankRegulator:
     target_temp: float = 18.0
     max_duty_pct: float = 100.0
     learned_params: dict = field(default_factory=dict)
+
+    # Pill (från molnet) — används för snittet som vi reglerar mot
+    pill_temp: Optional[float] = None
+    pill_updated_at: Optional[float] = None
+    dual_sensor_enabled: bool = True
+    last_pt100: Optional[float] = None
+    last_fused: Optional[float] = None
 
     # Mode-selection state
     wrong_side_since: Optional[float] = None
@@ -200,6 +220,10 @@ class Regulator:
                         tank.target_temp = float(sp.get("target_temp", tank.target_temp))
                         tank.max_duty_pct = float(sp.get("max_duty_pct", 100))
                         tank.learned_params = sp.get("learned_params", {})
+                        pt = sp.get("pill_temp")
+                        tank.pill_temp = float(pt) if pt is not None else None
+                        tank.pill_updated_at = _parse_ts(sp.get("pill_updated_at"))
+                        tank.dual_sensor_enabled = sp.get("dual_sensor_enabled", True) is not False
                         new_ver = sp.get("params_version")
                         if new_ver != tank.last_setpoint_version:
                             log.info(f"{tank.name}: setpoint updated → {tank.target_temp}°, "
