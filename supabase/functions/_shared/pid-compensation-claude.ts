@@ -175,6 +175,12 @@ const NOISE_BAND = 0.10        // |need| under detta = ren sensorbrus-zon
 const SLEW_NOISE_BAND = 0.01   // max +1 procentenhet duty per 5 min i brus-zonen
 const STALE_FREEZE_MIN = 8     // SSOT > N min → frys trim/rate-beroende termer
 const MIN_OFF_MIN = 5          // kylning: min tid mellan duty>0 efter en 0%-cykel (kompressor/glykol-skydd)
+// ── Kontinuerligt hållgolv ──
+// Inom detta band runt mål får duty aldrig falla under lärd ff-duty. Utan
+// golvet låser "past-target-monotonic" duty på 0% hela vägen tillbaka upp mot
+// mål, tanken driver ~0.3°C/h och regleringen degenererar till on/off-pulser
+// som med dödtiden oundvikligen skjuter förbi nedåt.
+const HOLD_FLOOR_BAND = 0.50   // |need| under detta = håll ff-golvet aktivt
 const TAU_MIN = 12.0           // EMA-tidskonstant — måste överstiga 5min sample-intervall + rymma ~15min probe-latens
 // D-termens rate mäts över ~35min (bredare än probe-latensen ×2) så vi
 // alltid har minst två färska avläsningar från den långsammaste sensorn
@@ -770,6 +776,14 @@ function computeDutyV5(input: {
   if (needCtl < 0 && duty > lastDutyFrac) {
     duty = lastDutyFrac
     constraints.push('past-target-monotonic')
+  }
+
+  // ── Kontinuerligt hållgolv: nära mål ska duty landa på ff, inte 0. Läggs
+  // EFTER monoton spärr och slew-cap (golvet är per definition den nivå som
+  // håller stilla — det är ingen upptrappning) men respekterar min-off. ──
+  if (ff > 0 && !minOffBlocked && absNeed <= HOLD_FLOOR_BAND && duty < ff) {
+    duty = ff
+    constraints.push(`hold-floor(${(ff * 100).toFixed(1)}%)`)
   }
 
 
