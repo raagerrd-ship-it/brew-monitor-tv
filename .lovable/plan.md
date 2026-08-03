@@ -19,8 +19,8 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 
 ```text
 Moln                                Pi (lokalt)
-  fermenteringsprofiler
-  -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
+  profileditor (skapa/ändra)
+  -> hela profilen             ->   profilen cachas lokalt och körs av Pi:n
   ff/Kp/Kd/dödtid (långsamt) ->     PID-beslut var 180:e s mot PT100
                                     trimI ägs lokalt av Pi:n
                                     lägesval kyla/värme
@@ -29,9 +29,11 @@ Moln                                Pi (lokalt)
                              <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
-**Molnet äger:** profilsteg och rampning, målvärde, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, UI.
+**Molnet äger:** att *skapa och ändra* profiler, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, visualisering. Ingenting i molnet behövs för att regleringen ska fortsätta.
 
-**Pi:n äger:** **hela sensorbilden inklusive `actual_temp` (SSOT)**, PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, **glykolkylarens börvärde**, all säkerhet i realtid.
+**Pi:n äger:** **hela sensorbilden inklusive `actual_temp` (SSOT)**, **att köra profilen och räkna fram målvärdet**, PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, **glykolkylarens börvärde**, all säkerhet i realtid.
+
+Grundregeln: **allt som behövs för att hålla en jäsning igång finns på Pi:n.** Molnet är författarverktyg och skyltfönster — profiler skapas där och allt visualiseras där, men om internet försvinner i en vecka märker jäsningen ingen skillnad.
 
 Den uppdelningen är viktig: molnet får inte också integrera bort samma fel som Pi:n redan integrerar bort — då får vi två integratorer som jagar varandra och exakt den windup vi just byggt bort. Molnet lär bara långsamt (timmar/dygn) på levererad on-tid, Pi:n reglerar snabbt (minuter).
 
