@@ -102,13 +102,13 @@ Glykolen ska inte köras som en dum termostat på ett fast börvärde. Pi:n ser 
 
 ## Tvådelad synk mot molnet
 
-Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
+Regleringen behöver inte molnet alls — inte ens för profilsteg — så synkens enda syfte är UI-färskhet, historik och inlärning. Därför delas den i två nivåer i stället för en tung rapport med hög frekvens.
 
 **Snabbsynk — var 30:e sekund, litet paket**
 - Bara det som ska kännas levande i UI:t: tanktemp (PT100), glykoltemp, aktuellt läge, aktuell duty, relä på/av.
 - Skrivs till en singleton-rad per controller (`pi_live_state`) med UPSERT — ingen historikrad, ingen tillväxt i databasen. UI:t prenumererar via realtime och känns direkt.
 - Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
-- Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
+- Nedladdning piggybackar på svaret: Pi:n skickar sina nuvarande versionsnummer (profil + parametrar), molnet svarar med ny profil eller nya lärda parametrar bara när något ändrats. Alltså ingen separat poll.
 - 30 s är tillräckligt färskt: jäsningstempen rör sig ~0,3 °C/h, watchdogen (2 min) fångar ändå 4 missade pulser, och setpoint-fördröjningen är försumbar mot tankens dödtid. DB-skrivningar blir 2 880/tank/dygn i stället för 8 640.
 
 **Full synk — var 5:e minut, aggregerat**
@@ -117,8 +117,10 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 - Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov.
 
 **Vid nätavbrott**
+- Regleringen påverkas inte alls: profil, målvärde, PID och säkerhet ligger på Pi:n.
 - Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
-- Full synk köas lokalt i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik går förlorad.
+- Full synk, stegbyten och lokala målvärdesändringar köas i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik och inga stegbyten går förlorade.
+- Molnets vy blir alltså gammal under avbrottet, men fylls i efteråt — grafen får inget hål.
 
 
 
@@ -127,7 +129,8 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 När hela regleringen ändå kör lokalt är det bara rimligt att också kunna styra den lokalt. Pi:n serverar en liten webbsida på LAN:et (t.ex. `http://brewpi.local`) som fungerar oavsett om internet finns — den pratar bara med Pi:ns egen loop, aldrig via molnet.
 
 **Vad man kan göra**
-- **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank.
+- **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank. Ett manuellt värde pausar profilen för den tanken tills du släpper tillbaka den.
+- **Se profilen** — vilket steg som körs, hur långt in i steget vi är, vad nästa steg är. Plus möjlighet att gå vidare till nästa steg manuellt, eftersom molnet inte är nåbart.
 - **Se status och larm** — tanktemp, måltemp, aktuellt läge, duty, relä på/av, glykoltemp, samt när molnet senast svarade. Lokala larm (sensorfel, gränsvärde, interlock) syns här även när inga push-notiser kan skickas.
 
 Ingen nödstoppsknapp och inget manuellt lägesval i första versionen — säkerhetsavstängning sker automatiskt i loopen, och att tvinga läge förbi PID:n är precis den sortens ingrepp som skapat problem tidigare. Kan läggas till senare.
@@ -152,7 +155,7 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Målvärdet sparas persistent på disk så det överlever en omstart av Pi:n under avbrottet.
 - `expires_at` blir därför bara en informationsflagga: Pi:n loggar och rapporterar "setpoint stale" (och visar det i UI:t när kontakten är tillbaka), men fortsätter reglera. Vill du kunna tvinga fram avstängning finns molnets `max_duty_pct = 0` — men den kräver ju kontakt, så den är inte en failsafe utan ett manuellt stopp.
 - Det som *ska* stänga av är lokala fel, inte molnfel: sensorbortfall, temperatur utanför hårda gränser, eller relä som stått på för länge. Se punkterna nedan.
-- Enda undantaget värt att bevaka: en profil som skulle ha rampat vidare står stilla under avbrottet. Vi larmar när kontakten återkommer och molnet räknar då om steget mot faktisk tid, i stället för att hoppa i temperatur.
+- Profilen står *inte* stilla under ett avbrott — den körs lokalt. Det som pausas är bara möjligheten att *ändra* profilen, och det får vänta tills nätet är tillbaka eller göras i det lokala UI:t.
 - Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger.
 - Värmen har en egen övertemperaturspärr (hårt tak) och kräver färsk sensordata — ingen PT100-avläsning på 60 s betyder värme av.
 - Sensorbortfall: ingen giltig PT100-avläsning på 60 s → SSOT-bygget faller tillbaka på pill (BLE) om den är färsk, annars bryts båda reläerna. Blir vi helt utan giltig källa reglerar vi blint, och då är avstängning rätt svar.
