@@ -208,7 +208,7 @@ function BrewChartComponent({
                  }
                  if (name === "avgTemp") {
                    const dv = rawPayload?.rawAvgTemp ?? value;
-                    return [<span key="v" style={{ color: COLORS.temp }}>Actual: {dv.toFixed(1)}°</span>, null];
+                    return [<span key="v" style={{ color: COLORS.temp }}>Snitt: {dv.toFixed(1)}°</span>, null];
                   }
                   if (name === "controllerTemp") {
                     const dv = rawPayload?.rawControllerTemp ?? value;
