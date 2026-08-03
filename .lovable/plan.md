@@ -1,52 +1,65 @@
-## Problemet, verifierat
+# Pi-styrd kyla via reläbrygga
 
-Tre separata fel, alla med samma rot: **glykoltemperaturen behandlas som en konstant per cykel.**
+Flytta kylaktueringen från RAPT-controllernas temperaturmål till direkta reläer på Raspberry Pi:n (samma Pi som BLE-scannar). Värmen ligger kvar på RAPT som idag. PID-hjärnan ligger kvar i molnet — Pi:n blir en dum men snabb och pålitlig aktuator.
 
-1. **Inlärningen normaliserar hela 6h-fönstret med en enda ΔT** (`pid-compensation-claude.ts` rad 971–972: `norm(requiredDuty)` / `perPct * (DELTA_T_REF/deltaT)`). ΔT tas från glykolens värde *just nu*. Historiken innehåller par från timmar då glykolen låg helt annorlunda — senaste 90 min svängde kylaren 6,9 → 8,9° i loggen. Varje sample skalas alltså med fel faktor.
-2. **`commitHoldSsFloor` skriver rå duty utan ΔT-normalisering alls** (rad 1050–1055, erkänt i kommentaren). Hold-observationer förorenar den normaliserade EMA:n.
-3. **Ingen mid-burst-hänsyn.** Duty beslutas vid cykelstart utifrån ΔT då; faller glykolen 2° mitt i bursten levereras ~30–50 % mer kyla än beräknat. Det är exakt det som hände på Gul kl 13:00–13:15 (glykol 8,9 → 6,9°, probe 12,86 → 11,17°).
+## Varför detta löser dagens problem
 
-Punkt 1 och 2 är rena beräkningsfel. Punkt 3 är ett reglerproblem som normalisering inte kan lösa — den behöver en egen mekanism.
+Dagens kyla styrs genom att skriva ett extremt måltemp (-5°) till RAPT och sedan reverta. Det ger de fel vi jagat i veckor: burst-upplösning på ~30 s i bästa fall, tappade revert-kommandon som låser full kyla i 20 min, API-latens, och 15 min sensorfördröjning från Pill/probe. Med reläer och PT100 direkt på Pi:n försvinner hela den kedjan.
 
-## Vad som byggs
+## Hårdvara som kopplas in
 
-### Steg 1 — Per-sample ΔT vid inlärning (kärnfixen)
+- 3 cirkulationspumpar — en per tank (Blå, Gul, Grön), ett relä var
+- Glykolkylaren på ett fjärde relä (valfritt, kan lämnas manuell i steg 1)
+- 4 st PT100 med MAX31865-kort — en per tank plus en i glykoltanken
 
-`temp_controller_history` innehåller redan glykolkylarens egna rader (controller `7e57bd3c…`), så historisk glykoltemp finns per tidpunkt.
+## Så här fungerar det
 
-- Hämta kylarens historik för samma 6h-fönster i `learnFeedforwardDuty`.
-- Bygg en lookup som ger närmaste glykolvärde (±10 min, annars hoppa över paret).
-- Normalisera **varje** sample vid insamling istället för medianen efteråt:
-  - `perPctResp.push(normPerPct(-rate/duty, ΔT_sample))`
-  - `ambient` är glykol-oberoende och lämnas orört.
-- `requiredDuty` blir då `ambientGain / (perPctNormalized × 100)` — redan i ΔT_ref-ramen, ingen efterhandsskalning behövs.
-- Vid läsning (`denorm`) används fortsatt nuvarande ΔT — det är rätt, det är där vi ska agera.
+```text
+Moln (PID var 5:e min)          Pi (lokalt, 1 Hz)
+  beräknar duty% + mode   ->   pi_actuation (tabell)
+                               Pi pollar var 5:e s
+                               kör PWM-fönster själv
+                               slår relä on/off
+  <-  PT100 var 10:e s     <-  temperaturer + relästatus
+```
 
-Verifiera: loggraden `🔮 Feedforward duty` skriver ut spridningen av ΔT över samplen, så vi ser direkt om fönstret var blandat.
+- Molnet skickar bara `duty_pct` och `mode` per tank — ingen tidsstyrning.
+- Pi:n äger PWM-fönstret lokalt (5 min-period, 1 s upplösning → 0.3 % duty-upplösning i stället för dagens 2 %).
+- Failsafe: tappar Pi:n kontakt med molnet kör den vidare på senaste duty i 30 min, därefter stänger den av alla pumpar. Watchdog i molnet larmar om Pi:n inte hörts på 2 min.
+- Glykolreläet styrs av en enkel hysteres på glykol-PT100 (t.ex. på under 7°, av på 4°) — inte av PID.
 
-### Steg 2 — Normalisera hold-ssFloor-observationen
+## Etapper
 
-`commitHoldSsFloor` tar emot aktuell ΔT och skriver `norm(medDuty)` istället för rådutyn. Hold-observationen är per definition tagen vid den ΔT som råder just då, så den är exakt normaliserbar — till skillnad från physics-learnerns blandade fönster.
+**Etapp 1 — kyla via relä, PT100 som extra sensor**
+- Ny tabell `pi_actuation`: per controller `duty_pct`, `mode`, `updated_at`, `expires_at`.
+- Ny edge-funktion `pi-control` (GET): Pi hämtar aktuella duty-värden, autentiseras med samma `PI_BLE_INGEST_SECRET`-mönster som BLE-ingesten.
+- Ny edge-funktion `pi-telemetry` (POST): Pi rapporterar PT100-temperaturer, reläläge, faktisk levererad on-tid per fönster.
+- Ny tabell `pi_probe_readings` för PT100-data, samt `pi_relay_state`.
+- Ny kolumn på `rapt_temp_controllers`: `cool_actuation` = `rapt` (dagens) eller `pi`. Alla tre aktiva sätts till `pi` efter test.
+- `auto-adjust-cooling` skriver duty till `pi_actuation` i stället för att manipulera RAPT-mål när `cool_actuation = 'pi'`. Ingen PID-matematik ändras.
+- `execute-pwm-off`, mid-burst-glykolvakten och orphan-vakten hoppar över Pi-styrda tankar — de behövs inte längre där.
+- Värme: oförändrat, RAPT sköter det via nuvarande väg.
 
-### Steg 3 — Mid-burst glykol-vakt (det normalisering inte kan lösa)
+**Etapp 2 — PT100 som SSOT**
+- När PT100-data validerats mot Pill/probe i några dygn byts `actual_temp` till PT100 för de tankar som har en. Det tar bort ~15 min sensorlatens, vilket i sin tur låter oss halvera dödtidskonstanten och skärpa D-bromsen.
+- Läropparametrar (`dead_time_hours`, `process_gain`) nollställs vid bytet eftersom de är inlärda på en långsammare sensor.
 
-I minutsvepet i `auto-adjust-cooling` (samma ställe som overdue-PWM-OFF-sweepen):
+**Etapp 3 — rensning**
+- När Pi-kylan gått stabilt kan PWM-hacket mot RAPT tas bort helt för kyla.
 
-- För varje pending PWM OFF-rad: jämför glykoltemp nu mot glykoltemp när bursten startade.
-- Har ΔT ökat mer än 1,5° (glykolen blivit kallare) → skala ned återstående burst-tid med `ΔT_start / ΔT_nu` och flytta fram `execute_at` därefter, aldrig kortare än 30 s totalt.
-- Logga som eget beslutssteg (`PWM_TRIM_GLYCOL`) så det syns i beslutsloggen.
+## UI
 
-Kräver att burst-start-ΔT sparas: lägg `glycol_temp_at_start` på `pending_rapt_retries` (nullable numeric, ingen backfill).
+- Relästatus per tank i controller-kortet (liten pump-ikon som lyser vid on-fas).
+- PT100-temperatur visas bredvid Pill/probe i sensorraden.
+- Växel i inställningar per controller: kyla via RAPT eller Pi.
 
-## Alternativ som övervägdes och väljs bort
+## Vad du behöver göra på Pi:n
 
-- **Hinkad glykol-dimension i lärnyckeln** — tidigare diskuterat och förkastat: splittrar dataunderlaget och ger diskontinuiteter vid hinkgräns. Kontinuerlig normalisering är strikt bättre.
-- **Låta kylaren hålla stabilare glykol istället** (snävare hysteres på kylaren) — botar symptomet på systemnivå men kostar kompressorstarter och löser inte att lärdata redan är blandad. Kan övervägas separat senare.
-- **Bara Steg 3, hoppa över 1–2** — då fortsätter ff/process_gain drifta fel varje gång glykolen ändras mellan lärfönster. Steg 1 är den faktiska "målmatchning blir fel"-fixen.
+Pi-koden ligger utanför det här projektet. Jag levererar ett färdigt Python-skript (relästyrning + MAX31865-avläsning + poll/rapport-loop + failsafe) som du kör som en systemd-tjänst bredvid BLE-scannern, plus GPIO-pinnkarta. Behöver veta vilken relämodul (aktiv hög/låg) och vilka GPIO-pinnar som är lediga.
 
 ## Teknisk detalj
 
-- Filer: `supabase/functions/_shared/pid-compensation-claude.ts` (Steg 1+2), `supabase/functions/auto-adjust-cooling/index.ts` (Steg 3), migration för `pending_rapt_retries.glycol_temp_at_start` + `execute-pwm-off`/burst-schemaläggning i `controller-adjustments.ts` som sätter fältet.
-- V5 (`pid-compensation.ts`) lämnas orörd — den är fryst fallback.
-- Inga lärda värden nollställs. Steg 1 ger en jämnare EMA framåt; befintliga värden konvergerar om av sig själva inom ~1–2 dygn.
-- Deploy: `auto-adjust-cooling`, `run-automation`, `execute-pwm-off`.
+- Autentisering: `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`, service-role-klient i edge-funktionen, samma mönster som `ingest-pill-ble`.
+- RLS: `pi_actuation`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated` (UI), skrivbara endast via `service_role`.
+- Pi:n skriver aldrig direkt mot databasen — allt går genom de två edge-funktionerna.
+- `pi_actuation.expires_at` sätts till `now() + 30 min` av molnet; Pi:n använder den som sin egen failsafe-klocka så att regeln är samma på båda sidor.
