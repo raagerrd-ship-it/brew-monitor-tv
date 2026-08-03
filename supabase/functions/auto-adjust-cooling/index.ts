@@ -180,6 +180,16 @@ Deno.serve(async (req) => {
           return s ? { ...c, ...s } as TempController : c;
         });
       }
+      // Pi-styrda tankar syncas inte via RAPT och saknas därför i den
+      // injicerade listan. Glykolkylaren måste ändå följa deras mål.
+      const { data: piRows } = await supabase
+        .from('rapt_temp_controllers')
+        .select('*')
+        .eq('actuation', 'pi');
+      const known = new Set(allControllers.map(c => c.controller_id));
+      for (const p of (piRows ?? []) as TempController[]) {
+        if (!known.has(p.controller_id)) allControllers.push(p);
+      }
     } else {
       const { data: allControllersData, error: allControllersError } = await supabase.from('rapt_temp_controllers').select('*');
       allControllers = (allControllersData || []) as TempController[];
