@@ -32,7 +32,9 @@ Moln                                Pi (lokalt)
 
 **Pi:n äger:** mätning (PT100), PID mot målet, lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
 
-**RAPT:** kvar som Pill-källa och som reservväg tills Pi-vägen är bevisad.
+**Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
+
+**RAPT Cloud:** bara reservväg tills Pi-vägen är bevisad. När kyla, värme, tanktemp (PT100) och SG (BLE) alla går via Pi:n finns inget kvar som kräver RAPT:s moln-API i löpande drift.
 
 ## Så här fungerar Pi-loopen
 
@@ -61,6 +63,7 @@ Moln                                Pi (lokalt)
 - Nya tabeller: `pi_probe_readings`, `pi_relay_state`.
 - Ny edge-funktion `pi-telemetry` (POST), autentiserad med `x-pi-secret` mot befintlig `PI_BLE_INGEST_SECRET`.
 - Vi jämför PT100 mot Pill/probe i några dygn och ser hur stor sensorlatensen faktiskt varit.
+- BLE-sniffern rör vi inte — den kör redan och matar `ingest-pill-ble`.
 
 **Etapp 2 — kyla via relä, PID på Pi**
 - Ny tabell `pi_setpoint`: per controller `target_temp`, `mode_allowed`, `max_duty_pct`, `pwm_period_s` (180), `min_on_s` (5), `min_off_s` (5), `params` (JSONB med lärda värden per läge), `expires_at`.
@@ -78,6 +81,7 @@ Moln                                Pi (lokalt)
 - `actual_temp` byts till PT100 för Pi-tankar. Lärda `dead_time_hours` och `process_gain` nollställs — de är inlärda på en 15 min långsammare sensor.
 - För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
+- `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
 - RAPT-vägen ligger kvar orörd så länge någon tank står på `actuation = 'rapt'`.
 
 ## Hårdvara
