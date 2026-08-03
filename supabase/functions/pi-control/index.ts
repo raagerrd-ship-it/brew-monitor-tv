@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
     }
 
     const result = (setpoints || []).map((sp: any) => ({
-      controller_id: sp.controller_id,
+      // Pi config uses the 8-char short id; DB uses the full uuid.
+      controller_id: String(sp.controller_id).slice(0, 8),
       target_temp: parseFloat(String(sp.target_temp)),
       mode_allowed: sp.mode_allowed,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
@@ -78,10 +79,11 @@ Deno.serve(async (req) => {
   }
 
   // Single controller
+  // Accept both short (8-char) and full uuid ids.
   const { data: sp } = await supabase
     .from("pi_setpoint")
     .select("*")
-    .eq("controller_id", controllerId)
+    .like("controller_id", `${controllerId}%`)
     .maybeSingle();
 
   if (!sp) {
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
   const { data: learnings } = await supabase
     .from("fermentation_learnings")
     .select("parameter_name, learned_value")
-    .eq("controller_id", controllerId);
+    .eq("controller_id", sp.controller_id);
 
   const learned_params: Record<string, number> = {};
   if (learnings) {
@@ -104,7 +106,7 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     setpoint: {
-      controller_id: sp.controller_id,
+      controller_id: String(sp.controller_id).slice(0, 8),
       target_temp: parseFloat(String(sp.target_temp)),
       mode_allowed: sp.mode_allowed,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
