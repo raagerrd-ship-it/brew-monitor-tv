@@ -198,6 +198,11 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - `sync-rapt-data-quick` behöver inte längre hämta controller-temperaturer för Pi-tankar. RAPT-synken glesas ut till det som fortfarande behövs, och kan stängas av helt när sista tanken flyttats.
 - RAPT-vägen ligger kvar orörd så länge någon tank står på `actuation = 'rapt'`.
 
+**Etapp 4b — profilmotorn flyttas till Pi**
+- Profilpaketet (steg, ramper, villkor) laddas ner och cachas i Pi:ns SQLite; Pi:n kör stegmotorn lokalt och rapporterar stegbyten uppåt.
+- Molnets `fermentation-step-executor` slutar driva Pi-tankar och blir spegling. Görs efter etapp 4 så att bara *en* part äger målvärdet vid varje tidpunkt.
+- Efter detta steg är systemet fullt offline-dugligt: en jäsning kan starta, rampa, crasha och avslutas helt utan internet.
+
 **Etapp 5 — RAPT bort helt**
 - När alla tre tankarna plus glykolkylaren går på Pi-reläer, och PT100 + BLE täcker all mätning, finns inget kvar som behöver RAPT.
 - Då tas bort: `sync-rapt-data-quick`, `rapt-update-controller`, `rapt-watchdog`, `rapt-pill-telemetry`, `execute-pwm-off`, RAPT-circuit-breakern, token-cachen och alla RAPT-secrets, samt V5- och V6-PID:n i molnet.
