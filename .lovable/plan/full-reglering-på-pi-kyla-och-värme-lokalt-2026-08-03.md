@@ -22,9 +22,9 @@ Moln                                Pi (lokalt)
   profileditor (skapa/ändra)
   -> hela profilen             ->   profilen cachas lokalt och körs av Pi:n
   ff/Kp/Kd/dödtid (långsamt) ->     PID-beslut var 180:e s mot PT100
-                                    trimI ägs lokalt av Pi:n
-                                    lägesval kyla/värme
-                                    PWM-fönster + reläer
+                                     trimI ägs lokalt av Pi:n
+                                     lägesval kyla/värme
+                                     PWM-fönster + reläer
   historik, inlärning, UI    <-     snabbsynk 30 s / full synk 5 min
                              <->    lokalt webb-UI på Pi:n (utan internet)
 ```
@@ -56,27 +56,64 @@ Idag konstrueras `actual_temp` i molnet (`dual-sensor.ts` / `controller-adjustme
 Därför flyttas SSOT-bygget till Pi:n:
 
 - Alla råkällor finns redan lokalt: PT100 (1 Hz, kabel), Pill via BLE-sniffern (samma Pi), och RAPT-probe så länge den finns kvar.
-- Pi:n gör dubbelgivarlogiken: val av preferred sensor, pill/probe-offset och dess baseline, färskhetskontroll per källa, drift-detektering med streak-räknare, och fallback när en källa tystnar. Samma regler som `dual-sensor.ts` — porterade, inte omtänkta.
+- Pi:n gör dubbelgivarelogiken: val av preferred sensor, pill/probe-offset och dess baseline, färskhetskontroll per källa, drift-detektering med streak-räknare, och fallback när en källa tystnar. Samma regler som `dual-sensor.ts` — porterade, inte omtänkta.
 - Resultatet `actual_temp` matas rakt in i PID:n på Pi:n och rapporteras upp i telemetrin tillsammans med *vilken* källa som användes och varför.
 - Molnet slutar räkna fram `actual_temp` för Pi-tankar och blir konsument: grafer, inlärning, notiser. Kolumnen finns kvar och fylls av Pi:n.
 - Vinsten är inte bara latens: driftvarningarna vi fick i somras kom av att molnet jämförde två källor med olika ålder. Med båda avlästa lokalt på samma sekund blir jämförelsen faktiskt giltig.
 - Grundregeln från idag gäller fortfarande: **PID:n läser bara SSOT**, aldrig råa pill- eller probe-värden. Sensorblandningen sker uppströms, i SSOT-bygget.
 
+### Setpoint-filter med bypass-tröskel
+
+Lånat från Brewblox setpoint-block: sensordatan filtreras med ett glidande medelvärde (2–3 min EMA) för att dämpa brus, men filtret har en **bypass-tröskel**. Om skillnaden mellan filtrerat och råvärde överstiger tröskeln (t.ex. 0,3°), kantas filtret och regulatorn reagerar på råvärdet direkt. Detta är samma idé som dagens `raw-rate-brake` men formaliserat som en egenskap hos mätpunkten, inte som en specialfallsgren i PID-koden. Filtret lever alltså i SSOT-bygget, inte i PID-loopen.
+
 **RAPT Cloud:** bara reservväg tills Pi-vägen är bevisad. När kyla, värme, tanktemp (PT100) och SG (BLE) alla går via Pi:n finns inget kvar som kräver RAPT:s moln-API i löpande drift.
+
+## Begränsningslager (Constraints)
+
+Inspirerat av Brewblox `constrainedBy`: alla säkerhetsgränser samlas i ett enda lager som omsluter varje reläkommando, istället för att vara utspridda i PID-kod, säkerhetsfunktioner och aktueringslogik. Varje reläutgång (kylpump, värmeelement, glykolkompressor) har en lista med komponerbara begränsningar som utvärderas *innan* reläet drivs — oavsett vad PID:n begär.
+
+Begränsningarna är:
+
+| Begränsning              | Värde                         | Syfte                                                     |
+|--------------------------|-------------------------------|-----------------------------------------------------------|
+| `min_on_s`               | 5 (pumpar/värme), 300 (kompr.) | Kortcyklingsskydd, tryckuppbyggnad                         |
+| `min_off_s`              | 5 (pumpar/värme), 300 (kompr.) | Tryckutjämning, elementkyling                              |
+| `max_duty_pct`           | Konfigurerbart per tank/läge   | Hårt tak oavsett vad PID integrerar upp till              |
+| `max_consecutive_on_s`   | Konfigurerbart per relä        | Fångar fastkilade reläer                                  |
+| `hard_temp_limits`       | min/max tanktemp               | Bryter relä oavsett om felet kommer från PID eller sensor  |
+| `sensor_fresh_s`         | 60                             | Ingen på-tid utan färsk PT100 inom 60 s → relä av         |
+| `interlock`              | kyla XOR värme                 | Kan aldrig vara på samtidigt, med minsta paus vid byte    |
+| `mutex`                  | Se nästa avsnitt              | Delad glykolresurs, max antal samtidiga pumpar           |
+
+Utvärderingsordning: PID räknar fram `desired_setting` → begränsningslagret kantar/avvisar → reläet drivs (eller inte). Om en begränsning slår till loggas *vilken* begränsning det var och varför, så det syns i telemetrin och det lokala UI:t. Begränsningslagret kan bara *hindra* en tillslagning, aldrig tvinga fram en — samma princip som kompressorskydden.
+
+## Mutex och balanserare för glykolresursen
+
+Brewblox skiljer på två block för delade resurser: **Mutex** (endast N aktuatorer får köra samtidigt; övriga köar) och **Balancer** (fördelar begränsad kapacitet proportionellt mellan sökande). Vi tar båda idéerna för glykolhanteringen.
+
+**Mutex — pumparnas turtagning**
+
+Glykolkylaren är en delad resurs. Om alla tre pumparna slår på samtidigt sjunker glykoltemperaturen snabbt och ΔT-kompensationen blir en jakt. Därför max N (t.ex. 2) pumpar samtidigt mot glykolen — vill en tredje pump köra, köar den och får starta när en annan släpper. Detta ersätter den ad-hoc-fasförskjutning som planerats tidigare med en formell kö: varje pump begär glykol, mutex-blocket beviljar eller ställer i kö, och kötiden räknas in i `duty_debt` så ingen pump förlorar kyldtid.
+
+**Balancer — proportionell kylfördelning**
+
+När kylaren inte hinner hålla börvärdet (glykoltempen stiger trots full drift) och flera tankar vill kyla, fördelar balanseraren den faktiska kylkapaciteten proportionellt efter varje tanks begärda duty — inte först-till-kvarn. En tank som behöver en kallcrash får prioritet, en tank som bara håller sin temp får mindre. Detta förhindrar att en tank med stort behov svälts ut för att en annan tank råkade starta först.
+
+Båda körs i Pi-loopen eftersom Pi:n är den enda part som ser alla tankar samtidigt. Molnet kan inte fatta detta beslut per-tank.
 
 ## Så här fungerar Pi-loopen
 
-- Läser PT100 var 1:a sekund, filtrerar lätt (2–3 min EMA räcker när sensorn sitter direkt på tanken).
+- Läser PT100 var 1:a sekund, filtrerar lätt via setpoint-filter med bypass-tröskel (se ovan).
 - **Men reglerbeslutet tas inte varje sekund** — det tas en gång per PWM-fönster (180 s). Processen har tiotals minuters dödtid; att räkna om duty varje sekund tillför ingen styrning, bara brusförstärkning i D-termen och en duty som ändras mitt i ett pågående fönster. Snabb mätning + långsamt beslut är rätt kombination. 1 Hz-datan används till D-termen (linjär regression över 60 s i stället för en differens mellan två sampel) och till säkerhetsvakterna, som *får* agera direkt.
 - PID: `duty = ff + trimI + Kp·fel − Kd·temphastighet`. Samma formel som molnets V6 — porteras rakt av till Python, inte omskriven.
 - Lägesval kyla/värme med samma tvåstegs-hysteres som idag (neutralband, tidsvillkorad flip, direkt flip vid stort fel) plus 1-timmarslatchen — men nu lokalt på färsk sensordata i stället för på 5-minuterscykel.
-- Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock), och det krävs en minsta paus vid lägesbyte.
+- Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock via begränsningslagret), och det krävs en minsta paus vid lägesbyte.
 - ΔT-kompensation lokalt: on-tiden skalas mot aktuell glykoltemperatur, så samma kyleffekt levereras vare sig glykolen står på 8° eller 2°. Detta ersätter både ΔT-normaliseringen och mid-burst-glykolvakten i molnet. Med behovsstyrd glykol (nedan) blir ΔT dessutom nästan konstant, så kompensationen går från huvudmekanism till liten korrigering.
 - PWM-fönster default **180 s (3 min)**, konfigurerbart per tank och per läge.
 - **Minsta på-tid 5 s och minsta av-tid 5 s — gäller både kyla och värme.** För kylan behöver pumpen bygga tryck i ledningen; för värmen undviker vi kortcykling av reläet och elementet. Samma regel, samma kod, båda lägena.
 - Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
-- **Samordning mellan tankar:** Pi:n ser alla tre tankarna, så on-faserna fasförskjuts i stället för att råka sammanfalla. Två pumpar samtidigt sänker glykoltemperaturen dubbelt så fort och gör ΔT-kompensationen till en jakt. Med lokal samordning blir lasten jämn — något molnet aldrig kunnat göra, eftersom varje tank räknades för sig.
+- **Samordning mellan tankar:** hanteras nu formellt via mutex + balanserare (se ovan) i stället för ad-hoc-fasförskjutning.
 
 ## Behovsstyrd glykolkylare
 
@@ -106,11 +143,11 @@ Kompressorn är den dyraste och känsligaste delen i hela riggen, och den enda s
 
 - **Minsta gångtid** — när kompressorn väl startat får den gå i minst ~5 minuter, även om glykolen nått börvärdet. Oljan hinner cirkulera och trycket utjämnas.
 - **Minsta stopptid** — minst ~5 minuter av innan omstart tillåts, så den aldrig startar mot högt tryck på sugsidan. Detta är det viktigaste skyddet och får aldrig kringgås, inte ens av "brådskande" behov.
-- **Max antal starter per timme** — hårt tak (t.ex. 6). Nås taket får kompressorn gå längre pass i stället, genom att hysteresbandet vidgas automatiskt tills startfrekvensen är nere igen.
+- **Max antal starter per timme** — hårt tak (t.ex. 6). Nås taket får kompressorn gå längre pass i stället, genom att hysteresbandet vidgas automatiskt tills startfrekvensen är ner igen.
 - **Startfördröjning efter strömavbrott** — Pi:n väntar några minuter efter uppstart innan kompressorn får slås till, och tankarnas pumpar startas inte förrän glykolen är inom rimligt område.
 - **Frysskydd och sensorkrav** — hård undre gräns på glykoltemperaturen bryter reläet oavsett börvärde, och saknas färsk glykolavläsning i 60 s stannar kompressorn. Vi kyler aldrig blint.
 - **Bred hysteres i stället för finreglering** — glykolen behöver inte hålla ±0,1°. Ett band på ±1–1,5° runt börvärdet ger långa, glesa pass, vilket både är skonsammare och effektivare. Börvärdesramper begränsas dessutom i takt så att ett stort språng inte blir en startstorm.
-- Skydden implementeras som en egen liten tillståndsmaskin i Pi-loopen med persistent tidsstämpel för senaste start/stopp på disk, så att en omstart av Pi:n inte nollställer stopptidsräknaren.
+- Skydden implementeras i begränsningslagret (se ovan) med persistent tidsstämpel för senaste start/stopp på disk, så att en omstart av Pi:n inte nollställer stopptidsräknaren.
 
 ## Tvådelad synk mot molnet
 
@@ -134,8 +171,6 @@ Regleringen behöver inte molnet alls — inte ens för profilsteg — så synke
 - Full synk, stegbyten och lokala målvärdesändringar köas i SQLite (samma mönster som `pi/brew-ble/uploader.py` med `synced`-flagga) och töms i batch när kontakten är tillbaka. Ingen historik och inga stegbyten går förlorade.
 - Molnets vy blir alltså gammal under avbrottet, men fylls i efteråt — grafen får inget hål.
 
-
-
 ## Lokalt UI på Pi:n
 
 När hela regleringen ändå kör lokalt är det bara rimligt att också kunna styra den lokalt. Pi:n serverar en liten webbsida på LAN:et (t.ex. `http://brewpi.local`) som fungerar oavsett om internet finns — den pratar bara med Pi:ns egen loop, aldrig via molnet.
@@ -143,7 +178,7 @@ När hela regleringen ändå kör lokalt är det bara rimligt att också kunna s
 **Vad man kan göra**
 - **Sätta måltemp per tank** — stora +/− knappar i 0,1°-steg, touch-vänligt, en kolumn per tank. Ett manuellt värde pausar profilen för den tanken tills du släpper tillbaka den.
 - **Se profilen** — vilket steg som körs, hur långt in i steget vi är, vad nästa steg är. Plus möjlighet att gå vidare till nästa steg manuellt, eftersom molnet inte är nåbart.
-- **Se status och larm** — tanktemp, måltemp, aktuellt läge, duty, relä på/av, glykoltemp, samt när molnet senast svarade. Lokala larm (sensorfel, gränsvärde, interlock) syns här även när inga push-notiser kan skickas.
+- **Se status och larm** — tanktemp, måltemp, aktuellt läge, duty, relä på/av, glykoltemp, samt när molnet senast svarade. Lokala larm (sensorfel, gränsvärde, interlock, begränsningslagret) syns här även när inga push-notiser kan skickas.
 
 Ingen nödstoppsknapp och inget manuellt lägesval i första versionen — säkerhetsavstängning sker automatiskt i loopen, och att tvinga läge förbi PID:n är precis den sortens ingrepp som skapat problem tidigare. Kan läggas till senare.
 
@@ -168,7 +203,7 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - `expires_at` blir därför bara en informationsflagga: Pi:n loggar och rapporterar "setpoint stale" (och visar det i UI:t när kontakten är tillbaka), men fortsätter reglera. Vill du kunna tvinga fram avstängning finns molnets `max_duty_pct = 0` — men den kräver ju kontakt, så den är inte en failsafe utan ett manuellt stopp.
 - Det som *ska* stänga av är lokala fel, inte molnfel: sensorbortfall, temperatur utanför hårda gränser, eller relä som stått på för länge. Se punkterna nedan.
 - Profilen står *inte* stilla under ett avbrott — den körs lokalt. Det som pausas är bara möjligheten att *ändra* profilen, och det får vänta tills nätet är tillbaka eller göras i det lokala UI:t.
-- Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger.
+- Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger — allt via begränsningslagret.
 - Värmen har en egen övertemperaturspärr (hårt tak) och kräver färsk sensordata — ingen PT100-avläsning på 60 s betyder värme av.
 - Sensorbortfall: ingen giltig PT100-avläsning på 60 s → SSOT-bygget faller tillbaka på pill (BLE) om den är färsk, annars bryts båda reläerna. Blir vi helt utan giltig källa reglerar vi blint, och då är avstängning rätt svar.
 - Glykolgivarens bortfall: utan giltig glykoltemp går ΔT-kompensationen till sitt mest försiktiga antagande (kallast tänkbara glykol → kortast on-tid) i stället för att gissa.
@@ -189,21 +224,24 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Ny kolumn på `rapt_temp_controllers`: `actuation` = `rapt` eller `pi`. En tank i taget flyttas över.
 - `auto-adjust-cooling` skriver målvärde till `pi_setpoint` för Pi-tankar i stället för att räkna duty och manipulera RAPT-mål.
 - Inlärning körs fortfarande i molnet, men på telemetri från Pi:n (faktiskt levererad on-tid, inte begärd).
+- **Begränsningslagret, mutex och balanserare implementeras här** — de är en del av reläaktiveringen och måste finnas innan någon pump styrs från Pi:n.
 - **Ärv inte dagens lärda värden rakt av.** Nuvarande `dead_time_hours` (Blå 0,72 h), `process_gain` och `ff_duty` är inlärda på en sensor med ~15 min latens och på RAPT:s trubbiga aktuering. Med PT100 direkt på tanken försvinner en stor del av den dödtiden, och för aggressiv Kp blir följden. Vi startar därför konservativt: behåll dagens dödtid som startvärde (för hög dödtid ger *lugn* reglering, inte översläng), sätt `ff` från uppmätt hålleffekt de första dygnen och låt molnet lära om därifrån. Nollställningen som stod i etapp 4 flyttas hit — den hör hemma när PID:n byter sensorbild, inte senare.
 - Värmen går fortfarande via RAPT här, så vi byter en sak i taget.
 
 **Etapp 2b — glykolkylaren på relä och behovsstyrd**
 - Kompressorn flyttas till ett Pi-relä (fjärde reläet utöver tankarnas pumpar), med glykol-PT100 som enda givare.
 - Pi:n räknar börvärdet enligt avsnittet ovan (viloläge 15°, marginal efter behov, rampbegränsat) och håller det med egen hysteres, egna minsta gång-/stopptider och frysskydd.
+- Mutex-blocket aktiveras här: pumparna turtagar mot glykolen, max 2 samtidiga.
 - Görs efter att minst en tank kyls via relä, så vi kan mäta ΔT-stabiliteten före och efter.
 - RAPT-glykolcontrollerns egen termostat neutraliseras här (mål utanför arbetsområdet) tills enheten kopplas bort helt.
 
 **Etapp 3 — värme på Pi**
 - Värmeelementen flyttas till Pi-reläerna och Pi:n tar över lägesvalet helt.
+- Interlock-begränsningen (kyla XOR värme) aktiveras fullt ut i begränsningslagret.
 - RAPT-controllerns egen termostat neutraliseras (mål långt utanför arbetsområdet) så den aldrig kan slå till parallellt.
 
 **Etapp 4 — SSOT flyttas till Pi och molnkoden rensas**
-- SSOT-bygget (dubbelgivare, offset, färskhet, driftdetektering) flyttas från `dual-sensor.ts` till Pi:n, med PT100 som primärkälla. Molnet slutar räkna fram `actual_temp` för Pi-tankar. Omlärningen av dödtid/gain skedde redan i etapp 2.
+- SSOT-bygget (dubbelgivare, offset, färskhet, driftdetektering, setpoint-filter med bypass) flyttas från `dual-sensor.ts` till Pi:n, med PT100 som primärkälla. Molnet slutar räkna fram `actual_temp` för Pi-tankar. Omlärningen av dödtid/gain skedde redan i etapp 2.
 - **Molnets V6-PID slutar räkna för Pi-tankar helt** — den får inte ligga och producera duty parallellt "för säkerhets skull". Två regulatorer på samma tank är den enda verkliga risken i hela det här bygget. V6 blir kvar orörd, men bara för `actuation = 'rapt'`.
 - För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
@@ -236,10 +274,11 @@ Behöver veta vad värmen är för typ idag (matta, doppvärmare, effekt i W) oc
 - PT100-temperatur bredvid Pill/probe i sensorraden.
 - Växel per controller i inställningar: styrning via RAPT eller Pi.
 - Duty och PID-termer visas som idag, men läses från Pi-telemetrin.
+- Begränsningslagrets ingripanden (vilken begränsning som kantslö till) syns i statusraden, inte bara "relä av".
 
 ## Vad du behöver göra på Pi:n
 
-Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma mönster som `pi/brew-ble`): PID-loop, MAX31865-avläsning, relästyrning med interlock, poll/rapport, failsafe, systemd-unit. Jag behöver veta relämodulens typ (aktiv hög/låg) och vilka GPIO-pinnar som är lediga bredvid BLE-scannern.
+Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma mönster som `pi/brew-ble`): PID-loop, MAX31865-avläsning, relästyrning med begränsningslager, mutex/balanserare, poll/rapport, failsafe, systemd-unit. Jag behöver veta relämodulens typ (aktiv hög/låg) och vilka GPIO-pinnar som är lediga bredvid BLE-scannern.
 
 ## Teknisk detalj
 
@@ -247,4 +286,6 @@ Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma m�
 - Pi:n pratar aldrig direkt med databasen — bara genom dessa två.
 - RLS: `pi_setpoint`, `pi_probe_readings`, `pi_relay_state` läsbara för `authenticated`, skrivbara endast via `service_role`.
 - PID-koden portas från `pid-compensation-claude.ts` till Python med bevarad struktur och parameternamn, så en bugg fixad på ena sidan går att spegla på den andra.
+- Begränsningslagret är en egen modul (`constraints.py`) som tar en `desired_setting` och en lista med begränsningar, och returnerar `actual_setting` + lista med triggade begränsningar. Testbart isolerat från PID-koden.
+- Mutex/balanserare är en egen modul (`glycol_mutex.py`) som spårar vilka pumpar som begär glykol, beviljar upp till N samtidiga, och köar resten med `duty_debt`-ackumulering.
 - Enda risken värd att nämna: vi får två implementationer av samma reglerlogik. Därför flyttas bara *reglersteget* — inlärningen stannar i molnet och Pi:n får sina parametrar därifrån.
