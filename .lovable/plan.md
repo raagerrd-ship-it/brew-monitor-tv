@@ -42,6 +42,7 @@ Den uppdelningen är viktig: molnet får inte också integrera bort samma fel so
 ## Så här fungerar Pi-loopen
 
 - Läser PT100 var 1:a sekund, filtrerar lätt (2–3 min EMA räcker när sensorn sitter direkt på tanken).
+- **Men reglerbeslutet tas inte varje sekund** — det tas en gång per PWM-fönster (180 s). Processen har tiotals minuters dödtid; att räkna om duty varje sekund tillför ingen styrning, bara brusförstärkning i D-termen och en duty som ändras mitt i ett pågående fönster. Snabb mätning + långsamt beslut är rätt kombination. 1 Hz-datan används till D-termen (linjär regression över 60 s i stället för en differens mellan två sampel) och till säkerhetsvakterna, som *får* agera direkt.
 - PID: `duty = ff + trimI + Kp·fel − Kd·temphastighet`. Samma formel som molnets V6 — porteras rakt av till Python, inte omskriven.
 - Lägesval kyla/värme med samma tvåstegs-hysteres som idag (neutralband, tidsvillkorad flip, direkt flip vid stort fel) plus 1-timmarslatchen — men nu lokalt på färsk sensordata i stället för på 5-minuterscykel.
 - Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock), och det krävs en minsta paus vid lägesbyte.
