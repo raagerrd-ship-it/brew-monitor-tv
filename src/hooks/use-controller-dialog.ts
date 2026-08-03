@@ -30,6 +30,10 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
   const [preferredSensor, setPreferredSensorState] = useState<'pill' | 'probe'>('pill');
+  const [isPi, setIsPi] = useState(false);
+  const [piHeartbeat, setPiHeartbeat] = useState<string | null>(null);
+  const [piCoolingOn, setPiCoolingOn] = useState(false);
+  const [piHeatingOn, setPiHeatingOn] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -57,7 +61,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           .maybeSingle(),
         supabase
           .from('rapt_temp_controllers')
-          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor')
+          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor, actuation')
           .eq('controller_id', controller.controller_id)
           .single(),
       ]);
@@ -65,11 +69,28 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
       setHasActiveSession(!!sessionData);
       setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
       setPreferredSensorState((ctrlData as any)?.preferred_sensor ?? 'pill');
+      const piActuated = (ctrlData as any)?.actuation === 'pi';
+      setIsPi(piActuated);
 
       if (ctrlData?.profile_target_temp != null) {
         setOriginalTarget(ctrlData.profile_target_temp);
       } else {
         setOriginalTarget(null);
+      }
+
+      // Pi-actuated tanks: duty/mode/relays come from the local regulator, not RAPT PID logs
+      if (piActuated) {
+        const { data: live } = await supabase
+          .from('pi_live_state')
+          .select('duty_pct, mode, cooling_relay_on, heating_relay_on, last_heartbeat')
+          .eq('controller_id', controller.controller_id)
+          .maybeSingle();
+        setDutyCyclePct(live?.duty_pct != null ? Number(live.duty_pct) : null);
+        setDutyMode(live?.mode === 'cooling' || live?.mode === 'heating' ? live.mode : null);
+        setPiCoolingOn(!!live?.cooling_relay_on);
+        setPiHeatingOn(!!live?.heating_relay_on);
+        setPiHeartbeat(live?.last_heartbeat ?? null);
+        return;
       }
 
       // Fetch latest duty cycle from decision logs
@@ -191,6 +212,22 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const setTargetTemperature = useCallback(async () => {
     setLoading(true);
     try {
+      if (isPi) {
+        const { error: piError } = await supabase
+          .from('pi_setpoint')
+          .update({ target_temp: targetTemp, set_by: 'cloud', set_at: new Date().toISOString() })
+          .eq('controller_id', controller.controller_id);
+        if (piError) throw piError;
+
+        onOpenChange(false);
+        setShowTempAdjust(false);
+        toast({
+          title: "Måltemperatur uppdaterad",
+          description: `${controller.name} måltemperatur är nu ${targetTemp}° (Pi)`,
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
         body: {
           controllerId: controller.controller_id,
@@ -228,7 +265,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     } finally {
       setLoading(false);
     }
-  }, [controller.controller_id, controller.name, targetTemp, onOpenChange, toast]);
+  }, [controller.controller_id, controller.name, targetTemp, onOpenChange, toast, isPi]);
 
   // Derived state — safely access fields that exist on the full controller type
   const ctrl = currentController as Partial<RaptTempController>;
@@ -236,12 +273,12 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const heatingHyst = ctrl.heating_hysteresis ?? 0.2;
 
   const sensorTemp = ctrl.actual_temp ?? null;
-  const isActivelyCooling = ctrl.cooling_enabled === true &&
+  const isActivelyCooling = isPi ? piCoolingOn : ctrl.cooling_enabled === true &&
     sensorTemp != null &&
     ctrl.target_temp != null &&
     sensorTemp > (ctrl.target_temp + coolingHyst);
 
-  const isActivelyHeating = ctrl.heating_enabled === true &&
+  const isActivelyHeating = isPi ? piHeatingOn : ctrl.heating_enabled === true &&
     sensorTemp != null &&
     ctrl.target_temp != null &&
     sensorTemp < (ctrl.target_temp - heatingHyst);
@@ -283,5 +320,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     originalTarget,
     dutyCyclePct,
     dutyMode,
+    isPi,
+    piHeartbeat,
   };
 }
