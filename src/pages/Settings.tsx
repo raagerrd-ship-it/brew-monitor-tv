@@ -18,6 +18,7 @@ import { CombinedControllerChart } from "@/components/controller-chart";
 
 import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
 import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
+import { PumpStatusPanel } from "@/components/PumpStatusPanel";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
