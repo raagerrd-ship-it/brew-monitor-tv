@@ -21,17 +21,19 @@ Med loopen lokalt: PT100 1 Hz in, relä ut, ingen nätverkslatens i kritiska vä
 Moln                                Pi (lokalt)
   fermenteringsprofiler
   -> target_temp per tank    ->     pi_setpoint (hämtas var 30:e s)
-  lärda parametrar           ->     Kp/Kd/ff/dödtid per läge
-                                    PID 1 Hz mot PT100
+  ff/Kp/Kd/dödtid (långsamt) ->     PID-beslut var 180:e s mot PT100
+                                    trimI ägs lokalt av Pi:n
                                     lägesval kyla/värme
                                     PWM-fönster + reläer
   historik, inlärning, UI    <-     snabbsynk 30 s / full synk 5 min
                              <->    lokalt webb-UI på Pi:n (utan internet)
 ```
 
-**Molnet äger:** profilsteg och rampning, målvärde, lärda parametrar, all loggning/graf/notiser, UI.
+**Molnet äger:** profilsteg och rampning, målvärde, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, UI.
 
-**Pi:n äger:** mätning (PT100), PID mot målet, lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+**Pi:n äger:** mätning (PT100), PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+
+Den uppdelningen är viktig: molnet får inte också integrera bort samma fel som Pi:n redan integrerar bort — då får vi två integratorer som jagar varandra och exakt den windup vi just byggt bort. Molnet lär bara långsamt (timmar/dygn) på levererad on-tid, Pi:n reglerar snabbt (minuter).
 
 **Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
 
