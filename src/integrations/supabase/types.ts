@@ -1047,6 +1047,8 @@ export type Database = {
           mode: string | null
           mode_allowed: string | null
           pid_terms: Json | null
+          pump_started_at: string | null
+          pump_stopped_at: string | null
           sensor_source: string | null
           target_temp: number | null
           updated_at: string
@@ -1066,6 +1068,8 @@ export type Database = {
           mode?: string | null
           mode_allowed?: string | null
           pid_terms?: Json | null
+          pump_started_at?: string | null
+          pump_stopped_at?: string | null
           sensor_source?: string | null
           target_temp?: number | null
           updated_at?: string
@@ -1085,6 +1089,8 @@ export type Database = {
           mode?: string | null
           mode_allowed?: string | null
           pid_terms?: Json | null
+          pump_started_at?: string | null
+          pump_stopped_at?: string | null
           sensor_source?: string | null
           target_temp?: number | null
           updated_at?: string
