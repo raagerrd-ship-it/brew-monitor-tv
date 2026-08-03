@@ -127,6 +127,7 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Ny kolumn på `rapt_temp_controllers`: `actuation` = `rapt` eller `pi`. En tank i taget flyttas över.
 - `auto-adjust-cooling` skriver målvärde till `pi_setpoint` för Pi-tankar i stället för att räkna duty och manipulera RAPT-mål.
 - Inlärning körs fortfarande i molnet, men på telemetri från Pi:n (faktiskt levererad on-tid, inte begärd).
+- **Ärv inte dagens lärda värden rakt av.** Nuvarande `dead_time_hours` (Blå 0,72 h), `process_gain` och `ff_duty` är inlärda på en sensor med ~15 min latens och på RAPT:s trubbiga aktuering. Med PT100 direkt på tanken försvinner en stor del av den dödtiden, och för aggressiv Kp blir följden. Vi startar därför konservativt: behåll dagens dödtid som startvärde (för hög dödtid ger *lugn* reglering, inte översläng), sätt `ff` från uppmätt hålleffekt de första dygnen och låt molnet lära om därifrån. Nollställningen som stod i etapp 4 flyttas hit — den hör hemma när PID:n byter sensorbild, inte senare.
 - Värmen går fortfarande via RAPT här, så vi byter en sak i taget.
 
 **Etapp 3 — värme på Pi**
