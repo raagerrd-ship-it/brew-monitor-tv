@@ -1196,51 +1196,6 @@ export type Database = {
         }
         Relationships: []
       }
-      plug_commands: {
-        Row: {
-          command: string
-          created_at: string
-          executed_at: string | null
-          id: string
-          source: string
-          status: string
-        }
-        Insert: {
-          command: string
-          created_at?: string
-          executed_at?: string | null
-          id?: string
-          source?: string
-          status?: string
-        }
-        Update: {
-          command?: string
-          created_at?: string
-          executed_at?: string | null
-          id?: string
-          source?: string
-          status?: string
-        }
-        Relationships: []
-      }
-      plug_state: {
-        Row: {
-          id: number
-          is_on: boolean | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: number
-          is_on?: boolean | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: number
-          is_on?: boolean | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           created_at: string
@@ -2021,33 +1976,6 @@ export type Database = {
           private_key_jwk?: Json
           public_key_base64?: string
           public_key_jwk?: Json
-        }
-        Relationships: []
-      }
-      watchdog_log: {
-        Row: {
-          action: string | null
-          age_minutes: number | null
-          controller: string | null
-          created_at: string
-          id: string
-          last_reading_at: string | null
-        }
-        Insert: {
-          action?: string | null
-          age_minutes?: number | null
-          controller?: string | null
-          created_at?: string
-          id?: string
-          last_reading_at?: string | null
-        }
-        Update: {
-          action?: string | null
-          age_minutes?: number | null
-          controller?: string | null
-          created_at?: string
-          id?: string
-          last_reading_at?: string | null
         }
         Relationships: []
       }
