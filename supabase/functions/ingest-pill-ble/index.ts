@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
       // so 30 min freshness window tolerates 1 missed cycle.
       const { data: ctrlFull } = await supabase
         .from('rapt_temp_controllers')
-        .select('current_temp, current_temp_updated_at, last_update, pill_probe_offset, dual_sensor_enabled, preferred_sensor')
+        .select('current_temp, current_temp_updated_at, last_update, pill_probe_offset, dual_sensor_enabled, preferred_sensor, actuation')
         .eq('controller_id', controllerId)
         .maybeSingle();
 
@@ -297,14 +297,22 @@ Deno.serve(async (req) => {
       }
       console.log(`[ingest-pill-ble] ${controllerId}: pill=${smoothedTemp.toFixed(2)} probe=${probeTemp ?? 'null'} actual=${actualTemp.toFixed(2)} mode=${fusionMode}`);
 
+      // Pi-styrda tankar: PT100 via pi-telemetry äger actual_temp/current_temp.
+      // BLE får bara uppdatera pill_temp där.
+      const piActuated = ctrlFull?.actuation === 'pi';
       const { error: ctrlErr } = await supabase
         .from('rapt_temp_controllers')
-        .update({
-          actual_temp: Number(actualTemp.toFixed(3)),
-          pill_temp: Number(smoothedTemp.toFixed(3)),
-          last_update: r.recorded_at,
-          updated_at: new Date().toISOString(),
-        })
+        .update(piActuated
+          ? {
+              pill_temp: Number(smoothedTemp.toFixed(3)),
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              actual_temp: Number(actualTemp.toFixed(3)),
+              pill_temp: Number(smoothedTemp.toFixed(3)),
+              last_update: r.recorded_at,
+              updated_at: new Date().toISOString(),
+            })
         .eq('controller_id', controllerId);
       if (ctrlErr) errors.push(`ctrl ${controllerId}: ${ctrlErr.message}`);
       else updatedControllers.add(controllerId);
