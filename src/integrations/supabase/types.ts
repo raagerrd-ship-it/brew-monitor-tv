@@ -1039,11 +1039,13 @@ export type Database = {
           cooling_relay_on: boolean
           created_at: string
           duty_pct: number
+          enabled: boolean | null
           glycol_temp: number | null
           heating_relay_on: boolean
           id: string
           last_heartbeat: string
           mode: string | null
+          mode_allowed: string | null
           pid_terms: Json | null
           sensor_source: string | null
           target_temp: number | null
@@ -1056,11 +1058,13 @@ export type Database = {
           cooling_relay_on?: boolean
           created_at?: string
           duty_pct?: number
+          enabled?: boolean | null
           glycol_temp?: number | null
           heating_relay_on?: boolean
           id?: string
           last_heartbeat?: string
           mode?: string | null
+          mode_allowed?: string | null
           pid_terms?: Json | null
           sensor_source?: string | null
           target_temp?: number | null
@@ -1073,11 +1077,13 @@ export type Database = {
           cooling_relay_on?: boolean
           created_at?: string
           duty_pct?: number
+          enabled?: boolean | null
           glycol_temp?: number | null
           heating_relay_on?: boolean
           id?: string
           last_heartbeat?: string
           mode?: string | null
+          mode_allowed?: string | null
           pid_terms?: Json | null
           sensor_source?: string | null
           target_temp?: number | null
@@ -1089,6 +1095,7 @@ export type Database = {
         Row: {
           controller_id: string
           created_at: string
+          enabled: boolean
           expires_at: string | null
           id: string
           max_duty_pct: number
@@ -1106,6 +1113,7 @@ export type Database = {
         Insert: {
           controller_id: string
           created_at?: string
+          enabled?: boolean
           expires_at?: string | null
           id?: string
           max_duty_pct?: number
@@ -1123,6 +1131,7 @@ export type Database = {
         Update: {
           controller_id?: string
           created_at?: string
+          enabled?: boolean
           expires_at?: string | null
           id?: string
           max_duty_pct?: number
