@@ -39,6 +39,16 @@ Den uppdelningen är viktig: molnet får inte också integrera bort samma fel so
 
 **Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
 
+## Profilen körs på Pi:n
+
+Om molnet räknar ut vilket profilsteg som gäller är systemet inte offline-dugligt — en ramp som skulle ha startat under ett avbrott uteblir, och det är precis den sortens tyst fel som förstör en batch. Därför flyttas även profilkörningen ner.
+
+- Molnet är **profileditor**: du skapar och ändrar profiler i webb-UI:t som idag (`fermentation_profiles` / `fermentation_profile_steps`), och startar en session mot en tank.
+- Hela profilen — alla steg med temperaturer, tider, ramper och villkor — skickas ner som ett paket och lagras i Pi:ns SQLite. Bara när profilen *ändras* skickas ett nytt paket (versionsnummer i snabbsynkens svar, samma piggyback som setpointen).
+- Pi:n kör stegmotorn lokalt: håller reda på vilket steg som är aktivt, hur länge det pågått, kör ramperna mot sin egen klocka och räknar fram `target_temp` varje loop. Stegbyten loggas lokalt och skickas upp vid nästa lyckade synk.
+- Villkor som bygger på SG (attenuation, gravity stable, `target_sg`) fungerar också offline, eftersom pill-datan kommer från BLE-sniffern på samma Pi. Det är den enda anledningen att detta går att göra alls.
+- Molnet blir konsument: `fermentation_sessions` och `fermentation_step_log` speglar vad Pi:n redan gjort, i stället för att driva det. Vill du hoppa ett steg manuellt gör du det i molnet — det blir en profiländring som Pi:n hämtar, eller direkt i det lokala UI:t om nätet ligger nere.
+
 ## Pi:n bygger SSOT, inte molnet
 
 Idag konstrueras `actual_temp` i molnet (`dual-sensor.ts` / `controller-adjustments.ts`) av pill och probe, och skickas sedan till PID:n. Det är fel plats när både sensorerna och regulatorn sitter på Pi:n — molnet blandar sensorer som är upp till 15 minuter gamla och skickar resultatet tillbaka till en loop som hade färsk data hela tiden.
