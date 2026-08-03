@@ -145,6 +145,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: previous } = await supabase
+      .from("pi_live_state")
+      .select("cooling_relay_on, heating_relay_on, pump_started_at, pump_stopped_at")
+      .eq("controller_id", controller_id)
+      .maybeSingle();
+
+    const wasRunning = previous
+      ? Boolean(previous.cooling_relay_on || previous.heating_relay_on)
+      : null;
+    const isRunning = Boolean(data.cooling_relay_on || data.heating_relay_on);
+    const transitionAt = new Date().toISOString();
+
     const { error } = await supabase
       .from("pi_live_state")
       .upsert({
@@ -161,6 +173,12 @@ Deno.serve(async (req) => {
         sensor_source: data.sensor_source ?? null,
         enabled: data.enabled ?? null,
         mode_allowed: data.mode_allowed ?? null,
+        pump_started_at: wasRunning === false && isRunning
+          ? transitionAt
+          : previous?.pump_started_at ?? null,
+        pump_stopped_at: wasRunning === true && !isRunning
+          ? transitionAt
+          : previous?.pump_stopped_at ?? null,
         last_heartbeat: new Date().toISOString(),
       }, { onConflict: "controller_id" });
 

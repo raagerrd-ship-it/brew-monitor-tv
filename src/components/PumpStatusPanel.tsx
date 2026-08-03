@@ -8,17 +8,7 @@ const PUMPS = [
   { key: "bla", label: "Blå", controllerId: "ffa62be4", color: "hsl(210 90% 60%)" },
 ] as const;
 
-type Marks = Record<string, { start?: string; stop?: string; last?: boolean }>;
-
-const STORAGE_KEY = "pump-status-marks";
-
-function loadMarks(): Marks {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
+type Marks = Record<string, { start?: string; stop?: string }>;
 
 function fmt(ts?: string) {
   if (!ts) return "–";
@@ -32,7 +22,7 @@ function fmt(ts?: string) {
 
 export function PumpStatusPanel() {
   const [running, setRunning] = useState<Record<string, boolean | null>>({});
-  const [marks, setMarks] = useState<Marks>(loadMarks);
+  const [marks, setMarks] = useState<Marks>({});
 
   useEffect(() => {
     let mounted = true;
@@ -40,11 +30,11 @@ export function PumpStatusPanel() {
     const load = async () => {
       const { data } = await supabase
         .from("pi_live_state")
-        .select("controller_id, cooling_relay_on, heating_relay_on, updated_at");
+        .select("controller_id, cooling_relay_on, heating_relay_on, pump_started_at, pump_stopped_at");
       if (!mounted) return;
 
       const next: Record<string, boolean | null> = {};
-      const stamps: Record<string, string> = {};
+      const nextMarks: Marks = {};
       for (const pump of PUMPS) {
         if (!pump.controllerId) {
           next[pump.key] = null; // ingen telemetri (RAPT-styrd)
@@ -52,30 +42,15 @@ export function PumpStatusPanel() {
         }
         const row = data?.find((r) => r.controller_id === pump.controllerId);
         next[pump.key] = row ? !!(row.cooling_relay_on || row.heating_relay_on) : null;
-        if (row?.updated_at) stamps[pump.key] = row.updated_at as string;
+        if (row) {
+          nextMarks[pump.key] = {
+            start: row.pump_started_at ?? undefined,
+            stop: row.pump_stopped_at ?? undefined,
+          };
+        }
       }
 
-      setMarks((prevMarks) => {
-        let changed = false;
-        const updated = { ...prevMarks };
-        for (const pump of PUMPS) {
-          const after = next[pump.key];
-          if (after == null) continue;
-          const before = updated[pump.key]?.last;
-          const stamp = stamps[pump.key] ?? new Date().toISOString();
-          // Första observationen: sätt tidpunkt direkt så rutan inte står tom
-          if (before === undefined || before !== after) {
-            updated[pump.key] = {
-              ...updated[pump.key],
-              [after ? "start" : "stop"]: stamp,
-              last: after,
-            };
-            changed = true;
-          }
-        }
-        if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return changed ? updated : prevMarks;
-      });
+      setMarks(nextMarks);
       setRunning(next);
     };
 
