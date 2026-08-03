@@ -59,10 +59,10 @@ Regleringen behöver inte molnet alls, så synkens enda syfte är UI-färskhet, 
 - Samma anrop bär också Pi:ns heartbeat, så watchdog-larmet (2 min utan kontakt) hänger på snabbsynken.
 - Setpoint-hämtningen piggybackar på svaret: Pi:n skickar sin nuvarande setpoint-version, molnet svarar med nytt målvärde/parametrar bara när något ändrats. Alltså ingen separat poll.
 
-**Full synk — var 60:e sekund, aggregerat**
-- Det som behövs för historik, grafer och inlärning: min/medel/max tanktemp under minuten, faktiskt levererad on-tid per läge (sekunder), PID-termer (ff, trimI, P, D), antal reläslag, glykol min/max.
-- Skrivs som en historikrad. 1440 rader/dygn och tank — hanterbart, och betydligt mindre än 10-sekundersrader (8640/dygn).
-- Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov var 10:e sekund.
+**Full synk — var 5:e minut, aggregerat**
+- Det som behövs för historik, grafer och inlärning: min/medel/max tanktemp under perioden, faktiskt levererad on-tid per läge (sekunder), PID-termer (ff, trimI, P, D), antal reläslag, glykol min/max.
+- Skrivs som en historikrad. 288 rader/dygn och tank — samma takt som dagens `temp_controller_history` och `brew_data_snapshots`, så grafer och inlärning ser ut som idag.
+- Aggregat i stället för stickprov gör inlärningen *bättre*, inte sämre: levererad on-tid mäts i Pi:n med sekundupplösning i stället för att gissas ur ett stickprov.
 
 **Vid nätavbrott**
 - Snabbsynken bara droppas — den är färskvara, gammal live-status har inget värde.
