@@ -37,12 +37,37 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
     if (d.actual_temp == null) return;
-    const { error } = await supabase
+    const { data: rows, error } = await supabase
       .from("rapt_temp_controllers")
       .update(patch)
       .like("controller_id", `${controller_id}%`)
-      .eq("actuation", "pi");
+      .eq("actuation", "pi")
+      .select("controller_id");
     if (error) console.error("controller writeback failed:", error.message);
+
+    // Snapshot-loggningen (brew_data_snapshots) läser duty/mode från
+    // fermentation_learnings. RAPT-PID:n kör inte längre för Pi-tankar,
+    // så Pi:n måste själv hålla dessa nycklar färska.
+    const fullId = rows?.[0]?.controller_id;
+    if (fullId && d.duty_pct != null) {
+      const now = new Date().toISOString();
+      await supabase.from("fermentation_learnings").upsert([
+        {
+          controller_id: fullId,
+          parameter_name: "pid_last_duty",
+          learned_value: Number(d.duty_pct),
+          sample_count: 1,
+          last_updated_at: now,
+        },
+        {
+          controller_id: fullId,
+          parameter_name: "pid_current_mode",
+          learned_value: d.mode === "cooling" ? 2 : d.mode === "heating" ? 1 : 0,
+          sample_count: 1,
+          last_updated_at: now,
+        },
+      ], { onConflict: "controller_id,parameter_name" });
+    }
   }
 
 
