@@ -289,3 +289,29 @@ Pi-koden levereras som ett Python-projekt under `pi/` i det här repot (samma m�
 - Begränsningslagret är en egen modul (`constraints.py`) som tar en `desired_setting` och en lista med begränsningar, och returnerar `actual_setting` + lista med triggade begränsningar. Testbart isolerat från PID-koden.
 - Mutex/balanserare är en egen modul (`glycol_mutex.py`) som spårar vilka pumpar som begär glykol, beviljar upp till N samtidiga, och köar resten med `duty_debt`-ackumulering.
 - Enda risken värd att nämna: vi får två implementationer av samma reglerlogik. Därför flyttas bara *reglersteget* — inlärningen stannar i molnet och Pi:n får sina parametrar därifrån.
+
+## Hårdvaruspec: GPIO-tilldelning (fast)
+
+Återanvänds rakt av från projektet "Smart Brew Controller". BCM-numrering.
+
+SPI delas av alla MAX31865: MOSI 10, MISO 9, SCK 11.
+
+| Funktion | GPIO (BCM) |
+|---|---|
+| CS glykol (PT100 #1) | 5 |
+| CS tank 1 | 6 |
+| CS tank 2 | 13 |
+| CS tank 3 | 19 |
+| Relä tank1 heat / cool | 17 / 27 |
+| Relä tank2 heat / cool | 22 / 23 |
+| Relä tank3 heat / cool | 24 / 25 |
+| Relä kompressor (glykol) | 26 |
+| Reserv: ventil CO2 / tryckavlastning | 12 / 16 |
+
+Övriga fasta val:
+
+- `active_high: false` — reläkortet är aktivt LÅG. Alla utgångar initieras OFF.
+- Dwell-skydd (`min_on 60 s`, `min_off 300 s`) gäller endast kompressorn. Tankreläer skyddas i stället av snap: duty < 10 % ⇒ AV hela ticken, > 91 % ⇒ PÅ hela ticken.
+- `GPIOZERO_PIN_FACTORY=lgpio` är obligatoriskt på Pi 5 (BCM2712; `RPi.GPIO` fungerar inte).
+- `pi`-användaren måste ligga i grupperna `gpio` och `spi`.
+- Ett eventuellt PCIe-2.5G-nätverkskort tar inga GPIO-pinnar och påverkar inte tabellen ovan.
