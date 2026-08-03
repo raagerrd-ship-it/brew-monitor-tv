@@ -31,11 +31,24 @@ Moln                                Pi (lokalt)
 
 **Molnet äger:** profilsteg och rampning, målvärde, *långsamt* lärda parametrar (ff, Kp, Kd, dödtid), all loggning/graf/notiser, UI.
 
-**Pi:n äger:** mätning (PT100), PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, glykolhysteres, all säkerhet i realtid.
+**Pi:n äger:** **hela sensorbilden inklusive `actual_temp` (SSOT)**, PID mot målet, *den snabba integratorn* (`trimI`), lägesval kyla/värme, PWM-fönster, reläer, **glykolkylarens börvärde**, all säkerhet i realtid.
 
 Den uppdelningen är viktig: molnet får inte också integrera bort samma fel som Pi:n redan integrerar bort — då får vi två integratorer som jagar varandra och exakt den windup vi just byggt bort. Molnet lär bara långsamt (timmar/dygn) på levererad on-tid, Pi:n reglerar snabbt (minuter).
 
 **Pill/SG:** kommer från BLE-sniffern som redan kör på samma Pi (`pi/brew-ble` → `ingest-pill-ble`), inte från RAPT Cloud. SG och pill-temp går alltså lokalt hela vägen.
+
+## Pi:n bygger SSOT, inte molnet
+
+Idag konstrueras `actual_temp` i molnet (`dual-sensor.ts` / `controller-adjustments.ts`) av pill och probe, och skickas sedan till PID:n. Det är fel plats när både sensorerna och regulatorn sitter på Pi:n — molnet blandar sensorer som är upp till 15 minuter gamla och skickar resultatet tillbaka till en loop som hade färsk data hela tiden.
+
+Därför flyttas SSOT-bygget till Pi:n:
+
+- Alla råkällor finns redan lokalt: PT100 (1 Hz, kabel), Pill via BLE-sniffern (samma Pi), och RAPT-probe så länge den finns kvar.
+- Pi:n gör dubbelgivarlogiken: val av preferred sensor, pill/probe-offset och dess baseline, färskhetskontroll per källa, drift-detektering med streak-räknare, och fallback när en källa tystnar. Samma regler som `dual-sensor.ts` — porterade, inte omtänkta.
+- Resultatet `actual_temp` matas rakt in i PID:n på Pi:n och rapporteras upp i telemetrin tillsammans med *vilken* källa som användes och varför.
+- Molnet slutar räkna fram `actual_temp` för Pi-tankar och blir konsument: grafer, inlärning, notiser. Kolumnen finns kvar och fylls av Pi:n.
+- Vinsten är inte bara latens: driftvarningarna vi fick i somras kom av att molnet jämförde två källor med olika ålder. Med båda avlästa lokalt på samma sekund blir jämförelsen faktiskt giltig.
+- Grundregeln från idag gäller fortfarande: **PID:n läser bara SSOT**, aldrig råa pill- eller probe-värden. Sensorblandningen sker uppströms, i SSOT-bygget.
 
 **RAPT Cloud:** bara reservväg tills Pi-vägen är bevisad. När kyla, värme, tanktemp (PT100) och SG (BLE) alla går via Pi:n finns inget kvar som kräver RAPT:s moln-API i löpande drift.
 
@@ -46,13 +59,32 @@ Den uppdelningen är viktig: molnet får inte också integrera bort samma fel so
 - PID: `duty = ff + trimI + Kp·fel − Kd·temphastighet`. Samma formel som molnets V6 — porteras rakt av till Python, inte omskriven.
 - Lägesval kyla/värme med samma tvåstegs-hysteres som idag (neutralband, tidsvillkorad flip, direkt flip vid stort fel) plus 1-timmarslatchen — men nu lokalt på färsk sensordata i stället för på 5-minuterscykel.
 - Kyl- och värmerelä kan aldrig vara på samtidigt (hårt interlock), och det krävs en minsta paus vid lägesbyte.
-- ΔT-kompensation lokalt: on-tiden skalas mot aktuell glykoltemperatur, så samma kyleffekt levereras vare sig glykolen står på 8° eller 2°. Detta ersätter både ΔT-normaliseringen och mid-burst-glykolvakten i molnet.
+- ΔT-kompensation lokalt: on-tiden skalas mot aktuell glykoltemperatur, så samma kyleffekt levereras vare sig glykolen står på 8° eller 2°. Detta ersätter både ΔT-normaliseringen och mid-burst-glykolvakten i molnet. Med behovsstyrd glykol (nedan) blir ΔT dessutom nästan konstant, så kompensationen går från huvudmekanism till liten korrigering.
 - PWM-fönster default **180 s (3 min)**, konfigurerbart per tank och per läge.
 - **Minsta på-tid 5 s och minsta av-tid 5 s — gäller både kyla och värme.** För kylan behöver pumpen bygga tryck i ledningen; för värmen undviker vi kortcykling av reläet och elementet. Samma regel, samma kod, båda lägena.
 - Kortare begärd on-tid än 5 s körs inte som en stympad puls utan ackumuleras i en `duty_debt`-räknare (en per läge) och levereras som en 5-sekunderspuls när skulden räcker till. Ett av-brott kortare än 5 s förlängs till 5 s och överskottet dras från nästa fönster.
 - Båda tiderna är konfigurerbara per tank och per läge (`min_on_s` / `min_off_s`) om det visar sig att värmen tål eller behöver andra värden.
-- Glykolreläet: hysteres på glykol-PT100 (t.ex. på under 7°, av vid 4°) — **men bara när minst en tank faktiskt efterfrågar kyla**. Att hålla glykolen kall dygnet runt för en tank som drar 3 % duty är både onödig el och orsaken till de stora ΔT-svängningar vi kämpat med. Kylaren startar på behov och får en minsta gångtid så den inte kortcyklar.
 - **Samordning mellan tankar:** Pi:n ser alla tre tankarna, så on-faserna fasförskjuts i stället för att råka sammanfalla. Två pumpar samtidigt sänker glykoltemperaturen dubbelt så fort och gör ΔT-kompensationen till en jakt. Med lokal samordning blir lasten jämn — något molnet aldrig kunnat göra, eftersom varje tank räknades för sig.
+
+## Behovsstyrd glykolkylare
+
+Glykolen ska inte köras som en dum termostat på ett fast börvärde. Pi:n ser alla tankars behov samtidigt och sätter glykoltemperaturen därefter — det är den enskilt största förbättringen utöver att flytta loopen.
+
+**Så här sätts börvärdet**
+
+- Utgå från kallaste tankmålet: `glykol_bör = min(tankmål) − arbetsmarginal`. Marginalen väljs efter faktiskt behov, inte efter värsta tänkbara fall.
+- **Inget behov → låt den gå varm.** Ligger alla tankar i sitt neutralband och ingen kyler, höjs börvärdet till ett viloläge (t.ex. **15°**). Kylaren står då still i timmar i stället för att hålla 4° i onödan.
+- **Litet behov (hålldrift, några procents duty)** → måttlig marginal, t.ex. 4–5° under kallaste målet. Det räcker gott för att parera 0,3 °C/h passiv drift.
+- **Stort behov (kallcrash, aktiv rampning ner, hög jäsningsvärme)** → full marginal ner mot minvärdet. Här *vill* vi ha kyleffekt.
+- Börvärdet ändras med rampbegränsning (t.ex. max några grader per 10 min) så tanksidan aldrig ser ett språng i kyleffekt mitt i en burst — det var precis det som brände Gul i morse.
+- Hysteres runt börvärdet som förut, plus minsta gångtid och minsta stopptid på kompressorn så den inte kortcyklar.
+- Föraviserat behov: vet Pi:n att en kallcrash är beställd, sänks glykolen *innan* tanken börjar ropa, i stället för att tanken får vänta på en varm kylare.
+
+**Varför det här är rätt**
+
+- ΔT mellan tank och glykol blir stabil i stället för att variera 9° över ett dygn. Då blir en given on-tid faktiskt en given mängd kyla — hela grunden till att PID:n går att lita på.
+- Kylaren jobbar mot ett varmare medium när den ändå jobbar → bättre verkningsgrad, mindre el, längre kompressorliv.
+- Riskerna vi bevakar: en varm glykol ger långsammare respons om behovet plötsligt kommer. Det hanteras av föraviseringen ovan, av att marginalen aldrig går under ett golv när någon tank är i aktiv jäsning, och av att viloläget bara gäller när *alla* tankar är i neutralband.
 
 ## Tvådelad synk mot molnet
 
@@ -109,7 +141,8 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - Enda undantaget värt att bevaka: en profil som skulle ha rampat vidare står stilla under avbrottet. Vi larmar när kontakten återkommer och molnet räknar då om steget mot faktisk tid, i stället för att hoppa i temperatur.
 - Hårda gränser lokalt: min/max tillåten tanktemp, max sammanhängande on-tid per relä, max duty. Överskrids något bryts reläet oavsett vad PID säger.
 - Värmen har en egen övertemperaturspärr (hårt tak) och kräver färsk sensordata — ingen PT100-avläsning på 60 s betyder värme av.
-- Sensorbortfall: ingen giltig PT100-avläsning på 60 s → båda reläerna av. Här är avstängning rätt svar, för då reglerar vi blint.
+- Sensorbortfall: ingen giltig PT100-avläsning på 60 s → SSOT-bygget faller tillbaka på pill (BLE) om den är färsk, annars bryts båda reläerna. Blir vi helt utan giltig källa reglerar vi blint, och då är avstängning rätt svar.
+- Glykolgivarens bortfall: utan giltig glykoltemp går ΔT-kompensationen till sitt mest försiktiga antagande (kallast tänkbara glykol → kortast on-tid) i stället för att gissa.
 - Watchdog i molnet: larmar om ingen telemetri på 2 min (nu ett *kommunikations*larm, inte en anledning att stoppa regleringen).
 
 ## Etapper
@@ -130,12 +163,17 @@ Klockan måste därmed vara pålitlig: Pi:n kör NTP och behöver RTC-modul (ell
 - **Ärv inte dagens lärda värden rakt av.** Nuvarande `dead_time_hours` (Blå 0,72 h), `process_gain` och `ff_duty` är inlärda på en sensor med ~15 min latens och på RAPT:s trubbiga aktuering. Med PT100 direkt på tanken försvinner en stor del av den dödtiden, och för aggressiv Kp blir följden. Vi startar därför konservativt: behåll dagens dödtid som startvärde (för hög dödtid ger *lugn* reglering, inte översläng), sätt `ff` från uppmätt hålleffekt de första dygnen och låt molnet lära om därifrån. Nollställningen som stod i etapp 4 flyttas hit — den hör hemma när PID:n byter sensorbild, inte senare.
 - Värmen går fortfarande via RAPT här, så vi byter en sak i taget.
 
+**Etapp 2b — glykolkylaren behovsstyrd**
+- Pi:n tar över glykolens börvärde enligt avsnittet ovan (viloläge 15°, marginal efter behov, rampbegränsat).
+- Så länge kylaren sitter på RAPT sätts börvärdet via RAPT-mål; när den flyttas till Pi-relä sköts det med lokal hysteres i stället. Logiken för *vilket* börvärde som ska gälla är densamma i båda fallen.
+- Görs efter att minst en tank kyls via relä, så vi kan mäta ΔT-stabiliteten före och efter.
+
 **Etapp 3 — värme på Pi**
 - Värmeelementen flyttas till Pi-reläerna och Pi:n tar över lägesvalet helt.
 - RAPT-controllerns egen termostat neutraliseras (mål långt utanför arbetsområdet) så den aldrig kan slå till parallellt.
 
-**Etapp 4 — PT100 som SSOT och rensning**
-- `actual_temp` byts till PT100 för Pi-tankar (omlärningen av dödtid/gain skedde redan i etapp 2).
+**Etapp 4 — SSOT flyttas till Pi och molnkoden rensas**
+- SSOT-bygget (dubbelgivare, offset, färskhet, driftdetektering) flyttas från `dual-sensor.ts` till Pi:n, med PT100 som primärkälla. Molnet slutar räkna fram `actual_temp` för Pi-tankar. Omlärningen av dödtid/gain skedde redan i etapp 2.
 - **Molnets V6-PID slutar räkna för Pi-tankar helt** — den får inte ligga och producera duty parallellt "för säkerhets skull". Två regulatorer på samma tank är den enda verkliga risken i hela det här bygget. V6 blir kvar orörd, men bara för `actuation = 'rapt'`.
 - För Pi-tankar tas bort ur molnkoden: `execute-pwm-off`-cronen, orphan-extreme-vakten, PWM-OFF-bekräftelse och read-back, mid-burst-glykolvakten, PWM-dithering/slot-rotation, `subTenMinGapSlots`-clampen och burstlängdsberäkningarna.
 - Allt detta finns bara för att kompensera för RAPT-hacket. Med reläer försvinner grundproblemet, inte bara symptomen.
