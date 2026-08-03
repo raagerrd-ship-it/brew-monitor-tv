@@ -32,14 +32,14 @@ En stabilitetsindikator ("står stilla" / "rör sig") visas innan du får fånga
 
 ## Molnets roll
 
-Ingen. Pi:n rapporterar som planerat korrigerad temperatur i telemetrin, och skickar med rå-avläsningen som extrafält i fast sync så att dashboarden kan visa "rå vs korrigerad" om du vill felsöka. Inga nya tabeller, inga nya policies.
+Ingen. Pi:n rapporterar enbart korrigerad temperatur i telemetrin — rådata lämnar aldrig Pi:n och syns bara i det lokala kalibrerings-UI:t. Inga nya tabeller, inga nya policies, inga nya fält i molnet.
 
 ## Teknisk del
 
 Allt ligger i Python-projektet `pi/brew-control/` (samma mönster som `pi/brew-ble`):
 
 - `calibration.py` — dataklass per givare, tvåpunktsberäkning, enpunktsfall, atomisk läs/skriv av `calibration.json`, samt `apply(raw)`.
-- Sensorlagret applicerar `apply()` direkt efter MAX31865-avläsningen. Inget nedströms lager (filter, PID, telemetri, failsafe) ser rådata annat än som separat rapporterat fält.
+- Sensorlagret applicerar `apply()` direkt efter MAX31865-avläsningen. Inget nedströms lager (filter, PID, telemetri, failsafe) ser rådata — det finns bara innanför sensorlagret och på kalibreringssidan.
 - Rimlighetsspärr vid spara: `gain` måste hamna inom 0,9–1,1 och `offset` inom ±5°, annars avvisas punkten med förklaring — en orimlig kalibrering är nästan alltid en felmätning.
 - Verifieringsloggen skrivs till `calibration_checks.jsonl`, roterad vid 1 MB.
 - Enhetstest för tvåpunktsformeln, enpunktsfallet och rimlighetsspärren.
@@ -48,7 +48,7 @@ Allt ligger i Python-projektet `pi/brew-control/` (samma mönster som `pi/brew-b
 ## Ordning
 
 1. `calibration.py` + tester → testerna passerar.
-2. Inkoppling i sensorlagret → korrigerat värde används överallt, rått värde rapporteras separat.
+2. Inkoppling i sensorlagret → korrigerat värde används överallt, rått värde stannar lokalt.
 3. Endpoints + kalibreringssidan i det lokala UI:t → punkter går att fånga, verifiera och nollställa.
 
 Arbetet görs som en del av Etapp 1 i Pi-planen, när PT100-givarna är fysiskt inkopplade.
