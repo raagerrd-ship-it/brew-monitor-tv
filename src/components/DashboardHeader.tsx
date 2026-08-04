@@ -41,7 +41,7 @@ export function DashboardHeader({
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
-  const { controllers, pills } = useRaptBarData();
+  const { controllers, pills, piDisabled } = useRaptBarData();
 
   // Alarm/Timer dialog state
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
@@ -116,7 +116,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
         )}
 
         {/* Desktop: Three-column layout */}
@@ -128,7 +128,7 @@ export function DashboardHeader({
 
             <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
               )}
             </div>
 
@@ -196,6 +196,7 @@ interface RaptControllerBarProps {
   onControllerClick: (controller: TempController) => void;
   isMobile: boolean;
   isTvMode?: boolean;
+  piDisabled?: Record<string, boolean>;
 }
 
 // Helper to format duration like "3t 24m"
@@ -218,6 +219,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   onControllerClick,
   isMobile,
   isTvMode = false,
+  piDisabled = {},
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [raptDegraded, setRaptDegraded] = useState(false);
@@ -409,10 +411,11 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       const isDual = !!(controller as any).dual_sensor_enabled;
                       const preferred = (controller as any).preferred_sensor as string | undefined;
                       const hasPill = !!linkedPill && !isPillStale;
-                      const pillActive = hasPill && (isDual || preferred === 'pill');
-                      const probeActive = isDual || preferred === 'probe' || !hasPill;
+                      const isOff = piDisabled[controller.controller_id] === true;
+                      const pillActive = !isOff && hasPill && (isDual || preferred === 'pill');
+                      const probeActive = !isOff && (isDual || preferred === 'probe' || !hasPill);
                       return (
-                         <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-3" title={isOff ? `${controller.name} är avstängd` : undefined}>
                            <Pill style={{
                              width: '0.85rem',
                              height: '0.85rem',
