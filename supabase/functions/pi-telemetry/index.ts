@@ -385,6 +385,19 @@ Deno.serve(async (req) => {
 
     if (cooler?.controller_id) {
       await supabase
+        .from("rapt_temp_controllers")
+        .update({
+          current_temp: data.glycol_temp,
+          actual_temp: data.glycol_temp,
+          pt100_temp: data.glycol_temp,
+          target_temp: data.target_temp ?? undefined,
+          cooling_enabled: data.compressor_on ?? false,
+          last_update: data.recorded_at || new Date().toISOString(),
+          current_temp_updated_at: new Date().toISOString(),
+        })
+        .eq("controller_id", cooler.controller_id);
+
+      await supabase
         .from("temp_controller_history")
         .insert({
           controller_id: cooler.controller_id,
