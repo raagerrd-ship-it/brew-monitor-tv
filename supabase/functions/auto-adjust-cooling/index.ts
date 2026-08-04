@@ -669,7 +669,10 @@ Deno.serve(async (req) => {
     // COOLER MANAGEMENT (shared cooling unit)
     // ══════════════════════════════════════════════════════════════
     let coolerCtx: CoolerContext | null = null;
-    if (coolingEnabled) {
+    const coolerIsPiActuated = (coolerControllerData as any)?.actuation === 'pi';
+    if (coolerIsPiActuated) {
+      log('COOLING', 'info', 'Glykolkylaren styrs av Pi:n — molnets kylarreglering hoppas över');
+    } else if (coolingEnabled) {
       coolerCtx = {
         supabase, supabaseUrl, serviceRoleKey: supabaseKey,
         allControllers, followedControllersFullData, followedControllerIds,
