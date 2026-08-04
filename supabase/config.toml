@@ -19,28 +19,13 @@ verify_jwt = false
 [functions.external-auth]
 verify_jwt = false
 
-[functions.rapt-pill-telemetry]
-verify_jwt = false
-
 [functions.sync-custom-brew-pills]
-verify_jwt = false
-
-[functions.sonos-auth]
 verify_jwt = false
 
 [functions.sync-sonos-now-playing]
 verify_jwt = false
 
 [functions.sonos-playback-status]
-verify_jwt = false
-
-[functions.sonos-groups]
-verify_jwt = false
-
-[functions.public-brew]
-verify_jwt = false
-
-[functions.prepare-album-background]
 verify_jwt = false
 
 [functions.render-brew-chart]
