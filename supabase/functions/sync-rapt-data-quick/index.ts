@@ -1,162 +1,130 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 import { fetchSgDataFromSnapshots } from '../_shared/types.ts';
-import { standardSgCorrection, applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
+import { applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 import { processAllSessions } from '../_shared/process-profiles-logic.ts';
 import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
 import { computeSystemHealth } from '../_shared/system-health-logic.ts';
+import { isSensorDataStale } from '../_shared/temp-utils.ts';
+import { insertNotification } from '../_shared/notifications.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// ── Inlined RAPT auth with DB token cache ──
-interface RaptTokenResult { token: string; fromCache: boolean; authDurationMs?: number; }
-async function getRaptTokenWithMeta(supabase?: any): Promise<RaptTokenResult> {
-  // Try cached token first (valid if expires > 2 min from now)
-  if (supabase) {
+// SG temp-correction is now always active — it's pure math applied to BLE pill
+// readings already in the DB, no RAPT dependency, no user toggle left to read.
+const SG_TEMP_CORRECTION_ENABLED = true;
+
+// ── Custom brew sync: SG correction + calibration on BLE pill data already in DB ──
+// Temperature control (Pi + local PID) no longer touches this — this only keeps
+// brew_readings/brew_data_snapshots fresh for brews tracked via a RAPT/BLE pill.
+async function syncCustomBrews(supabase: any): Promise<number> {
+  const { data: customBrews } = await supabase
+    .from('brew_readings')
+    .select('id, batch_id, name, original_gravity, linked_controller_id, linked_pill_id, status, fermentation_start')
+    .like('batch_id', 'custom\\_%')
+    .in('status', ['Jäsning', 'Fermenting']);
+
+  if (!customBrews || customBrews.length === 0) return 0;
+  console.log(`Found ${customBrews.length} custom brews in fermentation`);
+
+  let updated = 0;
+
+  for (const brew of customBrews) {
     try {
-      const { data: cached } = await supabase
-        .from('rapt_token_cache')
-        .select('access_token, expires_at')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cached?.access_token && cached?.expires_at) {
-        const expiresAt = new Date(cached.expires_at).getTime();
-        if (expiresAt > Date.now() + 10 * 60 * 1000) {
-          console.log('🔑 Using cached RAPT token (expires in ' + Math.round((expiresAt - Date.now()) / 60000) + 'min)');
-          return { token: cached.access_token, fromCache: true };
-        }
+      let pillId = brew.linked_pill_id;
+      let linkedController: any = null;
+
+      if (brew.linked_controller_id) {
+        const { data: ctrl } = await supabase
+          .from('rapt_temp_controllers')
+          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp')
+          .eq('controller_id', brew.linked_controller_id)
+          .maybeSingle();
+        linkedController = ctrl;
+        if (!pillId && ctrl?.linked_pill_id) pillId = ctrl.linked_pill_id;
       }
-    } catch (e) { console.log('Token cache read failed, authenticating fresh'); }
-  }
 
-  const RAPT_USERNAME = Deno.env.get('RAPT_USERNAME');
-  const RAPT_API_SECRET = Deno.env.get('RAPT_API_SECRET');
-  if (!RAPT_USERNAME || !RAPT_API_SECRET) throw new Error('RAPT credentials not configured');
+      if (!pillId) {
+        console.log(`No pill_id available for brew ${brew.name}, skipping`);
+        continue;
+      }
 
-  const formData = new URLSearchParams();
-  formData.append('client_id', 'rapt-user');
-  formData.append('grant_type', 'password');
-  formData.append('username', RAPT_USERNAME);
-  formData.append('password', RAPT_API_SECRET);
+      const { data: pill } = await supabase
+        .from('rapt_pills')
+        .select('pill_id, gravity, temperature, battery_level, last_update')
+        .eq('pill_id', pillId)
+        .maybeSingle();
 
-  const authBaseUrl = Deno.env.get('RAPT_AUTH_BASE_URL') || 'https://id.rapt.io';
-  const authStart = Date.now();
+      if (!pill || pill.gravity == null || pill.temperature == null || !pill.last_update) {
+        console.log(`Incomplete pill data for ${brew.name}, skipping`);
+        continue;
+      }
 
-  // Try up to 2 attempts (initial + 1 retry on timeout/error)
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(`${authBaseUrl}/connect/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
-        signal: AbortSignal.timeout(45000),
+      const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
+      const recordedAt = new Date(pill.last_update).toISOString();
+      if (fermentationStartDate && new Date(recordedAt) < fermentationStartDate) continue;
+
+      let sgValue = pill.gravity > 100 ? pill.gravity / 1000 : pill.gravity;
+
+      if (SG_TEMP_CORRECTION_ENABLED) {
+        try {
+          const { residualPerDegree, confident } = await getLearnedResidual(supabase, pillId);
+          if (confident) sgValue = applySgCorrection(sgValue, pill.temperature, residualPerDegree);
+        } catch (_e) { /* no correction yet */ }
+      }
+
+      if (sgValue < 0.990 || sgValue > 1.200) {
+        console.log(`SG ${sgValue} out of range for ${brew.name}, skipping`);
+        continue;
+      }
+
+      const og = brew.original_gravity;
+      const attenuation = og > 1 ? Math.round(((og - sgValue) / (og - 1)) * 100) : 0;
+      const abv = og > 1 ? Number(((og - sgValue) * 131.25).toFixed(1)) : 0;
+
+      // SSOT: prefer controller actual_temp over pill temp when linked
+      const ssotTemp = linkedController?.actual_temp ?? pill.temperature;
+
+      await createBrewSnapshot(supabase, brew.id, {
+        recorded_at: recordedAt,
+        sg: sgValue,
+        pill_temp: pill.temperature,
+        controller_temp: linkedController?.current_temp ?? null,
+        profile_target_temp: linkedController?.profile_target_temp ?? null,
+        actual_temp: ssotTemp,
+        controller_id: brew.linked_controller_id ?? null,
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`RAPT auth error: ${res.status} ${errorText}`);
-      }
-      const data = await res.json();
-      const authDurationMs = Date.now() - authStart;
+      const { error: updateError } = await supabase
+        .from('brew_readings')
+        .update({
+          current_sg: sgValue, current_temp: ssotTemp,
+          attenuation: Math.max(0, Math.min(100, attenuation)),
+          abv: Math.max(0, abv), battery: Math.round(pill.battery_level || 0),
+          last_update: recordedAt, updated_at: new Date().toISOString(),
+        })
+        .eq('id', brew.id);
 
-      // Cache the new token (awaited to ensure it persists before function shuts down)
-      if (supabase && data.expires_in) {
-        const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString();
-        const { error: cacheErr } = await supabase.from('rapt_token_cache')
-          .upsert({ id: '00000000-0000-0000-0000-000000000001', access_token: data.access_token, expires_at: expiresAt }, { onConflict: 'id' });
-        if (cacheErr) console.error('Token cache write failed:', cacheErr);
-        console.log('🔑 Fresh RAPT token cached (expires in ' + Math.round(data.expires_in / 60) + 'min)');
-      }
+      if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
+      console.log(`Synced ${brew.name} (SG=${sgValue.toFixed(4)}, ${pill.temperature.toFixed(1)}°C)`);
+      updated++;
 
-      return { token: data.access_token, fromCache: false, authDurationMs };
-    } catch (e) {
-      lastError = e as Error;
-      if (attempt === 0) {
-        console.log(`🔑 RAPT auth attempt 1 failed (${(e as Error).message}), retrying...`);
+      if (SG_TEMP_CORRECTION_ENABLED) {
+        try {
+          const snapshots = await fetchSgDataFromSnapshots(supabase, brew.id);
+          await processSgCalibration(supabase, pillId, snapshots);
+        } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
       }
+    } catch (brewError) {
+      console.error(`Error syncing brew ${brew.name}:`, brewError);
     }
   }
-  throw lastError!;
+
+  return updated;
 }
-
-// ── Inlined RAPT API fetches (saves 2 HTTP hops) ──
-async function fetchRaptPills(accessToken: string): Promise<any[]> {
-  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
-  const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetHydrometers`, {
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) { const t = await res.text(); throw new Error(`RAPT pills API error: ${res.status} ${t}`); }
-  return res.json();
-}
-
-async function fetchRaptControllers(accessToken: string): Promise<any[]> {
-  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
-  const res = await fetch(`${apiBaseUrl}/api/TemperatureControllers/GetTemperatureControllers`, {
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) { const t = await res.text(); throw new Error(`RAPT controllers API error: ${res.status} ${t}`); }
-  return res.json();
-}
-
-
-
-// ── Inlined RAPT pill telemetry fetch — returns SG-corrected values ──
-// Applies standard correction + pill-specific residual at source.
-async function fetchPillTelemetryCorrected(
-  accessToken: string, pillId: string, startDate: string, endDate: string,
-  supabase: any, sgCorrectionEnabled: boolean
-): Promise<TelemetryRecord[]> {
-  const apiBaseUrl = Deno.env.get('RAPT_API_BASE_URL') || 'https://api.rapt.io';
-  const params = new URLSearchParams({ hydrometerId: pillId, startDate, endDate });
-  const res = await fetch(`${apiBaseUrl}/api/Hydrometers/GetTelemetry?${params}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`RAPT telemetry API error: ${res.status} ${errText}`);
-  }
-  const raw: TelemetryRecord[] = await res.json();
-  
-  if (sgCorrectionEnabled) {
-    // Get learned pill-specific residual — only apply if confident
-    let pillResidual = 0;
-    let shouldCorrect = false;
-    try {
-      const { residualPerDegree, confident, sampleCount } = await getLearnedResidual(supabase, pillId);
-      pillResidual = residualPerDegree;
-      shouldCorrect = confident;
-      if (!confident) {
-        console.log(`⏳ SG correction skipped for pill ${pillId}: only ${sampleCount} samples (need 10+)`);
-      }
-    } catch (_e) { /* no correction yet */ }
-    
-    if (shouldCorrect) {
-      // Apply full SG correction (standard + residual) at source
-      for (const t of raw) {
-        const rawSg = t.gravity / 1000;
-        t.gravity = applySgCorrection(rawSg, t.temperature, pillResidual) * 1000;
-      }
-    }
-  }
-  return raw;
-}
-
-interface TelemetryRecord {
-  createdOn: string;
-  gravity: number;
-  temperature: number;
-  battery: number;
-}
-
-import type { SgDataPoint } from '../_shared/types.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -170,1008 +138,66 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Pills are BLE-owned only. Never let RAPT quick sync fetch, backfill,
-    // or overwrite pill telemetry/pairing regardless of secret configuration.
-    const pillsSource = (Deno.env.get('PILLS_SOURCE') || '').trim().toLowerCase();
-    const pillsViaBle = true;
-    console.log(
-      `🔵 Pills locked to BLE-only${pillsSource ? ` (PILLS_SOURCE=${pillsSource} ignored)` : ''} — RAPT pill fetch + telemetry disabled`
-    );
-
     // ── Concurrency guard: skip if another sync ran <30s ago ──
-    const { data: recentLog } = await supabase
-      .from('auto_cooling_decision_logs')
-      .select('created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (recentLog?.created_at) {
-      const secsSinceLast = (Date.now() - new Date(recentLog.created_at).getTime()) / 1000;
+    const { data: syncSettingsRow } = await supabase
+      .from('sync_settings')
+      .select('id, last_rapt_quick_sync_at, rapt_sync_interval')
+      .single();
+
+    if (syncSettingsRow?.last_rapt_quick_sync_at) {
+      const secsSinceLast = (Date.now() - new Date(syncSettingsRow.last_rapt_quick_sync_at).getTime()) / 1000;
       if (secsSinceLast < 30) {
         console.log(`⏭️ Skipping sync — last ran ${secsSinceLast.toFixed(0)}s ago`);
         return new Response(JSON.stringify({ skipped: 'concurrent', seconds_since_last: Math.round(secsSinceLast) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
-    console.log('Starting unified quick sync (RAPT + custom brews)...');
+    console.log('Starting quick sync (custom brews + fermentation profiles/metrics/health)...');
 
-    // Accept pre-fetched token and flags from caller (e.g. manual discovery button)
-    let passedToken: string | null = null;
-    let discoverNewDevices = false;
-    try {
-      const body = await req.json();
-      passedToken = body?.access_token || null;
-      discoverNewDevices = body?.discover === true;
-    } catch { /* no body or invalid JSON — that's fine */ }
-
-    // Read sync_settings + auto_cooling_settings once (reused across phases)
-    const [{ data: syncSettingsRow }, { data: autoCoolingRow }] = await Promise.all([
-      supabase.from('sync_settings')
-        .select('id, last_successful_rapt_sync_at, rapt_sync_interval').single(),
-      supabase.from('auto_cooling_settings')
-        .select('sg_temp_correction_enabled, cooler_controller_id, enabled').limit(1).maybeSingle(),
-    ]);
-    const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
-
-    // Update timestamp (fire-and-forget, no await needed for main flow)
+    // Stamp timestamp immediately so the concurrency guard sees this run
     const nowIso = new Date().toISOString();
-    supabase
-      .from('sync_settings')
-      .update({ 
-        last_rapt_quick_sync_at: nowIso,
-      })
-      .not('id', 'is', null)
-      .then(({ error }) => { if (error) console.error('sync_settings update error:', error); });
-
-    // ──────────────────────────────────────────────────────
-    // PHASE 1: RAPT device sync (pills + controllers)
-    // Non-fatal: if RAPT auth/API fails, continue with
-    // custom brews, automation and history.
-    // ──────────────────────────────────────────────────────
-
-    let access_token: string | null = null;
-    let selectedPillIds: string[] = [];
-    let selectedControllerIds: string[] = [];
-    
-    let pillsUpdated = 0;
-    let controllersUpdated = 0;
-    let discoveredPills = 0;
-    let discoveredControllers = 0;
-    let raptFailed = false;
-    let raptFailedPhase = '';
-    let tPhase1Auth = 0, tPhase1Fetch = 0, tPhase1Upsert = 0;
-    let tokenFromCache = true;
-    let tokenAuthDurationMs: number | undefined;
-    let controllerUpdatesForHistory: Record<string, any>[] = [];
-    let fetchedPills: any[] = [];
-
-    // Phase 1a: Auth + selected device IDs in parallel
-    const tPhase1 = Date.now();
-    const tAuth = Date.now();
-
-    try {
-      raptFailedPhase = '1a auth';
-      const [{ data: selectedPills }, { data: selectedControllers }, tokenResult] = await Promise.all([
-        supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true),
-        supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true),
-        passedToken ? Promise.resolve({ token: passedToken, fromCache: true } as RaptTokenResult) : getRaptTokenWithMeta(supabase),
-      ]);
-      access_token = tokenResult.token;
-      tokenFromCache = tokenResult.fromCache;
-      tokenAuthDurationMs = tokenResult.authDurationMs;
-      selectedPillIds = selectedPills?.map(p => p.pill_id) || [];
-      selectedControllerIds = selectedControllers?.map(c => c.controller_id) || [];
-      tPhase1Auth = Date.now() - tAuth;
-      console.log(`  ⏱️ Phase 1a (auth + device IDs): ${tPhase1Auth}ms`);
-
-      // Phase 1b: Fetch pills + controllers from RAPT API in parallel
-      raptFailedPhase = '1b fetch';
-      const tFetch = Date.now();
-      let fetchedControllers: any[];
-      // Skip RAPT pill fetch when BLE source active (unless discovering new devices)
-      const shouldFetchPills = !pillsViaBle && (selectedPillIds.length > 0 || discoverNewDevices);
-      const shouldFetchControllers = selectedControllerIds.length > 0 || discoverNewDevices;
-      [fetchedPills, fetchedControllers] = await Promise.all([
-        shouldFetchPills ? fetchRaptPills(access_token) : Promise.resolve([]),
-        shouldFetchControllers ? fetchRaptControllers(access_token) : Promise.resolve([]),
-      ]);
-      tPhase1Fetch = Date.now() - tFetch;
-      console.log(`  ⏱️ Phase 1b (fetch pills+controllers): ${tPhase1Fetch}ms`);
-
-      // Phase 1c: Upsert to DB
-      raptFailedPhase = '1c upsert';
-      const tUpsertStart = Date.now();
-
-      // Build pill temperature map AND reverse map: controller_id → pill_id
-      // Pills have pairedDeviceId pointing to their controller, so we reverse-map
-      const pillTempMap = new Map<string, number>();       // pill_id → temp
-      const controllerToPillId = new Map<string, string>(); // controller_id → pill_id
-      for (const pill of fetchedPills) {
-        const temp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
-        if (temp != null && temp !== 0) {
-          pillTempMap.set(pill.id, temp);
-        }
-        if (pill.pairedDeviceId) {
-          controllerToPillId.set(pill.pairedDeviceId, pill.id);
-        }
-      }
-
-      // When pills come via BLE, build maps from DB (BLE ingest keeps rapt_pills fresh)
-      if (pillsViaBle) {
-        const { data: dbPills } = await supabase
-          .from('rapt_pills')
-          .select('pill_id, temperature, paired_device_id');
-        for (const p of dbPills ?? []) {
-          if (p.temperature != null && p.temperature !== 0) pillTempMap.set(p.pill_id, p.temperature);
-          if (p.paired_device_id) controllerToPillId.set(p.paired_device_id, p.pill_id);
-        }
-      }
-
-      // Upsert Pills (skipped when BLE source — Pi writes them)
-      if (!pillsViaBle && selectedPillIds.length > 0) {
-        const selectedPillsData = fetchedPills.filter((pill: any) => selectedPillIds.includes(pill.id));
-        if (selectedPillsData.length > 0) {
-          const pillUpserts = selectedPillsData.map((pill: any) => ({
-            pill_id: pill.id,
-            name: pill.name || pill.id,
-            battery_level: Math.round(pill.battery || 0),
-            gravity: pill.gravity ?? pill.telemetry?.[0]?.gravity ?? null,
-            temperature: pill.temperature ?? pill.telemetry?.[0]?.temperature ?? null,
-            last_update: pill.lastActivityTime || pill.telemetry?.[0]?.createdOn,
-            paired_device_id: pill.pairedDeviceId || null,
-            updated_at: new Date().toISOString()
-          }));
-          const { error: pillUpsertErr } = await supabase.from('rapt_pills')
-            .upsert(pillUpserts, { onConflict: 'pill_id', ignoreDuplicates: false });
-          if (pillUpsertErr) console.error('Pill upsert error:', pillUpsertErr);
-          else pillsUpdated = selectedPillsData.length;
-        }
-      }
-
-      // Upsert Controllers with enriched pill_temp
-      if (selectedControllerIds.length > 0) {
-        const selectedControllersData = fetchedControllers.filter((c: any) => selectedControllerIds.includes(c.id));
-
-        const [{ data: activeSessions }, { data: existingControllers }] = await Promise.all([
-          supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-          supabase.from('rapt_temp_controllers').select('controller_id, name, linked_pill_id, target_temp, current_temp, is_glycol_cooler, profile_target_temp, min_target_temp, max_target_temp, actual_temp, pill_temp, pill_probe_offset, pill_probe_offset_baseline, pill_probe_offset_updated_at, pill_probe_drift_streak, pwm_off_expected_target, pwm_off_sent_at, actuation')
-            .in('controller_id', selectedControllersData.map((c: any) => c.id)),
-        ]);
-        const controllersWithActiveSessions = new Set(activeSessions?.map(s => s.controller_id) || []);
-
-        const coolerControllerId = autoCoolingRow?.enabled ? autoCoolingRow?.cooler_controller_id : null;
-        const existingMap = new Map((existingControllers || []).map(c => [c.controller_id, c]));
-
-        // Drift-sampling gate: only measure pill−probe offset when the controller is
-        // truly idle (duty 0%) and no PWM OFF-revert is pending.
-        const selIds = selectedControllersData.map((c: any) => c.id);
-        const [{ data: driftDutyRows }, { data: pendingOffRows }] = await Promise.all([
-          supabase.from('fermentation_learnings')
-            .select('controller_id, learned_value, last_updated_at')
-            .eq('parameter_name', 'pid_last_duty')
-            .in('controller_id', selIds),
-          supabase.from('pending_rapt_retries').select('controller_id').in('controller_id', selIds),
-        ]);
-        const DRIFT_DUTY_STALE_MS = 15 * 60 * 1000;
-        const driftNow = Date.now();
-        const driftDutyMap = new Map<string, number>();
-        for (const d of (driftDutyRows || []) as any[]) {
-          const ageMs = d.last_updated_at ? driftNow - new Date(d.last_updated_at).getTime() : Infinity;
-          driftDutyMap.set(d.controller_id, ageMs > DRIFT_DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value)));
-        }
-        const pendingOffSet = new Set((pendingOffRows || []).map((r: any) => r.controller_id));
-
-        const manualChangeDetections: { controllerId: string; controllerName: string; hardwareTarget: number; dbTarget: number; source: string }[] = [];
-        const controllerUpdates: Record<string, any>[] = [];
-        const driftAlerts: { controllerId: string; controllerName: string; offset: number; baseline: number }[] = [];
-        // PWM OFF read-back: controllers där hw-target inte matchar senast skickad revert
-        const pwmOffMismatches: { controllerId: string; controllerName: string; expected: number; actual: number | null }[] = [];
-        // Föräldralösa PWM-extremer: hw står kvar på burst-värdet men ingen OFF ligger pending
-        const orphanExtremes: { controllerId: string; controllerName: string; hwTarget: number; revertTo: number; mode: 'cooling' | 'heating' }[] = [];
-
-        for (const controller of selectedControllersData) {
-          // Pi-styrda tankar: PT100 + lokal regulator äger temp/target. Rör dem inte.
-          if (existingMap.get(controller.id)?.actuation === 'pi') continue;
-
-          const currentTemp = controller.temperature || controller.telemetry?.[0]?.temperature;
-          const targetTemp = controller.targetTemperature;
-
-          // Determine linked pill: API controller field, reverse pill→controller map, then DB fallback
-          const linkedPillId = controller.controlDeviceId || controller.linkedDevice || controller.linkedDeviceId
-            || controllerToPillId.get(controller.id)
-            || existingMap.get(controller.id)?.linked_pill_id || null;
-          // BLE owns pill_temp/actual_temp/last_update. Read current pill temp from DB.
-          const existing = existingMap.get(controller.id);
-          const pillTemp = existing?.pill_temp != null ? Number(existing.pill_temp) : null;
-
-          const hasActiveSession = controllersWithActiveSessions.has(controller.id);
-          const isCoolerController = controller.id === coolerControllerId;
-
-          const updateData: Record<string, any> = {
-            controller_id: controller.id,
-            name: controller.name || controller.id,
-            current_temp: currentTemp,
-            cooling_enabled: controller.coolingEnabled || false,
-            heating_enabled: controller.heatingEnabled || false,
-            heating_utilisation: controller.heatingUtilisation || 0,
-            cooling_hysteresis: controller.coolingHysteresis ?? 0.2,
-            heating_hysteresis: controller.heatingHysteresis ?? 0.2,
-            cooling_run_time: controller.coolingRunTime || 0,
-            cooling_starts: controller.coolingStarts || 0,
-            heating_run_time: controller.heatingRunTime || 0,
-            heating_starts: controller.heatingStarts || 0,
-            is_glycol_cooler: existing?.is_glycol_cooler ?? false,
-            profile_target_temp: existing?.profile_target_temp ?? null,
-            min_target_temp: existing?.min_target_temp ?? null,
-            max_target_temp: existing?.max_target_temp ?? null,
-            actual_temp: existing?.actual_temp ?? null,
-            pill_probe_offset: existing?.pill_probe_offset ?? null,
-            pill_probe_offset_baseline: existing?.pill_probe_offset_baseline ?? null,
-            pill_probe_offset_updated_at: existing?.pill_probe_offset_updated_at ?? null,
-            pill_probe_drift_streak: existing?.pill_probe_drift_streak ?? 0,
-            updated_at: new Date().toISOString()
-          };
-
-          // Probe freshness = when the RAPT controller last reported in (lastActivityTime
-          // from the API). Using value-change detection is wrong: a stable probe value
-          // would falsely look stale and trigger probe-stale damping in the PID even
-          // though the controller just reported. RAPT's `lastActivityTime` is the
-          // authoritative "last heard from device" timestamp.
-          if (currentTemp != null) {
-            const lat = (controller as any).lastActivityTime;
-            const latMs = lat ? Date.parse(lat) : NaN;
-            updateData.current_temp_updated_at = Number.isFinite(latMs)
-              ? new Date(latMs).toISOString()
-              : new Date().toISOString();
-          }
-
-          // No BLE ingest in this project — RAPT sync is the sole source of last_update.
-          // Stamp on every successful poll so downstream consumers (auto-adjust-cooling)
-          // see real freshness and don't flag the controller as offline.
-          if (currentTemp != null) {
-            updateData.last_update = new Date().toISOString();
-          } else {
-            updateData.last_update = existing?.last_update ?? null;
-          }
-
-          // SSOT: BLE-ingest owns actual_temp/pill_temp/last_update. Preserve existing
-          // actual_temp for pill-linked controllers so sync upsert never nulls it out.
-          // When NO pill is linked (e.g. glycol cooler), BLE-ingest never runs for this
-          // controller — so actual_temp would otherwise be stuck at its cold-start seed.
-          // Keep actual_temp = probe on every sync so the SSOT stays fresh.
-          if (pillTemp == null && currentTemp != null) {
-            updateData.actual_temp = currentTemp;
-          }
-
-          // Probe = drift sanity-check. When we have both pill and probe readings,
-          // learn a running pill−probe offset (EMA, alpha=0.2). Alarm if the offset
-          // drifts >1.0°C from its 24h baseline (pill floating, battery weak, etc.).
-          //
-          // PWM-guard: skip learning + drift-alarm ONLY while the controller's hw
-          // target sits at a PWM extreme (≤ min+0.5° or ≥ max−0.5°). During the
-          // OFF-revert window (probe±2°) the hw thermostat is suppressed and
-          // NOTHING is being driven — that's the cleanest possible moment to
-          // sample pill−probe, so we deliberately let learning run there.
-          const hwTarget = controller.targetTemperature != null ? Number(controller.targetTemperature) : null;
-          const minBound = existing?.min_target_temp != null ? Number(existing.min_target_temp) : -10;
-          const maxBound = existing?.max_target_temp != null ? Number(existing.max_target_temp) : 40;
-          const atColdExtreme = hwTarget != null && hwTarget <= minBound + 0.5;
-          const atHotExtreme = hwTarget != null && hwTarget >= maxBound - 0.5;
-          const pwmActive = atColdExtreme || atHotExtreme;
-          // ── SÄKERHET: hw står på ett PWM-extremvärde men det finns ingen pending
-          // OFF-rad → bursten har tappats bort och hårdvaran kyler/värmer för fullt
-          // tills nästa PID-cykel. Revert direkt.
-          if (pwmActive && !pendingOffSet.has(controller.id) && currentTemp != null) {
-            const probe = Number(currentTemp);
-            const revertTo = Math.round(
-              Math.min(maxBound, Math.max(minBound, atColdExtreme ? probe + 2 : probe - 2)) * 10
-            ) / 10;
-            orphanExtremes.push({
-              controllerId: controller.id,
-              controllerName: existing?.name ?? controller.id,
-              hwTarget: hwTarget as number,
-              revertTo,
-              mode: atColdExtreme ? 'cooling' : 'heating',
-            });
-          }
-          // ── Verifiera att PWM OFF faktiskt landat i hårdvaran ──
-          // Vi jämför RAPT:s rapporterade target mot det revert-värde vi senast
-          // skickade. Kollas först 45 s efter sändning och bara om ingen ny
-          // OFF ligger pending för samma controller.
-          const expectedOff = existing?.pwm_off_expected_target != null ? Number(existing.pwm_off_expected_target) : null;
-          const offSentAtMs = existing?.pwm_off_sent_at ? Date.parse(String(existing.pwm_off_sent_at)) : null;
-          if (expectedOff != null && offSentAtMs != null && !pendingOffSet.has(controller.id) && Date.now() - offSentAtMs > 45_000) {
-            if (hwTarget != null && Math.abs(hwTarget - expectedOff) <= 0.15) {
-              updateData.pwm_off_expected_target = null;
-              updateData.pwm_off_sent_at = null;
-            } else {
-              pwmOffMismatches.push({
-                controllerId: controller.id,
-                controllerName: existing?.name ?? controller.id,
-                expected: expectedOff,
-                actual: hwTarget,
-              });
-            }
-          }
-          // Idle gate: duty must be 0% and no pending PWM OFF-revert, and the probe
-          // must be thermally settled (probe moved <0.15° since last sync). Otherwise
-          // the "offset" just measures cooling transients, not sensor drift.
-          const dutyNow = driftDutyMap.get(controller.id) ?? 0;
-          const prevProbe = existing?.current_temp != null ? Number(existing.current_temp) : null;
-          const probeSettled = prevProbe == null || currentTemp == null
-            ? false
-            : Math.abs(Number(currentTemp) - prevProbe) < 0.15;
-          const idleForSampling = dutyNow <= 0 && !pendingOffSet.has(controller.id) && probeSettled;
-          if (pillTemp != null && currentTemp != null && !pwmActive && idleForSampling) {
-            const rawOffset = pillTemp - Number(currentTemp);
-            const prevOffset = existing?.pill_probe_offset != null ? Number(existing.pill_probe_offset) : null;
-            // First-seen: seed with raw sample so calibration is available immediately.
-            // After that: EMA (alpha=0.2) for ~5-sample smoothing.
-            const newOffset = prevOffset == null ? rawOffset : prevOffset * 0.8 + rawOffset * 0.2;
-            updateData.pill_probe_offset = Math.round(newOffset * 1000) / 1000;
-            updateData.pill_probe_offset_updated_at = new Date().toISOString();
-
-            const baseline = existing?.pill_probe_offset_baseline != null
-              ? Number(existing.pill_probe_offset_baseline)
-              : null;
-            const prevStreak = existing?.pill_probe_drift_streak ?? 0;
-            // Relative threshold: a tank with a 4° base offset must not alarm on
-            // normal variation. 25% of baseline, never tighter than 1.0°.
-            const driftThreshold = baseline == null ? 1.0 : Math.max(1.0, Math.abs(baseline) * 0.25);
-            if (baseline == null) {
-              updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
-              updateData.pill_probe_drift_streak = 0;
-            } else if (Math.abs(newOffset - baseline) > driftThreshold && hasActiveSession) {
-              const streak = prevStreak + 1;
-              if (streak >= 3) {
-                driftAlerts.push({
-                  controllerId: controller.id,
-                  controllerName: existing?.name || controller.name || controller.id,
-                  offset: newOffset,
-                  baseline,
-                });
-                // Learn the new stable pill/probe relationship after alerting once,
-                // otherwise the same offset change keeps re-alerting forever.
-                updateData.pill_probe_offset_baseline = updateData.pill_probe_offset;
-                updateData.pill_probe_drift_streak = 0;
-              } else {
-                updateData.pill_probe_drift_streak = streak;
-                console.log(`SENSOR_DRIFT_PENDING: ${existing?.name || controller.id} offset=${newOffset.toFixed(2)}° baseline=${baseline.toFixed(2)}° thr=${driftThreshold.toFixed(2)}° streak=${streak}/3`);
-              }
-            } else {
-              // Slow baseline tracking for normal movement between pill and probe.
-              updateData.pill_probe_offset_baseline = Math.round((baseline * 0.99 + newOffset * 0.01) * 1000) / 1000;
-              updateData.pill_probe_drift_streak = 0;
-            }
-          } else if (pillTemp != null && currentTemp != null) {
-            console.log(`OFFSET_SKIP: ${existing?.name || controller.id} pwm=${pwmActive} duty=${driftDutyMap.get(controller.id) ?? 0}% pendingOff=${pendingOffSet.has(controller.id)} settled=${probeSettled}`);
-          }
-
-          if (linkedPillId) updateData.linked_pill_id = linkedPillId;
-          // Preserve DB target_temp for controllers managed by automation:
-          // - Active fermentation session (profile controls target)
-          // - Cooler controller (cooler management controls target)
-          // - Controller has active PID (linked pill + active session or profile target)
-          const hasProfileTarget = existing?.profile_target_temp != null;
-          const isPidManaged = pillTemp != null && (hasActiveSession || hasProfileTarget);
-          if (!hasActiveSession && !isCoolerController && !isPidManaged) {
-            updateData.target_temp = targetTemp;
-          } else {
-            const preservedTarget = existingMap.get(controller.id)?.target_temp ?? targetTemp;
-
-            // Detect manual hardware changes on managed controllers
-            if (targetTemp != null && Math.abs(preservedTarget - targetTemp) >= 0.1) {
-              const controllerLabel = controller.name || controller.id;
-              const source = isCoolerController ? 'kylare' : isPidManaged ? 'PID' : 'profil';
-
-              // Check if this "change" is just RAPT API latency from a recent PID/automation adjustment.
-              // If the hardware value matches the old or new target of a recent adjustment, skip.
-              // Check ALL recent adjustments (not just the latest) to handle multi-cycle API latency.
-              // Hardware may still report a value from 2-3 cycles ago.
-              const { data: recentAdjs } = await supabase
-                .from('auto_cooling_adjustments')
-                .select('old_target_temp, new_target_temp')
-                .eq('cooler_controller_id', controller.id)
-                .gte('created_at', new Date(Date.now() - 20 * 60 * 1000).toISOString())
-                .order('created_at', { ascending: false })
-                .limit(10);
-
-              const isAutomationLatency = recentAdjs?.some(adj =>
-                Math.abs(targetTemp - adj.old_target_temp) < 0.25 ||
-                Math.abs(targetTemp - adj.new_target_temp) < 0.25
-              ) ?? false;
-
-              // PWM burst marker: 0°C (cooling) and max_target_temp (heating) are never legitimate manual targets
-              // for PID-managed controllers. RAPT API telemetry has 3-15 min latency, so hw may still report
-              // stale PWM burst values long after PWM OFF has reverted.
-              const isPwmBurstArtifact = isPidManaged && (targetTemp <= -4 || targetTemp >= 39);
-
-              if (isAutomationLatency || isPwmBurstArtifact) {
-                console.log(`SYNC_SKIP_FALSE_MANUAL: ${controllerLabel}: Hårdvara ${targetTemp}°C ${isPwmBurstArtifact ? 'är PWM-burst-artifact' : `matchar senaste automation (${recentAdjs!.length} adj inom 20min)`}, ignorerar`);
-                updateData.target_temp = preservedTarget; // Keep DB value
-              } else {
-                console.log(`SYNC_MANUAL_CHANGE: ${controllerLabel}: Hårdvara ändrad till ${targetTemp}°C (DB: ${preservedTarget}°C) — ${source}-hanterad`);
-
-                // Accept the hardware value so the change is only logged once
-                updateData.target_temp = targetTemp;
-                if (isCoolerController) {
-                  updateData.profile_target_temp = targetTemp;
-                }
-
-                // Log as manual adjustment so it appears in decision history
-                manualChangeDetections.push({
-                  controllerId: controller.id,
-                  controllerName: controllerLabel,
-                  hardwareTarget: targetTemp,
-                  dbTarget: preservedTarget,
-                  source,
-                });
-              }
-            } else {
-              updateData.target_temp = preservedTarget;
-            }
-          }
-
-          controllerUpdates.push(updateData);
-          controllersUpdated++;
-        }
-
-        if (controllerUpdates.length > 0) {
-          const { error: upsertError } = await supabase.from('rapt_temp_controllers')
-            .upsert(controllerUpdates, { onConflict: 'controller_id', ignoreDuplicates: false });
-          if (upsertError) throw upsertError;
-        }
-        // Save for Phase 2c tempHistoryTask (avoid extra DB read)
-        controllerUpdatesForHistory = controllerUpdates;
-
-        for (const mc of manualChangeDetections) {
-          await supabase.from('auto_cooling_adjustments').insert({
-            cooler_controller_id: mc.controllerId,
-            cooler_controller_name: mc.controllerName,
-            old_target_temp: mc.dbTarget,
-            new_target_temp: mc.hardwareTarget,
-            lowest_followed_temp: mc.hardwareTarget,
-            reason: `🔧 Manuell hårdvaruändring detekterad: ${mc.dbTarget.toFixed(1)}° → ${mc.hardwareTarget.toFixed(1)}° (${mc.source}-hanterad, automation bevarar DB-värde)`,
-            original_target_temp: mc.hardwareTarget,
-            followed_controller_name: mc.controllerName,
-          });
-          console.log(`SYNC_MANUAL_LOGGED: ${mc.controllerName}: Loggade manuell ändring ${mc.dbTarget}° → ${mc.hardwareTarget}°`);
-        }
-
-        // Drift alarms — pill drifting away from probe by >1°C
-        for (const da of driftAlerts) {
-          const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-          const { data: recent } = await supabase
-            .from('pending_notifications')
-            .select('id')
-            .eq('type', 'sensor_drift')
-            .eq('controller_id', da.controllerId)
-            .gte('created_at', sixHoursAgo)
-            .limit(1);
-          if (!recent || recent.length === 0) {
-            await supabase.from('pending_notifications').insert({
-              type: 'sensor_drift',
-              controller_id: da.controllerId,
-              title: `Sensordrift: ${da.controllerName}`,
-              body: `Pill-probe-offset ${da.offset.toFixed(2)}° (baseline ${da.baseline.toFixed(2)}°). Kolla pillens batteri/läge eller probens kontakt.`,
-            });
-            console.log(`SENSOR_DRIFT: ${da.controllerName} offset=${da.offset.toFixed(2)}° baseline=${da.baseline.toFixed(2)}°`);
-          }
-        }
-
-        // ── PWM OFF-verifiering: hw-target matchar inte skickad revert → skicka om + larma ──
-        for (const mm of pwmOffMismatches) {
-          console.error(`PWM_OFF_UNVERIFIED: ${mm.controllerName} hw=${mm.actual}° förväntat=${mm.expected}° — skickar om`);
-          let resendOk = false;
-          try {
-            const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-              body: JSON.stringify({
-                controllerId: mm.controllerId,
-                action: 'setTargetTemperature',
-                value: mm.expected,
-                source: 'pwm',
-                pwm_label: `PWM OFF re-send (overifierad): → ${mm.expected}°`,
-              }),
-              signal: AbortSignal.timeout(15000),
-            });
-            resendOk = resp.ok;
-          } catch (e) {
-            console.error(`PWM_OFF_RESEND_ERROR: ${mm.controllerName}: ${e}`);
-          }
-          // Behåll förväntat värde men nollställ klockan → verifieras igen nästa sync.
-          await supabase.from('rapt_temp_controllers')
-            .update({ pwm_off_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-            .eq('controller_id', mm.controllerId);
-
-          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-          const { data: recentPwm } = await supabase
-            .from('pending_notifications')
-            .select('id')
-            .eq('type', 'pwm_off_unverified')
-            .eq('controller_id', mm.controllerId)
-            .gte('created_at', thirtyMinAgo)
-            .limit(1);
-          if (!recentPwm || recentPwm.length === 0) {
-            await supabase.from('pending_notifications').insert({
-              type: 'pwm_off_unverified',
-              controller_id: mm.controllerId,
-              title: `PWM OFF ej bekräftad: ${mm.controllerName}`,
-              body: `Hårdvaran står på ${mm.actual ?? '–'}° men skulle ha ${mm.expected}° efter PWM OFF. Kommandot ${resendOk ? 'har skickats om' : 'kunde inte skickas om'}.`,
-            });
-          }
-        }
-
-        // ── Föräldralösa PWM-extremer: tvinga revert omedelbart ──
-        for (const oe of orphanExtremes) {
-          console.error(`PWM_ORPHAN_EXTREME: ${oe.controllerName} hw=${oe.hwTarget}° (${oe.mode}) utan pending OFF — reverterar till ${oe.revertTo}°`);
-          let revertOk = false;
-          try {
-            const resp = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-              body: JSON.stringify({
-                controllerId: oe.controllerId,
-                action: 'setTargetTemperature',
-                value: oe.revertTo,
-                source: 'pwm',
-                pwm_label: `PWM OFF nödrevert (föräldralös burst): → ${oe.revertTo}°`,
-              }),
-              signal: AbortSignal.timeout(15000),
-            });
-            revertOk = resp.ok;
-          } catch (e) {
-            console.error(`PWM_ORPHAN_REVERT_ERROR: ${oe.controllerName}: ${e}`);
-          }
-          if (revertOk) {
-            await supabase.from('rapt_temp_controllers')
-              .update({
-                target_temp: oe.revertTo,
-                pwm_off_expected_target: oe.revertTo,
-                pwm_off_sent_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('controller_id', oe.controllerId);
-          }
-
-          const thirtyMinAgo2 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-          const { data: recentOrphan } = await supabase
-            .from('pending_notifications')
-            .select('id')
-            .eq('type', 'pwm_orphan_extreme')
-            .eq('controller_id', oe.controllerId)
-            .gte('created_at', thirtyMinAgo2)
-            .limit(1);
-          if (!recentOrphan || recentOrphan.length === 0) {
-            await supabase.from('pending_notifications').insert({
-              type: 'pwm_orphan_extreme',
-              controller_id: oe.controllerId,
-              title: `PWM fastnat på ${oe.mode === 'cooling' ? 'full kyla' : 'full värme'}: ${oe.controllerName}`,
-              body: `Hårdvaran stod kvar på ${oe.hwTarget}° utan pågående burst. Nödrevert till ${oe.revertTo}° ${revertOk ? 'skickad' : 'MISSLYCKADES'}.`,
-            });
-          }
-        }
-      }
-
-      tPhase1Upsert = Date.now() - tUpsertStart;
-      console.log(`  ⏱️ Phase 1c (upsert): ${tPhase1Upsert}ms`);
-
-      // ── Phase 1d: Auto-discovery (only when called with discover: true from manual button) ──
-      if (discoverNewDevices) {
-        const tDiscover = Date.now();
-        const [{ data: existingSelectedPills }, { data: existingSelectedControllers }] = await Promise.all([
-          supabase.from('selected_rapt_pills').select('pill_id'),
-          supabase.from('selected_rapt_temp_controllers').select('controller_id'),
-        ]);
-
-        const existingPillIdSet = new Set(existingSelectedPills?.map(s => s.pill_id) || []);
-        const existingCtrlIdSet = new Set(existingSelectedControllers?.map(s => s.controller_id) || []);
-
-        const discoveryOps: Promise<any>[] = [];
-
-        // New pills
-        const newPills = fetchedPills.filter((p: any) => !existingPillIdSet.has(p.id));
-        if (newPills.length > 0) {
-          const { data: maxPillOrder } = await supabase.from('selected_rapt_pills')
-            .select('display_order').order('display_order', { ascending: false }).limit(1);
-          let nextPillOrder = (maxPillOrder && maxPillOrder.length > 0) ? maxPillOrder[0].display_order + 1 : 1;
-          discoveryOps.push(supabase.from('selected_rapt_pills').insert(
-            newPills.map((p: any) => ({ pill_id: p.id, is_visible: true, display_order: nextPillOrder++ }))
-          ));
-          console.log(`Auto-added ${newPills.length} new pills to selection`);
-        }
-
-        // fetchedControllers already contains ALL controllers from RAPT API (endpoint returns everything)
-        const newControllers = fetchedControllers.filter((c: any) => !existingCtrlIdSet.has(c.id));
-        if (newControllers.length > 0) {
-          const { data: maxCtrlOrder } = await supabase.from('selected_rapt_temp_controllers')
-            .select('display_order').order('display_order', { ascending: false }).limit(1);
-          let nextCtrlOrder = (maxCtrlOrder && maxCtrlOrder.length > 0) ? maxCtrlOrder[0].display_order + 1 : 1;
-          discoveryOps.push(supabase.from('selected_rapt_temp_controllers').insert(
-            newControllers.map((c: any) => ({ controller_id: c.id, is_visible: true, display_order: nextCtrlOrder++ }))
-          ));
-          console.log(`Auto-added ${newControllers.length} new controllers to selection`);
-        }
-
-        if (discoveryOps.length > 0) await Promise.all(discoveryOps);
-        discoveredPills = newPills.length;
-        discoveredControllers = newControllers.length;
-        console.log(`  ⏱️ Phase 1d (discovery): ${Date.now() - tDiscover}ms — found ${discoveredPills} pills, ${discoveredControllers} controllers`);
-      }
-
-      console.log(`⏱️ Phase 1 (RAPT total): ${Date.now() - tPhase1}ms`);
-      console.log(`RAPT sync: ${pillsUpdated} pills, ${controllersUpdated} controllers`);
-    } catch (raptError) {
-      raptFailed = true;
-      console.log(`⏱️ Phase 1 (RAPT FAILED in ${raptFailedPhase}): ${Date.now() - tPhase1}ms`);
-      console.error('RAPT sync failed (non-fatal, continuing with remaining tasks):', raptError);
+    if (syncSettingsRow?.id) {
+      await supabase.from('sync_settings').update({ last_rapt_quick_sync_at: nowIso }).eq('id', syncSettingsRow.id);
     }
 
     // ──────────────────────────────────────────────────────
-    // PHASE 2: Custom brews + automation
+    // PHASE 2a: Sync custom brews (SG correction/calibration on BLE data)
     // ──────────────────────────────────────────────────────
-
-    let brewsUpdated = 0;
-
-    // PHASE 2a: Sync custom brews (RAPT already done in Phase 1)
-    // Custom brews read pill/controller data from DB (written in Phase 1)
-
-    let customBrewsUpdated = 0;
-
-    const customBrewSync = async () => {
-      const { data: customBrews } = await supabase
-        .from('brew_readings')
-        .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, current_sg, current_temp, battery, last_update, created_at, label_image_url, description, pill_compensation')
-        .like('batch_id', 'custom\\_%')
-        .in('status', ['Jäsning', 'Fermenting']);
-
-      if (!customBrews || customBrews.length === 0) return;
-      console.log(`Found ${customBrews.length} custom brews in fermentation`);
-
-      // Use Phase 1 in-memory data instead of redundant DB queries
-      const pillMap = new Map<string, any>();
-      for (const pill of fetchedPills) {
-        pillMap.set(pill.id, pill);
-      }
-      const dbCtrlMap = new Map<string, any>();
-      for (const ctrl of controllerUpdatesForHistory) {
-        dbCtrlMap.set(ctrl.controller_id, ctrl);
-      }
-      // Fallback: if Phase 1 failed (raptFailed), read from DB
-      if (pillMap.size === 0 && controllerUpdatesForHistory.length === 0) {
-        const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
-          supabase.from('rapt_pills').select('pill_id, name, paired_device_id, gravity, temperature, battery_level, last_update'),
-          supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp'),
-        ]);
-        for (const p of (dbPills || [])) pillMap.set(p.pill_id, { id: p.pill_id, name: p.name, pairedDeviceId: p.paired_device_id, gravity: p.gravity, temperature: p.temperature, battery: p.battery_level, lastActivityTime: p.last_update });
-        for (const c of (dbControllers || [])) dbCtrlMap.set(c.controller_id, c);
-      }
-
-      // Separate brews into initial-sync (need telemetry API) vs quick-append
-      const initialSyncBrews: { brew: any; pillId: string }[] = [];
-      const quickAppendBrews: { brew: any; pillId: string }[] = [];
-
-      for (const brew of customBrews) {
-        let pillId = brew.linked_pill_id;
-        
-        if (!pillId && brew.linked_controller_id) {
-          const controller = dbCtrlMap.get(brew.linked_controller_id);
-          if (controller?.linked_pill_id) pillId = controller.linked_pill_id;
-        }
-
-        if (!pillId) {
-          // Try matching via paired_device_id + temp
-          for (const [pId, pill] of pillMap) {
-            const pairedId = pill.pairedDeviceId || pill.paired_device_id;
-            if (!pairedId) continue;
-            const controller = dbCtrlMap.get(pairedId);
-            if (controller?.pill_temp != null && Math.abs(controller.pill_temp - brew.current_temp) <= 3) {
-              pillId = pId;
-              console.log(`Auto-matched pill ${pill.name} to brew ${brew.name} via paired_device_id + temp matching`);
-              break;
-            }
-          }
-        }
-        
-        if (!pillId) {
-          console.log(`No pill_id available for brew ${brew.name}, skipping`);
-          continue;
-        }
-
-        // Check if brew has existing snapshots to determine initial vs quick-append
-        const { count: snapshotCount } = await supabase
-          .from('brew_data_snapshots')
-          .select('id', { count: 'exact', head: true })
-          .eq('brew_id', brew.id);
-        if (!snapshotCount || snapshotCount === 0) {
-          initialSyncBrews.push({ brew, pillId });
-        } else {
-          quickAppendBrews.push({ brew, pillId });
-        }
-      }
-
-      // ── Quick-append: use Phase 1 pill data (no API call) ──
-      // Skipped entirely when BLE source — ingest-pill-ble writes snapshots + brew_readings.
-      for (const { brew, pillId } of (pillsViaBle ? [] : quickAppendBrews)) {
-        try {
-          const pill = pillMap.get(pillId);
-          if (!pill) {
-            console.log(`Pill ${pillId} not found in memory for brew ${brew.name}, skipping quick-append`);
-            continue;
-          }
-
-          const rawGravity = pill.gravity ?? pill.telemetry?.[0]?.gravity;
-          const pillTemp = pill.temperature ?? pill.telemetry?.[0]?.temperature;
-          const pillBattery = Math.round(pill.battery || pill.battery_level || 0);
-          const pillLastUpdate = pill.lastActivityTime || pill.last_update || pill.telemetry?.[0]?.createdOn;
-
-          if (rawGravity == null || pillTemp == null || !pillLastUpdate) {
-            console.log(`Incomplete pill data for ${brew.name} (gravity=${rawGravity}, temp=${pillTemp}), skipping`);
-            continue;
-          }
-
-          // Convert raw gravity (e.g. 1045) to SG (1.045)
-          let sgValue = rawGravity > 100 ? rawGravity / 1000 : rawGravity;
-
-          // Apply SG correction if enabled
-          if (sgTempCorrectionEnabled) {
-            try {
-              const { residualPerDegree, confident } = await getLearnedResidual(supabase, pillId);
-              if (confident) {
-                sgValue = applySgCorrection(sgValue, pillTemp, residualPerDegree);
-              }
-            } catch (_e) { /* no correction */ }
-          }
-
-          // Filter invalid values
-          if (sgValue < 0.990 || sgValue > 1.200) {
-            console.log(`SG ${sgValue} out of range for ${brew.name}, skipping`);
-            continue;
-          }
-
-          const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
-          const newPointDate = new Date(pillLastUpdate).toISOString();
-          if (fermentationStartDate && new Date(newPointDate) < fermentationStartDate) continue;
-
-          // Dedup via snapshot upsert (onConflict: brew_id,recorded_at, ignoreDuplicates)
-          const og = brew.original_gravity;
-          const currentSg = sgValue;
-          const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
-          const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
-
-          // SSOT: prefer controller actual_temp over pill temp
-          const linkedCtrlForTemp = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
-          const ssotTemp = linkedCtrlForTemp?.actual_temp ?? pillTemp;
-
-          // Create snapshot (dedup handled by upsert)
-          await createBrewSnapshot(supabase, brew.id, {
-            recorded_at: newPointDate,
-            sg: sgValue,
-            pill_temp: pillTemp,
-            controller_temp: linkedCtrlForTemp?.current_temp ?? null,
-            profile_target_temp: linkedCtrlForTemp?.profile_target_temp ?? null,
-            actual_temp: ssotTemp,
-            controller_id: brew.linked_controller_id ?? null,
-          });
-
-          // Update brew_readings with latest values (no sg_data write)
-          const { error: updateError } = await supabase
-            .from('brew_readings')
-            .update({
-              current_sg: currentSg, current_temp: ssotTemp,
-              attenuation: Math.max(0, Math.min(100, attenuation)),
-              abv: Math.max(0, abv), battery: pillBattery,
-              last_update: newPointDate, updated_at: new Date().toISOString()
-            })
-            .eq('id', brew.id);
-
-          if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
-          console.log(`Quick-appended 1 point to ${brew.name} (SG=${sgValue.toFixed(4)}, ${pillTemp.toFixed(1)}°C)`);
-          customBrewsUpdated++;
-
-          if (sgTempCorrectionEnabled) {
-            try {
-              const snapshots = await fetchSgDataFromSnapshots(supabase, brew.id);
-              await processSgCalibration(supabase, pillId, snapshots);
-            } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
-          }
-        } catch (brewError) {
-          console.error(`Error quick-appending brew ${brew.name}:`, brewError);
-        }
-      }
-
-      // ── Initial sync: fetch full telemetry history (parallel) ──
-      if (!pillsViaBle && initialSyncBrews.length > 0 && access_token) {
-        console.log(`Initial sync for ${initialSyncBrews.length} brews (fetching telemetry)...`);
-        await Promise.all(initialSyncBrews.map(async ({ brew, pillId }) => {
-          try {
-            const endDate = new Date();
-            let startDate: Date;
-            if (brew.fermentation_start) {
-              startDate = new Date(brew.fermentation_start);
-            } else {
-              const brewCreatedDate = new Date(brew.created_at);
-              const thirtyDaysAgo = new Date();
-              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-              startDate = brewCreatedDate < thirtyDaysAgo ? thirtyDaysAgo : brewCreatedDate;
-            }
-
-            let telemetryData: TelemetryRecord[];
-            try {
-              telemetryData = await fetchPillTelemetryCorrected(access_token!, pillId, startDate.toISOString(), endDate.toISOString(), supabase, sgTempCorrectionEnabled);
-            } catch (telemetryError) {
-              console.error(`Failed to fetch telemetry for brew ${brew.name}:`, telemetryError);
-              return;
-            }
-
-            if (!telemetryData || telemetryData.length === 0) {
-              if (brew.linked_controller_id) {
-                const ctrlFull = dbCtrlMap.get(brew.linked_controller_id);
-                const ssotTemp = ctrlFull?.actual_temp ?? ctrlFull?.current_temp;
-                if (ssotTemp != null) {
-                  await supabase.from('brew_readings')
-                    .update({ current_temp: ssotTemp, updated_at: new Date().toISOString() })
-                    .eq('id', brew.id);
-                  console.log(`Updated ${brew.name} with SSOT actual_temp: ${ssotTemp}°C`);
-                  customBrewsUpdated++;
-                }
-              }
-              return;
-            }
-
-            const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
-            const newSgData: SgDataPoint[] = telemetryData
-              .map((t: TelemetryRecord) => ({ date: new Date(t.createdOn).toISOString(), value: t.gravity / 1000, temp: t.temperature }))
-              .filter((d: SgDataPoint) => {
-                if (d.value < 0.990 || d.value > 1.200) return false;
-                if (fermentationStartDate && new Date(d.date) < fermentationStartDate) return false;
-                return true;
-              });
-
-            if (newSgData.length === 0) return;
-
-            const mergedSgData = newSgData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            const firstData = mergedSgData[0];
-            const latestData = mergedSgData[mergedSgData.length - 1];
-            const latestTelemetry = telemetryData[telemetryData.length - 1];
-
-            let og = brew.original_gravity;
-            if (firstData.value >= 1.030 && firstData.value <= 1.150) {
-              og = firstData.value;
-              console.log(`Auto-updating OG for ${brew.name} from ${brew.original_gravity} to ${og} (initial sync)`);
-            }
-
-            const currentSg = latestData.value;
-            const attenuation = og > 1 ? Math.round(((og - currentSg) / (og - 1)) * 100) : 0;
-            const abv = og > 1 ? Number(((og - currentSg) * 131.25).toFixed(1)) : 0;
-
-            // SSOT: prefer controller actual_temp
-            const linkedCtrlInit = brew.linked_controller_id ? dbCtrlMap.get(brew.linked_controller_id) : null;
-            const ssotTempInit = linkedCtrlInit?.actual_temp ?? latestData.temp;
-
-            // Create snapshots for all initial data points
-            for (const point of mergedSgData) {
-              const ctrl = linkedCtrlInit;
-              await createBrewSnapshot(supabase, brew.id, {
-                recorded_at: point.date,
-                sg: point.value,
-                pill_temp: point.temp,
-                controller_temp: ctrl?.current_temp ?? null,
-                profile_target_temp: ctrl?.profile_target_temp ?? null,
-                actual_temp: ctrl?.actual_temp ?? point.temp,
-                controller_id: brew.linked_controller_id ?? null,
-              });
-            }
-
-            // Update brew_readings with latest values (no sg_data write)
-            const { error: updateError } = await supabase
-              .from('brew_readings')
-              .update({
-                current_sg: currentSg, current_temp: ssotTempInit,
-                original_gravity: og, attenuation: Math.max(0, Math.min(100, attenuation)),
-                abv: Math.max(0, abv), battery: latestTelemetry.battery,
-                last_update: latestData.date, updated_at: new Date().toISOString()
-              })
-              .eq('id', brew.id);
-
-            if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); return; }
-            console.log(`Initial sync: Created ${newSgData.length} snapshots for ${brew.name}`);
-            customBrewsUpdated++;
-
-            if (sgTempCorrectionEnabled) {
-              try { await processSgCalibration(supabase, pillId, mergedSgData); } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
-            }
-          } catch (brewError) {
-            console.error(`Error processing brew ${brew.name}:`, brewError);
-          }
-        }));
-      } else if (initialSyncBrews.length > 0) {
-        console.log(`No RAPT token available for ${initialSyncBrews.length} initial sync brews, skipping`);
-      }
-    };
-
     const tPhase2a = Date.now();
-    const [customBrewResult] = await Promise.allSettled([
-      customBrewSync(),
-    ]);
+    let customBrewsUpdated = 0;
+    try {
+      customBrewsUpdated = await syncCustomBrews(supabase);
+    } catch (err) {
+      console.error('Custom brew sync error:', err);
+    }
     console.log(`⏱️ Phase 2a (custom brews): ${Date.now() - tPhase2a}ms`);
 
-    if (customBrewResult.status === 'rejected') console.error('Custom brew sync error:', customBrewResult.reason);
-
-    // ──────────────────────────────────────────────────────────
-    // PHASE 2b: Run automation AFTER all data is synced (SSOT principle)
-    // Automation runs in dryRun mode — returns pendingUpdates
-    // instead of flushing to RAPT API. Flush happens in Phase 3.
-    // ──────────────────────────────────────────────────────────
-    // Reuse autoCoolingRow from Phase 0 — no redundant DB query
-    const hasCoolingEnabled = autoCoolingRow?.enabled === true;
-    const hasPillComp = autoCoolingRow?.pill_compensation_enabled === true;
-
-    // Check active sessions — full select for injection into processAllSessions
-    const { data: activeSessCheck } = await supabase
-      .from('fermentation_sessions').select('*').eq('status', 'running').limit(100);
-    const hasActiveSessions2 = activeSessCheck && activeSessCheck.length > 0;
-
-    // Check active (non-glycol) controllers with cooling/heating from Phase 1c data
-    const hasActiveControllers = controllerUpdatesForHistory.some(c =>
-      !c.is_glycol_cooler && (c.cooling_enabled || c.heating_enabled));
-
-    // Check cooler idle status using in-memory data (fallback to DB if Phase 1 failed)
-    let coolerIsIdle2 = true;
-    if (hasCoolingEnabled && autoCoolingRow?.cooler_controller_id) {
-      const coolerCtrl = controllerUpdatesForHistory.find(
-        (c: any) => c.controller_id === autoCoolingRow.cooler_controller_id
-      );
-      if (coolerCtrl) {
-        const ct = parseFloat(String(coolerCtrl.target_temp ?? 0));
-        const cm = parseFloat(String(coolerCtrl.max_target_temp ?? 25));
-        coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
-      } else {
-        const { data: coolerCtrlDb } = await supabase.from('rapt_temp_controllers')
-          .select('target_temp, max_target_temp')
-          .eq('controller_id', autoCoolingRow.cooler_controller_id).maybeSingle();
-        if (coolerCtrlDb) {
-          const ct = parseFloat(String(coolerCtrlDb.target_temp ?? 0));
-          const cm = parseFloat(String(coolerCtrlDb.max_target_temp ?? 25));
-          coolerIsIdle2 = Math.abs(ct - cm) <= 0.5;
-        }
-      }
-    }
-
-    const systemIsIdle = !hasActiveSessions2 && !hasActiveControllers && (!hasCoolingEnabled || coolerIsIdle2);
-
-    let automationResult: any = null;
+    // ──────────────────────────────────────────────────────
+    // PHASE 2b: Fermentation profiles + metrics + system health
+    // Temperature control itself is fully owned by the Pi's local PID now —
+    // this only keeps profile/metrics/health bookkeeping up to date.
+    // ──────────────────────────────────────────────────────
     const tPhase2b = Date.now();
 
-    if (systemIsIdle) {
-      console.log('⏱️ Phase 2b (automation): SKIPPED — system idle');
-    } else {
-      console.log('All data synced — running automation (inlined, no HTTP hops for profiles/metrics/health)...');
+    const [{ data: controllers }, { data: activeSessCheck }] = await Promise.all([
+      supabase
+        .from('rapt_temp_controllers')
+        .select('controller_id, name, current_temp, actual_temp, pill_temp, target_temp, profile_target_temp, cooling_enabled, heating_enabled, is_glycol_cooler, last_update, linked_pill_id'),
+      supabase.from('fermentation_sessions').select('*').eq('status', 'running').limit(100),
+    ]);
+    const controllerList = controllers ?? [];
+    const hasActiveSessions = activeSessCheck && activeSessCheck.length > 0;
 
-      // Consolidated brew_readings query — used for brew_sg_data AND injected into computeAllMetrics
+    let profilesResult: any = { __skipped: true };
+    let metricsResult: any = null;
+    let healthResult: any = null;
+
+    if (hasActiveSessions) {
       const { data: allFermentingBrews } = await supabase
         .from('brew_readings')
         .select('id, name, original_gravity, final_gravity, current_sg, current_temp, battery, status, last_update, linked_controller_id, fermentation_start, attenuation, style')
         .in('status', ['Jäsning', 'Fermenting']);
 
-      // Build brew_sg_data map from consolidated query
-      const brew_sg_data: Record<string, any> = {};
-      if (allFermentingBrews) {
-        for (const brew of allFermentingBrews) {
-          if (brew.linked_controller_id) {
-            brew_sg_data[brew.linked_controller_id] = {
-              brew_id: brew.id, name: brew.name, current_sg: brew.current_sg,
-              og: brew.original_gravity, fg: brew.final_gravity, attenuation: brew.attenuation,
-              pill_temp: brew.current_temp, battery: brew.battery, status: brew.status,
-              last_update: brew.last_update,
-            };
-          }
-        }
-      }
-      console.log(`Collected brew_sg_data for ${Object.keys(brew_sg_data).length} controller(s)`);
-
-      // Consolidated brew_fermentation_metrics query — shared across profiles + metrics
       const fermentingBrewIds = (allFermentingBrews ?? []).map((b: any) => b.id);
       const { data: sharedBrewMetrics } = fermentingBrewIds.length > 0
         ? await supabase.from('brew_fermentation_metrics')
@@ -1179,142 +205,31 @@ Deno.serve(async (req) => {
             .in('brew_id', fermentingBrewIds)
         : { data: [] };
 
-      // ── Round 1 (parallel, inlined): profiles + metrics + health-check ──
-      const round1Start = Date.now();
-      const round1: Promise<any>[] = [];
+      const { data: recentNotifs } = await supabase
+        .from('pending_notifications')
+        .select('type, created_at')
+        .in('type', ['automation_failure', 'controller_conflict', 'step_timeout', 'sensor_offline', 'unknown_step_type'])
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .is('read_at', null);
 
-      // Profiles — direct import call with injected sessions + controllers + metrics
-      if (hasActiveSessions2) {
-        round1.push(
-          processAllSessions(supabase, {
-            sessions: activeSessCheck!,
-            controllers: controllerUpdatesForHistory,
-            brewMetrics: sharedBrewMetrics ?? [],
-            brewReadings: allFermentingBrews ?? [],
-          })
-            .then(r => { console.log(`  ✅ profiles (inlined): ${Date.now() - round1Start}ms`); return r; })
-            .catch(err => { console.error(`  ❌ profiles error: ${err}`); return { __error: true, __step: 'profiles' }; })
-        );
-      } else {
-        round1.push(Promise.resolve({ __skipped: true }));
-      }
-
-      // Metrics — direct import call with injected brews + sessions
-      round1.push(
+      [profilesResult, metricsResult, healthResult] = await Promise.all([
+        processAllSessions(supabase, {
+          sessions: activeSessCheck!,
+          controllers: controllerList,
+          brewMetrics: sharedBrewMetrics ?? [],
+          brewReadings: allFermentingBrews ?? [],
+        }).catch((err: any) => { console.error(`profiles error: ${err}`); return { __error: true, __step: 'profiles' }; }),
         computeAllMetrics(supabase, {
           brews: allFermentingBrews ?? [],
           sessions: activeSessCheck ?? [],
           existingMetrics: sharedBrewMetrics ?? [],
-        })
-          .then(r => { console.log(`  ✅ metrics (inlined): ${Date.now() - round1Start}ms`); return r; })
-          .catch(err => { console.error(`  ❌ metrics error: ${err}`); return { __error: true, __step: 'metrics' }; })
-      );
-
-      // Health check — use in-memory controllers + sessions, only query notifications
-      round1.push(
-        (async () => {
-          const { data: recentNotifs } = await supabase
-            .from('pending_notifications')
-            .select('type, created_at')
-            .in('type', ['automation_failure', 'controller_conflict', 'step_timeout', 'sensor_offline', 'unknown_step_type'])
-            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-            .is('read_at', null);
-          const health = computeSystemHealth(controllerUpdatesForHistory ?? [], activeSessCheck ?? [], recentNotifs ?? []);
-          console.log(`  ✅ health (inlined): ${Date.now() - round1Start}ms`);
-          return health;
-        })().catch(err => { console.error(`  ❌ health error: ${err}`); return { __error: true, __step: 'health' }; })
-      );
-
-      const [profilesResult, metricsResult, healthResult] = await Promise.all(round1);
-
-      // ── Round 2 (sequential): PID/glycol — depends on profile_target_temp from Round 1 ──
-      const callFn = async (name: string, body: any, timeoutMs: number, retries = 3) => {
-        for (let attempt = 1; attempt <= retries; attempt++) {
-          const fnStart = Date.now();
-          try {
-            const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-              body: JSON.stringify(body),
-              signal: AbortSignal.timeout(timeoutMs),
-            });
-            const duration = Date.now() - fnStart;
-            if (!response.ok) {
-              const errorText = await response.text();
-              // Retry on transient errors (404 during deploy, 502/503 gateway)
-              if (attempt < retries && [404, 502, 503].includes(response.status)) {
-                const delay = response.status === 404 ? 5000 : 3000; // longer delay for 404 (deploy in progress)
-                console.warn(`${name} attempt ${attempt}/${retries} failed (${response.status}), retrying in ${delay/1000}s...`);
-                await new Promise(r => setTimeout(r, delay));
-                continue;
-              }
-              console.error(`${name} error (${duration}ms): ${response.status} ${errorText}`);
-              return { __error: true, __step: name, __duration: duration, __status: response.status, __errorText: errorText.slice(0, 300) };
-            }
-            const data = await response.json();
-            if (attempt > 1) console.log(`  ✅ ${name}: ${duration}ms (retry ${attempt})`);
-            else console.log(`  ✅ ${name}: ${duration}ms`);
-            return { ...data, __duration: duration };
-          } catch (err) {
-            const duration = Date.now() - fnStart;
-            const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
-            if (attempt < retries && !isTimeout) {
-              console.warn(`${name} attempt ${attempt}/${retries} error, retrying in 3s...`);
-              await new Promise(r => setTimeout(r, 3000));
-              continue;
-            }
-            console.error(`${name} ${isTimeout ? 'timeout' : 'error'} (${duration}ms):`, err);
-            return { __error: true, __step: name, __duration: duration, __timeout: isTimeout };
-          }
-        }
-        return { __error: true, __step: name, __duration: 0 };
-      };
-
-      const needsCoolerRun = hasCoolingEnabled && (!hasActiveControllers ? !coolerIsIdle2 : true);
-      let pidResult: any = null;
-
-      if (needsCoolerRun || (hasPillComp && hasActiveControllers)) {
-        pidResult = await callFn('auto-adjust-cooling', {
-          rapt_access_token: access_token,
-          brew_sg_data,
-          dryRun: true,
-          injected_controllers: controllerUpdatesForHistory,
-          injected_settings: autoCoolingRow,
-          injected_sessions: activeSessCheck ?? [],
-        }, 30000);
-      }
-
-      // Build automationResult compatible with Phase 3 expectations
-      const pidFailed = pidResult?.__error === true;
-      const pidDecisions = !pidFailed ? (pidResult?.decisionLog ?? []) : [];
-      // Inject error decision so the UI shows *why* Phase 2b was empty
-      if (pidFailed) {
-        const errDetail: Record<string, any> = { step: pidResult?.__step ?? 'pid-glycol', duration_ms: pidResult?.__duration ?? 0 };
-        if (pidResult?.__timeout) errDetail.timeout = true;
-        if (pidResult?.__status) errDetail.http_status = pidResult.__status;
-        if (pidResult?.__errorText) errDetail.error_text = pidResult.__errorText;
-        const reason = pidResult?.__timeout ? 'timeout' : pidResult?.__status === 404 ? 'deploy-404' : pidResult?.__status ? `http-${pidResult.__status}` : 'unknown';
-        pidDecisions.push({ step: 'PID_ERROR', result: 'error', message: `pid-glycol misslyckades (${reason})`, details: errDetail });
-      }
-      automationResult = {
-        automationDecisions: pidDecisions,
-        automationFinalResult: !pidFailed ? (pidResult?.message ?? null) : null,
-        automationAdjustmentMade: (pidResult?.adjustments?.length ?? 0) > 0,
-        pendingUpdates: pidResult?.pendingUpdates ?? [],
-        hwOnlyIds: pidResult?.hwOnlyIds ?? [],
-        retriesToProcess: pidResult?.retriesToProcess ?? [],
-        pendingKickControllerId: pidResult?.pendingKickControllerId ?? null,
-      };
+        }).catch((err: any) => { console.error(`metrics error: ${err}`); return { __error: true, __step: 'metrics' }; }),
+        Promise.resolve(computeSystemHealth(controllerList, activeSessCheck ?? [], recentNotifs ?? []))
+          .catch((err: any) => { console.error(`health error: ${err}`); return { __error: true, __step: 'health' }; }),
+      ]);
 
       // Health critical notification
-      const suppressHealthCriticalNotification =
-        healthResult &&
-        !healthResult.__error &&
-        healthResult.overall_status === 'critical' &&
-        (healthResult.summary?.duplicate_controller_sessions?.length ?? 0) === 0 &&
-        (healthResult.summary?.sessions_with_stale_controllers ?? 0) > 0;
-
-      if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical' && !suppressHealthCriticalNotification) {
+      if (healthResult && !healthResult.__error && healthResult.overall_status === 'critical') {
         const issuesSummary = (healthResult.issues as string[])?.slice(0, 3).join('; ') ?? 'Unknown issues';
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data: recentHealthNotifs } = await supabase
@@ -1327,217 +242,25 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Failure alerting — only notify if the *previous* cycle also failed (consecutive failures)
-      // This suppresses transient errors from edge function deploys (brief 404 windows)
-      const failedSteps = [
-        profilesResult?.__error && 'profiles',
-        metricsResult?.__error && 'metrics',
-        healthResult?.__error && 'health',
-        pidResult?.__error && 'pid-glycol',
-      ].filter(Boolean) as string[];
-
-      if (failedSteps.length > 0) {
-        // Check if previous cycle also had a failure (look at last decision log)
-        const { data: prevLog } = await supabase
-          .from('auto_cooling_decision_logs')
-          .select('decisions')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const prevDecisions = (prevLog?.decisions as any[]) ?? [];
-        const prevHadError = prevDecisions.some((d: any) => d.step === 'PID_ERROR');
-
-        if (prevHadError) {
-          // Two consecutive failures — this is a real problem, notify
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-          const { data: recentNotifs } = await supabase
-            .from('pending_notifications').select('id')
-            .eq('type', 'automation_failure').gte('created_at', oneHourAgo).limit(3);
-          if ((recentNotifs?.length ?? 0) < 3) {
-            await supabase.from('pending_notifications').insert({
-              type: 'automation_failure', title: 'Automationsfel',
-              body: `${failedSteps.length} steg misslyckades (2+ cykler i rad): ${failedSteps.join(', ')}. Orsak: ${pidFailed ? (pidResult?.__timeout ? 'timeout' : pidResult?.__status ? `HTTP ${pidResult.__status}` : 'okänt') : 'se logg'}`,
-            });
-          }
-        } else {
-          console.warn(`Transient failure in ${failedSteps.join(', ')} — suppressing notification (first occurrence)`);
-        }
-      }
-
-      console.log(`⏱️ Phase 2b (automation inlined): ${Date.now() - tPhase2b}ms`);
+      console.log(`⏱️ Phase 2b (profiles/metrics/health): ${Date.now() - tPhase2b}ms`);
+    } else {
+      console.log('⏱️ Phase 2b (profiles/metrics/health): SKIPPED — no active sessions');
     }
 
-    // ──────────────────────────────────────────────────────────
-    // PHASE 3: EXECUTE — Flush RAPT updates + history + snapshots
-    // Single outbound RAPT interaction per cycle.
-    // ──────────────────────────────────────────────────────────
-    console.log('Phase 3: Execute (RAPT flush + history + snapshots + logging)...');
+    // ──────────────────────────────────────────────────────
+    // PHASE 3: History + snapshots + outage tracking
+    // All temperature control is local to the Pi now — this phase only
+    // records history / snapshots by reading rapt_temp_controllers /
+    // pi_live_state, no outbound RAPT calls.
+    // ──────────────────────────────────────────────────────
+    console.log('Phase 3: History + snapshots + outage tracking...');
     const tPhase3 = Date.now();
 
-    // 3a: Flush pending RAPT updates from automation dryRun
-    const pendingUpdates: { controllerId: string; targetTemp: number; oldTarget?: number }[] = automationResult?.pendingUpdates ?? [];
-    const hwOnlyIds: string[] = automationResult?.hwOnlyIds ?? [];
-    const retriesToProcess: { id: string; controller_id: string; target_temp: number; reason: string; attempts: number }[] = automationResult?.retriesToProcess ?? [];
-    const pendingKickControllerId: string | null = automationResult?.pendingKickControllerId ?? null;
-    const automationDecisionLog: any[] = automationResult?.automationDecisions ?? [];
-
-    let flushResults = new Map<string, boolean>();
-    const tPhase3a = Date.now();
-
-    if (pendingUpdates.length > 0 && access_token) {
-      const { RaptUpdateBatch } = await import('../_shared/temp-utils.ts');
-      const batch = new RaptUpdateBatch(access_token);
-
-      for (const pu of pendingUpdates) {
-        if (hwOnlyIds.includes(pu.controllerId)) {
-          batch.addHardwareOnly(pu.controllerId, pu.targetTemp, pu.oldTarget);
-        } else {
-          batch.add(pu.controllerId, pu.targetTemp, pu.oldTarget);
-        }
-      }
-
-      console.log(`🔄 Phase 3a: Flushing ${batch.size} RAPT update(s)...`);
-      flushResults = await batch.flush();
-      const failed = [...flushResults.entries()].filter(([, ok]) => !ok);
-
-      // ── Circuit-breaker: registrera success/fail per controller ──
-      try {
-        const { recordWriteSuccess, recordWriteFailure } = await import('../_shared/rapt-circuit-breaker.ts');
-        const ctrlNameForLog = new Map(controllerUpdatesForHistory.map(c => [c.controller_id, c.name as string]));
-        await Promise.all(
-          [...flushResults.entries()].map(async ([controllerId, ok]) => {
-            if (ok) {
-              await recordWriteSuccess(supabase, controllerId);
-            } else {
-              const lastErr = batch.getLastError(controllerId);
-              const res = await recordWriteFailure(supabase, controllerId, lastErr);
-              if (res.justOpened) {
-                const name = ctrlNameForLog.get(controllerId) || controllerId;
-                console.error(`🚨 CIRCUIT_OPEN: ${name} — ${res.newStreak} konsekutiva fel, pausar RAPT-writes till ${new Date(res.openUntilMs).toISOString()}`);
-                automationDecisionLog.push({
-                  step: 'CIRCUIT_OPEN', result: 'fail',
-                  message: `${name}: ${res.newStreak} konsekutiva RAPT-fel — pausar writes i 10 min (skyddar quota för övriga controllers)`,
-                  details: { controller_id: controllerId, fail_streak: res.newStreak, open_until_ms: res.openUntilMs },
-                });
-              }
-            }
-          })
-        );
-      } catch (cbErr) {
-        console.error(`Circuit-breaker bokföring fail: ${cbErr}`);
-      }
-
-      if (failed.length > 0) {
-        console.error(`Phase 3a: ${failed.length} update(s) failed`);
-
-        // Remove adjustment log entries for failed controllers
-        const cycleStart = new Date(syncStartTime).toISOString();
-        for (const [controllerId] of failed) {
-          await supabase.from('auto_cooling_adjustments')
-            .delete()
-            .eq('cooler_controller_id', controllerId)
-            .gte('created_at', cycleStart);
-        }
-
-        // Save failed updates for retry next cycle
-        for (const [controllerId] of failed) {
-          const pu = pendingUpdates.find(p => p.controllerId === controllerId);
-          if (!pu) continue;
-          const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
-          const attempts = (existingRetry?.attempts ?? 0) + 1;
-
-          if (attempts >= 5) {
-            if (existingRetry) {
-              await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
-            }
-          } else if (existingRetry) {
-            await supabase.from('pending_rapt_retries')
-              .update({ target_temp: pu.targetTemp, attempts })
-              .eq('id', existingRetry.id);
-          } else {
-            await supabase.from('pending_rapt_retries').insert({
-              controller_id: controllerId,
-              target_temp: pu.targetTemp,
-              reason: `Flush failed in Phase 3`,
-              attempts: 1,
-            } as any);
-          }
-        }
-      } else {
-        console.log(`✅ Phase 3a: All ${flushResults.size} update(s) sent successfully`);
-      }
-
-      // Clean up retries that succeeded
-      const succeeded = [...flushResults.entries()].filter(([, ok]) => ok);
-      for (const [controllerId] of succeeded) {
-        const existingRetry = retriesToProcess.find(r => r.controller_id === controllerId);
-        if (existingRetry) {
-          await supabase.from('pending_rapt_retries').delete().eq('id', existingRetry.id);
-        }
-      }
-
-      // Persist successful target_temp changes to DB (skip hardware-only)
-      if (succeeded.length > 0) {
-        const dbUpdates = succeeded
-          .filter(([controllerId]) => !hwOnlyIds.includes(controllerId))
-          .map(([controllerId]) => {
-            const pu = pendingUpdates.find(p => p.controllerId === controllerId);
-            return supabase
-              .from('rapt_temp_controllers')
-              .update({ target_temp: pu?.targetTemp, updated_at: new Date().toISOString() })
-              .eq('controller_id', controllerId);
-          });
-        if (dbUpdates.length > 0) {
-          await Promise.allSettled(dbUpdates);
-        }
-      }
-
-      // Set hysteresis_kick_active flag after confirmed flush
-      if (pendingKickControllerId) {
-        const kickSucceeded = flushResults.get(pendingKickControllerId) === true;
-        if (kickSucceeded) {
-          await supabase.from('rapt_temp_controllers')
-            .update({ hysteresis_kick_active: true })
-            .eq('controller_id', pendingKickControllerId);
-        }
-      }
-
-      // Log RAPT_SEND entries for succeeded updates (into the automation decision log)
-      // Build controller name lookup from Phase 1c data
-      const ctrlNameMap = new Map(controllerUpdatesForHistory.map(c => [c.controller_id, c.name as string]));
-      for (const [controllerId] of succeeded) {
-        const pu = pendingUpdates.find(p => p.controllerId === controllerId);
-        if (!pu) continue;
-        const oldTarget = pu.oldTarget;
-        const newTarget = pu.targetTemp;
-        // Skip logging when rounded values are identical
-        if (oldTarget != null && Math.abs(Math.round(oldTarget * 10) - Math.round(newTarget * 10)) < 1) continue;
-        const isPwmSend = hwOnlyIds.includes(controllerId);
-        const controllerName = ctrlNameMap.get(controllerId) || controllerId;
-        // Extract duty info from automation decisions for the RAPT_SEND log
-        const burstDecision = isPwmSend ? (automationResult?.automationDecisions ?? []).find((d: any) => (d.step === 'DUTY_BURST' || d.step === 'DUTY_FULL') && d.message?.includes(controllerName)) : null;
-        const burstDutyPct = burstDecision?.details?.duty_pct;
-        const burstMode = burstDecision?.details?.mode;
-        automationDecisionLog.push({
-          step: 'RAPT_SEND', result: 'action',
-          message: `${controllerName}: ${oldTarget ?? '?'}°C → ${newTarget}°C`,
-          details: { controller_id: controllerId, old_target: oldTarget, new_target: newTarget, ...(isPwmSend && { is_pwm: true, duty_pct: burstDutyPct, ...(burstMode && { mode: burstMode }) }) },
-        });
-      }
-    } else if (pendingUpdates.length > 0 && !access_token) {
-      console.log('⚠️ Phase 3a: RAPT updates pending but no access token — skipping flush');
-    }
-    const tPhase3aEnd = Date.now();
-
-    // 3b: Log temp history + outage detection + snapshots in PARALLEL
-    console.log('Phase 3b: History + outage + snapshots (parallel)...');
-
     const tempHistoryTask = async () => {
-      // Use in-memory controllerUpdatesForHistory from Phase 1c — no extra DB query needed.
-      if (controllerUpdatesForHistory.length === 0) return;
+      if (controllerList.length === 0) return;
 
       // ── Throttle: only record history every ~15 minutes ──
-      const controllerIds = controllerUpdatesForHistory.map(c => c.controller_id);
+      const controllerIds = controllerList.map((c: any) => c.controller_id);
       const { data: lastRecords } = await supabase
         .from('temp_controller_history')
         .select('controller_id, recorded_at')
@@ -1552,73 +275,43 @@ Deno.serve(async (req) => {
         }
       }
 
-      const HISTORY_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+      const HISTORY_INTERVAL_MS = 15 * 60 * 1000;
       const now = Date.now();
-      const controllersToRecord = controllerUpdatesForHistory.filter(c => {
+      const controllersToRecord = controllerList.filter((c: any) => {
         const lastAt = lastRecordedMap.get(c.controller_id);
         return !lastAt || (now - lastAt) >= HISTORY_INTERVAL_MS;
       });
 
       if (controllersToRecord.length === 0) {
-        console.log(`Temp history throttled — all controllers recorded <15min ago`);
+        console.log('Temp history throttled — all controllers recorded <15min ago');
         return;
       }
 
-      // Batch-read only the columns automation may have changed (target_temp, profile_target_temp)
-      // AND the latest duty_pct from fermentation_learnings
-      const recordIds = controllersToRecord.map(c => c.controller_id);
-      const [{ data: postAutoValues }, { data: dutyRows }] = await Promise.all([
-        supabase
-          .from('rapt_temp_controllers')
-          .select('controller_id, target_temp, profile_target_temp')
-          .in('controller_id', recordIds),
-        supabase
-          .from('fermentation_learnings')
-          .select('controller_id, parameter_name, learned_value, last_updated_at')
-          .in('parameter_name', ['pid_last_duty', 'pid_current_mode'])
-          .in('controller_id', recordIds),
-      ]);
-      const postAutoMap = new Map((postAutoValues || []).map((c: any) => [c.controller_id, c]));
-      // Stale guard: treat duty older than 15 min as 0 (controller inactive)
-      const DUTY_STALE_MS = 15 * 60 * 1000;
-      const nowMs = Date.now();
-      const dutyMap = new Map<string, number>();
-      const modeMap = new Map<string, 'heating' | 'cooling'>();
-      for (const d of (dutyRows || []) as any[]) {
-        const ageMs = d.last_updated_at ? nowMs - new Date(d.last_updated_at).getTime() : Infinity;
-        if (d.parameter_name === 'pid_last_duty') {
-          const val = ageMs > DUTY_STALE_MS ? 0 : parseFloat(String(d.learned_value));
-          dutyMap.set(d.controller_id, val);
-        } else if (d.parameter_name === 'pid_current_mode') {
-          // Only trust mode if fresh (same stale window as duty)
-          if (ageMs <= DUTY_STALE_MS) {
-            const v = parseFloat(String(d.learned_value));
-            if (v === 1) modeMap.set(d.controller_id, 'heating');
-            else if (v === 2) modeMap.set(d.controller_id, 'cooling');
-          }
-        }
-      }
+      // Pull live duty/mode from pi_live_state (Pi writes this)
+      const recordIds = controllersToRecord.map((c: any) => c.controller_id);
+      const { data: liveRows } = await supabase
+        .from('pi_live_state')
+        .select('controller_id, duty_pct, mode')
+        .in('controller_id', recordIds);
+      const liveMap = new Map((liveRows || []).map((l: any) => [l.controller_id, l]));
 
-      // Insert temp history + delta history in parallel
-      const historyRecords = controllersToRecord.map(c => {
-        const post = postAutoMap.get(c.controller_id);
-        const dutyPct = dutyMap.get(c.controller_id);
-        const pidMode = modeMap.get(c.controller_id) ?? null;
+      const historyRecords = controllersToRecord.map((c: any) => {
+        const live = liveMap.get(c.controller_id);
         return {
           controller_id: c.controller_id,
           current_temp: c.actual_temp ?? c.current_temp ?? c.pill_temp,
-          target_temp: post?.target_temp ?? c.target_temp,
+          target_temp: c.target_temp,
           cooling_enabled: c.cooling_enabled || false,
-          profile_target_temp: post?.profile_target_temp ?? c.target_temp,
-          duty_pct: dutyPct != null && Number.isFinite(dutyPct) ? dutyPct : null,
+          profile_target_temp: c.profile_target_temp ?? c.target_temp,
+          duty_pct: live?.duty_pct ?? null,
           actual_temp: c.actual_temp ?? null,
-          pid_mode: pidMode,
+          pid_mode: live?.mode ?? null,
         };
       });
 
       const deltaRecords = controllersToRecord
-        .filter(c => c.pill_temp !== null && c.current_temp !== null)
-        .map(c => ({
+        .filter((c: any) => c.pill_temp !== null && c.current_temp !== null)
+        .map((c: any) => ({
           controller_id: c.controller_id,
           pill_temp: c.pill_temp,
           controller_temp: c.current_temp,
@@ -1636,94 +329,61 @@ Deno.serve(async (req) => {
       for (const r of results) {
         if (r.status === 'rejected') console.error('History insert error:', r.reason);
       }
-      console.log(`Recorded temp history for ${controllersToRecord.length}/${controllerUpdatesForHistory.length} controllers (15min throttle)`);
+      console.log(`Recorded temp history for ${controllersToRecord.length}/${controllerList.length} controllers (15min throttle)`);
     };
 
     const outageTask = async () => {
-      const lastSuccess = syncSettingsRow?.last_successful_rapt_sync_at;
-      const now = new Date();
-      if (lastSuccess) {
-        const gap = (now.getTime() - new Date(lastSuccess).getTime()) / 1000;
-        const threshold = (syncSettingsRow?.rapt_sync_interval || 300) * 2;
-        if (gap > threshold) {
-          await supabase.from('rapt_outage_log').insert({
-            outage_start: lastSuccess, outage_end: now.toISOString(), duration_seconds: Math.round(gap)
-          });
-        }
-        const staleThreshold = 31 * 60;
-        if (raptFailed && gap >= staleThreshold) {
-          const minutes = Math.round(gap / 60);
-          const { insertNotification } = await import('../_shared/notifications.ts');
-          await insertNotification(supabase, {
-            type: 'rapt_api_degraded',
-            title: 'RAPT API otillgängligt',
-            body: `RAPT har inte svarat på ${minutes} minuter. Automationen kör i degraderat läge med cachad data.`,
-          });
-        }
-      }
-      if (syncSettingsRow?.id && !raptFailed) {
-        await supabase.from('sync_settings').update({ last_successful_rapt_sync_at: now.toISOString() }).eq('id', syncSettingsRow.id);
-      }
+      // Per-controller outage tracking — controllers going stale/offline
+      // (Pi stopped reporting), independent of any cloud API.
+      try {
+        const now = new Date();
+        const { data: openOutages } = await supabase
+          .from('controller_outage_log')
+          .select('id, controller_id, outage_start')
+          .eq('resolved', false);
+        const openOutageMap = new Map((openOutages ?? []).map((o: any) => [o.controller_id, { id: o.id, outage_start: o.outage_start }]));
 
-      // ── Per-controller outage tracking ──
-      // Detect individual controllers going stale/offline independently of global RAPT outages
-      if (!raptFailed && controllerUpdatesForHistory.length > 0) {
-        try {
-          const { isSensorDataStale } = await import('../_shared/temp-utils.ts');
-          const { insertNotification } = await import('../_shared/notifications.ts');
+        for (const ctrl of controllerList) {
+          if (ctrl.is_glycol_cooler) continue;
+          const check = isSensorDataStale(ctrl.last_update);
+          const hasOpenOutage = openOutageMap.has(ctrl.controller_id);
 
-          // Get open (unresolved) outages
-          const { data: openOutages } = await supabase
-            .from('controller_outage_log')
-            .select('id, controller_id, outage_start')
-            .eq('resolved', false);
-          const openOutageMap = new Map((openOutages ?? []).map((o: any) => [o.controller_id, { id: o.id, outage_start: o.outage_start }]));
-
-          for (const ctrl of controllerUpdatesForHistory) {
-            if (ctrl.is_glycol_cooler) continue;
-            const check = isSensorDataStale(ctrl.last_update);
-            const hasOpenOutage = openOutageMap.has(ctrl.controller_id);
-
-            if (check.stale && !hasOpenOutage) {
-              // Controller just went stale — open outage
-              await supabase.from('controller_outage_log').insert({
+          if (check.stale && !hasOpenOutage) {
+            await supabase.from('controller_outage_log').insert({
+              controller_id: ctrl.controller_id,
+              controller_name: ctrl.name,
+              outage_start: ctrl.last_update || now.toISOString(),
+            });
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+            const { data: recentOffline } = await supabase
+              .from('pending_notifications')
+              .select('id')
+              .eq('type', 'sensor_offline')
+              .eq('controller_id', ctrl.controller_id)
+              .gte('created_at', oneHourAgo)
+              .limit(1);
+            if (!recentOffline?.length) {
+              await insertNotification(supabase, {
+                type: 'sensor_offline',
+                title: `${ctrl.name}: Offline`,
+                body: `Ingen sensordata på ${check.ageMinutes ?? '?'} minuter. Automatisk styrning pausad för denna enhet.`,
                 controller_id: ctrl.controller_id,
-                controller_name: ctrl.name,
-                outage_start: ctrl.last_update || now.toISOString(),
               });
-              // Send sensor_offline notification (deduplicated per controller, 1h cooldown)
-              const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-              const { data: recentOffline } = await supabase
-                .from('pending_notifications')
-                .select('id')
-                .eq('type', 'sensor_offline')
-                .eq('controller_id', ctrl.controller_id)
-                .gte('created_at', oneHourAgo)
-                .limit(1);
-              if (!recentOffline?.length) {
-                await insertNotification(supabase, {
-                  type: 'sensor_offline',
-                  title: `${ctrl.name}: Offline`,
-                  body: `Ingen sensordata på ${check.ageMinutes ?? '?'} minuter. Automatisk styrning pausad för denna enhet.`,
-                  controller_id: ctrl.controller_id,
-                });
-              }
-              console.log(`📴 ${ctrl.name} went offline (${check.ageMinutes}min stale) — outage opened`);
-            } else if (!check.stale && hasOpenOutage) {
-              // Controller came back — resolve outage
-              const outage = openOutageMap.get(ctrl.controller_id)!;
-              const durationSeconds = Math.round((now.getTime() - new Date(outage.outage_start).getTime()) / 1000);
-              await supabase.from('controller_outage_log').update({
-                resolved: true,
-                outage_end: now.toISOString(),
-                duration_seconds: durationSeconds,
-              }).eq('id', outage.id);
-              console.log(`✅ ${ctrl.name} back online after ${Math.round(durationSeconds / 60)}min — outage resolved`);
             }
+            console.log(`📴 ${ctrl.name} went offline (${check.ageMinutes}min stale) — outage opened`);
+          } else if (!check.stale && hasOpenOutage) {
+            const outage = openOutageMap.get(ctrl.controller_id)!;
+            const durationSeconds = Math.round((now.getTime() - new Date(outage.outage_start).getTime()) / 1000);
+            await supabase.from('controller_outage_log').update({
+              resolved: true,
+              outage_end: now.toISOString(),
+              duration_seconds: durationSeconds,
+            }).eq('id', outage.id);
+            console.log(`✅ ${ctrl.name} back online after ${Math.round(durationSeconds / 60)}min — outage resolved`);
           }
-        } catch (err) {
-          console.error('Per-controller outage tracking error:', err);
         }
+      } catch (err) {
+        console.error('Per-controller outage tracking error:', err);
       }
     };
 
@@ -1757,182 +417,37 @@ Deno.serve(async (req) => {
         });
         count++;
       }
-      if (count > 0) console.log(`Created ${count} brew snapshot(s) (post-automation)`);
+      if (count > 0) console.log(`Created ${count} brew snapshot(s)`);
     };
 
-    const tPhase3b = Date.now();
     const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
     if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
     if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
-    const tPhase3bEnd = Date.now();
 
-    // 3c: Dynamic sync frequency + consolidated decision log
+    // Dynamic sync frequency (sessions-driven only — no cloud automation left)
     try {
       const currentInterval = syncSettingsRow?.rapt_sync_interval ?? 300;
-      const [{ data: activeSessionsCheck }, { data: autoCoolingCheck }] = await Promise.all([
-        supabase.from('fermentation_sessions').select('id').in('status', ['running', 'paused']).limit(1),
-        supabase.from('auto_cooling_settings').select('enabled, cooler_controller_id').limit(1).maybeSingle(),
-      ]);
-      let coolerController: { target_temp: number | null; max_target_temp: number | null } | null = null;
-      if (autoCoolingCheck?.cooler_controller_id) {
-        const { data: ctrl } = await supabase.from('rapt_temp_controllers')
-          .select('target_temp, max_target_temp')
-          .eq('controller_id', autoCoolingCheck.cooler_controller_id).maybeSingle();
-        coolerController = ctrl;
-      }
-      const hasActiveSessions = activeSessionsCheck && activeSessionsCheck.length > 0;
-      const coolerIsIdle = coolerController && coolerController.max_target_temp != null
-        && coolerController.target_temp != null
-        && coolerController.target_temp >= coolerController.max_target_temp;
-      const automationEnabled = autoCoolingCheck?.enabled === true && !coolerIsIdle;
-      const isActive = hasActiveSessions || automationEnabled;
-      const desiredInterval = isActive ? 300 : 900;
-      const reasons = [hasActiveSessions && 'sessions', automationEnabled && 'automation', coolerIsIdle && 'cooler-idle'].filter(Boolean).join('+') || 'none';
-      const changed = desiredInterval !== currentInterval;
-      console.log(`⏱️ Sync: ${currentInterval}s interval, active=${isActive} (${reasons})`);
-      if (changed && syncSettingsRow?.id) {
+      const desiredInterval = hasActiveSessions ? 300 : 900;
+      if (desiredInterval !== currentInterval && syncSettingsRow?.id) {
         await supabase.from('sync_settings').update({ rapt_sync_interval: desiredInterval }).eq('id', syncSettingsRow.id);
         console.log(`⏱️ Sync frequency changed: ${currentInterval}s → ${desiredInterval}s`);
       }
-
-      // Read finalized controller + pill data from DB for sync log
-      const [{ data: dbControllersLog }, { data: dbPillsLog }] = await Promise.all([
-        supabase.from('rapt_temp_controllers')
-          .select('controller_id, name, pill_temp, current_temp, target_temp, profile_target_temp, cooling_enabled, is_glycol_cooler, last_update, linked_pill_id')
-          .in('controller_id', selectedControllerIds),
-        selectedPillIds.length > 0
-          ? supabase.from('rapt_pills').select('pill_id, name, gravity, battery_level, temperature, last_update').in('pill_id', selectedPillIds)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-      const pillDataForLog = new Map((dbPillsLog || []).map((p: any) => [p.pill_id, p]));
-
-      // Preserve UI-visible metadata from auto-adjust-cooling SYNC_DATA (sync log replaces those rows)
-      const automationMetaByControllerName = new Map<string, {
-        dutyPct?: number; dutySamples?: number;
-        stale?: boolean; inactive?: boolean; preserved?: boolean;
-      }>();
-      for (const d of (automationResult?.automationDecisions ?? [])) {
-        if (d?.step !== 'SYNC_DATA' || typeof d?.message !== 'string') continue;
-        const controllerName = d.message.replace(/^Controller:\s*/, '').trim();
-        const det = (d.details ?? {}) as Record<string, unknown>;
-        const dutyPctRaw = det.duty_pct;
-        const dutySamplesRaw = det.duty_samples;
-        const dutyPct = typeof dutyPctRaw === 'number' ? dutyPctRaw : Number(dutyPctRaw);
-        const dutySamples = typeof dutySamplesRaw === 'number' ? dutySamplesRaw : Number(dutySamplesRaw);
-        const meta: typeof automationMetaByControllerName extends Map<string, infer V> ? V : never = {};
-        if (Number.isFinite(dutyPct) && dutyPct > 0) {
-          meta.dutyPct = Math.round(dutyPct);
-          if (Number.isFinite(dutySamples) && dutySamples >= 0) meta.dutySamples = Math.round(dutySamples);
-        }
-        if (det.stale === true) meta.stale = true;
-        if (det.inactive === true) meta.inactive = true;
-        if (det.preserved === true) meta.preserved = true;
-        if (Object.keys(meta).length > 0) {
-          automationMetaByControllerName.set(controllerName, meta);
-        }
-      }
-
-      const syncDecisions: any[] = [];
-      for (const cu of (dbControllersLog || [])) {
-        const isGlycol = cu.is_glycol_cooler === true;
-        const details: Record<string, unknown> = {
-          pill_temp: cu.pill_temp != null ? Math.round(cu.pill_temp * 10) / 10 : null,
-          ctrl_temp: cu.current_temp != null ? Math.round(cu.current_temp * 10) / 10 : null,
-          ctrl_target: cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null,
-          profile_target: isGlycol
-            ? (cu.target_temp != null ? Math.round(cu.target_temp * 10) / 10 : null)
-            : (cu.profile_target_temp != null ? Math.round(cu.profile_target_temp * 10) / 10 : null),
-          cooling_enabled: cu.cooling_enabled,
-          last_update: cu.last_update ? new Date(cu.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
-        };
-        const meta = automationMetaByControllerName.get(cu.name);
-        if (meta) {
-          if (meta.dutyPct != null) details.duty_pct = meta.dutyPct;
-          if (meta.dutySamples != null) details.duty_samples = meta.dutySamples;
-          if (meta.stale) details.stale = true;
-          if (meta.inactive) details.inactive = true;
-          if (meta.preserved) details.preserved = true;
-        }
-        if (isGlycol) details.glycol = true;
-        syncDecisions.push({ step: 'SYNC_DATA', result: 'info', message: `Controller: ${cu.name}`, details });
-
-        const linkedPillId = cu.linked_pill_id;
-        const pillInfo = linkedPillId ? pillDataForLog.get(linkedPillId) : null;
-        if (pillInfo) {
-          syncDecisions.push({ step: 'BREW_SG_STATUS', result: 'info', message: `Controller: ${cu.name}`, details: {
-            pill_name: pillInfo.name,
-            current_sg: pillInfo.gravity != null ? Math.round((pillInfo.gravity > 100 ? pillInfo.gravity / 1000 : pillInfo.gravity) * 10000) / 10000 : null,
-            battery: pillInfo.battery_level,
-            pill_temp: pillInfo.temperature != null ? Math.round(pillInfo.temperature * 10) / 10 : null,
-            last_update: pillInfo.last_update ? new Date(pillInfo.last_update).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
-            last_update_raw: pillInfo.last_update,
-          }});
-        }
-      }
-      syncDecisions.push(
-        { step: 'SYNC_FREQ', result: changed ? 'action' : 'info', message: `Intervall: ${desiredInterval / 60} min (${reasons})`, details: { currentInterval, desiredInterval, isActive, hasActiveSessions, automationEnabled, coolerIsIdle, reasons } },
-      );
-      const totalMs = Date.now() - syncStartTime;
-      if (!tokenFromCache) {
-        syncDecisions.push({
-          step: 'TOKEN_REFRESH', result: 'action', message: `Ny RAPT-token hämtad (${tokenAuthDurationMs ? Math.round(tokenAuthDurationMs / 1000) + 's' : '?'})`,
-          details: { auth_duration_ms: tokenAuthDurationMs ?? null },
-        });
-      }
-      syncDecisions.push({
-        step: 'PHASE_TIMINGS', result: 'info', message: 'Fas-tider',
-        details: {
-          '1_fetch_ms': Math.round(tPhase2a - tPhase1),
-          '1a_auth_ms': tPhase1Auth,
-          '1b_fetch_ms': tPhase1Fetch,
-          '1c_upsert_ms': tPhase1Upsert,
-          ...(raptFailed ? { '1_failed_in': raptFailedPhase } : {}),
-          '2_process_ms': Math.round(tPhase3 - tPhase2a),
-          '2a_brew_ms': Math.round(tPhase2b - tPhase2a),
-          '2b_auto_ms': Math.round(tPhase3 - tPhase2b),
-          '3_execute_ms': Math.round(totalMs - (tPhase3 - syncStartTime)),
-          '3a_flush_ms': Math.round(tPhase3aEnd - tPhase3a),
-          '3b_hist_ms': Math.round(tPhase3bEnd - tPhase3b),
-          total_ms: totalMs,
-        }
-      });
-      // Merge automation decisions with sync decisions
-      // Filter out SYNC_DATA and BREW_SG_STATUS from automation — sync generates more complete versions
-      const filteredAutomationDecisions: any[] = (automationResult?.automationDecisions ?? [])
-        .filter((d: any) => d.step !== 'SYNC_DATA' && d.step !== 'BREW_SG_STATUS' && d.step !== 'RAPT_SEND');
-      // Add RAPT_SEND decisions generated during Phase 3a flush
-      const raptSendDecisions = automationDecisionLog.filter((d: any) => d.step === 'RAPT_SEND');
-      const allDecisions = [...filteredAutomationDecisions, ...raptSendDecisions, ...syncDecisions];
-      const automationMadeAdjustment = automationResult?.automationAdjustmentMade === true;
-      const automationFinal = automationResult?.automationFinalResult;
-      const combinedFinalResult = automationFinal
-        ? `${automationFinal} | Synkfrekvens: ${desiredInterval / 60} min (${reasons})`
-        : `Synkfrekvens: ${desiredInterval / 60} min (${reasons})`;
-      await supabase.from('auto_cooling_decision_logs').insert({
-        duration_ms: totalMs,
-        decision_count: allDecisions.length,
-        decisions: allDecisions,
-        final_result: combinedFinalResult,
-        adjustment_made: changed || automationMadeAdjustment,
-      } as any);
     } catch (e) {
-      console.error('Phase 3c (sync freq + logging) error:', e);
+      console.error('Sync frequency update error:', e);
     }
 
     console.log(`⏱️ Phase 3 (execute): ${Date.now() - tPhase3}ms`);
-
-    const raptStatus = raptFailed ? ' (RAPT FAILED — degraded mode)' : '';
-    console.log(`Unified quick sync complete${raptStatus}: ${pillsUpdated} pills, ${controllersUpdated} controllers, ${brewsUpdated} brews, ${customBrewsUpdated} custom brews`);
+    console.log(`Quick sync complete: ${customBrewsUpdated} custom brews synced, ${controllerList.length} controllers`);
 
     return new Response(
       JSON.stringify({
-        success: true, raptFailed, pillsUpdated, controllersUpdated, brewsUpdated, customBrewsUpdated, automation: automationResult,
-        ...(discoverNewDevices ? {
-          discovery_summary: discoveredPills + discoveredControllers > 0
-            ? `Hittade ${discoveredPills} nya pill(s) och ${discoveredControllers} nya controller(s)`
-            : `Inga nya enheter hittades (${pillsUpdated} pills, ${controllersUpdated} controllers synkade)`
-        } : {}),
+        success: true,
+        customBrewsUpdated,
+        controllersTracked: controllerList.length,
+        activeSessions: activeSessCheck?.length ?? 0,
+        health: healthResult && !healthResult.__error ? healthResult.overall_status : null,
+        duration_ms: Date.now() - syncStartTime,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
