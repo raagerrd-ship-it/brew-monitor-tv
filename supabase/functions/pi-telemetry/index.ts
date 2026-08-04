@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createBrewSnapshot } from "../_shared/brew-snapshots.ts";
 
 const SECRET = Deno.env.get("PI_BLE_INGEST_SECRET")!;
 
@@ -25,6 +26,15 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const { kind, controller_id, data } = body;
+
+  // Levererad on-tid är sanningen för inlärning; duty_pct är bara begärt.
+  function deliveredDuty(d: any): number | null {
+    if (d?.delivered_on_s != null && d?.pwm_period_s) {
+      return Math.round((Number(d.delivered_on_s) / Number(d.pwm_period_s)) * 1000) / 10;
+    }
+    return d?.duty_mean ?? d?.duty_pct ?? null;
+  }
+
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
   async function writeBackToController(d: any) {
     if (d.actual_temp == null && d.pt100_temp == null) return;
