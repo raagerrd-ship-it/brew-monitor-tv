@@ -360,17 +360,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Pi:n skickar means-blocket: alla tre sensorerna medelvärdesbildade över
+    // samma 180 s-fönster. Grafer/historik ska använda dem; punktvärdena
+    // beskriver bara enskilda PID-beslut.
+    const means = data.means ?? {};
+
     const { error: histError } = await supabase
       .from("temp_controller_history")
       .insert({
         controller_id,
-        current_temp: data.temp_mean ?? data.actual_temp ?? null,
+        current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
         target_temp: data.target_temp ?? null,
         cooling_enabled: isRegulating(data) && data.mode === "cooling",
         recorded_at: data.recorded_at || new Date().toISOString(),
         profile_target_temp: data.target_temp ?? null,
         duty_pct: isRegulating(data) ? deliveredDuty(data) : null,
-        actual_temp: data.actual_temp ?? null,
+        actual_temp: means.actual ?? data.actual_temp ?? null,
         pid_mode: isRegulating(data) ? (data.mode ?? "v6") : "off",
       });
 
