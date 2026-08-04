@@ -26,6 +26,28 @@ Deno.serve(async (req) => {
   const controllerId = url.searchParams.get("controller_id");
 
   // ── One-shot handover: running fermentation sessions + their profile steps ──
+  const handover = url.searchParams.get("handover");
+
+  if (handover === "profiles") {
+    const { data: profiles } = await supabase
+      .from("fermentation_profiles")
+      .select("id, name, description")
+      .order("name", { ascending: true });
+
+    const { data: allSteps } = await supabase
+      .from("fermentation_profile_steps")
+      .select("*")
+      .order("step_order", { ascending: true });
+
+    return new Response(JSON.stringify({
+      generated_at: new Date().toISOString(),
+      profiles: (profiles || []).map((p: any) => ({
+        ...p,
+        steps: (allSteps || []).filter((st: any) => st.profile_id === p.id),
+      })),
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   if (url.searchParams.get("handover") === "sessions") {
     const { data: sessions } = await supabase
       .from("fermentation_sessions")
