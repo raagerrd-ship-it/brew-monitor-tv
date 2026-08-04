@@ -320,7 +320,9 @@ Deno.serve(async (req) => {
 
     // If linked to active brew → write snapshot + update brew_readings
     const brew = pillToBrew.get(pillId);
-    if (brew && r.gravity_sg != null && r.temp_c != null) {
+    // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien (fönstermedel).
+    // BLE-vägen skulle annars lägga in punktvärden mellan rollups → hackig Ctrl-kurva.
+    if (brew && !piActuated && r.gravity_sg != null && r.temp_c != null) {
       // Skip if before fermentation start
       if (brew.fermentation_start && new Date(r.recorded_at) < new Date(brew.fermentation_start)) {
         processed++;
