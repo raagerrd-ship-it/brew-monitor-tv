@@ -1,7 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ProfileStep, getEffectiveTargetTemp } from './temp-utils.ts'
 import { insertNotification } from './notifications.ts'
-import { saveFermentationLearnings } from './fermentation-learnings.ts'
 import { SessionRef, setProfileTarget } from './types.ts'
 
 /**
@@ -30,19 +29,8 @@ export async function completeProfile(
   // profile_target_temp is LEFT AS-IS — it already holds the last profile step's
   // target (the user's intended temp). This becomes the manual-mode SSOT baseline.
 
-  // Clear stale PID adjustment history so non-profile PID uses the
-  // preserved profile_target_temp as baseline
-  await supabase
-    .from('auto_cooling_adjustments')
-    .delete()
-    .eq('cooler_controller_id', session.controller_id)
-    .like('reason', '🎯%')
-
   // Normal completion — no notification needed
   console.log(`✅ Profile completed for controller ${session.controller_id}`)
-
-  // Learning
-  await saveFermentationLearnings(supabase, session.controller_id, session.started_at)
 }
 
 /**
