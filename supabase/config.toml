@@ -32,9 +32,6 @@ verify_jwt = false
 verify_jwt = false
 
 
-[functions.ai-automation-audit]
-verify_jwt = false
-
 [functions.compute-fermentation-metrics]
 verify_jwt = false
 

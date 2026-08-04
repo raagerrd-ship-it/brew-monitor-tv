@@ -121,15 +121,15 @@ Deno.serve(async (req) => {
       totalStepLogDeleted += toDelete.length;
     }
 
-    const msg = `Deleted: ${totalControllerDeleted} controller history (>7d), ${totalDeltaDeleted} delta history (>7d), ${totalAdjustmentsDeleted} adjustments (>30d), ${totalMarginHistoryDeleted} margin history (>30d), ${totalDecisionLogsDeleted} decision logs (>24h), ${totalAiAuditDeleted} ai audit (>30d), ${totalOutageDeleted} outage logs (>30d), ${totalStepLogDeleted} step logs (>30d completed)`;
+    const msg = `Deleted: ${totalControllerDeleted} controller history (>7d), ${totalDeltaDeleted} delta history (>7d), ${totalMarginHistoryDeleted} margin history (>30d), ${totalAiAuditDeleted} ai audit (>30d), ${totalOutageDeleted} outage logs (>30d), ${totalStepLogDeleted} step logs (>30d completed)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
       JSON.stringify({
         success: true, message: msg,
         controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted,
-        adjustmentsDeleted: totalAdjustmentsDeleted, marginHistoryDeleted: totalMarginHistoryDeleted,
-        decisionLogsDeleted: totalDecisionLogsDeleted, aiAuditDeleted: totalAiAuditDeleted,
+        marginHistoryDeleted: totalMarginHistoryDeleted,
+        aiAuditDeleted: totalAiAuditDeleted,
         outageDeleted: totalOutageDeleted, stepLogDeleted: totalStepLogDeleted,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
