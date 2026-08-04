@@ -47,6 +47,22 @@ Deno.serve(async (req) => {
 
     const ctrlById = new Map((controllers || []).map((c: any) => [c.controller_id, c]));
 
+    const brewIds = [...new Set((sessions || []).map((s: any) => s.brew_id).filter(Boolean))];
+    const { data: brews } = brewIds.length
+      ? await supabase
+        .from("brew_readings")
+        .select("id, name, style, original_gravity, final_gravity, fermentation_start")
+        .in("id", brewIds)
+      : { data: [] };
+    const { data: metrics } = brewIds.length
+      ? await supabase
+        .from("brew_fermentation_metrics")
+        .select("brew_id, peak_delta")
+        .in("brew_id", brewIds)
+      : { data: [] };
+    const brewById = new Map((brews || []).map((b: any) => [b.id, b]));
+    const metricsByBrew = new Map((metrics || []).map((m: any) => [m.brew_id, m]));
+
     return new Response(JSON.stringify({
       generated_at: new Date().toISOString(),
       sessions: (sessions || []).map((s: any) => ({
@@ -56,6 +72,18 @@ Deno.serve(async (req) => {
         profile_target_temp: ctrlById.get(s.controller_id)?.profile_target_temp ?? null,
         min_target_temp: ctrlById.get(s.controller_id)?.min_target_temp ?? null,
         max_target_temp: ctrlById.get(s.controller_id)?.max_target_temp ?? null,
+        brew: s.brew_id && brewById.has(s.brew_id) ? {
+          name: brewById.get(s.brew_id)!.name,
+          style: brewById.get(s.brew_id)!.style,
+          original_gravity: brewById.get(s.brew_id)!.original_gravity != null
+            ? parseFloat(String(brewById.get(s.brew_id)!.original_gravity)) : null,
+          final_gravity: brewById.get(s.brew_id)!.final_gravity != null
+            ? parseFloat(String(brewById.get(s.brew_id)!.final_gravity)) : null,
+          fermentation_start: brewById.get(s.brew_id)!.fermentation_start ?? null,
+        } : null,
+        metrics: s.brew_id && metricsByBrew.has(s.brew_id) ? {
+          peak_delta: parseFloat(String(metricsByBrew.get(s.brew_id)!.peak_delta)),
+        } : null,
         steps: (steps || []).filter((st: any) => st.profile_id === s.profile_id),
       })),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
