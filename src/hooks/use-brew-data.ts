@@ -39,12 +39,18 @@ function getColorSortIndex(name: string): number {
 // Helper function to sort brews by color order (Gul, Blå, Grön)
 function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]): BrewData[] {
   if (brews.length === 0) return brews;
-  
-  return [...brews].sort((a, b) => {
-    const aColor = getColorSortIndex(a.name);
-    const bColor = getColorSortIndex(b.name);
-    return aColor - bColor;
-  });
+
+  const controllerName = new Map(controllers.map(c => [c.controller_id, c.name || '']));
+
+  // Prefer the linked controller's name (Gul/Blå/Grön = physical vessel order),
+  // fall back to the brew name.
+  const indexOf = (brew: BrewData) => {
+    const linked = (brew as any).linked_controller_id as string | null | undefined;
+    const viaController = linked ? getColorSortIndex(controllerName.get(linked) || '') : 99;
+    return viaController !== 99 ? viaController : getColorSortIndex(brew.name);
+  };
+
+  return [...brews].sort((a, b) => indexOf(a) - indexOf(b));
 }
 
 export function useBrewData(): UseBrewDataReturn {
