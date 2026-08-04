@@ -336,11 +336,10 @@ Deno.serve(async (req) => {
         heating_relay_on: data.heating_relay_on ?? false,
         glycol_temp: data.glycol_temp ?? null,
         pid_terms: data.pid_terms ?? null,
-        // blocked_by säger *varför* duty är 0 — läggs in i constraints_hit så
-        // "inget behövs" och "givaren är blind" inte ser likadana ut i molnet.
-        constraints_hit: data.blocked_by
-          ? [...(data.constraints_hit ?? []), `blocked_by:${data.blocked_by}`]
-          : (data.constraints_hit ?? null),
+        constraints_hit: data.constraints_hit ?? null,
+        // Hålls separat från constraints_hit: mjuka PID-villkor är normal drift,
+        // blocked_by betyder att tanken inte regleras alls.
+        blocked_by: data.blocked_by ?? null,
         sensor_source: data.sensor_source ?? null,
         enabled: data.enabled ?? null,
         mode_allowed: data.mode_allowed ?? null,
