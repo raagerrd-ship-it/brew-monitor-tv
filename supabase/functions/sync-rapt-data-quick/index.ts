@@ -1,8 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
-import { fetchSgDataFromSnapshots } from '../_shared/types.ts';
-import { applySgCorrection, processSgCalibration, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
-import { processAllSessions } from '../_shared/process-profiles-logic.ts';
 import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
 import { computeSystemHealth } from '../_shared/system-health-logic.ts';
 import { isSensorDataStale } from '../_shared/temp-utils.ts';
@@ -13,13 +10,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// SG temp-correction is now always active — it's pure math applied to BLE pill
-// readings already in the DB, no RAPT dependency, no user toggle left to read.
-const SG_TEMP_CORRECTION_ENABLED = true;
-
-// ── Custom brew sync: SG correction + calibration on BLE pill data already in DB ──
-// Temperature control (Pi + local PID) no longer touches this — this only keeps
-// brew_readings/brew_data_snapshots fresh for brews tracked via a RAPT/BLE pill.
+// ── Custom brew sync: records pill data as delivered ──
+// The Pi owns ALL correction (SG temp-compensation, sensor fusion) and ALL
+// regulation. The cloud is backup storage + TV display only — it stores values
+// exactly as received and never re-corrects them.
 async function syncCustomBrews(supabase: any): Promise<number> {
   const { data: customBrews } = await supabase
     .from('brew_readings')
@@ -69,13 +63,6 @@ async function syncCustomBrews(supabase: any): Promise<number> {
 
       let sgValue = pill.gravity > 100 ? pill.gravity / 1000 : pill.gravity;
 
-      if (SG_TEMP_CORRECTION_ENABLED) {
-        try {
-          const { residualPerDegree, confident } = await getLearnedResidual(supabase, pillId);
-          if (confident) sgValue = applySgCorrection(sgValue, pill.temperature, residualPerDegree);
-        } catch (_e) { /* no correction yet */ }
-      }
-
       if (sgValue < 0.990 || sgValue > 1.200) {
         console.log(`SG ${sgValue} out of range for ${brew.name}, skipping`);
         continue;
@@ -111,13 +98,6 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
       console.log(`Synced ${brew.name} (SG=${sgValue.toFixed(4)}, ${pill.temperature.toFixed(1)}°C)`);
       updated++;
-
-      if (SG_TEMP_CORRECTION_ENABLED) {
-        try {
-          const snapshots = await fetchSgDataFromSnapshots(supabase, brew.id);
-          await processSgCalibration(supabase, pillId, snapshots);
-        } catch (calErr) { console.error(`SG calibration error for pill ${pillId}:`, calErr); }
-      }
     } catch (brewError) {
       console.error(`Error syncing brew ${brew.name}:`, brewError);
     }
@@ -173,9 +153,9 @@ Deno.serve(async (req) => {
     console.log(`⏱️ Phase 2a (custom brews): ${Date.now() - tPhase2a}ms`);
 
     // ──────────────────────────────────────────────────────
-    // PHASE 2b: Fermentation profiles + metrics + system health
-    // Temperature control itself is fully owned by the Pi's local PID now —
-    // this only keeps profile/metrics/health bookkeeping up to date.
+    // PHASE 2b: Display metrics + system health (read-only bookkeeping)
+    // The Pi owns the fermentation profile engine and all regulation.
+    // The cloud never advances steps or writes profile_target_temp.
     // ──────────────────────────────────────────────────────
     const tPhase2b = Date.now();
 
@@ -188,7 +168,6 @@ Deno.serve(async (req) => {
     const controllerList = controllers ?? [];
     const hasActiveSessions = activeSessCheck && activeSessCheck.length > 0;
 
-    let profilesResult: any = { __skipped: true };
     let metricsResult: any = null;
     let healthResult: any = null;
 
@@ -212,13 +191,7 @@ Deno.serve(async (req) => {
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .is('read_at', null);
 
-      [profilesResult, metricsResult, healthResult] = await Promise.all([
-        processAllSessions(supabase, {
-          sessions: activeSessCheck!,
-          controllers: controllerList,
-          brewMetrics: sharedBrewMetrics ?? [],
-          brewReadings: allFermentingBrews ?? [],
-        }).catch((err: any) => { console.error(`profiles error: ${err}`); return { __error: true, __step: 'profiles' }; }),
+      [metricsResult, healthResult] = await Promise.all([
         computeAllMetrics(supabase, {
           brews: allFermentingBrews ?? [],
           sessions: activeSessCheck ?? [],
@@ -242,9 +215,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`⏱️ Phase 2b (profiles/metrics/health): ${Date.now() - tPhase2b}ms`);
+      console.log(`⏱️ Phase 2b (metrics/health): ${Date.now() - tPhase2b}ms`);
     } else {
-      console.log('⏱️ Phase 2b (profiles/metrics/health): SKIPPED — no active sessions');
+      console.log('⏱️ Phase 2b (metrics/health): SKIPPED — no active sessions');
     }
 
     // ──────────────────────────────────────────────────────

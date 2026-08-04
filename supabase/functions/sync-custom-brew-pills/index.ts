@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { applySgCorrection, getLearnedResidual } from '../_shared/sg-temp-correction.ts';
 import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 
 const corsHeaders = {
@@ -19,9 +18,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // SG temperature correction is always on (cloud automation settings removed)
-    const sgTempCorrectionEnabled = true;
-
+    // No SG correction here — the Pi corrects before upload; the cloud stores as received.
     // Get custom brews that are actively fermenting
     const { data: customBrews, error: brewsError } = await supabase
       .from('brew_readings')
@@ -124,16 +121,8 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // ── Apply SG correction if enabled ──
-        let correctedSg = rawSg;
-        if (sgTempCorrectionEnabled && pillTemp != null) {
-          try {
-            const { residualPerDegree, confident } = await getLearnedResidual(supabase, pillId);
-            if (confident) {
-              correctedSg = applySgCorrection(rawSg, pillTemp, residualPerDegree);
-            }
-          } catch (_e) { /* no correction yet */ }
-        }
+        // SG is stored as received — the Pi owns correction.
+        const correctedSg = rawSg;
 
         // ── Auto-set OG on first snapshot ──
         let og = brew.original_gravity;
