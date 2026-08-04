@@ -207,8 +207,15 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
       if (isPi) {
         const { error: piError } = await supabase
           .from('pi_setpoint')
-          .update({ target_temp: targetTemp, set_by: 'cloud', set_at: new Date().toISOString() })
-          .eq('controller_id', controller.controller_id);
+          .upsert(
+            {
+              controller_id: controller.controller_id,
+              target_temp: targetTemp,
+              set_by: 'cloud',
+              set_at: new Date().toISOString(),
+            },
+            { onConflict: 'controller_id' }
+          );
         if (piError) throw piError;
 
         onOpenChange(false);
