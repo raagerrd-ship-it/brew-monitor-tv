@@ -329,13 +329,20 @@ Deno.serve(async (req) => {
         cooling_enabled: data.mode === "cooling",
         recorded_at: data.recorded_at || new Date().toISOString(),
         profile_target_temp: data.target_temp ?? null,
-        duty_pct: data.duty_mean ?? null,
+        duty_pct: deliveredDuty(data),
         actual_temp: data.actual_temp ?? null,
         pid_mode: data.mode ?? "v6",
       });
 
     if (histError) {
       console.error("History insert failed:", histError);
+    }
+
+    // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
+    // dit ingest-pill-ble tidigare skrev (rapt_pills + brew_data_snapshots).
+    const fullId = await writeBackToController(data);
+    if (fullId) {
+      await writePillAndBrew(fullId, data);
     }
 
     // Also update pi_live_state with the rollup data
@@ -347,7 +354,7 @@ Deno.serve(async (req) => {
           actual_temp: data.actual_temp,
           target_temp: data.target_temp,
           mode: data.mode,
-          duty_pct: data.duty_mean ?? 0,
+          duty_pct: deliveredDuty(data) ?? 0,
           glycol_temp: data.glycol_temp ?? null,
           last_heartbeat: new Date().toISOString(),
         }, { onConflict: "controller_id" });
