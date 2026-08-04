@@ -41,6 +41,10 @@ async function syncCustomBrews(supabase: any): Promise<number> {
         if (!pillId && ctrl?.linked_pill_id) pillId = ctrl.linked_pill_id;
       }
 
+      // Pi-styrda tankar: pi-telemetry (30 s live + 3 min rollup) är enda
+      // skrivvägen för deras bryggdata.
+      if (linkedController?.actuation === 'pi') continue;
+
       if (!pillId) {
         console.log(`No pill_id available for brew ${brew.name}, skipping`);
         continue;
@@ -75,8 +79,7 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       // SSOT: prefer controller actual_temp over pill temp when linked
       const ssotTemp = linkedController?.actual_temp ?? pill.temperature;
 
-      // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien (fönstermedel).
-      if (linkedController?.actuation !== 'pi') await createBrewSnapshot(supabase, brew.id, {
+      await createBrewSnapshot(supabase, brew.id, {
         recorded_at: recordedAt,
         sg: sgValue,
         pill_temp: pill.temperature,
