@@ -34,7 +34,7 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       if (brew.linked_controller_id) {
         const { data: ctrl } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp')
+          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp, actuation')
           .eq('controller_id', brew.linked_controller_id)
           .maybeSingle();
         linkedController = ctrl;
@@ -75,7 +75,8 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       // SSOT: prefer controller actual_temp over pill temp when linked
       const ssotTemp = linkedController?.actual_temp ?? pill.temperature;
 
-      await createBrewSnapshot(supabase, brew.id, {
+      // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien (fönstermedel).
+      if (linkedController?.actuation !== 'pi') await createBrewSnapshot(supabase, brew.id, {
         recorded_at: recordedAt,
         sg: sgValue,
         pill_temp: pill.temperature,
