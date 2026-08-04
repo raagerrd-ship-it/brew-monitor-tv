@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     // fermentation_learnings. RAPT-PID:n kör inte längre för Pi-tankar,
     // så Pi:n måste själv hålla dessa nycklar färska.
     const fullId = rows?.[0]?.controller_id;
-    if (fullId && d.duty_pct != null) {
+    if (fullId && deliveredDuty(d) != null) {
       const now = new Date().toISOString();
       await supabase.from("fermentation_learnings").upsert([
         {
