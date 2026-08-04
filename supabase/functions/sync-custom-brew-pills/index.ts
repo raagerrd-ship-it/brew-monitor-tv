@@ -19,10 +19,8 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Read SG correction setting
-    const { data: autoCoolingRow } = await supabase
-      .from('auto_cooling_settings').select('sg_temp_correction_enabled').limit(1).maybeSingle();
-    const sgTempCorrectionEnabled = (autoCoolingRow as any)?.sg_temp_correction_enabled ?? false;
+    // SG temperature correction is always on (cloud automation settings removed)
+    const sgTempCorrectionEnabled = true;
 
     // Get custom brews that are actively fermenting
     const { data: customBrews, error: brewsError } = await supabase
