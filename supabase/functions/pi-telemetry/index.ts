@@ -36,6 +36,10 @@ Deno.serve(async (req) => {
   }
 
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
+  // Pi:n grindar med regulating: false när tanken är avstängd — då mäts bara
+  // temperaturen, inget duty-, snapshot- eller inlärningsdata ska sparas.
+  const isRegulating = (d: any) => d?.regulating !== false;
+
   async function writeBackToController(d: any) {
     if (d.actual_temp == null && d.pt100_temp == null) return null;
 
@@ -63,8 +67,8 @@ Deno.serve(async (req) => {
       pt100_temp: probe,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
-      cooling_enabled: d.mode === "cooling",
-      heating_enabled: d.mode === "heating",
+      cooling_enabled: isRegulating(d) && d.mode === "cooling",
+      heating_enabled: isRegulating(d) && d.mode === "heating",
       updated_at: new Date().toISOString(),
     };
     const { data: rows, error } = await supabase
@@ -79,7 +83,7 @@ Deno.serve(async (req) => {
     // fermentation_learnings. RAPT-PID:n kör inte längre för Pi-tankar,
     // så Pi:n måste själv hålla dessa nycklar färska.
     const fullId = rows?.[0]?.controller_id;
-    if (fullId && deliveredDuty(d) != null) {
+    if (fullId && isRegulating(d) && deliveredDuty(d) != null) {
       const now = new Date().toISOString();
       await supabase.from("fermentation_learnings").upsert([
         {
