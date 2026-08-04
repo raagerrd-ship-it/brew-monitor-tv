@@ -89,6 +89,10 @@ Deno.serve(async (req) => {
         const pill = allPills?.find(p => p.pill_id === pillId);
         const ctrlForBrew = allControllers?.find(c => c.controller_id === brew.linked_controller_id);
 
+        // Pi-styrda tankar: pi-telemetry (30 s live + 3 min rollup) är enda
+        // skrivvägen för deras bryggdata.
+        if ((ctrlForBrew as any)?.actuation === 'pi') continue;
+
         if (!pill) {
           console.log(`Pill ${pillId} not found in data for brew ${brew.name}, skipping`);
           continue;
