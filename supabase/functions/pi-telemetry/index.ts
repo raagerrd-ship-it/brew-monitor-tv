@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createBrewSnapshot } from "../_shared/brew-snapshots.ts";
 
 const SECRET = Deno.env.get("PI_BLE_INGEST_SECRET")!;
 
@@ -25,9 +26,18 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const { kind, controller_id, data } = body;
+
+  // Levererad on-tid är sanningen för inlärning; duty_pct är bara begärt.
+  function deliveredDuty(d: any): number | null {
+    if (d?.delivered_on_s != null && d?.pwm_period_s) {
+      return Math.round((Number(d.delivered_on_s) / Number(d.pwm_period_s)) * 1000) / 10;
+    }
+    return d?.duty_mean ?? d?.duty_pct ?? null;
+  }
+
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
   async function writeBackToController(d: any) {
-    if (d.actual_temp == null && d.pt100_temp == null) return;
+    if (d.actual_temp == null && d.pt100_temp == null) return null;
 
     // SSOT: actual_temp = current_temp = snittet av PT100 och pill.
     // Pi:n räknar snittet lokalt (det den reglerar mot) och skickar det som
@@ -69,13 +79,13 @@ Deno.serve(async (req) => {
     // fermentation_learnings. RAPT-PID:n kör inte längre för Pi-tankar,
     // så Pi:n måste själv hålla dessa nycklar färska.
     const fullId = rows?.[0]?.controller_id;
-    if (fullId && d.duty_pct != null) {
+    if (fullId && deliveredDuty(d) != null) {
       const now = new Date().toISOString();
       await supabase.from("fermentation_learnings").upsert([
         {
           controller_id: fullId,
           parameter_name: "pid_last_duty",
-          learned_value: Number(d.duty_pct),
+          learned_value: Number(deliveredDuty(d) ?? d.duty_pct),
           sample_count: 1,
           last_updated_at: now,
         },
@@ -88,6 +98,72 @@ Deno.serve(async (req) => {
         },
       ], { onConflict: "controller_id,parameter_name" });
     }
+    return fullId ?? null;
+  }
+
+  // ── Pill-data via Pi:n (ersätter ingest-pill-ble för Pi-styrda tankar) ──
+  async function writePillAndBrew(fullId: string, d: any) {
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id, linked_pill_id")
+      .eq("controller_id", fullId)
+      .maybeSingle();
+    const pillId = ctrl?.linked_pill_id;
+    if (!pillId) return;
+
+    const recordedAt = d.recorded_at || new Date().toISOString();
+    const pillUpdate: Record<string, any> = {
+      last_update: recordedAt,
+      updated_at: new Date().toISOString(),
+    };
+    if (d.pill_temp != null) pillUpdate.temperature = Number(Number(d.pill_temp).toFixed(3));
+    if (d.pill_gravity_sg != null) pillUpdate.gravity = Number(Number(d.pill_gravity_sg).toFixed(5));
+    if (d.pill_battery_pct != null) pillUpdate.battery_level = Math.round(Number(d.pill_battery_pct));
+    await supabase.from("rapt_pills").update(pillUpdate).eq("pill_id", pillId);
+
+    const { data: brew } = await supabase
+      .from("brew_readings")
+      .select("id, original_gravity, fermentation_start")
+      .eq("linked_pill_id", pillId)
+      .in("status", ["fermenting", "active", "Jäsning"])
+      .maybeSingle();
+    if (!brew) return;
+    if (brew.fermentation_start && new Date(recordedAt) < new Date(brew.fermentation_start)) return;
+
+    const sg = d.pill_gravity_sg != null ? Number(d.pill_gravity_sg) : null;
+    const duty = deliveredDuty(d);
+
+    await createBrewSnapshot(supabase, brew.id, {
+      recorded_at: recordedAt,
+      sg,
+      pill_temp: d.pill_temp != null ? Number(d.pill_temp) : null,
+      controller_temp: d.pt100_temp != null ? Number(d.pt100_temp) : null,
+      profile_target_temp: d.target_temp ?? null,
+      actual_temp: d.actual_temp ?? null,
+      duty_pct: duty,
+      cooling_enabled: d.mode === "cooling",
+      controller_id: fullId,
+    });
+
+    if (sg != null) {
+      const og = Number(brew.original_gravity);
+      const attenuation = og > 1
+        ? Math.max(0, Math.min(100, Math.round(((og - sg) / (og - 1)) * 100)))
+        : 0;
+      const abv = og > 1 ? Math.max(0, Number(((og - sg) * 131.25).toFixed(1))) : 0;
+      await supabase
+        .from("brew_readings")
+        .update({
+          current_sg: sg,
+          current_temp: d.actual_temp ?? null,
+          attenuation,
+          abv,
+          battery: d.pill_battery_pct ?? null,
+          last_update: recordedAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", brew.id);
+    }
   }
 
 
@@ -98,6 +174,43 @@ Deno.serve(async (req) => {
   }
 
   // ── Piggyback response: return updated setpoint if version changed ──
+  async function getSlimSetpointResponse() {
+    const { data: sp } = await supabase
+      .from("pi_setpoint")
+      .select("controller_id, target_temp, params_version")
+      .like("controller_id", `${controller_id}%`)
+      .maybeSingle();
+    if (!sp) return null;
+
+    // volume_l från kopplad brygg-recept (mäsk + lakvatten) när det finns.
+    let volume_l: number | null = null;
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id")
+      .eq("controller_id", sp.controller_id)
+      .maybeSingle();
+    if (ctrl) {
+      const { data: brew } = await supabase
+        .from("brew_readings")
+        .select("recipe")
+        .eq("linked_controller_id", ctrl.controller_id)
+        .in("status", ["fermenting", "active", "Jäsning"])
+        .maybeSingle();
+      const r: any = brew?.recipe;
+      const mash = parseFloat(r?.mash_water_liters ?? "");
+      const sparge = parseFloat(r?.sparge_water_liters ?? "");
+      const sum = (Number.isFinite(mash) ? mash : 0) + (Number.isFinite(sparge) ? sparge : 0);
+      if (sum > 0) volume_l = sum;
+    }
+
+    return {
+      controller_id: String(sp.controller_id).slice(0, 8),
+      target_temp: parseFloat(String(sp.target_temp)),
+      volume_l,
+      setpoint_version: sp.params_version,
+    };
+  }
+
   async function getSetpointResponse(setpointVersion?: number) {
     const { data: sp } = await supabase
       .from("pi_setpoint")
@@ -156,6 +269,12 @@ Deno.serve(async (req) => {
       : null;
     const isRunning = Boolean(data.cooling_relay_on || data.heating_relay_on);
     const transitionAt = new Date().toISOString();
+    // Pi:n rapporterar helst intervallet (pwm_start/pwm_stop) — då slipper vi
+    // aliasing från att sampla reläet.
+    const pumpStartedAt = data.pwm_start
+      ?? (wasRunning === false && isRunning ? transitionAt : previous?.pump_started_at ?? null);
+    const pumpStoppedAt = data.pwm_stop
+      ?? (wasRunning === true && !isRunning ? transitionAt : previous?.pump_stopped_at ?? null);
 
     const { error } = await supabase
       .from("pi_live_state")
@@ -173,12 +292,8 @@ Deno.serve(async (req) => {
         sensor_source: data.sensor_source ?? null,
         enabled: data.enabled ?? null,
         mode_allowed: data.mode_allowed ?? null,
-        pump_started_at: wasRunning === false && isRunning
-          ? transitionAt
-          : previous?.pump_started_at ?? null,
-        pump_stopped_at: wasRunning === true && !isRunning
-          ? transitionAt
-          : previous?.pump_stopped_at ?? null,
+        pump_started_at: pumpStartedAt,
+        pump_stopped_at: pumpStoppedAt,
         last_heartbeat: new Date().toISOString(),
       }, { onConflict: "controller_id" });
 
@@ -190,8 +305,8 @@ Deno.serve(async (req) => {
 
     await writeBackToController(data);
 
-    // Return updated setpoint so Pi can piggyback
-    const setpointResponse = await getSetpointResponse(data.setpoint_version);
+    // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
+    const setpointResponse = await getSlimSetpointResponse();
 
     return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -214,13 +329,20 @@ Deno.serve(async (req) => {
         cooling_enabled: data.mode === "cooling",
         recorded_at: data.recorded_at || new Date().toISOString(),
         profile_target_temp: data.target_temp ?? null,
-        duty_pct: data.duty_mean ?? null,
+        duty_pct: deliveredDuty(data),
         actual_temp: data.actual_temp ?? null,
         pid_mode: data.mode ?? "v6",
       });
 
     if (histError) {
       console.error("History insert failed:", histError);
+    }
+
+    // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
+    // dit ingest-pill-ble tidigare skrev (rapt_pills + brew_data_snapshots).
+    const fullId = await writeBackToController(data);
+    if (fullId) {
+      await writePillAndBrew(fullId, data);
     }
 
     // Also update pi_live_state with the rollup data
@@ -232,7 +354,7 @@ Deno.serve(async (req) => {
           actual_temp: data.actual_temp,
           target_temp: data.target_temp,
           mode: data.mode,
-          duty_pct: data.duty_mean ?? 0,
+          duty_pct: deliveredDuty(data) ?? 0,
           glycol_temp: data.glycol_temp ?? null,
           last_heartbeat: new Date().toISOString(),
         }, { onConflict: "controller_id" });
