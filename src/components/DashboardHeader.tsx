@@ -55,8 +55,8 @@ export function DashboardHeader({
 
   useEffect(() => {
     const loadCoolerController = async () => {
-      const { data } = await supabase.from('auto_cooling_settings').select('cooler_controller_id').limit(1).maybeSingle();
-      if (data?.cooler_controller_id) setCoolerControllerId(data.cooler_controller_id);
+      const { data } = await supabase.from('rapt_temp_controllers').select('controller_id').eq('is_glycol_cooler', true).limit(1).maybeSingle();
+      if (data?.controller_id) setCoolerControllerId(data.controller_id);
     };
     loadCoolerController();
   }, []);

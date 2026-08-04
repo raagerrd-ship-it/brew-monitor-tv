@@ -104,28 +104,9 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         return;
       }
 
-      // Fetch latest duty cycle from decision logs
-      const { data: logData } = await supabase
-        .from('auto_cooling_decision_logs')
-        .select('decisions')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (logData?.decisions) {
-        const decisions = logData.decisions as Array<{ name?: string; step?: string; details?: Record<string, unknown> }>;
-        const pillCompStep = decisions.find(d =>
-          d.step === 'PILL_COMP_STATUS' && d.name === controller.name
-        );
-        if (pillCompStep?.details) {
-          const det = pillCompStep.details;
-          setDutyCyclePct(typeof det.duty_pct === 'number' ? det.duty_pct : null);
-          setDutyMode(typeof det.pid_mode === 'string' ? det.pid_mode as 'cooling' | 'heating' : null);
-        } else {
-          setDutyCyclePct(null);
-          setDutyMode(null);
-        }
-      }
+      // Non-Pi controllers no longer have a cloud duty-cycle source
+      setDutyCyclePct(null);
+      setDutyMode(null);
     };
 
     if (open) {
@@ -239,38 +220,17 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('rapt-update-controller', {
-        body: {
-          controllerId: controller.controller_id,
-          action: 'setTargetTemperature',
-          value: targetTemp
-        }
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      onOpenChange(false);
-      setShowTempAdjust(false);
-
+      // Only Pi-actuated controllers support target temperature updates now
       toast({
-        title: "Måltemperatur uppdaterad",
-        description: `${controller.name} måltemperatur är nu ${targetTemp}°`,
+        title: "Fel vid uppdatering",
+        description: `Kontrollern "${controller.name}" styrs inte av en Pi och kan inte uppdateras härifrån.`,
+        variant: "destructive",
       });
     } catch (error) {
       console.error('Error updating target temperature:', error);
-      const errorMessage = error instanceof Error ? error.message : "Kunde inte uppdatera måltemperatur";
-
-      let userFriendlyMessage = errorMessage;
-      if (errorMessage.includes('not registered')) {
-        userFriendlyMessage = `Kontrollern "${controller.name}" är inte registrerad eller online i ditt RAPT-konto. Kontrollera att den är påslagen och ansluten.`;
-      } else if (errorMessage.includes('RAPT API error')) {
-        userFriendlyMessage = 'Kunde inte kommunicera med RAPT API:et. Kontrollera din internetanslutning och försök igen.';
-      }
-
       toast({
         title: "Fel vid uppdatering",
-        description: userFriendlyMessage,
+        description: "Kunde inte uppdatera måltemperatur",
         variant: "destructive",
       });
     } finally {
