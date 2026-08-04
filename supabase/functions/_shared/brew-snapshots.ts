@@ -97,7 +97,7 @@ export async function createBrewSnapshot(
       return false;
     }
 
-    // Fire-and-forget: consolidate closed 5-min buckets, then thin if oversized
+    // Fire-and-forget: consolidate closed 3-min buckets, then thin if oversized
     consolidate5MinBuckets(supabase, brewId).catch(() => {});
     thinSnapshots(supabase, brewId).catch(() => {});
     return true;
@@ -108,17 +108,18 @@ export async function createBrewSnapshot(
 }
 
 /**
- * Consolidate snapshots into 5-minute averaged buckets.
- * For each closed 5-min bucket (i.e. not the current bucket), if it has >1 row,
+ * Consolidate snapshots into 3-minute averaged buckets (synkat med Pi-rollup).
+ * For each closed 3-min bucket (i.e. not the current bucket), if it has >1 row,
  * replace them with a single row containing the average of all numeric columns,
  * timestamped at the bucket start.
  *
- * Effect: long-term storage = one averaged snapshot per 5 min, low-pass filtering
+ * Effect: long-term storage = one averaged snapshot per 3 min, low-pass filtering
  * BLE jitter on pill_temp/sg and PWM ripple on actual_temp.
  */
 export async function consolidate5MinBuckets(supabase: any, brewId: string): Promise<void> {
   try {
-    const BUCKET_MS = 5 * 60 * 1000;
+    // 3-min buckets = same cadence as the Pi rollup, so one snapshot per Pi-cykel.
+    const BUCKET_MS = 3 * 60 * 1000;
     const nowBucket = Math.floor(Date.now() / BUCKET_MS) * BUCKET_MS;
     // Look back ~30 min — enough to catch the previous bucket plus any backfill,
     // small enough to keep the query cheap on every write.
@@ -135,7 +136,7 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
 
     if (!rows || rows.length < 2) return;
 
-    // Group by 5-min bucket start
+    // Group by 3-min bucket start
     const buckets = new Map<number, typeof rows>();
     for (const r of rows) {
       const bs = Math.floor(new Date(r.recorded_at).getTime() / BUCKET_MS) * BUCKET_MS;
@@ -171,7 +172,7 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
         profile_target_temp: r2(avg('profile_target_temp')),
         actual_temp: r2(avg('actual_temp')),
         auto_target_temp: r2(avg('auto_target_temp')),
-        // PWM duty averages across the 5-min window to reflect mean load.
+        // PWM duty averages across the 3-min window to reflect mean load.
         // Cooling mode takes the most recent value in the bucket (group is sorted asc by recorded_at).
         duty_pct: r2(avg('duty_pct')),
         cooling_enabled: (() => {
@@ -205,7 +206,7 @@ export async function consolidate5MinBuckets(supabase: any, brewId: string): Pro
  * Snapshot thinning — preserves recent detail, caps long-term resolution at 1/hour.
  *
  * Age bands:
- *   0–6h     → keep all (5-min resolution, untouched)
+ *   0–6h     → keep all (3-min resolution, untouched)
  *   6–48h    → 15-min resolution
  *   48–168h  → 30-min resolution
  *   168h+    → 60-min resolution
