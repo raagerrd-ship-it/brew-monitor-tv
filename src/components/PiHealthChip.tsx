@@ -89,7 +89,7 @@ export function PiHealthChip() {
         <span className="opacity-70">Status:</span>{" "}
         {online ? "online" : "offline"}
       </div>
-      {health?.last_seen && (
+      {stamps.length > 0 && (
         <div>
           <span className="opacity-70">Senast sedd:</span>{" "}
           {Math.round(ageSec)}s sedan
