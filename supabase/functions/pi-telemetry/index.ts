@@ -186,14 +186,16 @@ Deno.serve(async (req) => {
 
     const sg = d.pill_gravity_sg != null ? Number(d.pill_gravity_sg) : null;
     const duty = deliveredDuty(d);
+    // Grafdata: fönstermedel när Pi:n skickar dem, annars punktvärden.
+    const m = d.means ?? {};
 
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: recordedAt,
       sg,
-      pill_temp: d.pill_temp != null ? Number(d.pill_temp) : null,
-      controller_temp: d.pt100_temp != null ? Number(d.pt100_temp) : null,
+      pill_temp: m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null),
+      controller_temp: m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null),
       profile_target_temp: d.target_temp ?? null,
-      actual_temp: d.actual_temp ?? null,
+      actual_temp: m.actual ?? d.actual_temp ?? null,
       duty_pct: duty,
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
@@ -360,17 +362,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Pi:n skickar means-blocket: alla tre sensorerna medelvärdesbildade över
+    // samma 180 s-fönster. Grafer/historik ska använda dem; punktvärdena
+    // beskriver bara enskilda PID-beslut.
+    const means = data.means ?? {};
+
     const { error: histError } = await supabase
       .from("temp_controller_history")
       .insert({
         controller_id,
-        current_temp: data.temp_mean ?? data.actual_temp ?? null,
+        current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
         target_temp: data.target_temp ?? null,
         cooling_enabled: isRegulating(data) && data.mode === "cooling",
         recorded_at: data.recorded_at || new Date().toISOString(),
         profile_target_temp: data.target_temp ?? null,
         duty_pct: isRegulating(data) ? deliveredDuty(data) : null,
-        actual_temp: data.actual_temp ?? null,
+        actual_temp: means.actual ?? data.actual_temp ?? null,
         pid_mode: isRegulating(data) ? (data.mode ?? "v6") : "off",
       });
 
