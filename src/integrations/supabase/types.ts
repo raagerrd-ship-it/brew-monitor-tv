@@ -668,6 +668,8 @@ export type Database = {
           ramp_triggered_at: string | null
           started_at: string
           status: string
+          step_label: string | null
+          step_progress: number | null
           step_start_temp: number | null
           step_started_at: string
           updated_at: string
@@ -684,6 +686,8 @@ export type Database = {
           ramp_triggered_at?: string | null
           started_at?: string
           status?: string
+          step_label?: string | null
+          step_progress?: number | null
           step_start_temp?: number | null
           step_started_at?: string
           updated_at?: string
@@ -700,6 +704,8 @@ export type Database = {
           ramp_triggered_at?: string | null
           started_at?: string
           status?: string
+          step_label?: string | null
+          step_progress?: number | null
           step_start_temp?: number | null
           step_started_at?: string
           updated_at?: string
