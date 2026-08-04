@@ -257,6 +257,7 @@ Deno.serve(async (req) => {
     // BLE = SSOT for actual_temp. Promote pill temp to the linked controller
     // so PID and UI read a fresh (smoothed) value every minute, independent of RAPT sync.
     const controllerId = pillToController.get(pillId);
+    let piActuated = false;
     if (controllerId && smoothedTemp != null) {
       // Blend with probe (current_temp) when fresh. RAPT pushes probe ~every 15 min,
       // so 30 min freshness window tolerates 1 missed cycle.
@@ -299,7 +300,7 @@ Deno.serve(async (req) => {
 
       // Pi-styrda tankar: PT100 via pi-telemetry äger actual_temp/current_temp.
       // BLE får bara uppdatera pill_temp där.
-      const piActuated = ctrlFull?.actuation === 'pi';
+      piActuated = ctrlFull?.actuation === 'pi';
       const { error: ctrlErr } = await supabase
         .from('rapt_temp_controllers')
         .update(piActuated
@@ -320,7 +321,9 @@ Deno.serve(async (req) => {
 
     // If linked to active brew → write snapshot + update brew_readings
     const brew = pillToBrew.get(pillId);
-    if (brew && r.gravity_sg != null && r.temp_c != null) {
+    // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien (fönstermedel).
+    // BLE-vägen skulle annars lägga in punktvärden mellan rollups → hackig Ctrl-kurva.
+    if (brew && !piActuated && r.gravity_sg != null && r.temp_c != null) {
       // Skip if before fermentation start
       if (brew.fermentation_start && new Date(r.recorded_at) < new Date(brew.fermentation_start)) {
         processed++;

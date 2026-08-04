@@ -34,7 +34,7 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       if (brew.linked_controller_id) {
         const { data: ctrl } = await supabase
           .from('rapt_temp_controllers')
-          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp')
+          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp, actuation')
           .eq('controller_id', brew.linked_controller_id)
           .maybeSingle();
         linkedController = ctrl;
@@ -75,7 +75,8 @@ async function syncCustomBrews(supabase: any): Promise<number> {
       // SSOT: prefer controller actual_temp over pill temp when linked
       const ssotTemp = linkedController?.actual_temp ?? pill.temperature;
 
-      await createBrewSnapshot(supabase, brew.id, {
+      // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien (fönstermedel).
+      if (linkedController?.actuation !== 'pi') await createBrewSnapshot(supabase, brew.id, {
         recorded_at: recordedAt,
         sg: sgValue,
         pill_temp: pill.temperature,
@@ -370,7 +371,7 @@ Deno.serve(async (req) => {
       const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
       const { data: ctrls } = ctrlIds.length > 0
         ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update, pill_temp')
+            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update, pill_temp, actuation')
             .in('controller_id', ctrlIds)
         : { data: [] as any[] };
       const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
@@ -379,6 +380,8 @@ Deno.serve(async (req) => {
       for (const brew of activeBrews) {
         if (brew.current_sg == null) continue;
         const ctrl = ctrlMap.get(brew.linked_controller_id);
+        // Pi-styrda tankar loggas av pi-telemetry-rollupen (fönstermedel).
+        if ((ctrl as any)?.actuation === 'pi') continue;
         await createBrewSnapshot(supabase, brew.id, {
           recorded_at: ctrl?.last_update || brew.last_update || new Date().toISOString(),
           sg: brew.current_sg,
