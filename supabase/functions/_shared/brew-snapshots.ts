@@ -97,7 +97,7 @@ export async function createBrewSnapshot(
       return false;
     }
 
-    // Fire-and-forget: consolidate closed 3-min buckets, then thin if oversized
+    // Fire-and-forget: thin if oversized
     thinSnapshots(supabase, brewId).catch(() => {});
     return true;
   } catch (err) {
