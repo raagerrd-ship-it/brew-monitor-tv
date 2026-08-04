@@ -186,14 +186,16 @@ Deno.serve(async (req) => {
 
     const sg = d.pill_gravity_sg != null ? Number(d.pill_gravity_sg) : null;
     const duty = deliveredDuty(d);
+    // Grafdata: fönstermedel när Pi:n skickar dem, annars punktvärden.
+    const m = d.means ?? {};
 
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: recordedAt,
       sg,
-      pill_temp: d.pill_temp != null ? Number(d.pill_temp) : null,
-      controller_temp: d.pt100_temp != null ? Number(d.pt100_temp) : null,
+      pill_temp: m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null),
+      controller_temp: m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null),
       profile_target_temp: d.target_temp ?? null,
-      actual_temp: d.actual_temp ?? null,
+      actual_temp: m.actual ?? d.actual_temp ?? null,
       duty_pct: duty,
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
