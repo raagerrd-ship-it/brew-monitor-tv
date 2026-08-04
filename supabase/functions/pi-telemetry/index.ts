@@ -105,6 +105,53 @@ Deno.serve(async (req) => {
     return fullId ?? null;
   }
 
+  // ── Profil-/metrics-state från Pi:ns profilmotor (Pi äger sanningen) ──
+  async function writeProfileState(p: any) {
+    if (!p || !p.session_id) return;
+    if (p.shadow === true) return; // skuggkörning = inte verklig historik
+    const patch: Record<string, any> = {
+      status: p.status,
+      current_step_index: p.current_step_index,
+      updated_at: new Date().toISOString(),
+    };
+    if (p.step_started_at) patch.step_started_at = p.step_started_at;
+    if (p.started_at) patch.started_at = p.started_at;
+    if (p.step_start_temp !== undefined) patch.step_start_temp = p.step_start_temp;
+    if (p.ramp_triggered_at !== undefined) patch.ramp_triggered_at = p.ramp_triggered_at;
+    if (p.ramp_start_sg !== undefined) patch.ramp_start_sg = p.ramp_start_sg;
+    if (p.status === "completed" && !patch.completed_at) patch.completed_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("fermentation_sessions")
+      .update(patch)
+      .eq("id", p.session_id);
+    if (error) console.error("profile state write failed:", error.message);
+  }
+
+  async function writeMetrics(brewId: string | null | undefined, m: any) {
+    if (!brewId || !m) return;
+    const row: Record<string, any> = {
+      brew_id: brewId,
+      fermentation_phase: m.fermentation_phase ?? "unknown",
+      activity_score: Number(m.activity_score ?? 0),
+      sg_rate_per_hour: Number(m.sg_rate_per_hour ?? 0),
+      eta_to_fg_hours: m.eta_to_fg_hours ?? null,
+      peak_delta: Number(m.peak_delta ?? 0),
+      peak_sg_rate_per_hour: Number(m.peak_sg_rate_per_hour ?? 0),
+      ready_to_crash: Boolean(m.ready_to_crash),
+      updated_at: new Date().toISOString(),
+    };
+    const { data: existing } = await supabase
+      .from("brew_fermentation_metrics")
+      .select("id")
+      .eq("brew_id", brewId)
+      .maybeSingle();
+    const { error } = existing
+      ? await supabase.from("brew_fermentation_metrics").update(row).eq("id", existing.id)
+      : await supabase.from("brew_fermentation_metrics").insert(row);
+    if (error) console.error("metrics write failed:", error.message);
+  }
+
   // ── Pill-data via Pi:n (ersätter ingest-pill-ble för Pi-styrda tankar) ──
   async function writePillAndBrew(fullId: string, d: any) {
     const { data: ctrl } = await supabase
@@ -333,6 +380,9 @@ Deno.serve(async (req) => {
     const fullId = await writeBackToController(data);
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
+      // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
+      await writeProfileState(data.profile);
+      await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
       // Pi:n äger inlärningen nu — vi tar emot skattningarna som backup/graf.
       const learned = data.learned_params;
       if (learned && typeof learned === "object") {
