@@ -119,6 +119,9 @@ Deno.serve(async (req) => {
     if (p.step_start_temp !== undefined) patch.step_start_temp = p.step_start_temp;
     if (p.ramp_triggered_at !== undefined) patch.ramp_triggered_at = p.ramp_triggered_at;
     if (p.ramp_start_sg !== undefined) patch.ramp_start_sg = p.ramp_start_sg;
+    if (p.step_label !== undefined) patch.step_label = p.step_label;
+    if (p.progress !== undefined) patch.step_progress = p.progress;
+    else if (p.step_progress !== undefined) patch.step_progress = p.step_progress;
     if (p.status === "completed" && !patch.completed_at) patch.completed_at = new Date().toISOString();
 
     const { error } = await supabase
