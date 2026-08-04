@@ -4,10 +4,7 @@ import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
 import { RaptPillPairing } from "@/components/RaptPillPairing";
 import { SyncChecklist } from "@/components/SyncChecklist";
-import { AutomationFeatureStatus } from "@/components/AutomationFeatureStatus";
-import { AutoCoolingDecisionLogs } from "@/components/AutoCoolingDecisionLogs";
 import { AiAuditHistory } from "@/components/AiAuditHistory";
-import { AiTunableParameters } from "@/components/AiTunableParameters";
 import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
@@ -509,63 +506,8 @@ export default function Settings() {
                   </div>
                   <Switch checked={true} disabled className="opacity-60" />
                 </div>
-                <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <Snowflake className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-medium">Autojustera glykolkylare</p>
-                      {settings.autoCoolingEnabled && !settings.coolerControllerId && (
-                        <p className="text-[11px] text-warning">Ingen kylare markerad under Enheter</p>
-                      )}
-                    </div>
-                  </div>
-                  <Switch checked={settings.autoCoolingEnabled} onCheckedChange={settings.handleAutoCoolingEnabledChange} />
-                </div>
-                <SettingsDivider />
-                <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <Brain className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-medium">AI-optimering</p>
-                  </div>
-                  <Switch checked={settings.aiAuditEnabled} onCheckedChange={settings.handleAiAuditEnabledChange} />
-                </div>
-                <SettingsDivider />
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <FlaskConical className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-medium">SG-temperaturkorrektion</p>
-                      <p className="text-[11px] text-muted-foreground">Korrigerar gravityvärden vid synk baserat på temperatur</p>
-                    </div>
-                  </div>
-                  <Switch checked={settings.sgTempCorrectionEnabled} onCheckedChange={settings.handleSgTempCorrectionEnabledChange} />
-                </div>
               </div>
             </SettingsSection>
-
-            {/* Live-status */}
-            {settings.autoCoolingEnabled && settings.coolerControllerId && (
-              <SettingsSection icon={Thermometer} title="Live-status" variant="muted" collapsible defaultOpen={false}>
-                <div className="space-y-3">
-                  <AutomationFeatureStatus
-                    autoCoolingEnabled={settings.autoCoolingEnabled}
-                    stallDetectionEnabled={false}
-                    overshootPreventionEnabled={false}
-                    aiAuditEnabled={settings.aiAuditEnabled}
-                    availableControllers={settings.availableControllers}
-                    coolerControllerId={settings.coolerControllerId}
-                    followedControllerIds={settings.followedControllerIds}
-                    lastAdjustment={settings.lastAdjustment}
-                    lastAutoCoolingCheck={settings.lastQuickSync}
-                    autoCoolingInterval={settings.quickSyncInterval}
-                   />
-                  <SettingsDivider />
-                  <AiTunableParameters />
-                </div>
-              </SettingsSection>
-            )}
 
             <CategorySeparator icon={Brain} label="Inlärning" />
                 <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
@@ -596,9 +538,6 @@ export default function Settings() {
             <CategorySeparator icon={History} label="Historik" />
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
               <CombinedControllerChart controllers={combinedChartControllers} />
-            </SettingsSection>
-            <SettingsSection icon={History} title="Synkroniseringshistorik" description="Loggar RAPT-synk, PID-reglering, kylautomatik och hårdvaruändringar varje cykel" collapsible defaultOpen={false}>
-              <AutoCoolingDecisionLogs />
             </SettingsSection>
             <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar" collapsible defaultOpen={false}>
               <AiAuditHistory />

@@ -31,8 +31,6 @@ verify_jwt = false
 [functions.render-brew-chart]
 verify_jwt = false
 
-[functions.run-automation]
-verify_jwt = false
 
 [functions.ai-automation-audit]
 verify_jwt = false
@@ -55,8 +53,6 @@ verify_jwt = false
 [functions.send-push-notification]
 verify_jwt = false
 
-[functions.execute-pwm-off]
-verify_jwt = false
 
 [functions.sonos-bridge-push]
 verify_jwt = false

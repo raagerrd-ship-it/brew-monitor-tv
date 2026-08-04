@@ -27,16 +27,6 @@ interface ApiSettings {
   rapt: { username: string; apiSecret: string; configured: boolean };
 }
 
-interface LastAdjustment {
-  created_at: string;
-  old_target_temp: number;
-  new_target_temp: number;
-  reason: string;
-  followed_controller_name: string | null;
-  followed_current_temp: number | null;
-  followed_target_temp: number | null;
-}
-
 interface SyncStep {
   id: string;
   label: string;
@@ -69,23 +59,9 @@ export function useSettingsData() {
   const [syncSteps, setSyncSteps] = useState<SyncStep[]>([]);
   const [apiSettings, setApiSettings] = useState<ApiSettings | null>(null);
 
-  // Auto-cooling settings
-  const [autoCoolingEnabled, setAutoCoolingEnabled] = useState(false);
-  const [autoCoolingInterval, setAutoCoolingInterval] = useState<string>("60");
-  const [tempReduction, setTempReduction] = useState<string>("2");
-  const [maxDiffFromLowest, setMaxDiffFromLowest] = useState<string>("10");
-  const [autoCoolingSettingsId, setAutoCoolingSettingsId] = useState<string | null>(null);
+  // Cooler/followed controllers — derived from rapt_temp_controllers.is_glycol_cooler
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
   const [followedControllerIds, setFollowedControllerIds] = useState<string[]>([]);
-  const [deltaAlertThreshold, setDeltaAlertThreshold] = useState<string>("2");
-  // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
-  const [pillCompMaxCompensation, setPillCompMaxCompensation] = useState<string>("5.0");
-  // stallDetectionEnabled/stallBoostDegrees removed — stall-boost feature removed
-  // overshootPreventionEnabled removed — overshoot prevention runs unconditionally
-  const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
-  const [sgTempCorrectionEnabled, setSgTempCorrectionEnabled] = useState(false);
-  const [lastAutoCoolingCheck, setLastAutoCoolingCheck] = useState<string | null>(null);
-  const [lastAdjustment, setLastAdjustment] = useState<LastAdjustment | null>(null);
 
   // Controllers & devices
   const [availableControllers, setAvailableControllers] = useState<AvailableController[]>([]);
@@ -172,34 +148,6 @@ export function useSettingsData() {
       setApiSettings(data);
     } catch (error) {
       console.error('Error loading API settings:', error);
-    }
-  }, []);
-
-  const loadAutoCoolingSettings = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.from('auto_cooling_settings').select('*').limit(1).maybeSingle();
-      if (error) throw error;
-      if (data) {
-        setAutoCoolingSettingsId(data.id);
-        setAutoCoolingEnabled(data.enabled);
-        setAutoCoolingInterval(data.check_interval_minutes.toString());
-        setTempReduction(data.temp_reduction_degrees.toString());
-        setMaxDiffFromLowest(data.max_diff_from_lowest.toString());
-        setLastAutoCoolingCheck(data.last_check_at);
-        // stallDetectionEnabled/stallBoostDegrees removed
-        // pillCompEnabled removed — was: setPillCompEnabled(data.pill_compensation_enabled ?? false);
-        setPillCompMaxCompensation((data.pill_compensation_max_compensation ?? 5.0).toString());
-        setDeltaAlertThreshold((data.delta_alert_threshold ?? 2.0).toString());
-        // overshootPreventionEnabled removed
-        setAiAuditEnabled(data.ai_audit_enabled ?? true);
-        setSgTempCorrectionEnabled((data as any).sg_temp_correction_enabled ?? false);
-      }
-      const { data: adjData } = await supabase.from('auto_cooling_adjustments')
-        .select('created_at, old_target_temp, new_target_temp, reason, followed_controller_name, followed_current_temp, followed_target_temp')
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      setLastAdjustment(adjData);
-    } catch (error) {
-      console.error('Error loading auto cooling settings:', error);
     }
   }, []);
 
@@ -290,7 +238,6 @@ export function useSettingsData() {
     if (!user) return;
     loadSettings();
     loadApiSettings();
-    loadAutoCoolingSettings();
     loadAvailableControllers();
     loadHeaderPills();
     loadDeviceCounts();
@@ -303,26 +250,6 @@ export function useSettingsData() {
         if (newData) {
           setLastQuickSync(newData.last_rapt_quick_sync_at);
           setLastFullSync(newData.last_full_sync_at);
-        }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'auto_cooling_adjustments' }, () => {
-        setLastAutoCoolingCheck(new Date().toISOString());
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'auto_cooling_settings' }, (payload) => {
-        const newData = payload.new as Tables<'auto_cooling_settings'>;
-        if (newData) {
-          if (newData.last_check_at !== undefined) setLastAutoCoolingCheck(newData.last_check_at);
-          if (newData.enabled !== undefined) setAutoCoolingEnabled(newData.enabled);
-          if (newData.check_interval_minutes !== undefined) setAutoCoolingInterval(newData.check_interval_minutes.toString());
-          if (newData.temp_reduction_degrees !== undefined) setTempReduction(newData.temp_reduction_degrees.toString());
-          if (newData.max_diff_from_lowest !== undefined) setMaxDiffFromLowest(newData.max_diff_from_lowest.toString());
-          if (newData.cooler_controller_id !== undefined) setCoolerControllerId(newData.cooler_controller_id || "");
-          // stallDetectionEnabled/stallBoostDegrees removed
-          // pillCompEnabled removed — was: if (newData.pill_compensation_enabled !== undefined) setPillCompEnabled(newData.pill_compensation_enabled);
-          if (newData.delta_alert_threshold !== undefined) setDeltaAlertThreshold(newData.delta_alert_threshold.toString());
-          // overshootPreventionEnabled removed
-          if (newData.ai_audit_enabled !== undefined) setAiAuditEnabled(newData.ai_audit_enabled);
-          if ((newData as any).sg_temp_correction_enabled !== undefined) setSgTempCorrectionEnabled((newData as any).sg_temp_correction_enabled);
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers' }, (payload) => {
@@ -349,7 +276,7 @@ export function useSettingsData() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, loadSettings, loadApiSettings, loadAutoCoolingSettings, loadAvailableControllers, loadHeaderPills, loadDeviceCounts, loadBrewCounts]);
+  }, [user, loadSettings, loadApiSettings, loadAvailableControllers, loadHeaderPills, loadDeviceCounts, loadBrewCounts]);
 
   // ─── Handlers ───
 
@@ -363,17 +290,6 @@ export function useSettingsData() {
       toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
     }
   }, [settingsId, toast]);
-
-  const updateAutoCoolingSetting = useCallback(async (field: string, value: string | number | boolean) => {
-    if (!autoCoolingSettingsId) return;
-    try {
-      const { error } = await supabase.from('auto_cooling_settings').update({ [field]: value } as never).eq('id', autoCoolingSettingsId);
-      if (error) throw error;
-      toast({ title: "Inställningar sparade" });
-    } catch {
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  }, [autoCoolingSettingsId, toast]);
 
   const handleQuickSyncIntervalChange = useCallback(async (value: string) => {
     setQuickSyncInterval(value);
@@ -445,75 +361,6 @@ export function useSettingsData() {
     }
   }, [toast, loadSettings]);
 
-  // Auto-cooling handlers
-  const handleAutoCoolingEnabledChange = useCallback(async (checked: boolean) => {
-    setAutoCoolingEnabled(checked);
-    await updateAutoCoolingSetting('enabled', checked);
-  }, [updateAutoCoolingSetting]);
-
-  const handleAutoCoolingIntervalChange = useCallback(async (value: string) => {
-    setAutoCoolingInterval(value);
-    await updateAutoCoolingSetting('check_interval_minutes', parseInt(value));
-  }, [updateAutoCoolingSetting]);
-
-  const handleTempReductionChange = useCallback(async (value: string) => {
-    setTempReduction(value);
-    await updateAutoCoolingSetting('temp_reduction_degrees', parseFloat(value));
-  }, [updateAutoCoolingSetting]);
-
-  const handleMaxDiffChange = useCallback(async (value: string) => {
-    setMaxDiffFromLowest(value);
-    await updateAutoCoolingSetting('max_diff_from_lowest', parseFloat(value));
-  }, [updateAutoCoolingSetting]);
-
-  const handleDeltaAlertThresholdChange = useCallback(async (value: string) => {
-    setDeltaAlertThreshold(value);
-    await updateAutoCoolingSetting('delta_alert_threshold', parseFloat(value));
-  }, [updateAutoCoolingSetting]);
-
-  // handlePillCompEnabledChange removed — now per-controller (dual_sensor_enabled)
-
-  const handlePillCompMaxCompensationChange = useCallback(async (value: string) => {
-    setPillCompMaxCompensation(value);
-    await updateAutoCoolingSetting('pill_compensation_max_compensation', parseFloat(value));
-  }, [updateAutoCoolingSetting]);
-
-  // handleStallDetectionEnabledChange/handleStallBoostDegreesChange removed
-  // handleOvershootPreventionChange removed — overshoot prevention runs unconditionally
-
-  const handleAiAuditEnabledChange = useCallback(async (checked: boolean) => {
-    setAiAuditEnabled(checked);
-    await updateAutoCoolingSetting('ai_audit_enabled', checked);
-  }, [updateAutoCoolingSetting]);
-
-  const handleSgTempCorrectionEnabledChange = useCallback(async (checked: boolean) => {
-    setSgTempCorrectionEnabled(checked);
-    await updateAutoCoolingSetting('sg_temp_correction_enabled', checked);
-  }, [updateAutoCoolingSetting]);
-
-
-  const handleCoolerControllerChange = useCallback(async (value: string) => {
-    setCoolerControllerId(value);
-    await updateAutoCoolingSetting('cooler_controller_id', value);
-  }, [updateAutoCoolingSetting]);
-
-  const handleFollowedControllerToggle = useCallback(async (controllerId: string, checked: boolean) => {
-    try {
-      if (checked) {
-        const { error } = await supabase.from('auto_cooling_followed_controllers').insert({ controller_id: controllerId });
-        if (error) throw error;
-        setFollowedControllerIds(prev => [...prev, controllerId]);
-      } else {
-        const { error } = await supabase.from('auto_cooling_followed_controllers').delete().eq('controller_id', controllerId);
-        if (error) throw error;
-        setFollowedControllerIds(prev => prev.filter(id => id !== controllerId));
-      }
-      toast({ title: "Inställningar sparade", description: checked ? "Controller tillagd" : "Controller borttagen" });
-    } catch {
-      toast({ title: "Fel", description: "Kunde inte spara inställningar", variant: "destructive" });
-    }
-  }, [toast]);
-
   const handleLogout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
@@ -540,12 +387,7 @@ export function useSettingsData() {
     apiSettings,
     settingsId,
     autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
-    // Auto-cooling
-    autoCoolingEnabled, autoCoolingInterval, tempReduction, maxDiffFromLowest,
-    coolerControllerId, followedControllerIds, deltaAlertThreshold,
-    pillCompMaxCompensation,
-    aiAuditEnabled, sgTempCorrectionEnabled,
-    lastAutoCoolingCheck, lastAdjustment,
+    coolerControllerId, followedControllerIds,
     // Controllers & devices
     availableControllers, headerControllers, headerPillsData,
     visiblePillsCount, visibleControllersCount, visibleBrewsCount,
@@ -555,12 +397,6 @@ export function useSettingsData() {
     handleAutoSettingChange, handleSplashDelayChange,
     handlePillStaleThresholdChange, handleProbeStaleThresholdChange,
     handleQuickSync, handleFullSync,
-    handleAutoCoolingEnabledChange, handleAutoCoolingIntervalChange,
-    handleTempReductionChange, handleMaxDiffChange, handleDeltaAlertThresholdChange,
-    handlePillCompMaxCompensationChange,
-    handleAiAuditEnabledChange, handleSgTempCorrectionEnabledChange,
-    handleCoolerControllerChange,
-    handleFollowedControllerToggle,
     handleLogout, handleForceTvRefresh,
   };
 }

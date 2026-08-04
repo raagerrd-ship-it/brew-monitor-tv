@@ -123,102 +123,11 @@ export function getEffectiveTargetTemp(steps: ProfileStep[], currentStepIndex: n
   return null
 }
 
-/**
- * Set target temperature via the rapt-update-controller edge function.
- * Unified wrapper used by both process-fermentation-profiles and auto-adjust-cooling.
- * For batched updates, use RaptUpdateBatch instead.
- * Optionally accepts a pre-fetched access_token to avoid redundant RAPT auth.
- */
-export async function setControllerTargetTemp(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  controllerId: string,
-  targetTemp: number,
-  timeoutMs: number = 10000,
-  accessToken?: string | null
-): Promise<boolean> {
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-      body: JSON.stringify({
-        controllerId,
-        action: 'setTargetTemperature',
-        value: targetTemp,
-        source: 'automation',
-        ...(accessToken ? { access_token: accessToken } : {}),
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Failed to set temperature for ${controllerId}: ${response.status} ${errorText}`)
-      return false
-    }
-
-    const data = await response.json()
-    return data?.success === true
-  } catch (error) {
-    const isTimeout = error instanceof DOMException && error.name === 'TimeoutError'
-    if (isTimeout) {
-      console.warn(`⏱️ Timeout after ${timeoutMs}ms for ${controllerId}, retrying once...`)
-      try {
-        const retryResponse = await fetch(`${supabaseUrl}/functions/v1/rapt-update-controller`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceRoleKey}`,
-          },
-          body: JSON.stringify({
-            controllerId,
-            action: 'setTargetTemperature',
-            value: targetTemp,
-            source: 'automation',
-            ...(accessToken ? { access_token: accessToken } : {}),
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        })
-        if (retryResponse.ok) {
-          const data = await retryResponse.json()
-          if (data?.success === true) {
-            console.log(`✅ Retry succeeded for ${controllerId}`)
-            return true
-          }
-        }
-        console.error(`❌ Retry also failed for ${controllerId}`)
-        return false
-      } catch (retryError) {
-        console.error(`❌ Retry failed for ${controllerId}: ${retryError}`)
-        return false
-      }
-    }
-    console.error(`Error setting temperature for ${controllerId}: ${String(error)}`)
-    return false
-  }
-}
-
 // setCoolerHysteresis removed — RAPT API returns 404 for TemperatureControllers.
 
 // setHeatingHysteresis, setHeatingEnabled, setCoolingEnabled removed
 // — RAPT API does not support these endpoints for TemperatureControllers (404).
 
-// ============================================================
-// Batched RAPT Updates
-//
-// Collects target temperature changes and flushes them in parallel
-// with a single shared auth token. Saves ~2-4s per automation cycle
-// by eliminating per-call auth overhead and sequential execution.
-// ============================================================
-
-interface PendingRaptUpdate {
-  controllerId: string
-  targetTemp: number
-  oldTarget?: number
-}
 
 /**
  * Collects RAPT controller target temperature updates and sends them
@@ -432,6 +341,4 @@ export class RaptUpdateBatch {
   }
 }
 
-// Re-export PID compensation types and functions for backward compatibility
-export { calculateCompensatedTarget, learnThermalRate, learnGlycolCoolerRate, getGlycolRatesSummary } from './pid-compensation.ts'
 
