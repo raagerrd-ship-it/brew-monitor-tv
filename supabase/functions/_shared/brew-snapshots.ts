@@ -118,7 +118,8 @@ export async function createBrewSnapshot(
  */
 export async function consolidate5MinBuckets(supabase: any, brewId: string): Promise<void> {
   try {
-    const BUCKET_MS = 5 * 60 * 1000;
+    // 3-min buckets = same cadence as the Pi rollup, so one snapshot per Pi-cykel.
+    const BUCKET_MS = 3 * 60 * 1000;
     const nowBucket = Math.floor(Date.now() / BUCKET_MS) * BUCKET_MS;
     // Look back ~30 min — enough to catch the previous bucket plus any backfill,
     // small enough to keep the query cheap on every write.
