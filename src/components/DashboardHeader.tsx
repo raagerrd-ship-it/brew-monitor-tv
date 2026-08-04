@@ -222,8 +222,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   piDisabled = {},
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
-  const [raptDegraded, setRaptDegraded] = useState(false);
-  const [lastSuccessfulSync, setLastSuccessfulSync] = useState<Date | null>(null);
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
   const [pillStaleMin, setPillStaleMin] = useState(5);
   const [probeStaleMin, setProbeStaleMin] = useState(31);
@@ -243,36 +241,25 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const staleMinutes = latestUpdate ? (now - latestUpdate.getTime()) / 60000 : 0;
   const isStale = staleMinutes > staleThresholdMin;
 
-  // Check RAPT degraded mode + dynamic stale threshold based on sync interval
+  // Load sensor freshness thresholds. Controller data now comes from the Pi.
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase
         .from('sync_settings')
-        .select('last_successful_rapt_sync_at, last_rapt_quick_sync_at, rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
+        .select('rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
         .limit(1)
         .maybeSingle();
       if (!data) return;
-      const lastSuccess = data.last_successful_rapt_sync_at ? new Date(data.last_successful_rapt_sync_at) : null;
-      const lastQuick = data.last_rapt_quick_sync_at ? new Date(data.last_rapt_quick_sync_at) : null;
       const syncIntervalSec = (data as any).rapt_sync_interval ?? 300;
       const thresholdMin = Math.max(31, Math.round((syncIntervalSec * 2) / 60) + 20);
       setStaleThresholdMin(thresholdMin);
       setPillStaleMin(Number((data as any).pill_stale_threshold_min ?? 5));
       setProbeStaleMin(Number((data as any).probe_stale_threshold_min ?? 31));
-      setLastSuccessfulSync(lastSuccess);
-      if (lastSuccess && lastQuick) {
-        const sinceSuccess = Date.now() - lastSuccess.getTime();
-        setRaptDegraded(sinceSuccess > thresholdMin * 60 * 1000);
-      } else {
-        setRaptDegraded(false);
-      }
     };
     check();
     const interval = setInterval(check, 60000);
     return () => clearInterval(interval);
   }, [controllers]);
-
-  const showWarning = isStale || raptDegraded;
 
   // Tick every 30s to keep duration updated
   useEffect(() => {
@@ -298,19 +285,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
               <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
-          {/* RAPT API degraded mode — syncs run but API fails */}
-          {!isStale && raptDegraded && lastSuccessfulSync && (
-            <>
-              <div className="flex items-center gap-1.5 flex-shrink-0 pr-1" title={`RAPT API nere. Senaste lyckade synk: ${formatTime(lastSuccessfulSync)}. Systemet kör på cachad data.`}>
-                <WifiOff className="w-3.5 h-3.5 text-destructive animate-pulse" />
-                <span className="text-[11px] font-medium text-destructive whitespace-nowrap">
-                  API nere sedan {formatTime(lastSuccessfulSync)}
-                </span>
-              </div>
-              <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
-            </>
-          )}
-
           {controllers.map((controller, index) => {
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
