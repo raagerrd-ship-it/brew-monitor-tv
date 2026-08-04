@@ -5,12 +5,14 @@ import type { TempController, PillData } from '@/types/brew';
 interface RaptBarData {
   controllers: TempController[];
   pills: PillData[];
+  piDisabled: Record<string, boolean>;
   loading: boolean;
 }
 
 export function useRaptBarData(): RaptBarData {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
+  const [piDisabled, setPiDisabled] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const controllerIdsRef = useRef<string[]>([]);
   const pillIdsRef = useRef<string[]>([]);
@@ -46,6 +48,21 @@ export function useRaptBarData(): RaptBarData {
 
       setControllers(sortedControllers);
       setPills(sortedPills);
+
+      const piIds = sortedControllers
+        .filter((c: any) => c.actuation === 'pi')
+        .map((c) => c.controller_id);
+      if (piIds.length > 0) {
+        const { data: setpoints } = await supabase
+          .from('pi_setpoint')
+          .select('controller_id, enabled')
+          .in('controller_id', piIds);
+        const map: Record<string, boolean> = {};
+        for (const sp of setpoints || []) map[sp.controller_id] = sp.enabled === false;
+        setPiDisabled(map);
+      } else {
+        setPiDisabled({});
+      }
     } catch (error) {
       console.error('Error loading RAPT bar data:', error);
     } finally {
@@ -89,6 +106,11 @@ export function useRaptBarData(): RaptBarData {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => {
         loadData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_setpoint' }, (payload) => {
+        const updated = payload.new as any;
+        if (!updated?.controller_id) return;
+        setPiDisabled(prev => ({ ...prev, [updated.controller_id]: updated.enabled === false }));
+      })
       .subscribe();
 
     // Polling fallback every 2 min — Realtime is unreliable on Chromecast/TV
@@ -100,5 +122,5 @@ export function useRaptBarData(): RaptBarData {
     };
   }, [loadData]);
 
-  return { controllers, pills, loading };
+  return { controllers, pills, piDisabled, loading };
 }
