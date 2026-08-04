@@ -194,11 +194,14 @@ class Regulator:
                 self.tanks[t.controller_id] = reg
 
         self._sync_thread: Optional[threading.Thread] = None
+        self._telemetry_thread: Optional[threading.Thread] = None
         self._last_rollup: Dict[str, float] = {}
 
     def start(self):
         self._sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
         self._sync_thread.start()
+        self._telemetry_thread = threading.Thread(target=self._telemetry_loop, daemon=True)
+        self._telemetry_thread.start()
         self._control_loop()
 
     def stop(self):
@@ -232,6 +235,19 @@ class Regulator:
             except Exception as e:
                 log.error(f"sync loop error: {e}")
 
+    # ── Telemetry loop (separate thread) ──
+    # Måste vara fristående från kontrollslingan: annars samplas reläläget bara
+    # en gång per PWM-fönster (direkt efter påslag) och molnet tror att
+    # reläet står på 100 % trots låg duty.
+
+    def _telemetry_loop(self):
+        while not self._stop.wait(config.SYNC_INTERVAL_S):
+            try:
+                glycol_temp = self.sensors.corrected(config.GLYCOL_SENSOR_KEY)
+                self._post_live(glycol_temp, time.time())
+            except Exception as e:
+                log.error(f"telemetry loop error: {e}")
+
     # ── Main control loop ──
 
     def _control_loop(self):
@@ -246,9 +262,6 @@ class Regulator:
 
             # ── Glycol compressor management ──
             self._manage_compressor(glycol_temp, now)
-
-            # ── Telemetry ──
-            self._post_live(glycol_temp, now)
 
             # Wait for next PWM window
             self._stop.wait(config.PWM_PERIOD_S)
