@@ -25,6 +25,42 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const controllerId = url.searchParams.get("controller_id");
 
+  // ── One-shot handover: running fermentation sessions + their profile steps ──
+  if (url.searchParams.get("handover") === "sessions") {
+    const { data: sessions } = await supabase
+      .from("fermentation_sessions")
+      .select("id, profile_id, brew_id, controller_id, status, current_step_index, step_started_at, step_start_temp, ramp_triggered_at, ramp_start_sg, started_at")
+      .eq("status", "running");
+
+    const profileIds = [...new Set((sessions || []).map((s: any) => s.profile_id))];
+    const { data: steps } = profileIds.length
+      ? await supabase
+        .from("fermentation_profile_steps")
+        .select("*")
+        .in("profile_id", profileIds)
+        .order("step_order", { ascending: true })
+      : { data: [] };
+
+    const { data: controllers } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id, name, profile_target_temp, min_target_temp, max_target_temp");
+
+    const ctrlById = new Map((controllers || []).map((c: any) => [c.controller_id, c]));
+
+    return new Response(JSON.stringify({
+      generated_at: new Date().toISOString(),
+      sessions: (sessions || []).map((s: any) => ({
+        ...s,
+        controller_short_id: String(s.controller_id).slice(0, 8),
+        controller_name: ctrlById.get(s.controller_id)?.name ?? null,
+        profile_target_temp: ctrlById.get(s.controller_id)?.profile_target_temp ?? null,
+        min_target_temp: ctrlById.get(s.controller_id)?.min_target_temp ?? null,
+        max_target_temp: ctrlById.get(s.controller_id)?.max_target_temp ?? null,
+        steps: (steps || []).filter((st: any) => st.profile_id === s.profile_id),
+      })),
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   if (!controllerId) {
     // Return all setpoints for this Pi
     const { data: controllers } = await supabase
