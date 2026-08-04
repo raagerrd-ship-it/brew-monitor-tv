@@ -331,12 +331,16 @@ Deno.serve(async (req) => {
         actual_temp: data.actual_temp ?? null,
         target_temp: data.target_temp ?? null,
         mode: data.mode ?? null,
-        duty_pct: data.duty_pct ?? 0,
+        duty_pct: isRegulating(data) ? (data.duty_pct ?? 0) : 0,
         cooling_relay_on: data.cooling_relay_on ?? false,
         heating_relay_on: data.heating_relay_on ?? false,
         glycol_temp: data.glycol_temp ?? null,
         pid_terms: data.pid_terms ?? null,
-        constraints_hit: data.constraints_hit ?? null,
+        // blocked_by säger *varför* duty är 0 — läggs in i constraints_hit så
+        // "inget behövs" och "givaren är blind" inte ser likadana ut i molnet.
+        constraints_hit: data.blocked_by
+          ? [...(data.constraints_hit ?? []), `blocked_by:${data.blocked_by}`]
+          : (data.constraints_hit ?? null),
         sensor_source: data.sensor_source ?? null,
         enabled: data.enabled ?? null,
         mode_allowed: data.mode_allowed ?? null,
