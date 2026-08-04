@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     if (!allPills || !allControllers) {
       const [{ data: dbPills }, { data: dbControllers }] = await Promise.all([
         allPills ? Promise.resolve({ data: allPills }) : supabase.from('rapt_pills').select('pill_id, name, paired_device_id, gravity, temperature, battery_level, last_update'),
-        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp, actual_temp'),
+        allControllers ? Promise.resolve({ data: allControllers }) : supabase.from('rapt_temp_controllers').select('controller_id, linked_pill_id, pill_temp, current_temp, target_temp, profile_target_temp, actual_temp, actuation'),
       ]);
       if (!allPills) allPills = dbPills;
       if (!allControllers) allControllers = dbControllers;
@@ -103,10 +103,12 @@ Deno.serve(async (req) => {
           if (ctrlForBrew) {
             const fallbackTemp = ctrlForBrew.actual_temp ?? ctrlForBrew.current_temp;
             if (fallbackTemp != null) {
+              const piOwned = (ctrlForBrew as any)?.actuation === 'pi';
               await supabase.from('brew_readings')
                 .update({ current_temp: fallbackTemp, updated_at: new Date().toISOString() })
                 .eq('id', brew.id);
-              await createBrewSnapshot(supabase, brew.id, {
+              // Pi-styrda tankar: pi-telemetry-rollupen äger snapshot-serien.
+              if (!piOwned) await createBrewSnapshot(supabase, brew.id, {
                 recorded_at: new Date().toISOString(),
                 sg: brew.current_sg ?? 1.000,
                 pill_temp: ctrlForBrew.pill_temp ?? null,
@@ -143,8 +145,8 @@ Deno.serve(async (req) => {
         const ssotTemp = ctrlForBrew?.actual_temp ?? pillTemp;
         const now = new Date().toISOString();
 
-        // ── Create snapshot ──
-        await createBrewSnapshot(supabase, brew.id, {
+        // ── Create snapshot ── (Pi-tankar loggas av pi-telemetry-rollupen)
+        if ((ctrlForBrew as any)?.actuation !== 'pi') await createBrewSnapshot(supabase, brew.id, {
           recorded_at: now,
           sg: correctedSg,
           pill_temp: pillTemp,
