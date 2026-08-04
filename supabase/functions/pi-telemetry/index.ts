@@ -316,12 +316,12 @@ Deno.serve(async (req) => {
         controller_id,
         current_temp: data.temp_mean ?? data.actual_temp ?? null,
         target_temp: data.target_temp ?? null,
-        cooling_enabled: data.mode === "cooling",
+        cooling_enabled: isRegulating(data) && data.mode === "cooling",
         recorded_at: data.recorded_at || new Date().toISOString(),
         profile_target_temp: data.target_temp ?? null,
-        duty_pct: deliveredDuty(data),
+        duty_pct: isRegulating(data) ? deliveredDuty(data) : null,
         actual_temp: data.actual_temp ?? null,
-        pid_mode: data.mode ?? "v6",
+        pid_mode: isRegulating(data) ? (data.mode ?? "v6") : "off",
       });
 
     if (histError) {
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
     // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
     // dit ingest-pill-ble tidigare skrev (rapt_pills + brew_data_snapshots).
     const fullId = await writeBackToController(data);
-    if (fullId) {
+    if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
       // Pi:n äger inlärningen nu — vi tar emot skattningarna som backup/graf.
       const learned = data.learned_params;
@@ -362,8 +362,12 @@ Deno.serve(async (req) => {
           controller_id,
           actual_temp: data.actual_temp,
           target_temp: data.target_temp,
-          mode: data.mode,
-          duty_pct: deliveredDuty(data) ?? 0,
+          mode: isRegulating(data) ? data.mode : "off",
+          duty_pct: isRegulating(data) ? (deliveredDuty(data) ?? 0) : 0,
+          enabled: data.enabled !== false,
+          mode_allowed: data.mode_allowed ?? undefined,
+          cooling_relay_on: isRegulating(data) ? (data.cooling_relay_on ?? false) : false,
+          heating_relay_on: isRegulating(data) ? (data.heating_relay_on ?? false) : false,
           glycol_temp: data.glycol_temp ?? null,
           last_heartbeat: new Date().toISOString(),
         }, { onConflict: "controller_id" });
