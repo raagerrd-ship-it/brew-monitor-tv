@@ -220,19 +220,6 @@ Deno.serve(async (req) => {
 
     if (!sp) return null;
 
-    // Fetch learned params from fermentation_learnings
-    const { data: learnings } = await supabase
-      .from("fermentation_learnings")
-      .select("parameter_name, learned_value")
-      .eq("controller_id", sp.controller_id);
-
-    const params: Record<string, any> = {};
-    if (learnings) {
-      for (const row of learnings) {
-        params[row.parameter_name] = parseFloat(String(row.learned_value));
-      }
-    }
-
     return {
       setpoint: {
         target_temp: parseFloat(String(sp.target_temp)),
@@ -246,7 +233,6 @@ Deno.serve(async (req) => {
         set_by: sp.set_by,
         params_version: sp.params_version,
       },
-      learned_params: params,
     };
   }
 
@@ -343,6 +329,25 @@ Deno.serve(async (req) => {
     const fullId = await writeBackToController(data);
     if (fullId) {
       await writePillAndBrew(fullId, data);
+      // Pi:n äger inlärningen nu — vi tar emot skattningarna som backup/graf.
+      const learned = data.learned_params;
+      if (learned && typeof learned === "object") {
+        const now = new Date().toISOString();
+        const rows = Object.entries(learned)
+          .filter(([, v]) => Number.isFinite(Number(v)))
+          .map(([name, v]) => ({
+            controller_id: fullId,
+            parameter_name: name,
+            learned_value: Number(v),
+            sample_count: Number(data.learned_samples?.[name] ?? 1),
+            last_updated_at: now,
+          }));
+        if (rows.length) {
+          await supabase
+            .from("fermentation_learnings")
+            .upsert(rows, { onConflict: "controller_id,parameter_name" });
+        }
+      }
     }
 
     // Also update pi_live_state with the rollup data

@@ -45,20 +45,6 @@ Deno.serve(async (req) => {
       .select("*")
       .in("controller_id", ids);
 
-    // Fetch learned params for all Pi-controlled tanks
-    const { data: learnings } = await supabase
-      .from("fermentation_learnings")
-      .select("controller_id, parameter_name, learned_value")
-      .in("controller_id", ids);
-
-    const paramsByController: Record<string, Record<string, number>> = {};
-    if (learnings) {
-      for (const row of learnings) {
-        if (!paramsByController[row.controller_id]) paramsByController[row.controller_id] = {};
-        paramsByController[row.controller_id][row.parameter_name] = parseFloat(String(row.learned_value));
-      }
-    }
-
     const result = (setpoints || []).map((sp: any) => ({
       // Pi config uses the 8-char short id; DB uses the full uuid.
       controller_id: String(sp.controller_id).slice(0, 8),
@@ -76,7 +62,6 @@ Deno.serve(async (req) => {
       set_at: sp.set_at,
       set_by: sp.set_by,
       params_version: sp.params_version,
-      learned_params: paramsByController[sp.controller_id] || {},
     }));
 
     return new Response(JSON.stringify({ setpoints: result }), {
@@ -98,18 +83,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: learnings } = await supabase
-    .from("fermentation_learnings")
-    .select("parameter_name, learned_value")
-    .eq("controller_id", sp.controller_id);
-
-  const learned_params: Record<string, number> = {};
-  if (learnings) {
-    for (const row of learnings) {
-      learned_params[row.parameter_name] = parseFloat(String(row.learned_value));
-    }
-  }
-
   return new Response(JSON.stringify({
     setpoint: {
       controller_id: String(sp.controller_id).slice(0, 8),
@@ -124,7 +97,6 @@ Deno.serve(async (req) => {
       set_by: sp.set_by,
       params_version: sp.params_version,
     },
-    learned_params,
   }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
