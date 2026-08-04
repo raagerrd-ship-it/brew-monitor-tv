@@ -842,6 +842,7 @@ export type Database = {
       pi_live_state: {
         Row: {
           actual_temp: number | null
+          blocked_by: string | null
           constraints_hit: string[] | null
           controller_id: string
           cooling_relay_on: boolean
@@ -863,6 +864,7 @@ export type Database = {
         }
         Insert: {
           actual_temp?: number | null
+          blocked_by?: string | null
           constraints_hit?: string[] | null
           controller_id: string
           cooling_relay_on?: boolean
@@ -884,6 +886,7 @@ export type Database = {
         }
         Update: {
           actual_temp?: number | null
+          blocked_by?: string | null
           constraints_hit?: string[] | null
           controller_id?: string
           cooling_relay_on?: boolean

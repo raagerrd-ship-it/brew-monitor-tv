@@ -1,0 +1,1 @@
+ALTER TABLE public.pi_live_state ADD COLUMN IF NOT EXISTS blocked_by text;
