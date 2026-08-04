@@ -53,171 +53,6 @@ export type Database = {
         }
         Relationships: []
       }
-      auto_cooling_adjustments: {
-        Row: {
-          adjusted_against_timestamp: string | null
-          cooler_controller_id: string
-          cooler_controller_name: string
-          created_at: string
-          followed_controller_id: string | null
-          followed_controller_name: string | null
-          followed_current_temp: number | null
-          followed_hysteresis: number | null
-          followed_target_temp: number | null
-          id: string
-          lowest_followed_temp: number
-          new_target_temp: number
-          old_target_temp: number
-          original_target_temp: number | null
-          reason: string
-        }
-        Insert: {
-          adjusted_against_timestamp?: string | null
-          cooler_controller_id: string
-          cooler_controller_name: string
-          created_at?: string
-          followed_controller_id?: string | null
-          followed_controller_name?: string | null
-          followed_current_temp?: number | null
-          followed_hysteresis?: number | null
-          followed_target_temp?: number | null
-          id?: string
-          lowest_followed_temp: number
-          new_target_temp: number
-          old_target_temp: number
-          original_target_temp?: number | null
-          reason: string
-        }
-        Update: {
-          adjusted_against_timestamp?: string | null
-          cooler_controller_id?: string
-          cooler_controller_name?: string
-          created_at?: string
-          followed_controller_id?: string | null
-          followed_controller_name?: string | null
-          followed_current_temp?: number | null
-          followed_hysteresis?: number | null
-          followed_target_temp?: number | null
-          id?: string
-          lowest_followed_temp?: number
-          new_target_temp?: number
-          old_target_temp?: number
-          original_target_temp?: number | null
-          reason?: string
-        }
-        Relationships: []
-      }
-      auto_cooling_decision_logs: {
-        Row: {
-          adjustment_made: boolean
-          created_at: string
-          decision_count: number
-          decisions: Json
-          duration_ms: number
-          final_result: string
-          id: string
-        }
-        Insert: {
-          adjustment_made?: boolean
-          created_at?: string
-          decision_count: number
-          decisions?: Json
-          duration_ms: number
-          final_result: string
-          id?: string
-        }
-        Update: {
-          adjustment_made?: boolean
-          created_at?: string
-          decision_count?: number
-          decisions?: Json
-          duration_ms?: number
-          final_result?: string
-          id?: string
-        }
-        Relationships: []
-      }
-      auto_cooling_followed_controllers: {
-        Row: {
-          controller_id: string
-          created_at: string | null
-          id: string
-        }
-        Insert: {
-          controller_id: string
-          created_at?: string | null
-          id?: string
-        }
-        Update: {
-          controller_id?: string
-          created_at?: string | null
-          id?: string
-        }
-        Relationships: []
-      }
-      auto_cooling_settings: {
-        Row: {
-          ai_audit_enabled: boolean
-          check_interval_minutes: number
-          cooler_controller_id: string | null
-          created_at: string
-          delta_alert_threshold: number
-          enabled: boolean
-          id: string
-          last_check_at: string | null
-          max_diff_from_lowest: number
-          pill_compensation_damping: number
-          pill_compensation_emergency_threshold: number
-          pill_compensation_enabled: boolean
-          pill_compensation_max_compensation: number
-          pill_compensation_min_scale: number
-          pill_compensation_rate_limit: number
-          sg_temp_correction_enabled: boolean
-          temp_reduction_degrees: number
-          updated_at: string
-        }
-        Insert: {
-          ai_audit_enabled?: boolean
-          check_interval_minutes?: number
-          cooler_controller_id?: string | null
-          created_at?: string
-          delta_alert_threshold?: number
-          enabled?: boolean
-          id?: string
-          last_check_at?: string | null
-          max_diff_from_lowest?: number
-          pill_compensation_damping?: number
-          pill_compensation_emergency_threshold?: number
-          pill_compensation_enabled?: boolean
-          pill_compensation_max_compensation?: number
-          pill_compensation_min_scale?: number
-          pill_compensation_rate_limit?: number
-          sg_temp_correction_enabled?: boolean
-          temp_reduction_degrees?: number
-          updated_at?: string
-        }
-        Update: {
-          ai_audit_enabled?: boolean
-          check_interval_minutes?: number
-          cooler_controller_id?: string | null
-          created_at?: string
-          delta_alert_threshold?: number
-          enabled?: boolean
-          id?: string
-          last_check_at?: string | null
-          max_diff_from_lowest?: number
-          pill_compensation_damping?: number
-          pill_compensation_emergency_threshold?: number
-          pill_compensation_enabled?: boolean
-          pill_compensation_max_compensation?: number
-          pill_compensation_min_scale?: number
-          pill_compensation_rate_limit?: number
-          sg_temp_correction_enabled?: boolean
-          temp_reduction_degrees?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       brew_data_snapshots: {
         Row: {
           actual_temp: number | null
@@ -962,39 +797,6 @@ export type Database = {
           },
         ]
       }
-      pending_rapt_retries: {
-        Row: {
-          attempts: number
-          controller_id: string
-          created_at: string
-          execute_at: string | null
-          glycol_temp_at_start: number | null
-          id: string
-          reason: string
-          target_temp: number
-        }
-        Insert: {
-          attempts?: number
-          controller_id: string
-          created_at?: string
-          execute_at?: string | null
-          glycol_temp_at_start?: number | null
-          id?: string
-          reason: string
-          target_temp: number
-        }
-        Update: {
-          attempts?: number
-          controller_id?: string
-          created_at?: string
-          execute_at?: string | null
-          glycol_temp_at_start?: number | null
-          id?: string
-          reason?: string
-          target_temp?: number
-        }
-        Relationships: []
-      }
       pi_health: {
         Row: {
           id: number
@@ -1151,21 +953,6 @@ export type Database = {
           set_by?: string
           target_temp?: number
           updated_at?: string
-        }
-        Relationships: []
-      }
-      pid_event_throttle: {
-        Row: {
-          controller_id: string
-          last_run_at: string
-        }
-        Insert: {
-          controller_id: string
-          last_run_at?: string
-        }
-        Update: {
-          controller_id?: string
-          last_run_at?: string
         }
         Relationships: []
       }
@@ -1439,27 +1226,6 @@ export type Database = {
           pwm_off_sent_at?: string | null
           target_temp?: number | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      rapt_token_cache: {
-        Row: {
-          access_token: string
-          created_at: string
-          expires_at: string
-          id: string
-        }
-        Insert: {
-          access_token: string
-          created_at?: string
-          expires_at: string
-          id?: string
-        }
-        Update: {
-          access_token?: string
-          created_at?: string
-          expires_at?: string
-          id?: string
         }
         Relationships: []
       }
@@ -2013,9 +1779,7 @@ export type Database = {
         }[]
       }
       trigger_ai_consultation: { Args: never; Returns: undefined }
-      trigger_auto_cooling_adjustment: { Args: never; Returns: undefined }
       trigger_custom_brew_sync: { Args: never; Returns: undefined }
-      trigger_execute_pwm_off: { Args: never; Returns: undefined }
       trigger_external_timer_sync: { Args: never; Returns: undefined }
       trigger_rapt_quick_sync: { Args: never; Returns: undefined }
       trigger_sonos_now_playing_sync: { Args: never; Returns: undefined }
