@@ -31,17 +31,27 @@ function formatUptime(sec: number | null): string {
 
 export function PiHealthChip() {
   const [health, setHealth] = useState<PiHealth | null>(null);
+  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const { data } = await supabase
-        .from("pi_health")
-        .select("last_seen, undervoltage_now, undervoltage_ever, throttled_hex, temp_c, uptime_sec, load1")
-        .eq("id", 1)
-        .maybeSingle();
+      const [{ data }, { data: live }] = await Promise.all([
+        supabase
+          .from("pi_health")
+          .select("last_seen, undervoltage_now, undervoltage_ever, throttled_hex, temp_c, uptime_sec, load1")
+          .eq("id", 1)
+          .maybeSingle(),
+        supabase
+          .from("pi_live_state")
+          .select("last_heartbeat")
+          .order("last_heartbeat", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
       if (mounted && data) setHealth(data as PiHealth);
+      if (mounted) setLastHeartbeat(live?.last_heartbeat ?? null);
     };
     load();
     const iv = setInterval(load, 30000);
@@ -53,10 +63,13 @@ export function PiHealthChip() {
     };
   }, []);
 
-  const ageSec = health?.last_seen
-    ? (now - new Date(health.last_seen).getTime()) / 1000
-    : Infinity;
-  const online = ageSec < 90;
+  // Pi:n hörs av på två vägar: health-posten och telemetrin (var 30 s, rollup
+  // var 3 min). Färskaste signalen avgör om den är online.
+  const stamps = [health?.last_seen, lastHeartbeat]
+    .filter(Boolean)
+    .map((s) => new Date(s as string).getTime());
+  const ageSec = stamps.length ? (now - Math.max(...stamps)) / 1000 : Infinity;
+  const online = ageSec < 300;
   const undervoltage = !!(health?.undervoltage_now || health?.undervoltage_ever);
   // Attention dot: red if offline, amber if undervoltage, none when healthy.
   const dotColor = !online
