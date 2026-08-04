@@ -174,6 +174,43 @@ Deno.serve(async (req) => {
   }
 
   // ── Piggyback response: return updated setpoint if version changed ──
+  async function getSlimSetpointResponse() {
+    const { data: sp } = await supabase
+      .from("pi_setpoint")
+      .select("controller_id, target_temp, params_version")
+      .like("controller_id", `${controller_id}%`)
+      .maybeSingle();
+    if (!sp) return null;
+
+    // volume_l från kopplad brygg-recept (mäsk + lakvatten) när det finns.
+    let volume_l: number | null = null;
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id")
+      .eq("controller_id", sp.controller_id)
+      .maybeSingle();
+    if (ctrl) {
+      const { data: brew } = await supabase
+        .from("brew_readings")
+        .select("recipe")
+        .eq("linked_controller_id", ctrl.controller_id)
+        .in("status", ["fermenting", "active", "Jäsning"])
+        .maybeSingle();
+      const r: any = brew?.recipe;
+      const mash = parseFloat(r?.mash_water_liters ?? "");
+      const sparge = parseFloat(r?.sparge_water_liters ?? "");
+      const sum = (Number.isFinite(mash) ? mash : 0) + (Number.isFinite(sparge) ? sparge : 0);
+      if (sum > 0) volume_l = sum;
+    }
+
+    return {
+      controller_id: String(sp.controller_id).slice(0, 8),
+      target_temp: parseFloat(String(sp.target_temp)),
+      volume_l,
+      setpoint_version: sp.params_version,
+    };
+  }
+
   async function getSetpointResponse(setpointVersion?: number) {
     const { data: sp } = await supabase
       .from("pi_setpoint")
