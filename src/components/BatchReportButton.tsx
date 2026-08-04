@@ -41,21 +41,9 @@ function BatchReportButtonComponent({
     try {
       // Fetch all data in parallel
       const [
-        { data: adjustments },
-        { data: stallBoosts },
         { data: stepLogs },
         { data: metrics },
       ] = await Promise.all([
-        controllerId
-          ? supabase
-              .from("auto_cooling_adjustments")
-              .select("created_at, reason, old_target_temp, new_target_temp")
-              .eq("cooler_controller_id", controllerId)
-              .order("created_at", { ascending: true })
-              .limit(500)
-          : Promise.resolve({ data: [] as { created_at: string; reason: string; old_target_temp: number; new_target_temp: number }[] }),
-        // stall_boost_outcomes query removed — feature removed
-        Promise.resolve({ data: [] as { created_at: string; boost_degrees: number; sg_rate_before: number; sg_rate_after: number | null; outcome: string | null }[] }),
         supabase
           .from("fermentation_step_log")
           .select("created_at, action, step_index, details")
@@ -115,22 +103,6 @@ function BatchReportButtonComponent({
       doc.setFontSize(9);
 
       const allEvents: { time: string; text: string }[] = [];
-
-      for (const adj of adjustments || []) {
-        allEvents.push({
-          time: format(new Date(adj.created_at), "d/M HH:mm"),
-          text: `${adj.reason} (${adj.old_target_temp}° → ${adj.new_target_temp}°)`,
-        });
-      }
-
-      for (const boost of stallBoosts || []) {
-        allEvents.push({
-          time: format(new Date(boost.created_at), "d/M HH:mm"),
-          text: `Stall boost +${boost.boost_degrees}°C (rate: ${parseFloat(String(boost.sg_rate_before)).toFixed(4)}/dag → ${boost.sg_rate_after ? parseFloat(String(boost.sg_rate_after)).toFixed(4) : "?"}/dag) = ${boost.outcome ?? "pending"}`,
-        });
-      }
-
-      allEvents.sort((a, b) => a.time.localeCompare(b.time));
 
       for (const evt of allEvents.slice(0, 80)) {
         if (y > 275) { doc.addPage(); y = 20; }
