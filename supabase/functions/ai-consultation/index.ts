@@ -30,22 +30,12 @@ Deno.serve(async (req) => {
       }).eq('id', syncSettings.id)
     }
 
-    // Run AI audit
-    const { data: autoCoolingSettings } = await supabase
-      .from('auto_cooling_settings')
-      .select('ai_audit_enabled')
-      .limit(1).maybeSingle()
-
-    if (autoCoolingSettings?.ai_audit_enabled) {
-      console.log('Running AI audit...')
-      try {
-        await supabase.functions.invoke('ai-fermentation-advisor', { body: { auto: true } })
-        console.log('AI audit completed')
-      } catch (e) {
-        console.error('AI audit failed:', e)
-      }
-    } else {
-      console.log('AI audit disabled, skipping')
+    console.log('Running AI fermentation advisor...')
+    try {
+      await supabase.functions.invoke('ai-fermentation-advisor', { body: { auto: true } })
+      console.log('AI advisor completed')
+    } catch (e) {
+      console.error('AI advisor failed:', e)
     }
 
     console.log('AI consultation completed')

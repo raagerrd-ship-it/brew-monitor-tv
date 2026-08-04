@@ -321,11 +321,6 @@ export function useControllersManagement() {
       }
       await supabase.from('rapt_temp_controllers').update({ is_glycol_cooler: newValue }).eq('controller_id', controllerId);
 
-      const { data: settings } = await supabase.from('auto_cooling_settings').select('id').limit(1).maybeSingle();
-      if (settings) {
-        await supabase.from('auto_cooling_settings').update({ cooler_controller_id: newValue ? controllerId : null }).eq('id', settings.id);
-      }
-
       setCoolerControllerId(newValue ? controllerId : null);
       loadData();
 

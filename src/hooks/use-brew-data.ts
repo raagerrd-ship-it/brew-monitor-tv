@@ -273,34 +273,24 @@ export function useBrewData(): UseBrewDataReturn {
     
     const overshootMap = new Map<string, { reason: string | null; original_target: number | null; pidReason: string | null; dutyPct: number | null; dutyMode: 'cooling' | 'heating' | null }>();
     if (allControllerIds.length > 0) {
-      // Fetch overshoot/PID adjustments, duty cycle, and controller names in parallel
+      // Fetch duty cycle from fermentation_learnings (Pi-written)
       const uniqueIds = [...new Set(allControllerIds)] as string[];
-      const [adjRes, dutyRes] = await Promise.all([
-        supabase
-          .from('auto_cooling_adjustments')
-          .select('reason, created_at, original_target_temp, cooler_controller_id, followed_controller_id')
-          .or(allControllerIds.map((id: string) => `followed_controller_id.eq.${id},cooler_controller_id.eq.${id}`).join(','))
-          .or('reason.like.🌡️%,reason.like.🎯%')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('fermentation_learnings')
-          .select('controller_id, parameter_name, learned_value, last_updated_at')
-          .in('controller_id', uniqueIds)
-          .in('parameter_name', ['pid_last_duty', 'pid_current_mode']),
-      ]);
-      
-      const adjData = adjRes.data;
+      const { data: dutyData } = await supabase
+        .from('fermentation_learnings')
+        .select('controller_id, parameter_name, learned_value, last_updated_at')
+        .in('controller_id', uniqueIds)
+        .in('parameter_name', ['pid_last_duty', 'pid_current_mode']);
 
       // Build duty map directly from fermentation_learnings (reliable, no name-matching needed)
       const dutyByControllerId = new Map<string, { duty: number; mode: 'cooling' | 'heating' | null }>();
-      if (dutyRes.data) {
+      if (dutyData) {
         const dutyMap = new Map<string, number>();
         const modeMap = new Map<string, number>();
-        // Stale guard: PID writes pid_last_duty every cycle when active.
+        // Stale guard: Pi writes pid_last_duty every cycle when active.
         // If older than 15 min, controller is inactive — show 0% instead of stale value.
         const STALE_MS = 15 * 60 * 1000;
         const now = Date.now();
-        for (const row of dutyRes.data) {
+        for (const row of dutyData) {
           if (row.parameter_name === 'pid_last_duty') {
             const ageMs = row.last_updated_at ? now - new Date(row.last_updated_at).getTime() : Infinity;
             dutyMap.set(row.controller_id, ageMs > STALE_MS ? 0 : row.learned_value);
@@ -318,26 +308,16 @@ export function useBrewData(): UseBrewDataReturn {
           }
         }
       }
-      
-      // For each controller, find the most recent overshoot + PID adjustment
+
       for (const cid of uniqueIds) {
-        const records = (adjData || []).filter((a: any) => 
-          a.followed_controller_id === cid || a.cooler_controller_id === cid
-        );
-        const overshootMatch = records.find((a: any) => a.reason?.startsWith('🌡️'));
-        const pidMatch = records.find((a: any) => a.reason?.startsWith('🎯'));
-        const overshootAge = overshootMatch ? Date.now() - new Date(overshootMatch.created_at).getTime() : Infinity;
-        
         const dutyInfo = dutyByControllerId.get(cid);
-        
-        if (overshootMatch || pidMatch || dutyInfo) {
+        if (dutyInfo) {
           overshootMap.set(cid, {
-            reason: overshootMatch && overshootAge < 6 * 60 * 60 * 1000 
-              ? overshootMatch.reason.replace('🌡️ ', '') : null,
-            original_target: pidMatch?.original_target_temp ?? overshootMatch?.original_target_temp ?? null,
-            pidReason: pidMatch?.reason ?? null,
-            dutyPct: dutyInfo?.duty ?? null,
-            dutyMode: dutyInfo?.mode ?? null,
+            reason: null,
+            original_target: null,
+            pidReason: null,
+            dutyPct: dutyInfo.duty,
+            dutyMode: dutyInfo.mode,
           });
         }
       }
