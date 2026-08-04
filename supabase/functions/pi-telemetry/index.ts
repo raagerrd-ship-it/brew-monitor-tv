@@ -269,6 +269,12 @@ Deno.serve(async (req) => {
       : null;
     const isRunning = Boolean(data.cooling_relay_on || data.heating_relay_on);
     const transitionAt = new Date().toISOString();
+    // Pi:n rapporterar helst intervallet (pwm_start/pwm_stop) — då slipper vi
+    // aliasing från att sampla reläet.
+    const pumpStartedAt = data.pwm_start
+      ?? (wasRunning === false && isRunning ? transitionAt : previous?.pump_started_at ?? null);
+    const pumpStoppedAt = data.pwm_stop
+      ?? (wasRunning === true && !isRunning ? transitionAt : previous?.pump_stopped_at ?? null);
 
     const { error } = await supabase
       .from("pi_live_state")
@@ -286,12 +292,8 @@ Deno.serve(async (req) => {
         sensor_source: data.sensor_source ?? null,
         enabled: data.enabled ?? null,
         mode_allowed: data.mode_allowed ?? null,
-        pump_started_at: wasRunning === false && isRunning
-          ? transitionAt
-          : previous?.pump_started_at ?? null,
-        pump_stopped_at: wasRunning === true && !isRunning
-          ? transitionAt
-          : previous?.pump_stopped_at ?? null,
+        pump_started_at: pumpStartedAt,
+        pump_stopped_at: pumpStoppedAt,
         last_heartbeat: new Date().toISOString(),
       }, { onConflict: "controller_id" });
 
@@ -303,8 +305,8 @@ Deno.serve(async (req) => {
 
     await writeBackToController(data);
 
-    // Return updated setpoint so Pi can piggyback
-    const setpointResponse = await getSetpointResponse(data.setpoint_version);
+    // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
+    const setpointResponse = await getSlimSetpointResponse();
 
     return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
