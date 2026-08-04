@@ -189,8 +189,14 @@ Deno.serve(async (req) => {
     // Grafdata: fönstermedel när Pi:n skickar dem, annars punktvärden.
     const m = d.means ?? {};
 
+    // En rad per 3-minutersbucket — Pi-rollupen är SSOT för grafdatan.
+    const bucketMs = 3 * 60 * 1000;
+    const bucketedAt = new Date(
+      Math.floor(new Date(recordedAt).getTime() / bucketMs) * bucketMs,
+    ).toISOString();
+
     await createBrewSnapshot(supabase, brew.id, {
-      recorded_at: recordedAt,
+      recorded_at: bucketedAt,
       sg,
       pill_temp: m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null),
       controller_temp: m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null),
