@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
   async function writeBackToController(d: any) {
-    if (d.actual_temp == null && d.pt100_temp == null) return;
+    if (d.actual_temp == null && d.pt100_temp == null) return null;
 
     // SSOT: actual_temp = current_temp = snittet av PT100 och pill.
     // Pi:n räknar snittet lokalt (det den reglerar mot) och skickar det som
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         {
           controller_id: fullId,
           parameter_name: "pid_last_duty",
-          learned_value: Number(d.duty_pct),
+          learned_value: Number(deliveredDuty(d) ?? d.duty_pct),
           sample_count: 1,
           last_updated_at: now,
         },
@@ -97,6 +97,72 @@ Deno.serve(async (req) => {
           last_updated_at: now,
         },
       ], { onConflict: "controller_id,parameter_name" });
+    }
+    return fullId ?? null;
+  }
+
+  // ── Pill-data via Pi:n (ersätter ingest-pill-ble för Pi-styrda tankar) ──
+  async function writePillAndBrew(fullId: string, d: any) {
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("controller_id, linked_pill_id")
+      .eq("controller_id", fullId)
+      .maybeSingle();
+    const pillId = ctrl?.linked_pill_id;
+    if (!pillId) return;
+
+    const recordedAt = d.recorded_at || new Date().toISOString();
+    const pillUpdate: Record<string, any> = {
+      last_update: recordedAt,
+      updated_at: new Date().toISOString(),
+    };
+    if (d.pill_temp != null) pillUpdate.temperature = Number(Number(d.pill_temp).toFixed(3));
+    if (d.pill_gravity_sg != null) pillUpdate.gravity = Number(Number(d.pill_gravity_sg).toFixed(5));
+    if (d.pill_battery_pct != null) pillUpdate.battery_level = Math.round(Number(d.pill_battery_pct));
+    await supabase.from("rapt_pills").update(pillUpdate).eq("pill_id", pillId);
+
+    const { data: brew } = await supabase
+      .from("brew_readings")
+      .select("id, original_gravity, fermentation_start")
+      .eq("linked_pill_id", pillId)
+      .in("status", ["fermenting", "active", "Jäsning"])
+      .maybeSingle();
+    if (!brew) return;
+    if (brew.fermentation_start && new Date(recordedAt) < new Date(brew.fermentation_start)) return;
+
+    const sg = d.pill_gravity_sg != null ? Number(d.pill_gravity_sg) : null;
+    const duty = deliveredDuty(d);
+
+    await createBrewSnapshot(supabase, brew.id, {
+      recorded_at: recordedAt,
+      sg,
+      pill_temp: d.pill_temp != null ? Number(d.pill_temp) : null,
+      controller_temp: d.pt100_temp != null ? Number(d.pt100_temp) : null,
+      profile_target_temp: d.target_temp ?? null,
+      actual_temp: d.actual_temp ?? null,
+      duty_pct: duty,
+      cooling_enabled: d.mode === "cooling",
+      controller_id: fullId,
+    });
+
+    if (sg != null) {
+      const og = Number(brew.original_gravity);
+      const attenuation = og > 1
+        ? Math.max(0, Math.min(100, Math.round(((og - sg) / (og - 1)) * 100)))
+        : 0;
+      const abv = og > 1 ? Math.max(0, Number(((og - sg) * 131.25).toFixed(1))) : 0;
+      await supabase
+        .from("brew_readings")
+        .update({
+          current_sg: sg,
+          current_temp: d.actual_temp ?? null,
+          attenuation,
+          abv,
+          battery: d.pill_battery_pct ?? null,
+          last_update: recordedAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", brew.id);
     }
   }
 
