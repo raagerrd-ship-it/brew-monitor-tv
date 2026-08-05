@@ -215,6 +215,15 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const setTargetTemperature = useCallback(async () => {
     setLoading(true);
     try {
+      if ((controller as any).is_glycol_cooler) {
+        toast({
+          title: "Styrs lokalt",
+          description: "Glykolkylarens mål härleds av Pi:n (lägsta tankmål − 6°) och kan inte sättas härifrån.",
+        });
+        setLoading(false);
+        return;
+      }
+
       if (isPi) {
         const { error: piError } = await supabase
           .from('pi_setpoint')
