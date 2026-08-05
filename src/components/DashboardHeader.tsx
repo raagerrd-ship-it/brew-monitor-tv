@@ -323,14 +323,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                        const pillWarn = pillStale || probeStale;
                        const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
                        const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
-                       const dualEnabled = !!(controller as any).dual_sensor_enabled;
-                       const preferredSensor = (controller as any).preferred_sensor === 'probe' ? 'probe' : 'pill';
                        const displayTemp = controller.actual_temp ?? (
-                         dualEnabled && pillTempVal != null && probeTempVal != null
+                         pillTempVal != null && probeTempVal != null
                            ? (pillTempVal + probeTempVal) / 2
-                           : preferredSensor === 'probe'
-                             ? (probeTempVal ?? pillTempVal)
-                             : (pillTempVal ?? probeTempVal)
+                           : (probeTempVal ?? pillTempVal)
                        );
                        if (controller.is_glycol_cooler) {
                          const targetTemp = controller.target_temp;
@@ -382,12 +378,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
                    {/* Sensor icons (right) — show which sensors are active */}
                    {!isControllerStale && !controller.is_glycol_cooler && (() => {
-                      const isDual = !!(controller as any).dual_sensor_enabled;
-                      const preferred = (controller as any).preferred_sensor as string | undefined;
                       const hasPill = !!linkedPill && !isPillStale;
                       const isOff = piDisabled[controller.controller_id] === true;
-                      const pillActive = !isOff && hasPill && (isDual || preferred === 'pill');
-                      const probeActive = !isOff && (isDual || preferred === 'probe' || !hasPill);
+                      const pillActive = !isOff && hasPill;
+                      const probeActive = !isOff && controller.current_temp != null;
                       return (
                          <div className="flex items-center gap-3" title={isOff ? `${controller.name} är avstängd` : undefined}>
                            <Pill style={{

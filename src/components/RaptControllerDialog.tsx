@@ -53,13 +53,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     loading, isAuthenticated, targetTemp, setTargetTemp,
     lastSync, currentController, hasActiveSession,
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
-    isActivelyCooling, isActivelyHeating, dualSensorEnabled, toggleDualSensor,
-    preferredSensor, setPreferredSensor, originalTarget,
+    isActivelyCooling, isActivelyHeating, originalTarget,
     dutyCyclePct, dutyMode,
     isPi, piHeartbeat, piTarget,
   } = useControllerDialog({ controller, open, onOpenChange });
 
-  const isPillCompActive = dualSensorEnabled && !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
+  const isPillCompActive = !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
 
   // PID-motor: 'v5' (nuvarande) eller 'claude' (V6 feedforward+P+D)
   const [pidVersion, setPidVersion] = useState<'v5' | 'claude'>('v5');
@@ -85,14 +84,10 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
       .update({ pid_version: v } as any)
       .eq('controller_id', controller.controller_id);
   };
-  // When dual-sensor is OFF, display the user's preferred sensor directly
-  // (with fallback) rather than the stored actual_temp, which may lag behind
-  // a recent preference toggle until the next sync.
-  const actualTemp = isPillCompActive
-    ? currentController.actual_temp
-    : preferredSensor === 'probe'
-      ? (currentController.current_temp ?? currentController.pill_temp ?? currentController.actual_temp)
-      : (currentController.pill_temp ?? currentController.current_temp ?? currentController.actual_temp);
+  // SSOT: actual_temp kommer från Pi:n (snittet den reglerar mot).
+  const actualTemp = currentController.actual_temp
+    ?? currentController.current_temp
+    ?? currentController.pill_temp;
   const { actualTarget: raptTarget } = getDisplayTarget(originalTarget, currentController.target_temp);
   const actualTarget = isPi ? piTarget : raptTarget;
 
@@ -158,13 +153,9 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               <p className="text-[10px] text-muted-foreground/70 mt-1">
                 {isPillCompActive
                   ? `Medel · Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
-                  : preferredSensor === 'probe'
-                    ? (currentController.pill_temp != null
-                        ? `Probe · Pill: ${currentController.pill_temp.toFixed(1)}°`
-                        : 'Probe')
-                    : (currentController.pill_temp != null
-                        ? `Pill${currentController.current_temp != null ? ` · Probe: ${currentController.current_temp.toFixed(1)}°` : ''}`
-                        : 'Ctrl-sensor')}
+                  : currentController.pill_temp != null
+                    ? `Pill: ${currentController.pill_temp.toFixed(1)}°`
+                    : 'Ctrl-sensor'}
               </p>
             </div>
             
@@ -236,41 +227,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </div>
           )}
 
-          {/* Dual Sensor Toggle — only for non-cooler RAPT-styrda controllers with a pill */}
-          {!isCooler && !isPi && currentController.pill_temp != null && isAuthenticated && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between py-2 px-1">
-                <div className="space-y-0.5">
-                  <p className="text-xs font-medium">Dubbla givare</p>
-                  <p className="text-[10px] text-muted-foreground/70">Medelvärde av pill + probe</p>
-                </div>
-                <Switch
-                  checked={dualSensorEnabled}
-                  onCheckedChange={() => toggleDualSensor()}
-                />
-              </div>
-              {/* Sensor preference — visible when dual sensor is OFF */}
-              {!dualSensorEnabled && (
-                <div className="px-1 pb-1">
-                  <p className="text-[10px] text-muted-foreground/70 mb-1.5">Primär sensor</p>
-                  <RadioGroup
-                    value={preferredSensor}
-                    onValueChange={(v) => setPreferredSensor(v as 'pill' | 'probe')}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <RadioGroupItem value="pill" id="sensor-pill" />
-                      <Label htmlFor="sensor-pill" className="text-xs cursor-pointer">Pill</Label>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <RadioGroupItem value="probe" id="sensor-probe" />
-                      <Label htmlFor="sensor-probe" className="text-xs cursor-pointer">Ctrl</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Givarval sker lokalt på Pi:n (use_pt100 / use_pill i tank_map.json) */}
           {/* Heating/Cooling Status */}
           <div className="flex gap-2">
             <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
