@@ -365,66 +365,6 @@ export type Database = {
         }
         Relationships: []
       }
-      controller_learned_compensation: {
-        Row: {
-          accumulated_integral: number
-          controller_id: string
-          convergence_count: number
-          created_at: string
-          delta_bucket: string
-          id: string
-          last_converged_at: string | null
-          latest_avg_error: number
-          latest_d_damping: number
-          latest_i_correction: number
-          latest_p_correction: number
-          learned_pi_correction: number
-          mode: string
-          sensor_anchor: Json | null
-          step_type: string
-          style_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          accumulated_integral?: number
-          controller_id: string
-          convergence_count?: number
-          created_at?: string
-          delta_bucket: string
-          id?: string
-          last_converged_at?: string | null
-          latest_avg_error?: number
-          latest_d_damping?: number
-          latest_i_correction?: number
-          latest_p_correction?: number
-          learned_pi_correction?: number
-          mode?: string
-          sensor_anchor?: Json | null
-          step_type?: string
-          style_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          accumulated_integral?: number
-          controller_id?: string
-          convergence_count?: number
-          created_at?: string
-          delta_bucket?: string
-          id?: string
-          last_converged_at?: string | null
-          latest_avg_error?: number
-          latest_d_damping?: number
-          latest_i_correction?: number
-          latest_p_correction?: number
-          learned_pi_correction?: number
-          mode?: string
-          sensor_anchor?: Json | null
-          step_type?: string
-          style_key?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       controller_outage_log: {
         Row: {
           controller_id: string
@@ -455,45 +395,6 @@ export type Database = {
           outage_end?: string | null
           outage_start?: string
           resolved?: boolean
-        }
-        Relationships: []
-      }
-      cooler_margin_history: {
-        Row: {
-          controller_id: string
-          cooling_rate: number | null
-          created_at: string
-          id: string
-          margin_value: number
-          max_effective: number | null
-          recorded_at: string
-          sample_count: number
-          temp_bucket: string
-          utilization: number | null
-        }
-        Insert: {
-          controller_id: string
-          cooling_rate?: number | null
-          created_at?: string
-          id?: string
-          margin_value: number
-          max_effective?: number | null
-          recorded_at?: string
-          sample_count?: number
-          temp_bucket: string
-          utilization?: number | null
-        }
-        Update: {
-          controller_id?: string
-          cooling_rate?: number | null
-          created_at?: string
-          id?: string
-          margin_value?: number
-          max_effective?: number | null
-          recorded_at?: string
-          sample_count?: number
-          temp_bucket?: string
-          utilization?: number | null
         }
         Relationships: []
       }
@@ -802,42 +703,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      pi_health: {
-        Row: {
-          id: number
-          last_seen: string | null
-          load1: number | null
-          temp_c: number | null
-          throttled_hex: string | null
-          undervoltage_ever: boolean | null
-          undervoltage_now: boolean | null
-          updated_at: string
-          uptime_sec: number | null
-        }
-        Insert: {
-          id?: number
-          last_seen?: string | null
-          load1?: number | null
-          temp_c?: number | null
-          throttled_hex?: string | null
-          undervoltage_ever?: boolean | null
-          undervoltage_now?: boolean | null
-          updated_at?: string
-          uptime_sec?: number | null
-        }
-        Update: {
-          id?: number
-          last_seen?: string | null
-          load1?: number | null
-          temp_c?: number | null
-          throttled_hex?: string | null
-          undervoltage_ever?: boolean | null
-          undervoltage_now?: boolean | null
-          updated_at?: string
-          uptime_sec?: number | null
-        }
-        Relationships: []
       }
       pi_learned_params: {
         Row: {
