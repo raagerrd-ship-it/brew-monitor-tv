@@ -25,11 +25,9 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [currentController, setCurrentController] = useState<RaptTempController | typeof controller>(controller);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [showTempAdjust, setShowTempAdjust] = useState(false);
-  const [dualSensorEnabled, setDualSensorEnabled] = useState(false);
   const [originalTarget, setOriginalTarget] = useState<number | null>(null);
   const [dutyCyclePct, setDutyCyclePct] = useState<number | null>(null);
   const [dutyMode, setDutyMode] = useState<'cooling' | 'heating' | null>(null);
-  const [preferredSensor, setPreferredSensorState] = useState<'pill' | 'probe'>('pill');
   const [isPi, setIsPi] = useState(false);
   const [piHeartbeat, setPiHeartbeat] = useState<string | null>(null);
   const [piCoolingOn, setPiCoolingOn] = useState(false);
@@ -62,14 +60,12 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           .maybeSingle(),
         supabase
           .from('rapt_temp_controllers')
-          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor, actuation, is_glycol_cooler, target_temp')
+          .select('profile_target_temp, actuation, is_glycol_cooler, target_temp')
           .eq('controller_id', controller.controller_id)
           .single(),
       ]);
 
       setHasActiveSession(!!sessionData);
-      setDualSensorEnabled(ctrlData?.dual_sensor_enabled ?? false);
-      setPreferredSensorState((ctrlData as any)?.preferred_sensor ?? 'pill');
       const piActuated = (ctrlData as any)?.actuation === 'pi';
       setIsPi(piActuated);
 
@@ -281,23 +277,6 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     ctrl.target_temp != null &&
     sensorTemp < (ctrl.target_temp - heatingHyst);
 
-  const toggleDualSensor = useCallback(async () => {
-    const newValue = !dualSensorEnabled;
-    setDualSensorEnabled(newValue);
-    await supabase
-      .from('rapt_temp_controllers')
-      .update({ dual_sensor_enabled: newValue } as any)
-      .eq('controller_id', controller.controller_id);
-  }, [controller.controller_id, dualSensorEnabled]);
-
-  const setPreferredSensor = useCallback(async (value: 'pill' | 'probe') => {
-    setPreferredSensorState(value);
-    await supabase
-      .from('rapt_temp_controllers')
-      .update({ preferred_sensor: value } as any)
-      .eq('controller_id', controller.controller_id);
-  }, [controller.controller_id]);
-
   return {
     loading,
     isAuthenticated,
@@ -311,10 +290,6 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     setTargetTemperature,
     isActivelyCooling,
     isActivelyHeating,
-    dualSensorEnabled,
-    toggleDualSensor,
-    preferredSensor,
-    setPreferredSensor,
     originalTarget,
     dutyCyclePct,
     dutyMode,
