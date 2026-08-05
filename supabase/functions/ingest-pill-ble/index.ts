@@ -263,39 +263,16 @@ Deno.serve(async (req) => {
       // so 30 min freshness window tolerates 1 missed cycle.
       const { data: ctrlFull } = await supabase
         .from('rapt_temp_controllers')
-        .select('current_temp, current_temp_updated_at, last_update, pill_probe_offset, dual_sensor_enabled, preferred_sensor, actuation')
+        .select('current_temp, current_temp_updated_at, last_update, pill_probe_offset, actuation')
         .eq('controller_id', controllerId)
         .maybeSingle();
 
-      // Respect the user-configured fusion mode. Three explicit modes:
-      //   dual_sensor_enabled = true  → Pill+Probe (50/50 blend when both present)
-      //   preferred_sensor = 'pill'   → Pill only
-      //   preferred_sensor = 'probe'  → Probe only
-      // Staleness is a presentation concern (warning triangle), not a fusion concern.
+      // Givarvalet ägs av Pi:n (use_pt100 / use_pill lokalt). Molnet gör bara
+      // ett enkelt snitt när båda finns, annars pill.
       const probeTemp = ctrlFull?.current_temp != null ? Number(ctrlFull.current_temp) : null;
-      const dualEnabled = ctrlFull?.dual_sensor_enabled === true;
-      const preferred: 'pill' | 'probe' = ctrlFull?.preferred_sensor === 'probe' ? 'probe' : 'pill';
       const hasProbe = probeTemp != null && Number.isFinite(probeTemp);
-      let actualTemp: number;
-      let fusionMode: string;
-      if (dualEnabled && hasProbe) {
-        actualTemp = (smoothedTemp + probeTemp!) / 2;
-        fusionMode = 'blend';
-      } else if (dualEnabled && !hasProbe) {
-        actualTemp = smoothedTemp;
-        fusionMode = 'blend(no_probe→pill)';
-      } else if (preferred === 'probe') {
-        if (hasProbe) {
-          actualTemp = probeTemp!;
-          fusionMode = 'probe_only';
-        } else {
-          actualTemp = smoothedTemp;
-          fusionMode = 'probe_only(no_probe→pill)';
-        }
-      } else {
-        actualTemp = smoothedTemp;
-        fusionMode = 'pill_only';
-      }
+      const actualTemp = hasProbe ? (smoothedTemp + probeTemp!) / 2 : smoothedTemp;
+      const fusionMode = hasProbe ? 'blend' : 'pill_only';
       console.log(`[ingest-pill-ble] ${controllerId}: pill=${smoothedTemp.toFixed(2)} probe=${probeTemp ?? 'null'} actual=${actualTemp.toFixed(2)} mode=${fusionMode}`);
 
       // Pi-styrda tankar: PT100 via pi-telemetry äger actual_temp/current_temp.

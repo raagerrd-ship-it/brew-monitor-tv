@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
           .select('id, pill_id, name, color, battery_level, last_update, paired_device_id'),
         supabase
           .from('rapt_temp_controllers')
-          .select('id, controller_id, name, current_temp, pill_temp, actual_temp, dual_sensor_enabled, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, profile_target_temp'),
+          .select('id, controller_id, name, current_temp, pill_temp, actual_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, profile_target_temp'),
         supabase
           .from('fermentation_sessions')
           .select(`
