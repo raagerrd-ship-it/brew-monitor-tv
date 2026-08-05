@@ -402,25 +402,9 @@ Deno.serve(async (req) => {
       // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
       await writeProfileState(data.profile);
       await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
-      // Pi:n äger inlärningen nu — vi tar emot skattningarna som backup/graf.
-      const learned = data.learned_params;
-      if (learned && typeof learned === "object") {
-        const now = new Date().toISOString();
-        const rows = Object.entries(learned)
-          .filter(([, v]) => Number.isFinite(Number(v)))
-          .map(([name, v]) => ({
-            controller_id: fullId,
-            parameter_name: name,
-            learned_value: Number(v),
-            sample_count: Number(data.learned_samples?.[name] ?? 1),
-            last_updated_at: now,
-          }));
-        if (rows.length) {
-          await supabase
-            .from("fermentation_learnings")
-            .upsert(rows, { onConflict: "controller_id,parameter_name" });
-        }
-      }
+      // Pi:n äger inlärningen nu — molnet är bara ARKIV. Tomt objekt får
+      // aldrig skriva över en tidigare sparad kopia.
+      await archiveLearnedParams(fullId, data.learned_params);
     }
 
     // Also update pi_live_state with the rollup data
