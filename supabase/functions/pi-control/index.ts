@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     // Return all setpoints for this Pi
     const { data: controllers } = await supabase
       .from("rapt_temp_controllers")
-      .select("controller_id, name, actuation, pill_temp, dual_sensor_enabled, last_update")
+      .select("controller_id, name, actuation")
       .eq("actuation", "pi");
 
     if (!controllers || controllers.length === 0) {
