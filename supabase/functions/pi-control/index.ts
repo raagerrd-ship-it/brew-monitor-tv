@@ -125,7 +125,6 @@ Deno.serve(async (req) => {
     }
 
     const ids = controllers.map((c: any) => c.controller_id);
-    const ctrlById = new Map(controllers.map((c: any) => [c.controller_id, c]));
     const { data: setpoints } = await supabase
       .from("pi_setpoint")
       .select("*")
@@ -134,10 +133,6 @@ Deno.serve(async (req) => {
     const result = (setpoints || []).map((sp: any) => ({
       // Pi config uses the 8-char short id; DB uses the full uuid.
       controller_id: String(sp.controller_id).slice(0, 8),
-      pill_temp: ctrlById.get(sp.controller_id)?.pill_temp != null
-        ? parseFloat(String(ctrlById.get(sp.controller_id)!.pill_temp)) : null,
-      pill_updated_at: ctrlById.get(sp.controller_id)?.last_update ?? null,
-      dual_sensor_enabled: ctrlById.get(sp.controller_id)?.dual_sensor_enabled !== false,
       target_temp: parseFloat(String(sp.target_temp)),
       mode_allowed: sp.mode_allowed,
       enabled: sp.enabled !== false,
