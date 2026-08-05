@@ -115,8 +115,11 @@ Deno.serve(async (req) => {
     // Return all setpoints for this Pi
     const { data: controllers } = await supabase
       .from("rapt_temp_controllers")
-      .select("controller_id, name, actuation")
-      .eq("actuation", "pi");
+      .select("controller_id, name, actuation, is_glycol_cooler")
+      // Glykolkylaren härleder sitt börvärde lokalt (lägsta tankmål − 6) och
+      // ska aldrig få ett börvärde uppifrån.
+      .eq("actuation", "pi")
+      .neq("is_glycol_cooler", true);
 
     if (!controllers || controllers.length === 0) {
       return new Response(JSON.stringify({ setpoints: [] }), {
