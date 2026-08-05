@@ -44,7 +44,6 @@ export function SyncedDataDialog({
   const [controllerStatus, setControllerStatus] = useState<{
     heating_enabled: boolean | null;
     cooling_enabled: boolean | null;
-    dual_sensor_enabled: boolean | null;
   } | null>(null);
 
   const fetchSnapshots = useCallback(async (silent = false) => {
@@ -80,7 +79,7 @@ export function SyncedDataDialog({
     const fetchStatus = async () => {
       const { data } = await supabase
         .from("rapt_temp_controllers")
-        .select("heating_enabled, cooling_enabled, dual_sensor_enabled")
+        .select("heating_enabled, cooling_enabled")
         .eq("controller_id", controllerId)
         .maybeSingle();
       if (data) setControllerStatus(data);
@@ -100,7 +99,6 @@ export function SyncedDataDialog({
         setControllerStatus({
           heating_enabled: p.heating_enabled,
           cooling_enabled: p.cooling_enabled,
-          dual_sensor_enabled: p.dual_sensor_enabled,
         });
       })
       .subscribe();
