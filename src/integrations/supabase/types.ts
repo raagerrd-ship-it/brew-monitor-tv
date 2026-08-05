@@ -839,6 +839,78 @@ export type Database = {
         }
         Relationships: []
       }
+      pi_learned_params: {
+        Row: {
+          controller_id: string
+          created_at: string
+          id: string
+          mode: string
+          param_updated_at: number
+          parameter_name: string
+          received_at: string
+          samples: number
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          id?: string
+          mode: string
+          param_updated_at: number
+          parameter_name: string
+          received_at?: string
+          samples?: number
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          param_updated_at?: number
+          parameter_name?: string
+          received_at?: string
+          samples?: number
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      pi_learned_params_history: {
+        Row: {
+          controller_id: string
+          created_at: string
+          id: string
+          mode: string
+          param_updated_at: number
+          parameter_name: string
+          samples: number
+          value: number
+        }
+        Insert: {
+          controller_id: string
+          created_at?: string
+          id?: string
+          mode: string
+          param_updated_at: number
+          parameter_name: string
+          samples?: number
+          value: number
+        }
+        Update: {
+          controller_id?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          param_updated_at?: number
+          parameter_name?: string
+          samples?: number
+          value?: number
+        }
+        Relationships: []
+      }
       pi_live_state: {
         Row: {
           actual_temp: number | null

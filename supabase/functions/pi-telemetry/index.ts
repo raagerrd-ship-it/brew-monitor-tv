@@ -275,6 +275,8 @@ Deno.serve(async (req) => {
 
   async function getSetpointResponse(setpointVersion?: number) {
     const { data: sp } = await supabase
+      // OBS: learned_params och pill_temp får ALDRIG ingå i svaret till Pi:n.
+      // Inlärning och mätvärden går bara uppåt; återställning görs manuellt.
       .from("pi_setpoint")
       .select("*")
       .like("controller_id", `${controller_id}%`)
@@ -296,6 +298,59 @@ Deno.serve(async (req) => {
         params_version: sp.params_version,
       },
     };
+  }
+
+  /**
+   * Arkiverar Pi:ns inlärda parametrar. Format:
+   * { cooling: { process_gain: { value, samples, updated_at }, ... }, heating: {...} }
+   * Tomt objekt lämnar arkivet orört. updated_at bevaras från nyttolasten.
+   */
+  async function archiveLearnedParams(fullId: string, learned: unknown) {
+    if (!learned || typeof learned !== "object" || Array.isArray(learned)) return;
+    const rows: Array<Record<string, unknown>> = [];
+    for (const [mode, params] of Object.entries(learned as Record<string, any>)) {
+      if (!params || typeof params !== "object") continue;
+      for (const [name, entry] of Object.entries(params as Record<string, any>)) {
+        const value = Number(entry?.value);
+        const updatedAt = Number(entry?.updated_at);
+        if (!Number.isFinite(value) || !Number.isFinite(updatedAt)) continue;
+        rows.push({
+          controller_id: fullId,
+          mode,
+          parameter_name: name,
+          value,
+          samples: Number(entry?.samples ?? 0),
+          param_updated_at: updatedAt,
+          received_at: new Date().toISOString(),
+        });
+      }
+    }
+    if (!rows.length) return;
+
+    const { error } = await supabase
+      .from("pi_learned_params")
+      .upsert(rows, { onConflict: "controller_id,mode,parameter_name" });
+    if (error) {
+      console.error("Learned params upsert failed:", error);
+      return;
+    }
+
+    // Historik: bara nya tidsstämplar.
+    const { data: existing } = await supabase
+      .from("pi_learned_params_history")
+      .select("mode, parameter_name, param_updated_at")
+      .eq("controller_id", fullId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const seen = new Set(
+      (existing || []).map((r: any) => `${r.mode}|${r.parameter_name}|${r.param_updated_at}`)
+    );
+    const newRows = rows
+      .filter((r) => !seen.has(`${r.mode}|${r.parameter_name}|${r.param_updated_at}`))
+      .map(({ received_at, ...rest }) => rest);
+    if (newRows.length) {
+      await supabase.from("pi_learned_params_history").insert(newRows);
+    }
   }
 
   if (kind === "live") {
@@ -402,25 +457,9 @@ Deno.serve(async (req) => {
       // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
       await writeProfileState(data.profile);
       await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
-      // Pi:n äger inlärningen nu — vi tar emot skattningarna som backup/graf.
-      const learned = data.learned_params;
-      if (learned && typeof learned === "object") {
-        const now = new Date().toISOString();
-        const rows = Object.entries(learned)
-          .filter(([, v]) => Number.isFinite(Number(v)))
-          .map(([name, v]) => ({
-            controller_id: fullId,
-            parameter_name: name,
-            learned_value: Number(v),
-            sample_count: Number(data.learned_samples?.[name] ?? 1),
-            last_updated_at: now,
-          }));
-        if (rows.length) {
-          await supabase
-            .from("fermentation_learnings")
-            .upsert(rows, { onConflict: "controller_id,parameter_name" });
-        }
-      }
+      // Pi:n äger inlärningen nu — molnet är bara ARKIV. Tomt objekt får
+      // aldrig skriva över en tidigare sparad kopia.
+      await archiveLearnedParams(fullId, data.learned_params);
     }
 
     // Also update pi_live_state with the rollup data
