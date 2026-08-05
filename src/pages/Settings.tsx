@@ -5,9 +5,7 @@ import { RaptControllersManagement } from "@/components/RaptControllersManagemen
 import { RaptPillPairing } from "@/components/RaptPillPairing";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AiAuditHistory } from "@/components/AiAuditHistory";
-import { LearnedCompensationBaselines } from "@/components/LearnedCompensationBaselines";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
-import { LearnedMarginHistory } from "@/components/LearnedMarginHistory";
 
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
@@ -512,8 +510,6 @@ export default function Settings() {
 
             <CategorySeparator icon={Brain} label="Inlärning" />
                 <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
-                  <LearnedCompensationBaselines />
-                  <SettingsDivider />
                   <LearnedDutyCycle />
                 </SettingsSection>
 
@@ -523,8 +519,6 @@ export default function Settings() {
                   <LearnedPidCoolingRates />
                   <SettingsDivider />
                   <LearnedCoolerMarginValues />
-                  <SettingsDivider />
-                  <LearnedMarginHistory />
                 </SettingsSection>
 
                 <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)" collapsible defaultOpen={false}>
