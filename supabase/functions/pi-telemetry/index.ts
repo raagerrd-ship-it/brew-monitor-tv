@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // actual_temp, plus råvärdena pt100_temp/pill_temp.
     const { data: ctrl } = await supabase
       .from("rapt_temp_controllers")
-      .select("controller_id, pill_temp, dual_sensor_enabled")
+      .select("controller_id, pill_temp")
       .like("controller_id", `${controller_id}%`)
       .eq("actuation", "pi")
       .maybeSingle();
@@ -57,9 +57,8 @@ Deno.serve(async (req) => {
     const pill = d.pill_temp != null
       ? Number(d.pill_temp)
       : (ctrl?.pill_temp != null ? Number(ctrl.pill_temp) : null);
-    const fused = d.actual_temp != null
-      ? Number(d.actual_temp)
-      : (ctrl?.dual_sensor_enabled && pill != null ? (probe + pill) / 2 : probe);
+    // Pi:n äger givarvalet (use_pt100 / use_pill lokalt) och skickar det fusionerade värdet.
+    const fused = d.actual_temp != null ? Number(d.actual_temp) : probe;
 
     const patch: Record<string, any> = {
       actual_temp: fused,

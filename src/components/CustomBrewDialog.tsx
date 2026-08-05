@@ -110,7 +110,7 @@ export function CustomBrewDialog({
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
   const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
-  // pillCompensation removed — now per-controller (dual_sensor_enabled)
+  // pillCompensation removed — givarval sker lokalt på Pi:n
   const [status, setStatus] = useState("Jäsning");
   const [originalStatus, setOriginalStatus] = useState("Jäsning");
   const [fermentationStart, setFermentationStart] = useState("");

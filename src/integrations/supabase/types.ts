@@ -1199,7 +1199,6 @@ export type Database = {
           created_at: string
           current_temp: number | null
           current_temp_updated_at: string | null
-          dual_sensor_enabled: boolean | null
           heating_enabled: boolean | null
           heating_hysteresis: number | null
           heating_run_time: number | null
@@ -1220,7 +1219,6 @@ export type Database = {
           pill_probe_offset_baseline: number | null
           pill_probe_offset_updated_at: string | null
           pill_temp: number | null
-          preferred_sensor: string
           profile_target_temp: number | null
           pt100_temp: number | null
           pwm_off_expected_target: number | null
@@ -1239,7 +1237,6 @@ export type Database = {
           created_at?: string
           current_temp?: number | null
           current_temp_updated_at?: string | null
-          dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
           heating_run_time?: number | null
@@ -1260,7 +1257,6 @@ export type Database = {
           pill_probe_offset_baseline?: number | null
           pill_probe_offset_updated_at?: string | null
           pill_temp?: number | null
-          preferred_sensor?: string
           profile_target_temp?: number | null
           pt100_temp?: number | null
           pwm_off_expected_target?: number | null
@@ -1279,7 +1275,6 @@ export type Database = {
           created_at?: string
           current_temp?: number | null
           current_temp_updated_at?: string | null
-          dual_sensor_enabled?: boolean | null
           heating_enabled?: boolean | null
           heating_hysteresis?: number | null
           heating_run_time?: number | null
@@ -1300,7 +1295,6 @@ export type Database = {
           pill_probe_offset_baseline?: number | null
           pill_probe_offset_updated_at?: string | null
           pill_temp?: number | null
-          preferred_sensor?: string
           profile_target_temp?: number | null
           pt100_temp?: number | null
           pwm_off_expected_target?: number | null

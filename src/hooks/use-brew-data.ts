@@ -102,7 +102,7 @@ export function useBrewData(): UseBrewDataReturn {
     };
   }, []);
 
-  // pillCompEnabled removed — now per-controller (dual_sensor_enabled)
+  // pillCompEnabled removed — givarval sker lokalt på Pi:n
 
   const loadBrewEvents = useCallback(async () => {
     try {

@@ -83,7 +83,6 @@ class TankRegulator:
     # Pill (från molnet) — används för snittet som vi reglerar mot
     pill_temp: Optional[float] = None
     pill_updated_at: Optional[float] = None
-    dual_sensor_enabled: bool = True
     last_pt100: Optional[float] = None
     last_fused: Optional[float] = None
 
@@ -226,7 +225,6 @@ class Regulator:
                         pt = sp.get("pill_temp")
                         tank.pill_temp = float(pt) if pt is not None else None
                         tank.pill_updated_at = _parse_ts(sp.get("pill_updated_at"))
-                        tank.dual_sensor_enabled = sp.get("dual_sensor_enabled", True) is not False
                         new_ver = sp.get("params_version")
                         if new_ver != tank.last_setpoint_version:
                             log.info(f"{tank.name}: setpoint updated → {tank.target_temp}°, "
@@ -378,7 +376,7 @@ class Regulator:
 
     def _fused_temp(self, tank: TankRegulator, probe: float, now: float) -> float:
         """actual_temp = snitt av PT100 och pill när pillen är färsk."""
-        if not tank.dual_sensor_enabled or tank.pill_temp is None:
+        if tank.pill_temp is None:
             return probe
         if tank.pill_updated_at is not None and (now - tank.pill_updated_at) > PILL_MAX_AGE_S:
             return probe
