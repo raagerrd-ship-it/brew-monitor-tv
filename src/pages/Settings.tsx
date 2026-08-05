@@ -17,6 +17,7 @@ import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
 import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { PumpStatusPanel } from "@/components/PumpStatusPanel";
 import { PiTankSettings } from "@/components/PiTankSettings";
+import { PiLearnedArchive } from "@/components/PiLearnedArchive";
 import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
 import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
@@ -552,6 +553,9 @@ export default function Settings() {
             </SettingsSection>
             <SettingsSection icon={Thermometer} title="Cirkulationspumpar" description="Körstatus samt senaste start/stopp för Gul, Grön och Blå">
               <PumpStatusPanel />
+            </SettingsSection>
+            <SettingsSection icon={Thermometer} title="Inlärningsarkiv (Pi)" description="Backup av Pi:ns inlärda reglervärden — kopiera JSON vid återställning" collapsible defaultOpen={false}>
+              <PiLearnedArchive />
             </SettingsSection>
             <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
               <RaptControllersManagement />
