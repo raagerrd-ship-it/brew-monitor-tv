@@ -70,7 +70,13 @@ export function PiHealthChip() {
     .map((s) => new Date(s as string).getTime());
   const ageSec = stamps.length ? (now - Math.max(...stamps)) / 1000 : Infinity;
   const online = ageSec < 300;
-  const undervoltage = !!(health?.undervoltage_now || health?.undervoltage_ever);
+  // pi_health uppdateras av en egen rapportör. Är den posten gammal ska dess
+  // fält inte visas som färska – heartbeat avgör online, health bara detaljerna.
+  const healthAgeSec = health?.last_seen
+    ? (now - new Date(health.last_seen).getTime()) / 1000
+    : Infinity;
+  const healthFresh = healthAgeSec < 600;
+  const undervoltage = healthFresh && !!(health?.undervoltage_now || health?.undervoltage_ever);
   // Attention dot: red if offline, amber if undervoltage, none when healthy.
   const dotColor = !online
     ? "hsl(0 70% 55%)"
@@ -95,21 +101,24 @@ export function PiHealthChip() {
           {Math.round(ageSec)}s sedan
         </div>
       )}
-      {health?.temp_c != null && (
+      {healthFresh && health?.temp_c != null && (
         <div>
           <span className="opacity-70">Temp:</span> {health.temp_c.toFixed(1)}°C
         </div>
       )}
-      {health?.uptime_sec != null && (
+      {healthFresh && health?.uptime_sec != null && (
         <div>
           <span className="opacity-70">Uptime:</span>{" "}
           {formatUptime(health.uptime_sec)}
         </div>
       )}
-      {health?.load1 != null && (
+      {healthFresh && health?.load1 != null && (
         <div>
           <span className="opacity-70">Load1:</span> {health.load1.toFixed(2)}
         </div>
+      )}
+      {!healthFresh && (
+        <div className="opacity-70">Systemdata saknas (ingen pi_health-rapport)</div>
       )}
       {undervoltage && (
         <div className="pt-1 text-[hsl(38_92%_55%)]">
