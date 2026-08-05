@@ -62,7 +62,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
           .maybeSingle(),
         supabase
           .from('rapt_temp_controllers')
-          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor, actuation')
+          .select('profile_target_temp, dual_sensor_enabled, preferred_sensor, actuation, is_glycol_cooler, target_temp')
           .eq('controller_id', controller.controller_id)
           .single(),
       ]);
@@ -81,6 +81,8 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
 
       // Pi-actuated tanks: duty/mode/relays come from the local regulator, not RAPT PID logs
       if (piActuated) {
+        // Glykolkylaren: Pi:n härleder målet lokalt — visa bara dess värde.
+        const isGlycol = (ctrlData as any)?.is_glycol_cooler === true;
         const { data: live } = await supabase
           .from('pi_live_state')
           .select('duty_pct, mode, cooling_relay_on, heating_relay_on, last_heartbeat')
@@ -91,6 +93,15 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         setPiCoolingOn(!!live?.cooling_relay_on);
         setPiHeatingOn(!!live?.heating_relay_on);
         setPiHeartbeat(live?.last_heartbeat ?? null);
+
+        if (isGlycol) {
+          const piDerived = (ctrlData as any)?.target_temp;
+          if (piDerived != null) {
+            setPiTarget(Number(piDerived));
+            setTargetTemp(Math.round(Number(piDerived)));
+          }
+          return;
+        }
 
         const { data: sp } = await supabase
           .from('pi_setpoint')
