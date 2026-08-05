@@ -430,22 +430,43 @@ Deno.serve(async (req) => {
     // beskriver bara enskilda PID-beslut.
     const means = data.means ?? {};
 
-    const { error: histError } = await supabase
-      .from("temp_controller_history")
-      .insert({
+    // Rollups med regulating:false förorenar historiken (degraderat sensor-
+    // underlag, ingen duty). Logga underlaget och hoppa över insert.
+    if (!isRegulating(data)) {
+      console.warn("SKIPPED_HISTORY regulating=false", JSON.stringify({
         controller_id,
-        current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
+        recorded_at: data.recorded_at ?? null,
+        received_at: new Date().toISOString(),
+        regulating: data.regulating,
+        enabled: data.enabled ?? null,
+        blocked_by: data.blocked_by ?? null,
+        mode: data.mode ?? null,
+        sensor_source: data.sensor_source ?? null,
+        actual_temp: data.actual_temp ?? null,
+        pt100_temp: data.pt100_temp ?? null,
+        pill_temp: data.pill_temp ?? null,
+        means,
         target_temp: data.target_temp ?? null,
-        cooling_enabled: isRegulating(data) && data.mode === "cooling",
-        recorded_at: data.recorded_at || new Date().toISOString(),
-        profile_target_temp: data.target_temp ?? null,
-        duty_pct: isRegulating(data) ? deliveredDuty(data) : null,
-        actual_temp: means.actual ?? data.actual_temp ?? null,
-        pid_mode: isRegulating(data) ? (data.mode ?? "v6") : "off",
-      });
+        keys: Object.keys(data),
+      }));
+    } else {
+      const { error: histError } = await supabase
+        .from("temp_controller_history")
+        .insert({
+          controller_id,
+          current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
+          target_temp: data.target_temp ?? null,
+          cooling_enabled: data.mode === "cooling",
+          recorded_at: data.recorded_at || new Date().toISOString(),
+          profile_target_temp: data.target_temp ?? null,
+          duty_pct: deliveredDuty(data),
+          actual_temp: means.actual ?? data.actual_temp ?? null,
+          pid_mode: data.mode ?? "v6",
+        });
 
-    if (histError) {
-      console.error("History insert failed:", histError);
+      if (histError) {
+        console.error("History insert failed:", histError);
+      }
     }
 
     // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
