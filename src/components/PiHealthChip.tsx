@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Cpu } from "lucide-react";
 import {
@@ -9,12 +9,25 @@ import {
 } from "@/components/ui/tooltip";
 import { HeaderIconButton } from "./header/HeaderIconButton";
 
-export function PiHealthChip() {
+function PiHealthChipInner() {
+  // Endast två state-värden som faktiskt påverkar renderingen:
+  // senaste heartbeat (ändras sällan) och online-flaggan.
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [online, setOnline] = useState(false);
+  const heartbeatRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+
+    // Pi:n hörs av via telemetrin: live var 30 s, rollup var 3 min.
+    const evaluate = () => {
+      const hb = heartbeatRef.current;
+      const isOnline = hb
+        ? (Date.now() - new Date(hb).getTime()) / 1000 < 300
+        : false;
+      setOnline((prev) => (prev === isOnline ? prev : isOnline));
+    };
+
     const load = async () => {
       const { data } = await supabase
         .from("pi_live_state")
@@ -22,11 +35,18 @@ export function PiHealthChip() {
         .order("last_heartbeat", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (mounted) setLastHeartbeat(data?.last_heartbeat ?? null);
+      if (!mounted) return;
+      const next = data?.last_heartbeat ?? null;
+      if (next !== heartbeatRef.current) {
+        heartbeatRef.current = next;
+        setLastHeartbeat(next);
+      }
+      evaluate();
     };
+
     load();
     const iv = setInterval(load, 30000);
-    const tick = setInterval(() => setNow(Date.now()), 15000);
+    const tick = setInterval(evaluate, 15000);
     return () => {
       mounted = false;
       clearInterval(iv);
@@ -34,11 +54,9 @@ export function PiHealthChip() {
     };
   }, []);
 
-  // Pi:n hörs av via telemetrin: live var 30 s, rollup var 3 min.
   const ageSec = lastHeartbeat
-    ? (now - new Date(lastHeartbeat).getTime()) / 1000
+    ? (Date.now() - new Date(lastHeartbeat).getTime()) / 1000
     : Infinity;
-  const online = ageSec < 300;
 
   const tooltip = (
     <div className="text-xs space-y-1">
@@ -72,3 +90,5 @@ export function PiHealthChip() {
     </TooltipProvider>
   );
 }
+
+export const PiHealthChip = memo(PiHealthChipInner);
