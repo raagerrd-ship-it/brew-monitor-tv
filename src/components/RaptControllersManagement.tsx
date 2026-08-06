@@ -143,7 +143,7 @@ export function RaptControllersManagement() {
                     </p>
                     {originalTargets[controller.controller_id] != null && controller.target_temp !== null && (
                       <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                        Ctrl-mål (PID): {controller.target_temp.toFixed(1)}°
+                        PT100-mål (PID): {controller.target_temp.toFixed(1)}°
                       </p>
                     )}
                   </div>

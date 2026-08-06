@@ -155,7 +155,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                   ? `Medel · Probe: ${currentController.current_temp?.toFixed(1)}° · Pill: ${currentController.pill_temp?.toFixed(1)}°`
                   : currentController.pill_temp != null
                     ? `Pill: ${currentController.pill_temp.toFixed(1)}°`
-                    : 'Ctrl-sensor'}
+                    : 'PT100-sensor'}
               </p>
             </div>
             
