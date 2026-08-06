@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.trigger_custom_brew_sync();
