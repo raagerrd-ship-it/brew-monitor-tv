@@ -129,6 +129,9 @@ Deno.serve(async (req) => {
       volume_l: b.volume_l != null ? parseFloat(String(b.volume_l)) : null,
       // Profiler redigeras lokalt på Pi:n — molnet väljer aldrig profil.
       profile_id: null,
+      // Gissning, inte instruktion: Pi:n förväljer profil på namnlikhet.
+      profile_hint: b.style || null,
+      // Pitchtid eller null — aldrig platshållare.
       fermentation_start: b.fermentation_start ?? null,
     }));
 
