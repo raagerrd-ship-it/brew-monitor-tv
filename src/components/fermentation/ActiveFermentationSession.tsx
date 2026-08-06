@@ -1,14 +1,9 @@
 import { useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2, SkipForward, ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp } from "lucide-react";
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { StepExecutionDisplay } from "./StepExecutionDisplay";
@@ -40,11 +35,7 @@ export function ActiveFermentationSession({
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
   const {
-    session, controllerData, loading, actionLoading, skipLoading, acknowledgeLoading,
-    showCancelDialog, setShowCancelDialog, showSkipConfirm, setShowSkipConfirm,
-    showRestartConfirm, setShowRestartConfirm,
-    isAuthenticated, handlePauseResume, handleCancel, handleSkipStep, handleRestartStep,
-    handleAcknowledge, handleAcknowledgeStep,
+    session, controllerData, loading, isAuthenticated,
     calculateProgress, calculateStepProgress, getRampProgress,
   } = useActiveFermentationSession({
     controllerId, brewId, compact, preloadedSession, isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
