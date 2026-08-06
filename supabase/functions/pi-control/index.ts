@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
             product_id: y.product_id ?? null,
             name: y.name ?? null,
             attenuation: y.attenuation ?? null,
-            min_temp: y.min_temp ?? y.temp_min ?? null,
-            max_temp: y.max_temp ?? y.temp_max ?? null,
+            min_temp: y.min_temp ?? y.min_temp_c ?? y.temp_min ?? null,
+            max_temp: y.max_temp ?? y.max_temp_c ?? y.temp_max ?? null,
             starter: y.starter ?? null,
           }))
         : null,
