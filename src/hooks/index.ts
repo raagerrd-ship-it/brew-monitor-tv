@@ -8,7 +8,6 @@ export { useControllersManagement } from "./use-controllers-management";
 export { useDeferredRender, useStaggeredRender } from "./use-deferred-render";
 export { useExternalTimer } from "./use-external-timer";
 export { useExternalUserSettings } from "./use-external-user-settings";
-export { useFermentationProfiles } from "./use-fermentation-profiles";
 export { useIsMobile } from "./use-mobile";
 export { usePrinterConnection } from "./use-printer-connection";
 export { useRaptBarData } from "./use-rapt-bar-data";

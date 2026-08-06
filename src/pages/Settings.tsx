@@ -2,7 +2,6 @@ import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
-import { RaptPillPairing } from "@/components/RaptPillPairing";
 import { SyncChecklist } from "@/components/SyncChecklist";
 import { AiAuditHistory } from "@/components/AiAuditHistory";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
@@ -16,8 +15,6 @@ import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { PumpStatusPanel } from "@/components/PumpStatusPanel";
 import { PiTankSettings } from "@/components/PiTankSettings";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
-import { SgCalibrationStatus } from "@/components/SgCalibrationStatus";
-import { FermentationProfilesManagement } from "@/components/fermentation";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
 import { PrinterSettings } from "@/components/PrinterSettings";
@@ -521,15 +518,6 @@ export default function Settings() {
                   <LearnedCoolerMarginValues />
                 </SettingsSection>
 
-                <SettingsSection icon={Pill} title="SG-kalibrering" description="Automatisk temperaturkorrektion per pill (ankare + inlärd residual)" collapsible defaultOpen={false}>
-                  <SgCalibrationStatus />
-                </SettingsSection>
-
-            <CategorySeparator icon={FlaskConical} label="Profiler" />
-            <SettingsSection icon={FlaskConical} title="Fermenteringsprofiler" description="Skapa och hantera temperaturschemat för fermenteringen">
-              <FermentationProfilesManagement />
-            </SettingsSection>
-
             <CategorySeparator icon={History} label="Historik" />
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
               <CombinedControllerChart controllers={combinedChartControllers} />
@@ -556,9 +544,6 @@ export default function Settings() {
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
               <RaptPillsManagement />
-            </SettingsSection>
-            <SettingsSection icon={Pill} title="Para Pills (BLE)" description="Koppla varje Pill till sin fysiska BLE-MAC från Pi-scannern">
-              <RaptPillPairing />
             </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
             <SettingsSection icon={Printer} title="Termoskrivare" description="Bluetooth-anslutning till etikettskrivare">

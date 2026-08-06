@@ -1,14 +1,9 @@
 import { useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
-import { Play, Pause, Square, Loader2, SkipForward, ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ChevronUp, Thermometer, Activity, Clock, ArrowDown, ArrowUp } from "lucide-react";
 import { FermentationSessionCompact } from "./FermentationSessionCompact";
 import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { StepExecutionDisplay } from "./StepExecutionDisplay";
@@ -40,11 +35,7 @@ export function ActiveFermentationSession({
   const shouldRender = useDeferredRender();
   const [expanded, setExpanded] = useState(false);
   const {
-    session, controllerData, loading, actionLoading, skipLoading, acknowledgeLoading,
-    showCancelDialog, setShowCancelDialog, showSkipConfirm, setShowSkipConfirm,
-    showRestartConfirm, setShowRestartConfirm,
-    isAuthenticated, handlePauseResume, handleCancel, handleSkipStep, handleRestartStep,
-    handleAcknowledge, handleAcknowledgeStep,
+    session, controllerData, loading, isAuthenticated,
     calculateProgress, calculateStepProgress, getRampProgress,
   } = useActiveFermentationSession({
     controllerId, brewId, compact, preloadedSession, isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
@@ -225,99 +216,8 @@ export function ActiveFermentationSession({
               <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
             )}
 
-            <div className="flex gap-1.5 pt-1">
-              <Button 
-                variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5"
-                style={{
-                  background: 'hsl(var(--primary) / 0.08)',
-                  borderColor: 'hsl(var(--primary) / 0.25)',
-                }}
-                onClick={handlePauseResume} disabled={actionLoading}
-              >
-                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3.5 h-3.5" />Återuppta</> : <><Pause className="w-3.5 h-3.5" />Pausa</>}
-              </Button>
-              <Button 
-                variant="outline" size="icon" className="h-8 w-8 shrink-0"
-                style={{
-                  background: 'hsl(var(--primary) / 0.05)',
-                  borderColor: 'hsl(var(--primary) / 0.2)',
-                }}
-                onClick={() => setShowRestartConfirm(true)} disabled={actionLoading}
-                title="Starta om steget"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </Button>
-              <Button 
-                variant="outline" size="icon" className="h-8 w-8 shrink-0"
-                style={{
-                  background: 'hsl(var(--primary) / 0.05)',
-                  borderColor: 'hsl(var(--primary) / 0.2)',
-                }}
-                onClick={() => setShowSkipConfirm(true)} disabled={skipLoading} 
-                title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
-              >
-                {skipLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SkipForward className="w-3.5 h-3.5" />}
-              </Button>
-              <Button 
-                variant="outline" size="icon" className="h-8 w-8 shrink-0"
-                style={{
-                  background: 'hsl(0 70% 50% / 0.06)',
-                  borderColor: 'hsl(0 70% 50% / 0.2)',
-                }}
-                onClick={() => setShowCancelDialog(true)} disabled={actionLoading}
-              >
-                <Square className="w-3.5 h-3.5" />
-              </Button>
-            </div>
           </div>
 
-          {/* Dialogs */}
-          <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Avbryt fermenteringsprofil?</AlertDialogTitle>
-                <AlertDialogDescription>Den automatiska temperaturstyrningen kommer att stoppas.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                <AlertDialogAction onClick={handleCancel}>Ja, stoppa profilen</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
-            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför fermenteringsprofil?' : 'Hoppa till nästa steg?'}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Profilen kommer markeras som slutförd.' : `Steg ${session.current_step_index + 1} hoppas över och steg ${session.current_step_index + 2} startar.`}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
-                  {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          <AlertDialog open={showRestartConfirm} onOpenChange={setShowRestartConfirm}>
-            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Starta om steg {session.current_step_index + 1}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Tid och progress nollställs för det aktuella steget. Stegets konfiguration behålls.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRestartStep}>Starta om</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       );
     }
@@ -343,9 +243,6 @@ export function ActiveFermentationSession({
           originalGravity={originalGravity}
           sgData={sgData}
           isWaitingForGravityStable={isWaitingForGravityStable}
-          onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
-          onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
-          acknowledgeLoading={acknowledgeLoading}
           activityScore={activityScore}
           fermentationPhase={fermentationPhase}
           attenuation={attenuation}
@@ -408,100 +305,8 @@ export function ActiveFermentationSession({
           <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
         )}
 
-        {isAuthenticated && (
-          <div className="flex gap-1.5 pt-1">
-            <Button 
-              variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5"
-              style={{
-                background: 'hsl(var(--primary) / 0.08)',
-                borderColor: 'hsl(var(--primary) / 0.25)',
-              }}
-              onClick={handlePauseResume} disabled={actionLoading}
-            >
-              {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : session.status === 'paused' ? <><Play className="w-3.5 h-3.5" />Återuppta</> : <><Pause className="w-3.5 h-3.5" />Pausa</>}
-            </Button>
-            <Button 
-              variant="outline" size="icon" className="h-8 w-8 shrink-0"
-              style={{
-                background: 'hsl(var(--primary) / 0.05)',
-                borderColor: 'hsl(var(--primary) / 0.2)',
-              }}
-              onClick={() => setShowRestartConfirm(true)} disabled={actionLoading}
-              title="Starta om steget"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </Button>
-            <Button 
-              variant="outline" size="icon" className="h-8 w-8 shrink-0"
-              style={{
-                background: 'hsl(var(--primary) / 0.05)',
-                borderColor: 'hsl(var(--primary) / 0.2)',
-              }}
-              onClick={() => setShowSkipConfirm(true)} disabled={skipLoading}
-              title={session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför profil' : 'Nästa steg'}
-            >
-              {skipLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SkipForward className="w-3.5 h-3.5" />}
-            </Button>
-            <Button 
-              variant="outline" size="icon" className="h-8 w-8 shrink-0"
-              style={{
-                background: 'hsl(0 70% 50% / 0.06)',
-                borderColor: 'hsl(0 70% 50% / 0.2)',
-              }}
-              onClick={() => setShowCancelDialog(true)} disabled={actionLoading}
-            >
-              <Square className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
       </div>
 
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Avbryt fermenteringsprofil?</AlertDialogTitle>
-            <AlertDialogDescription>Den automatiska temperaturstyrningen kommer att stoppas. Du kan starta en ny profil efteråt.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>Ja, stoppa profilen</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
-        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför fermenteringsprofil?' : 'Hoppa till nästa steg?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Profilen kommer markeras som slutförd.' : `Steg ${session.current_step_index + 1} hoppas över och steg ${session.current_step_index + 2} startar.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowSkipConfirm(false); handleSkipStep(); }}>
-              {session.current_step_index + 1 >= (session.steps?.length || 0) ? 'Slutför' : 'Hoppa över'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showRestartConfirm} onOpenChange={setShowRestartConfirm}>
-        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Starta om steg {session.current_step_index + 1}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tid och progress nollställs för det aktuella steget. Stegets konfiguration behålls.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestartStep}>Starta om</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

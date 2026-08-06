@@ -7,7 +7,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play, Clock, CalendarDays } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -25,7 +25,6 @@ import { AttenuationStat } from "./AttenuationStat";
 
 import { SyncedDataDialog } from "./SyncedDataDialog";
 import { PrintLabelDialog } from "../PrintLabelDialog";
-import { StartFermentationSessionDialog } from "../fermentation";
 import { RecipeView } from "./RecipeView";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
@@ -61,7 +60,6 @@ function BrewCardComponent({
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
-  const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [fermEndOpen, setFermEndOpen] = useState(false);
 
@@ -289,15 +287,6 @@ function BrewCardComponent({
                         </PopoverContent>
                       </Popover>
                     )}
-                    {brew.status === "Jäsning" && devices.controller && !brew.fermentationSession && (
-                      <button
-                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
-                        onClick={() => { setStartSessionOpen(true); setMenuOpen(false); }}
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        Starta jäsningsprofil
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -441,15 +430,6 @@ function BrewCardComponent({
         brew={brew}
       />
 
-      {/* Start Fermentation Session Dialog */}
-      {devices.controller && (
-        <StartFermentationSessionDialog
-          open={startSessionOpen}
-          onOpenChange={setStartSessionOpen}
-          preselectedControllerId={devices.controller.controller_id}
-          preselectedBrewId={brew.id}
-        />
-      )}
     </Card>
   );
 }
