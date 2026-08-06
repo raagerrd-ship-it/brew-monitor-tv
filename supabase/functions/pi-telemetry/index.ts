@@ -472,6 +472,14 @@ Deno.serve(async (req) => {
       // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
       await writeProfileState(data.profile);
       await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
+      // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
+      if (data.profile?.brew_id) {
+        await supabase
+          .from("brew_readings")
+          .update({ pi_pending_at: null })
+          .eq("id", data.profile.brew_id)
+          .not("pi_pending_at", "is", null);
+      }
       // Pi:n äger inlärningen nu — molnet är bara ARKIV. Tomt objekt får
       // aldrig skriva över en tidigare sparad kopia.
       await archiveLearnedParams(fullId, data.learned_params);
