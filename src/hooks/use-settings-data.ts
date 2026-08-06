@@ -205,7 +205,11 @@ export function useSettingsData() {
 
   const loadBrewCounts = useCallback(async () => {
     try {
-      const { count } = await supabase.from('selected_brews').select('*', { count: 'exact', head: true }).eq('is_visible', true);
+      const { count } = await supabase
+        .from('fermentation_sessions')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['running', 'paused'])
+        .not('brew_id', 'is', null);
       setVisibleBrewsCount(count ?? 0);
     } catch (error) {
       console.error('Error loading brew counts:', error);

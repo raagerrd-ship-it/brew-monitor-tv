@@ -1,6 +1,5 @@
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Checkbox } from "./ui/checkbox";
 import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
@@ -25,10 +24,10 @@ function StatusBadge({ status }: { status: string }) {
 
 export function BrewManagement() {
   const {
-    customBrews, selectedBrews, pills, controllers,
-    loading, saving, showCustomBrewDialog, editingBrew, prefillData,
+    customBrews, pills, controllers,
+    loading, showCustomBrewDialog, editingBrew, prefillData,
     timerRecipeName, timerBeerStyle, timerBrewMatch,
-    isSelected, toggleBrew, deleteCustomBrew, saveSelection,
+    deleteCustomBrew,
     setPiPending,
     openCustomBrewDialog, openEditBrewDialog, closeCustomBrewDialog,
     setShowCustomBrewDialog, loadData,
@@ -48,7 +47,7 @@ export function BrewManagement() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold">Hantera Öl</h2>
           <p className="text-sm text-muted-foreground">
-            Välj upp till 3 öl att visa på dashboarden
+            Dashboarden visar de bryggningar Pi:n rapporterar som aktiva
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -91,10 +90,6 @@ export function BrewManagement() {
               <Card key={brew.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <Checkbox
-                      checked={isSelected(brew.batch_id)}
-                      onCheckedChange={() => toggleBrew(brew.batch_id)}
-                    />
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold">{brew.name}</h3>
@@ -136,7 +131,7 @@ export function BrewManagement() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteCustomBrew(brew.id, brew.batch_id)}
+                      onClick={() => deleteCustomBrew(brew.id)}
                       className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -149,30 +144,6 @@ export function BrewManagement() {
         </div>
       )}
 
-
-      <div className="flex flex-col gap-4 pt-4 border-t">
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            {selectedBrews.length} av 3 öl valda
-          </p>
-          <Button
-            onClick={saveSelection}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sparar och synkroniserar...
-              </>
-            ) : (
-              'Spara Val'
-            )}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          När du sparar ditt val görs en full synkronisering av de valda ölen
-        </p>
-      </div>
 
       <CustomBrewDialog
         open={showCustomBrewDialog}

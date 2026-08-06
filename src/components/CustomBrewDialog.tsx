@@ -542,20 +542,6 @@ export function CustomBrewDialog({
 
         if (insertError) throw insertError;
 
-        // Add to selected_brews to show on dashboard
-        const { error: selectError } = await supabase
-          .from("selected_brews")
-          .insert({
-            batch_id: customBatchId,
-            display_order: 0, // Will be at top
-            is_visible: true,
-          });
-
-        if (selectError) {
-          console.error("Error adding to selected_brews:", selectError);
-          // Don't throw, the brew was created
-        }
-
         toast({
           title: "Öl skapad!",
           description: `${name} har lagts till`,

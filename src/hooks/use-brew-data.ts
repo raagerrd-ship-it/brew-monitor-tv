@@ -723,10 +723,7 @@ export function useBrewData(): UseBrewDataReturn {
 
 
     const handleConfigChange = (table: string) => {
-      if (table === 'selected_brews') {
-        sonnerToast('Inställningar uppdaterade', { description: 'Öllistan har ändrats från en annan enhet', duration: 5000 });
-        loadBrews();
-      } else if (table === 'selected_rapt_pills') {
+      if (table === 'selected_rapt_pills') {
         sonnerToast('Inställningar uppdaterade', { description: 'RAPT Pill-listan har ändrats från en annan enhet', duration: 5000 });
         loadRaptData();
       } else if (table === 'selected_rapt_temp_controllers') {
@@ -739,7 +736,6 @@ export function useBrewData(): UseBrewDataReturn {
 
     const channel = supabase
       .channel(`config-updates-${Date.now()}`)
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_brews' }, () => handleConfigChange('selected_brews'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
