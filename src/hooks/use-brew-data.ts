@@ -695,6 +695,8 @@ export function useBrewData(): UseBrewDataReturn {
               if (t === 'brew_readings') handleBrewUpdate(p);
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
+              else if (t === 'pi_live_state') loadRaptData();
+              else if (t === 'brew_data_snapshots') loadBrews();
             });
           }, 2000);
         }
@@ -702,6 +704,8 @@ export function useBrewData(): UseBrewDataReturn {
         if (table === 'brew_readings') handleBrewUpdate(payload);
         else if (table === 'rapt_pills') handlePillUpdate(payload);
         else if (table === 'rapt_temp_controllers') handleControllerUpdate(payload);
+        else if (table === 'pi_live_state') loadRaptData();
+        else if (table === 'brew_data_snapshots') loadBrews();
       }
     };
 
@@ -710,13 +714,15 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_pills' }, (p: any) => dispatch('rapt_pills', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
+      .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
       .subscribe();
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
       supabase.removeChannel(channel);
     };
-  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, isTvMode]);
+  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, loadRaptData, loadBrews, isTvMode]);
 
   // Channel 2: Config/session changes (just trigger reload, no payload needed)
   useEffect(() => {
