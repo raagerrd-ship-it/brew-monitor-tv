@@ -107,11 +107,16 @@ Deno.serve(async (req) => {
   // Load pill→controller map once (so we can promote BLE temp to controller SSOT)
   const { data: linkedControllers } = await supabase
     .from('rapt_temp_controllers')
-    .select('controller_id, linked_pill_id')
+    .select('controller_id, linked_pill_id, actuation')
     .not('linked_pill_id', 'is', null);
-  const pillToController = new Map<string, string>();
+  const pillToController = new Map<string, { controllerId: string; piActuated: boolean }>();
   for (const c of linkedControllers ?? []) {
-    if (c.linked_pill_id) pillToController.set(c.linked_pill_id, c.controller_id);
+    if (c.linked_pill_id) {
+      pillToController.set(c.linked_pill_id, {
+        controllerId: c.controller_id,
+        piActuated: c.actuation === 'pi',
+      });
+    }
   }
 
   // Layer 1 — Robust aggregation per MAC: Hampel-filter outliers, then median.
@@ -223,6 +228,14 @@ Deno.serve(async (req) => {
       continue;
     }
 
+    // Pi-styrda tankar får all pilltelemetri via Pi:ns 30 s-synk.
+    // BLE-vägen får inte skriva över temperatur, SG, batteri eller tidsstämpel.
+    const linkedController = pillToController.get(pillId);
+    if (linkedController?.piActuated) {
+      skipped++;
+      continue;
+    }
+
     // Fetch previous smoothed values for EMA continuity
     const { data: prevPill } = await supabase
       .from('rapt_pills')
@@ -256,7 +269,7 @@ Deno.serve(async (req) => {
 
     // BLE = SSOT for actual_temp. Promote pill temp to the linked controller
     // so PID and UI read a fresh (smoothed) value every minute, independent of RAPT sync.
-    const controllerId = pillToController.get(pillId);
+    const controllerId = linkedController?.controllerId;
     let piActuated = false;
     if (controllerId && smoothedTemp != null) {
       // Blend with probe (current_temp) when fresh. RAPT pushes probe ~every 15 min,

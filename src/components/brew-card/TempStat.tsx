@@ -18,18 +18,18 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
 
-  // Detect stale pill data (>30 minutes old)
-  const pillLastUpdate = pill?.last_update ? new Date(pill.last_update).getTime() : 0;
-  const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
+  // Alla tre temperaturerna och deras tidsstämpel kommer från Pi:ns 30 s-synk.
+  const pillLastUpdate = controller?.last_update ? new Date(controller.last_update).getTime() : 0;
+  const isPillStale = controller ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
 
   // Pi:n skickar tre temperaturer var 30:e sekund: pill, PT100 och fusionen.
   // Molnet visar dem rakt av — ingen fallback, inget givarval här.
   const pillTemp = controller?.pill_temp ?? null;
   const probeTemp = controller?.pt100_temp ?? null;
-  const displayTemp = controller?.actual_temp ?? brew.currentTemp;
+  const displayTemp = controller?.actual_temp ?? null;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, true);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
-  const showStaleWarning = pill && isPillStale && !isInactive;
+  const showStaleWarning = controller && isPillStale && !isInactive;
 
   // Calculate delta: pill (surface) - controller (core)
   const hasBothSensors = pillTemp !== null && probeTemp !== null;
@@ -185,7 +185,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                   <div 
                     className="absolute rounded-full"
                     style={{ 
-                      left: `${pct(displayTemp)}%`, 
+                      left: `${pct(displayTemp ?? profileT)}%`, 
                       top: '50%',
                       width: '6px',
                       height: '6px',
@@ -212,7 +212,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
               {showCompensatedMarker && (
                 <p><span style={{ color: 'hsl(38 92% 50% / 0.7)' }}>┊</span> Kompenserat: {compensatedT.toFixed(1)}°</p>
               )}
-              {hasBoth && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>}
+              {hasBoth && displayTemp !== null && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>}
               {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
               {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
             </div>
@@ -314,9 +314,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
-  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp.toFixed(2).split('.');
-  const displayTempMain = `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
-  const displayTempMuted = displayTempDecimals[1] ?? '0';
+  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp?.toFixed(2).split('.') ?? ['—', ''];
+  const displayTempMain = displayTemp === null ? displayTempWhole : `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
+  const displayTempMuted = displayTempDecimals[1] ?? '';
 
   return (
     <StatCard
