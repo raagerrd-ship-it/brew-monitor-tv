@@ -22,9 +22,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const pillLastUpdate = pill?.last_update ? new Date(pill.last_update).getTime() : 0;
   const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
 
-  // Pill temp: prefer controller's pill_temp (synced with RAPT, always fresh when controller is online)
-  // Fall back to brew.currentTemp from pill if available
-  const pillTemp = controller?.pill_temp ?? ((pill && !isPillStale) ? brew.currentTemp : null);
+  // Pill temp: prefer the live pill reading (same source as snapshots), fall back to
+  // controller.pill_temp only when the pill feed is stale/missing.
+  const pillTemp = (pill && !isPillStale) ? brew.currentTemp : (controller?.pill_temp ?? null);
   // Ctrl-sidan = PT100 (Pi) när den finns, annars RAPT:s inbyggda probe
   const probeTemp = controller?.pt100_temp ?? controller?.current_temp ?? null;
   // SSOT: prefer pre-calculated actual_temp from controller (fusion/priority done in sync engine)
