@@ -45,6 +45,7 @@ export interface CustomBrewData {
   batch_number: string;
   original_gravity: number;
   final_gravity: number;
+  volume_l?: number | null;
   status: string;
   fermentation_start: string | null;
   label_image_url: string | null;
@@ -109,6 +110,7 @@ export function CustomBrewDialog({
   const [batchNumber, setBatchNumber] = useState("");
   const [originalGravity, setOriginalGravity] = useState("");
   const [finalGravity, setFinalGravity] = useState("");
+  const [volumeL, setVolumeL] = useState("");
   const [linkedPillId, setLinkedPillId] = useState<string | null>(null);
   // pillCompensation removed — givarval sker lokalt på Pi:n
   const [status, setStatus] = useState("Jäsning");
@@ -229,6 +231,7 @@ export function CustomBrewDialog({
         setBatchNumber(editBrew.batch_number || "");
         setOriginalGravity(editBrew.original_gravity?.toString() || "1.050");
         setFinalGravity(editBrew.final_gravity?.toString() || "1.010");
+        setVolumeL(editBrew.volume_l != null ? String(editBrew.volume_l) : "");
         setStatus(editBrew.status || "Jäsning");
         setOriginalStatus(editBrew.status || "Jäsning");
         setLabelImageUrl(editBrew.label_image_url || null);
@@ -411,6 +414,7 @@ export function CustomBrewDialog({
           batch_number: batchNumber.trim() || "1",
           original_gravity: og,
           final_gravity: fg,
+          volume_l: volumeL.trim() ? parseFloat(volumeL) : null,
           attenuation: attenuation,
           abv: abv,
           status: status,
@@ -520,6 +524,7 @@ export function CustomBrewDialog({
             status: status,
             original_gravity: og,
             final_gravity: fg,
+            volume_l: volumeL.trim() ? parseFloat(volumeL) : null,
             current_sg: og,
             current_temp: 20,
             attenuation: 0,
@@ -658,6 +663,17 @@ export function CustomBrewDialog({
                 max="1.200"
                 value={finalGravity}
                 onChange={(e) => setFinalGravity(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="volume">Volym (liter)</Label>
+              <Input
+                id="volume"
+                type="number"
+                step="1"
+                min="1"
+                value={volumeL}
+                onChange={(e) => setVolumeL(e.target.value)}
               />
             </div>
           </div>
