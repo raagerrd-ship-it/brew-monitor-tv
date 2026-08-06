@@ -32,6 +32,10 @@ Deno.serve(async (req) => {
   const og = num(body.og) ?? num(m.og);
   const fg = num(body.fg) ?? num(m.fg);
 
+  // Jästen: temperaturspannet är det enda som kan rädda en sats, så vi
+  // lagrar hela listan i recipe-jsonen och låter pi-control plocka spannet.
+  const yeasts = Array.isArray(body.yeasts) ? body.yeasts : null;
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -63,6 +67,7 @@ Deno.serve(async (req) => {
       num(m.fermenter_volume_l),
     // Pitchtid sätts bara om den faktiskt inträffat — aldrig platshållare.
     fermentation_start: body.fermentation_start ?? null,
+    recipe: yeasts ? { yeasts } : undefined,
     // Lägger satsen direkt i kön till Jäscontrollern.
     pi_pending_at: new Date().toISOString(),
   };

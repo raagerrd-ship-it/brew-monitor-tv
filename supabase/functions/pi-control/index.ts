@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: pendingRows } = await supabase
       .from("brew_readings")
-      .select("id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at")
+      .select("id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at, recipe")
       .not("pi_pending_at", "is", null)
       .gte("pi_pending_at", cutoff);
 
@@ -133,6 +133,18 @@ Deno.serve(async (req) => {
       profile_hint: b.style || null,
       // Pitchtid eller null — aldrig platshållare.
       fermentation_start: b.fermentation_start ?? null,
+      // Jäst: spannet Pi:n kan sätta hard_temp_limits på. null om okänt.
+      yeasts: Array.isArray(b.recipe?.yeasts)
+        ? b.recipe.yeasts.map((y: any) => ({
+            lab: y.lab ?? null,
+            product_id: y.product_id ?? null,
+            name: y.name ?? null,
+            attenuation: y.attenuation ?? null,
+            min_temp: y.min_temp ?? y.temp_min ?? null,
+            max_temp: y.max_temp ?? y.temp_max ?? null,
+            starter: y.starter ?? null,
+          }))
+        : null,
     }));
 
     // Return all setpoints for this Pi
