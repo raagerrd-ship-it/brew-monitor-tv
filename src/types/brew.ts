@@ -66,6 +66,7 @@ export interface PillData {
   name: string;
   color: string;
   battery_level: number;
+  temperature?: number | null;
   last_update: string | null;
   paired_device_id?: string | null;
 }
