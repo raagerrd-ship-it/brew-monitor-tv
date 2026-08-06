@@ -682,6 +682,14 @@ export function useBrewData(): UseBrewDataReturn {
   // Channel 1: Data updates (need payload for in-place state updates)
   useEffect(() => {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
+    const lastLoad = { rapt: 0, brews: 0 };
+    // Pi:n skriver en rad per tank i samma sekund – ladda om max var 5:e sekund
+    const throttled = (key: 'rapt' | 'brews', fn: () => void) => {
+      const now = Date.now();
+      if (now - lastLoad[key] < 5000) return;
+      lastLoad[key] = now;
+      fn();
+    };
 
     const dispatch = (table: string, payload: any) => {
       if (isTvMode) {
@@ -695,8 +703,8 @@ export function useBrewData(): UseBrewDataReturn {
               if (t === 'brew_readings') handleBrewUpdate(p);
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
-              else if (t === 'pi_live_state') loadRaptData();
-              else if (t === 'brew_data_snapshots') loadBrews();
+              else if (t === 'pi_live_state') throttled('rapt', loadRaptData);
+              else if (t === 'brew_data_snapshots') throttled('brews', loadBrews);
             });
           }, 2000);
         }
@@ -704,8 +712,8 @@ export function useBrewData(): UseBrewDataReturn {
         if (table === 'brew_readings') handleBrewUpdate(payload);
         else if (table === 'rapt_pills') handlePillUpdate(payload);
         else if (table === 'rapt_temp_controllers') handleControllerUpdate(payload);
-        else if (table === 'pi_live_state') loadRaptData();
-        else if (table === 'brew_data_snapshots') loadBrews();
+        else if (table === 'pi_live_state') throttled('rapt', loadRaptData);
+        else if (table === 'brew_data_snapshots') throttled('brews', loadBrews);
       }
     };
 
