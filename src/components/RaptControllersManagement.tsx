@@ -79,17 +79,16 @@ export function RaptControllersManagement() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-semibold break-words">{controller.name}</h4>
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs cursor-pointer transition-colors ${
-                          isCooler 
-                            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/30' 
-                            : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted'
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${
+                          isCooler
+                            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                            : 'bg-muted/50 text-muted-foreground border-border/50'
                         }`}
-                        onClick={() => handleToggleCooler(controller.controller_id)}
                       >
                         <Snowflake className="h-3 w-3 mr-1" />
-                        {isCooler ? 'Glykolkylare ✓' : 'Kylare?'}
+                        {isCooler ? 'Glykolkylare' : 'Jästank'}
                       </Badge>
                     </div>
                     {controller.last_update && (
@@ -179,11 +178,11 @@ export function RaptControllersManagement() {
                 {/* Pill linking */}
                 {!isCooler && (() => {
                   const linkedPill = controller.linked_pill_id ? pills.find(p => p.pill_id === controller.linked_pill_id) : null;
-                  
+
                   return (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       {linkedPill ? (
-                        <div className="flex items-center gap-3 p-2.5 rounded-lg border transition-all" style={{ backgroundColor: `${linkedPill.color}08`, borderColor: `${linkedPill.color}25` }}>
+                        <div className="flex items-center gap-3 p-2.5 rounded-lg border" style={{ backgroundColor: `${linkedPill.color}08`, borderColor: `${linkedPill.color}25` }}>
                           <div className="p-2 rounded-lg shrink-0" style={{ backgroundColor: `${linkedPill.color}20` }}>
                             <Pill className="h-4 w-4" style={{ color: linkedPill.color }} />
                           </div>
@@ -195,84 +194,10 @@ export function RaptControllersManagement() {
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Select value={controller.linked_pill_id || "none"} onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)} disabled={updating}>
-                              <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
-                                <span className="text-muted-foreground">Byt</span>
-                              </SelectTrigger>
-                              <SelectContent className="bg-card border-border z-50">
-                                <SelectItem value="none">
-                                  <div className="flex items-center gap-2"><Unlink className="h-3 w-3 text-muted-foreground" /><span>Koppla bort</span></div>
-                                </SelectItem>
-                                {pills.map((pill) => {
-                                  const isAlreadyLinked = getLinkedPillIds(controller.controller_id).includes(pill.pill_id);
-                                  return (
-                                    <SelectItem key={pill.pill_id} value={pill.pill_id} disabled={isAlreadyLinked}>
-                                      <div className="flex items-center gap-2">
-                                        <Pill className="h-3 w-3" style={{ color: pill.color }} />
-                                        <span>{pill.name}</span>
-                                        {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
-                                      </div>
-                                    </SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
-                            <Select value={linkedPill.color} onValueChange={(value) => handleUpdatePillColor(linkedPill.pill_id, value)} disabled={updating}>
-                              <SelectTrigger className="w-auto h-7 px-2 gap-1 text-xs border-border/30 bg-background/50">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-3 h-3 rounded-full border border-border/50" style={{ backgroundColor: linkedPill.color }} />
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent className="bg-card border-border z-50">
-                                {[
-                                  { value: '#F5A623', label: 'Gul' },
-                                  { value: '#4CAF50', label: 'Grön' },
-                                  { value: '#42A5F5', label: 'Blå' },
-                                  { value: '#EF5350', label: 'Röd' },
-                                  { value: '#AB47BC', label: 'Lila' },
-                                  { value: '#FF7043', label: 'Orange' },
-                                  { value: '#26C6DA', label: 'Cyan' },
-                                  { value: '#EC407A', label: 'Rosa' },
-                                ].map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: opt.value }} />
-                                      <span>{opt.label}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Pill className="h-4 w-4" /><span>Pill:</span>
-                          </div>
-                          <Select value="none" onValueChange={(value) => handleLinkPill(controller.controller_id, value === "none" ? null : value)} disabled={updating}>
-                            <SelectTrigger className="w-[180px] h-8">
-                              <SelectValue placeholder="Välj pill..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border z-50">
-                              <SelectItem value="none">
-                                <div className="flex items-center gap-2"><Unlink className="h-3 w-3 text-muted-foreground" /><span>Ingen koppling</span></div>
-                              </SelectItem>
-                              {pills.map((pill) => {
-                                const isAlreadyLinked = getLinkedPillIds(controller.controller_id).includes(pill.pill_id);
-                                return (
-                                  <SelectItem key={pill.pill_id} value={pill.pill_id} disabled={isAlreadyLinked}>
-                                    <div className="flex items-center gap-2">
-                                      <Pill className="h-3 w-3" style={{ color: pill.color }} />
-                                      <span>{pill.name}</span>
-                                      {isAlreadyLinked && <span className="text-xs text-muted-foreground">(upptagen)</span>}
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Pill className="h-4 w-4" /><span>Ingen pill kopplad (sätts på Pi:n)</span>
                         </div>
                       )}
                     </div>
@@ -280,34 +205,15 @@ export function RaptControllersManagement() {
                 })()}
                 
                 {/* Temperature limits */}
+                {/* Temperature limits (styrs på Pi:n) */}
                 <div className="mt-3 pt-3 border-t border-border/50">
-                  {editingLimitsId === controller.controller_id ? (
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <div className="flex items-center gap-2 flex-1">
-                        <Settings2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Min:</span>
-                        <Input type="number" value={tempMinTemp} onChange={(e) => setTempMinTemp(e.target.value)} placeholder="°" className="w-20 h-8" disabled={updating} />
-                        <span className="text-sm text-muted-foreground">Max:</span>
-                        <Input type="number" value={tempMaxTemp} onChange={(e) => setTempMaxTemp(e.target.value)} placeholder="°" className="w-20 h-8" disabled={updating} />
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleUpdateLimits(controller.controller_id)} disabled={updating} className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-500/10">
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={handleCancelEditLimits} disabled={updating} className="h-8 w-8 p-0">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => handleStartEditLimits(controller)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group w-full">
-                      <Settings2 className="h-4 w-4 group-hover:text-primary transition-colors" />
-                      <span>Temperaturintervall:</span>
-                      <span className="font-medium text-foreground">
-                        {controller.min_target_temp ?? -5}° — {controller.max_target_temp ?? 25}°
-                      </span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Settings2 className="h-4 w-4" />
+                    <span>Temperaturintervall:</span>
+                    <span className="font-medium text-foreground">
+                      {controller.min_target_temp ?? -5}° — {controller.max_target_temp ?? 25}°
+                    </span>
+                  </div>
                 </div>
               </div>
             </Card>
