@@ -22,14 +22,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const pillLastUpdate = pill?.last_update ? new Date(pill.last_update).getTime() : 0;
   const isPillStale = pill ? (Date.now() - pillLastUpdate > 30 * 60 * 1000) : true;
 
-  // Pill temp: prefer the live pill reading (same source as snapshots), fall back to
-  // controller.pill_temp only when the pill feed is stale/missing.
-  const pillTemp = (pill && !isPillStale && pill.temperature != null)
-    ? pill.temperature
-    : (controller?.pill_temp ?? null);
-  // Ctrl-sidan = PT100 (Pi) när den finns, annars RAPT:s inbyggda probe
-  const probeTemp = controller?.pt100_temp ?? controller?.current_temp ?? null;
-  // SSOT: prefer pre-calculated actual_temp from controller (fusion/priority done in sync engine)
+  // Pi:n skickar tre temperaturer var 30:e sekund: pill, PT100 och fusionen.
+  // Molnet visar dem rakt av — ingen fallback, inget givarval här.
+  const pillTemp = controller?.pill_temp ?? null;
+  const probeTemp = controller?.pt100_temp ?? null;
   const displayTemp = controller?.actual_temp ?? brew.currentTemp;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, true);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
@@ -75,7 +71,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   // Build tooltip text showing temp source
   const tooltipParts: string[] = [];
   if (probeTemp !== null) {
-    tooltipParts.push(`${controller?.pt100_temp != null ? 'PT100' : 'Inbyggd'}: ${probeTemp.toFixed(1)}°`);
+    tooltipParts.push(`PT100: ${probeTemp.toFixed(1)}°`);
   }
   if (pillTemp !== null) {
     tooltipParts.push(`Pill: ${pillTemp.toFixed(1)}°${isPillStale ? ' ⚠ gammal' : ''}`);

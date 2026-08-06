@@ -41,29 +41,13 @@ Deno.serve(async (req) => {
   const isRegulating = (d: any) => d?.regulating !== false;
 
   async function writeBackToController(d: any) {
-    if (d.actual_temp == null && d.pt100_temp == null) return null;
-
-    // SSOT: actual_temp = current_temp = snittet av PT100 och pill.
-    // Pi:n räknar snittet lokalt (det den reglerar mot) och skickar det som
-    // actual_temp, plus råvärdena pt100_temp/pill_temp.
-    const { data: ctrl } = await supabase
-      .from("rapt_temp_controllers")
-      .select("controller_id, pill_temp")
-      .like("controller_id", `${controller_id}%`)
-      .eq("actuation", "pi")
-      .maybeSingle();
-
-    const probe = d.pt100_temp != null ? Number(d.pt100_temp) : Number(d.actual_temp);
-    const pill = d.pill_temp != null
-      ? Number(d.pill_temp)
-      : (ctrl?.pill_temp != null ? Number(ctrl.pill_temp) : null);
-    // Pi:n äger givarvalet (use_pt100 / use_pill lokalt) och skickar det fusionerade värdet.
-    const fused = d.actual_temp != null ? Number(d.actual_temp) : probe;
-
+    // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
+    // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
     const patch: Record<string, any> = {
-      actual_temp: fused,
-      current_temp: fused,
-      pt100_temp: probe,
+      actual_temp: d.actual_temp ?? null,
+      current_temp: d.actual_temp ?? null,
+      pt100_temp: d.pt100_temp ?? null,
+      pill_temp: d.pill_temp ?? null,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
       cooling_enabled: isRegulating(d) && d.mode === "cooling",
