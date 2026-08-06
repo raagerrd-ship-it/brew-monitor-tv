@@ -1175,33 +1175,6 @@ export type Database = {
         }
         Relationships: []
       }
-      selected_brews: {
-        Row: {
-          batch_id: string
-          created_at: string
-          display_order: number
-          id: string
-          is_visible: boolean
-          updated_at: string
-        }
-        Insert: {
-          batch_id: string
-          created_at?: string
-          display_order: number
-          id?: string
-          is_visible?: boolean
-          updated_at?: string
-        }
-        Update: {
-          batch_id?: string
-          created_at?: string
-          display_order?: number
-          id?: string
-          is_visible?: boolean
-          updated_at?: string
-        }
-        Relationships: []
-      }
       selected_rapt_pills: {
         Row: {
           created_at: string
