@@ -243,9 +243,6 @@ export function ActiveFermentationSession({
           originalGravity={originalGravity}
           sgData={sgData}
           isWaitingForGravityStable={isWaitingForGravityStable}
-          onAcknowledge={session.status === 'completed' && isAuthenticated ? handleAcknowledge : undefined}
-          onAcknowledgeStep={isWaitingForAcknowledgement && isAuthenticated ? handleAcknowledgeStep : undefined}
-          acknowledgeLoading={acknowledgeLoading}
           activityScore={activityScore}
           fermentationPhase={fermentationPhase}
           attenuation={attenuation}
