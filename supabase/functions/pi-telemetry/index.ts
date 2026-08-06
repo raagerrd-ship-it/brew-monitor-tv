@@ -47,13 +47,15 @@ Deno.serve(async (req) => {
       actual_temp: d.actual_temp ?? null,
       current_temp: d.actual_temp ?? null,
       pt100_temp: d.pt100_temp ?? null,
-      pill_temp: d.pill_temp ?? null,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
       cooling_enabled: isRegulating(d) && d.mode === "cooling",
       heating_enabled: isRegulating(d) && d.mode === "heating",
       updated_at: new Date().toISOString(),
     };
+    // Pi:n skickar inte alltid pill_temp (BLE-ingest fyller fältet). Skriv bara
+    // när värdet finns — annars skulle vi nolla ut en levande visningskälla.
+    if (d.pill_temp != null) patch.pill_temp = Number(d.pill_temp);
     const { data: rows, error } = await supabase
       .from("rapt_temp_controllers")
       .update(patch)
