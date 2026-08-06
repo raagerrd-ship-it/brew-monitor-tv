@@ -314,9 +314,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
-  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp?.toFixed(2).split('.') ?? ['—', '00'];
-  const displayTempMain = `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
-  const displayTempMuted = displayTempDecimals[1] ?? '0';
+  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp?.toFixed(2).split('.') ?? ['—', ''];
+  const displayTempMain = displayTemp === null ? displayTempWhole : `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
+  const displayTempMuted = displayTempDecimals[1] ?? '';
 
   return (
     <StatCard
