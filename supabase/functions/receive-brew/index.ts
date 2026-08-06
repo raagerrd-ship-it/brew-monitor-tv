@@ -26,6 +26,12 @@ Deno.serve(async (req) => {
   const num = (v: unknown) =>
     v == null || v === "" || isNaN(Number(v)) ? null : Number(v);
 
+  // Fallbacks: avsändaren kan lägga värdena nästlade under targets/measurements.
+  const t = body.targets ?? {};
+  const m = body.measurements ?? {};
+  const og = num(body.og) ?? num(m.og);
+  const fg = num(body.fg) ?? num(m.fg);
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -40,19 +46,21 @@ Deno.serve(async (req) => {
     style: typeof body.style === "string" && body.style.trim() ? body.style.trim() : "Okänd",
     batch_number: String(body.batch_number ?? ""),
     status: "Fermenting",
-    current_sg: num(body.og) ?? 1,
+    current_sg: og ?? 1,
     current_temp: 0,
     attenuation: 0,
     abv: 0,
-    original_gravity: num(body.og) ?? 1,
-    final_gravity: num(body.fg) ?? 1,
+    original_gravity: og ?? 1,
+    final_gravity: fg ?? 1,
     // Avsändaren kan kalla volymen olika saker — ta första som finns.
     volume_l:
       num(body.volume_l) ??
       num(body.volume) ??
       num(body.volume_liters) ??
       num(body.batch_size) ??
-      num(body.batch_size_l),
+      num(body.batch_size_l) ??
+      num(t.batch_size_l) ??
+      num(m.fermenter_volume_l),
     // Pitchtid sätts bara om den faktiskt inträffat — aldrig platshållare.
     fermentation_start: body.fermentation_start ?? null,
     // Lägger satsen direkt i kön till Jäscontrollern.
