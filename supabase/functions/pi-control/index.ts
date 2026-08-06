@@ -126,6 +126,8 @@ Deno.serve(async (req) => {
       style: b.style,
       og: b.original_gravity != null ? parseFloat(String(b.original_gravity)) : null,
       fg: b.final_gravity != null ? parseFloat(String(b.final_gravity)) : null,
+      // Uppmätt FG, null tills den mätts. Skild från den planerade fg.
+      measured_fg: b.recipe?.measurements?.fg ?? null,
       volume_l: b.volume_l != null ? parseFloat(String(b.volume_l)) : null,
       // Profiler redigeras lokalt på Pi:n — molnet väljer aldrig profil.
       profile_id: null,
@@ -145,6 +147,9 @@ Deno.serve(async (req) => {
             starter: y.starter ?? null,
           }))
         : null,
+      // Valfria fält — vidarebefordras oförändrade när de finns.
+      dry_hops: Array.isArray(b.recipe?.dry_hops) ? b.recipe.dry_hops : null,
+      notes: b.recipe?.notes ?? null,
       // Allt annat avsändaren skickade, oförändrat. Pi:n får välja vad den vill använda.
       recipe: b.recipe ?? null,
     }));
