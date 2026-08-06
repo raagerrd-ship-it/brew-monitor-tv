@@ -46,7 +46,13 @@ Deno.serve(async (req) => {
     abv: 0,
     original_gravity: num(body.og) ?? 1,
     final_gravity: num(body.fg) ?? 1,
-    volume_l: num(body.volume_l),
+    // Avsändaren kan kalla volymen olika saker — ta första som finns.
+    volume_l:
+      num(body.volume_l) ??
+      num(body.volume) ??
+      num(body.volume_liters) ??
+      num(body.batch_size) ??
+      num(body.batch_size_l),
     // Pitchtid sätts bara om den faktiskt inträffat — aldrig platshållare.
     fermentation_start: body.fermentation_start ?? null,
     // Lägger satsen direkt i kön till Jäscontrollern.
