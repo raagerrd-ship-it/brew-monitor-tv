@@ -2,10 +2,8 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AirVent, Check, X, ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill, Link2, Unlink, Palette } from "lucide-react";
+import { ChevronUp, ChevronDown, Snowflake, Thermometer, Flame, Clock, Settings2, Pill } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useControllersManagement } from "@/hooks";
@@ -15,12 +13,8 @@ import { useControllersManagement } from "@/hooks";
 export function RaptControllersManagement() {
   const {
     controllers, pills, selectedControllers, selectedControllersData,
-    coolerControllerId, loading, editingLimitsId,
-    tempMinTemp, setTempMinTemp, tempMaxTemp, setTempMaxTemp, updating,
-    handleToggleController, handleMoveUp, handleMoveDown,
-    handleStartEditLimits, handleCancelEditLimits, handleUpdateLimits,
-    handleLinkPill, handleToggleCooler, getLinkedPillIds, getSyncIntervalText,
-    handleUpdatePillColor,
+    coolerControllerId, loading,
+    handleToggleController, handleMoveUp, handleMoveDown, getSyncIntervalText,
   } = useControllersManagement();
 
   // SSOT: profile_target_temp is always available on the controller row — no extra fetch needed
