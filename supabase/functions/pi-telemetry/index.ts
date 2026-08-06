@@ -60,6 +60,10 @@ Deno.serve(async (req) => {
       current_temp: d.actual_temp ?? null,
       pt100_temp: d.pt100_temp ?? null,
       pill_temp: d.pill_temp ?? null,
+      // Måltempen är Pi:ns. UI:t läser den härifrån — utan skrivning visas
+      // gamla RAPT-värden.
+      target_temp: d.target_temp ?? null,
+      profile_target_temp: d.target_temp ?? null,
       current_temp_updated_at: new Date().toISOString(),
       last_update: new Date().toISOString(),
       cooling_enabled: isRegulating(d) && d.mode === "cooling",
