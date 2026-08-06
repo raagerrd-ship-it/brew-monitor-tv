@@ -79,6 +79,8 @@ export interface TempController {
   pill_temp: number | null;
   /** Fused SSOT temperature (dual-sensor avg or preferred sensor) */
   actual_temp: number | null;
+  /** PT100 probe reading from Pi (SSOT for Ctrl-side temp on Pi tanks) */
+  pt100_temp?: number | null;
   target_temp: number | null;
   profile_target_temp?: number | null;
   last_update: string | null;
