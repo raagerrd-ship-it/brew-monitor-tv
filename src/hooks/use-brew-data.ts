@@ -458,19 +458,26 @@ export function useBrewData(): UseBrewDataReturn {
     const controllerIds = selectedControllersRes.data?.map(s => s.controller_id) || [];
     const pillIds = selectedPillsRes.data?.map(s => s.pill_id) || [];
     
-    const [controllersRes, pillsRes] = await Promise.all([
+    const [controllersRes, pillsRes, piStateRes] = await Promise.all([
       controllerIds.length > 0 
         ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', controllerIds)
         : Promise.resolve({ data: [] }),
       pillIds.length > 0
         ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds) 
         : Promise.resolve({ data: [] }),
+      supabase.from('pi_live_state').select('controller_id, target_temp'),
     ]);
     
+    // SSOT: Pi:ns aktuella måltemp (pi_live_state) gäller för Pi-styrda tankar
+    const piTargets = (piStateRes.data || []) as { controller_id: string; target_temp: number | null }[];
+
     // Sort by display_order
-    const sortedControllers = (controllersRes.data || []).sort((a, b) => 
-      controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)
-    ) as TempController[];
+    const sortedControllers = (controllersRes.data || [])
+      .map((c: any) => {
+        const pi = piTargets.find(p => c.controller_id?.startsWith(p.controller_id));
+        return pi?.target_temp != null ? { ...c, profile_target_temp: pi.target_temp } : c;
+      })
+      .sort((a, b) => controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)) as TempController[];
     
     const sortedPills = (pillsRes.data || []).sort((a, b) =>
       pillIds.indexOf(a.pill_id) - pillIds.indexOf(b.pill_id)
