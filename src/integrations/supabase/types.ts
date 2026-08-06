@@ -222,12 +222,14 @@ export type Database = {
           linked_pill_id: string | null
           name: string
           original_gravity: number
+          pi_pending_at: string | null
           pill_compensation: boolean
           recipe: Json | null
           share_id: string | null
           status: string
           style: string
           updated_at: string
+          volume_l: number | null
         }
         Insert: {
           abv: number
@@ -250,12 +252,14 @@ export type Database = {
           linked_pill_id?: string | null
           name: string
           original_gravity: number
+          pi_pending_at?: string | null
           pill_compensation?: boolean
           recipe?: Json | null
           share_id?: string | null
           status: string
           style: string
           updated_at?: string
+          volume_l?: number | null
         }
         Update: {
           abv?: number
@@ -278,12 +282,14 @@ export type Database = {
           linked_pill_id?: string | null
           name?: string
           original_gravity?: number
+          pi_pending_at?: string | null
           pill_compensation?: boolean
           recipe?: Json | null
           share_id?: string | null
           status?: string
           style?: string
           updated_at?: string
+          volume_l?: number | null
         }
         Relationships: []
       }

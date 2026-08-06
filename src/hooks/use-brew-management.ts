@@ -63,7 +63,7 @@ export function useBrewManagement() {
       const [selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.from('selected_brews').select('batch_id').eq('is_visible', true),
         supabase.from('brew_readings')
-          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation, recipe')
+          .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, volume_l, pi_pending_at, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation, recipe')
           .like('batch_id', 'custom_%'),
         supabase.from('rapt_pills').select('id, pill_id, name, color, battery_level, last_update, paired_device_id'),
         supabase.from('rapt_temp_controllers')
@@ -149,6 +149,24 @@ export function useBrewManagement() {
       ]);
     }
   }, [selectedBrews.length, isSelected, toast]);
+
+  const setPiPending = useCallback(async (brewId: string, pending: boolean) => {
+    const { error } = await supabase
+      .from('brew_readings')
+      .update({ pi_pending_at: pending ? new Date().toISOString() : null })
+      .eq('id', brewId);
+    if (error) {
+      toast({ title: "Fel", description: "Kunde inte uppdatera bryggden", variant: "destructive" });
+      return;
+    }
+    setCustomBrews(prev => prev.map(b => b.id === brewId
+      ? { ...b, pi_pending_at: pending ? new Date().toISOString() : null }
+      : b));
+    toast({
+      title: pending ? "Skickad till Jäscontroller" : "Borttagen ur kön",
+      description: pending ? "Bryggden dyker upp på Pi:n inom 30 sekunder" : undefined,
+    });
+  }, [toast]);
 
   const deleteCustomBrew = useCallback(async (brewId: string, batchId: string) => {
     try {
@@ -237,6 +255,7 @@ export function useBrewManagement() {
     toggleBrew,
     deleteCustomBrew,
     saveSelection,
+    setPiPending,
     openCustomBrewDialog,
     openEditBrewDialog,
     closeCustomBrewDialog,

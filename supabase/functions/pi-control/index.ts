@@ -112,6 +112,26 @@ Deno.serve(async (req) => {
   }
 
   if (!controllerId) {
+    // ── Pending brews: skickade från appen, ej kvitterade, max 24h gamla ──
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: pendingRows } = await supabase
+      .from("brew_readings")
+      .select("id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at")
+      .not("pi_pending_at", "is", null)
+      .gte("pi_pending_at", cutoff);
+
+    const pending_brews = (pendingRows || []).map((b: any) => ({
+      id: b.id,
+      name: b.name,
+      style: b.style,
+      og: b.original_gravity != null ? parseFloat(String(b.original_gravity)) : null,
+      fg: b.final_gravity != null ? parseFloat(String(b.final_gravity)) : null,
+      volume_l: b.volume_l != null ? parseFloat(String(b.volume_l)) : null,
+      // Profiler redigeras lokalt på Pi:n — molnet väljer aldrig profil.
+      profile_id: null,
+      fermentation_start: b.fermentation_start ?? null,
+    }));
+
     // Return all setpoints for this Pi
     const { data: controllers } = await supabase
       .from("rapt_temp_controllers")
@@ -122,7 +142,7 @@ Deno.serve(async (req) => {
       .neq("is_glycol_cooler", true);
 
     if (!controllers || controllers.length === 0) {
-      return new Response(JSON.stringify({ setpoints: [] }), {
+      return new Response(JSON.stringify({ setpoints: [], pending_brews }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -148,7 +168,7 @@ Deno.serve(async (req) => {
       params_version: sp.params_version,
     }));
 
-    return new Response(JSON.stringify({ setpoints: result }), {
+    return new Response(JSON.stringify({ setpoints: result, pending_brews }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
