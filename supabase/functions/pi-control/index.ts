@@ -145,6 +145,8 @@ Deno.serve(async (req) => {
             starter: y.starter ?? null,
           }))
         : null,
+      // Allt annat avsändaren skickade, oförändrat. Pi:n får välja vad den vill använda.
+      recipe: b.recipe ?? null,
     }));
 
     // Return all setpoints for this Pi

@@ -67,7 +67,9 @@ Deno.serve(async (req) => {
       num(m.fermenter_volume_l),
     // Pitchtid sätts bara om den faktiskt inträffat — aldrig platshållare.
     fermentation_start: body.fermentation_start ?? null,
-    recipe: yeasts ? { yeasts } : undefined,
+    // Spara hela nyttolasten så inget avsändaren skickar går förlorat.
+    // yeasts lyfts ut på toppnivå eftersom pi-control läser spannet därifrån.
+    recipe: { ...body, ...(yeasts ? { yeasts } : {}) },
     // Lägger satsen direkt i kön till Jäscontrollern.
     pi_pending_at: new Date().toISOString(),
   };
