@@ -36,8 +36,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   const hasBothSensors = pillTemp !== null && probeTemp !== null;
   const delta = hasBothSensors ? pillTemp - probeTemp : null;
 
-  // Overshoot detection: pill >= target AND controller < target (heater is pushing, pill overshooting)
-  const targetTemp = controller?.target_temp;
+  // SSOT: Pi:ns måltemp = profile_target_temp. RAPT:s target_temp är föråldrad och används bara som fallback.
+  const targetTemp = controller?.profile_target_temp ?? controller?.target_temp;
   const surfaceTemp = brew.currentTemp;
   const ctrlTemp = controller?.current_temp;
   const isOvershoot = !isInactive && targetTemp !== null && targetTemp !== undefined
