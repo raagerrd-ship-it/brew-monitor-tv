@@ -46,6 +46,7 @@ export interface CustomBrewData {
   original_gravity: number;
   final_gravity: number;
   volume_l?: number | null;
+  pi_pending_at?: string | null;
   status: string;
   fermentation_start: string | null;
   label_image_url: string | null;

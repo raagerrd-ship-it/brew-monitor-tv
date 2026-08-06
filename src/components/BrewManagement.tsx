@@ -1,7 +1,7 @@
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
-import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
 import { useBrewManagement } from "@/hooks";
@@ -29,6 +29,7 @@ export function BrewManagement() {
     loading, saving, showCustomBrewDialog, editingBrew, prefillData,
     timerRecipeName, timerBeerStyle, timerBrewMatch,
     isSelected, toggleBrew, deleteCustomBrew, saveSelection,
+    setPiPending,
     openCustomBrewDialog, openEditBrewDialog, closeCustomBrewDialog,
     setShowCustomBrewDialog, loadData,
   } = useBrewManagement();
@@ -106,6 +107,25 @@ export function BrewManagement() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    {brew.pi_pending_at ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPiPending(brew.id, false)}
+                      >
+                        <Check className="mr-1.5 h-3.5 w-3.5" />
+                        Mottagen
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPiPending(brew.id, true)}
+                      >
+                        <Send className="mr-1.5 h-3.5 w-3.5" />
+                        Skicka till Jäscontroller
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
