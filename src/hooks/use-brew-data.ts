@@ -521,7 +521,14 @@ export function useBrewData(): UseBrewDataReturn {
   // Public loadBrews for external use and realtime updates
   const loadBrews = useCallback(async () => {
     try {
-      const brewsData = await loadBrewsInternal();
+      let brewsData: BrewData[];
+      try {
+        brewsData = await loadBrewsInternal();
+      } catch (firstError) {
+        // Mobilnät tappar ofta en enstaka request — försök en gång till
+        console.warn('Retrying brew load after error:', firstError);
+        brewsData = await loadBrewsInternal();
+      }
       // Sort using current controllers from ref
       const sortedBrews = sortBrewsByControllers(brewsData, controllersRef.current);
       setBrews(sortedBrews);
@@ -529,7 +536,7 @@ export function useBrewData(): UseBrewDataReturn {
       console.error('Error loading brews:', error);
       toast({
         title: 'Fel',
-        description: 'Kunde inte ladda bryggdata',
+        description: `Kunde inte ladda bryggdata: ${(error as Error)?.message ?? 'okänt fel'}`,
         variant: 'destructive',
       });
     }
