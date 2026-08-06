@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import {
   FermentationSession,
   FermentationProfile,
   FermentationProfileStep,
-  SessionStatus,
 } from "@/types/fermentation";
 import { FermentationSessionData } from "@/types/brew";
 import { useTvMode } from "@/contexts/TvModeContext";
@@ -44,15 +42,8 @@ export function useActiveFermentationSession({
   const [session, setSession] = useState<SessionWithDetails | null>(null);
   const [controllerData, setControllerData] = useState<ControllerData | null>(null);
   const [loading, setLoading] = useState(!preloadedSession);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [skipLoading, setSkipLoading] = useState(false);
-  const [acknowledgeLoading, setAcknowledgeLoading] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
-  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [, setTick] = useState(0);
-  const { toast } = useToast();
   const { isTvMode } = useTvMode();
 
   const isAuthenticated = isAuthenticatedProp ?? isAuthenticatedLocal;
