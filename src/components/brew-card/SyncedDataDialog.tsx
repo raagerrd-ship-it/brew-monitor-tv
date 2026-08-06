@@ -190,7 +190,7 @@ export function SyncedDataDialog({
                       <th className="text-right py-2 font-medium">Snitt</th>
                     )}
                     {hasControllerData && (
-                      <th className="text-right py-2 font-medium">Ctrl</th>
+                      <th className="text-right py-2 font-medium">PT100</th>
                     )}
                     {hasControllerData && (
                       <th className="text-right py-2 font-medium">Mål</th>
