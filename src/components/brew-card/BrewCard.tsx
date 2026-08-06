@@ -7,7 +7,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Play, Clock, CalendarDays } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -25,7 +25,6 @@ import { AttenuationStat } from "./AttenuationStat";
 
 import { SyncedDataDialog } from "./SyncedDataDialog";
 import { PrintLabelDialog } from "../PrintLabelDialog";
-import { StartFermentationSessionDialog } from "../fermentation";
 import { RecipeView } from "./RecipeView";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
@@ -61,7 +60,6 @@ function BrewCardComponent({
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
-  const [startSessionOpen, setStartSessionOpen] = useState(false);
   const [sessionExpanded, setSessionExpanded] = useState(false);
   const [fermEndOpen, setFermEndOpen] = useState(false);
 
