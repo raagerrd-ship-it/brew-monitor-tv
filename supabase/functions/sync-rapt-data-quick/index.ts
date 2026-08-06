@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.58.0';
-import { createBrewSnapshot } from '../_shared/brew-snapshots.ts';
 import { computeAllMetrics } from '../_shared/fermentation-metrics-logic.ts';
 import { computeSystemHealth } from '../_shared/system-health-logic.ts';
 import { isSensorDataStale } from '../_shared/temp-utils.ts';
@@ -9,106 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
-
-// ── Custom brew sync: records pill data as delivered ──
-// The Pi owns ALL correction (SG temp-compensation, sensor fusion) and ALL
-// regulation. The cloud is backup storage + TV display only — it stores values
-// exactly as received and never re-corrects them.
-async function syncCustomBrews(supabase: any): Promise<number> {
-  const { data: customBrews } = await supabase
-    .from('brew_readings')
-    .select('id, batch_id, name, original_gravity, linked_controller_id, linked_pill_id, status, fermentation_start')
-    .like('batch_id', 'custom\\_%')
-    .in('status', ['Jäsning', 'Fermenting']);
-
-  if (!customBrews || customBrews.length === 0) return 0;
-  console.log(`Found ${customBrews.length} custom brews in fermentation`);
-
-  let updated = 0;
-
-  for (const brew of customBrews) {
-    try {
-      let pillId = brew.linked_pill_id;
-      let linkedController: any = null;
-
-      if (brew.linked_controller_id) {
-        const { data: ctrl } = await supabase
-          .from('rapt_temp_controllers')
-          .select('controller_id, linked_pill_id, current_temp, actual_temp, profile_target_temp, actuation')
-          .eq('controller_id', brew.linked_controller_id)
-          .maybeSingle();
-        linkedController = ctrl;
-        if (!pillId && ctrl?.linked_pill_id) pillId = ctrl.linked_pill_id;
-      }
-
-      // Pi-styrda tankar: pi-telemetry (30 s live + 3 min rollup) är enda
-      // skrivvägen för deras bryggdata.
-      if (linkedController?.actuation === 'pi') continue;
-
-      if (!pillId) {
-        console.log(`No pill_id available for brew ${brew.name}, skipping`);
-        continue;
-      }
-
-      const { data: pill } = await supabase
-        .from('rapt_pills')
-        .select('pill_id, gravity, temperature, battery_level, last_update')
-        .eq('pill_id', pillId)
-        .maybeSingle();
-
-      if (!pill || pill.gravity == null || pill.temperature == null || !pill.last_update) {
-        console.log(`Incomplete pill data for ${brew.name}, skipping`);
-        continue;
-      }
-
-      const fermentationStartDate = brew.fermentation_start ? new Date(brew.fermentation_start) : null;
-      const recordedAt = new Date(pill.last_update).toISOString();
-      if (fermentationStartDate && new Date(recordedAt) < fermentationStartDate) continue;
-
-      let sgValue = pill.gravity > 100 ? pill.gravity / 1000 : pill.gravity;
-
-      if (sgValue < 0.990 || sgValue > 1.200) {
-        console.log(`SG ${sgValue} out of range for ${brew.name}, skipping`);
-        continue;
-      }
-
-      const og = brew.original_gravity;
-      const attenuation = og > 1 ? Math.round(((og - sgValue) / (og - 1)) * 100) : 0;
-      const abv = og > 1 ? Number(((og - sgValue) * 131.25).toFixed(1)) : 0;
-
-      // SSOT: prefer controller actual_temp over pill temp when linked
-      const ssotTemp = linkedController?.actual_temp ?? pill.temperature;
-
-      await createBrewSnapshot(supabase, brew.id, {
-        recorded_at: recordedAt,
-        sg: sgValue,
-        pill_temp: pill.temperature,
-        controller_temp: linkedController?.current_temp ?? null,
-        profile_target_temp: linkedController?.profile_target_temp ?? null,
-        actual_temp: ssotTemp,
-        controller_id: brew.linked_controller_id ?? null,
-      });
-
-      const { error: updateError } = await supabase
-        .from('brew_readings')
-        .update({
-          current_sg: sgValue, current_temp: ssotTemp,
-          attenuation: Math.max(0, Math.min(100, attenuation)),
-          abv: Math.max(0, abv), battery: Math.round(pill.battery_level || 0),
-          last_update: recordedAt, updated_at: new Date().toISOString(),
-        })
-        .eq('id', brew.id);
-
-      if (updateError) { console.error(`Failed to update brew ${brew.name}:`, updateError); continue; }
-      console.log(`Synced ${brew.name} (SG=${sgValue.toFixed(4)}, ${pill.temperature.toFixed(1)}°C)`);
-      updated++;
-    } catch (brewError) {
-      console.error(`Error syncing brew ${brew.name}:`, brewError);
-    }
-  }
-
-  return updated;
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -136,25 +35,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('Starting quick sync (custom brews + fermentation profiles/metrics/health)...');
+    console.log('Starting quick sync (metrics/health + outage tracking)...');
 
     // Stamp timestamp immediately so the concurrency guard sees this run
     const nowIso = new Date().toISOString();
     if (syncSettingsRow?.id) {
       await supabase.from('sync_settings').update({ last_rapt_quick_sync_at: nowIso }).eq('id', syncSettingsRow.id);
     }
-
-    // ──────────────────────────────────────────────────────
-    // PHASE 2a: Sync custom brews (SG correction/calibration on BLE data)
-    // ──────────────────────────────────────────────────────
-    const tPhase2a = Date.now();
-    let customBrewsUpdated = 0;
-    try {
-      customBrewsUpdated = await syncCustomBrews(supabase);
-    } catch (err) {
-      console.error('Custom brew sync error:', err);
-    }
-    console.log(`⏱️ Phase 2a (custom brews): ${Date.now() - tPhase2a}ms`);
 
     // ──────────────────────────────────────────────────────
     // PHASE 2b: Display metrics + system health (read-only bookkeeping)
@@ -225,89 +112,12 @@ Deno.serve(async (req) => {
     }
 
     // ──────────────────────────────────────────────────────
-    // PHASE 3: History + snapshots + outage tracking
-    // All temperature control is local to the Pi now — this phase only
-    // records history / snapshots by reading rapt_temp_controllers /
-    // pi_live_state, no outbound RAPT calls.
+    // PHASE 3: Outage tracking only.
+    // All temperatur- och gravity-data skrivs uteslutande av pi-telemetry
+    // (30 s live + 3 min rollup). Molnet skriver ingen historik/snapshot här.
     // ──────────────────────────────────────────────────────
-    console.log('Phase 3: History + snapshots + outage tracking...');
+    console.log('Phase 3: Outage tracking...');
     const tPhase3 = Date.now();
-
-    const tempHistoryTask = async () => {
-      if (controllerList.length === 0) return;
-
-      // ── Throttle: only record history every ~15 minutes ──
-      const controllerIds = controllerList.map((c: any) => c.controller_id);
-      const { data: lastRecords } = await supabase
-        .from('temp_controller_history')
-        .select('controller_id, recorded_at')
-        .in('controller_id', controllerIds)
-        .order('recorded_at', { ascending: false })
-        .limit(controllerIds.length);
-
-      const lastRecordedMap = new Map<string, number>();
-      for (const r of lastRecords ?? []) {
-        if (!lastRecordedMap.has(r.controller_id)) {
-          lastRecordedMap.set(r.controller_id, new Date(r.recorded_at).getTime());
-        }
-      }
-
-      const HISTORY_INTERVAL_MS = 15 * 60 * 1000;
-      const now = Date.now();
-      const controllersToRecord = controllerList.filter((c: any) => {
-        const lastAt = lastRecordedMap.get(c.controller_id);
-        return !lastAt || (now - lastAt) >= HISTORY_INTERVAL_MS;
-      });
-
-      if (controllersToRecord.length === 0) {
-        console.log('Temp history throttled — all controllers recorded <15min ago');
-        return;
-      }
-
-      // Pull live duty/mode from pi_live_state (Pi writes this)
-      const recordIds = controllersToRecord.map((c: any) => c.controller_id);
-      const { data: liveRows } = await supabase
-        .from('pi_live_state')
-        .select('controller_id, duty_pct, mode')
-        .in('controller_id', recordIds);
-      const liveMap = new Map((liveRows || []).map((l: any) => [l.controller_id, l]));
-
-      const historyRecords = controllersToRecord.map((c: any) => {
-        const live = liveMap.get(c.controller_id);
-        return {
-          controller_id: c.controller_id,
-          current_temp: c.actual_temp ?? c.current_temp ?? c.pill_temp,
-          target_temp: c.target_temp,
-          cooling_enabled: c.cooling_enabled || false,
-          profile_target_temp: c.profile_target_temp ?? c.target_temp,
-          duty_pct: live?.duty_pct ?? null,
-          actual_temp: c.actual_temp ?? null,
-          pid_mode: live?.mode ?? null,
-        };
-      });
-
-      const deltaRecords = controllersToRecord
-        .filter((c: any) => c.pill_temp !== null && c.current_temp !== null)
-        .map((c: any) => ({
-          controller_id: c.controller_id,
-          pill_temp: c.pill_temp,
-          controller_temp: c.current_temp,
-          delta: c.pill_temp - c.current_temp,
-        }));
-
-      const inserts: Promise<any>[] = [
-        supabase.from('temp_controller_history').insert(historyRecords),
-      ];
-      if (deltaRecords.length > 0) {
-        inserts.push(supabase.from('temp_delta_history').insert(deltaRecords));
-      }
-
-      const results = await Promise.allSettled(inserts);
-      for (const r of results) {
-        if (r.status === 'rejected') console.error('History insert error:', r.reason);
-      }
-      console.log(`Recorded temp history for ${controllersToRecord.length}/${controllerList.length} controllers (15min throttle)`);
-    };
 
     const outageTask = async () => {
       // Per-controller outage tracking — controllers going stale/offline
@@ -364,45 +174,8 @@ Deno.serve(async (req) => {
       }
     };
 
-    const snapshotTask = async () => {
-      const { data: activeBrews } = await supabase
-        .from('brew_readings')
-        .select('id, current_sg, current_temp, last_update, linked_controller_id, status')
-        .in('status', ['Jäsning', 'Fermenting']);
-      if (!activeBrews?.length) return;
-
-      const ctrlIds = activeBrews.map((b: any) => b.linked_controller_id).filter(Boolean);
-      const { data: ctrls } = ctrlIds.length > 0
-        ? await supabase.from('rapt_temp_controllers')
-            .select('controller_id, current_temp, actual_temp, profile_target_temp, last_update, pill_temp, actuation')
-            .in('controller_id', ctrlIds)
-        : { data: [] as any[] };
-      const ctrlMap = new Map((ctrls || []).map((c: any) => [c.controller_id, c]));
-
-      let count = 0;
-      for (const brew of activeBrews) {
-        if (brew.current_sg == null) continue;
-        const ctrl = ctrlMap.get(brew.linked_controller_id);
-        // Pi-styrda tankar loggas av pi-telemetry-rollupen (fönstermedel).
-        if ((ctrl as any)?.actuation === 'pi') continue;
-        await createBrewSnapshot(supabase, brew.id, {
-          recorded_at: ctrl?.last_update || brew.last_update || new Date().toISOString(),
-          sg: brew.current_sg,
-          pill_temp: ctrl?.pill_temp ?? brew.current_temp ?? null,
-          controller_temp: ctrl?.current_temp ?? null,
-          profile_target_temp: ctrl?.profile_target_temp ?? null,
-          actual_temp: ctrl?.actual_temp ?? null,
-          controller_id: brew.linked_controller_id ?? null,
-        });
-        count++;
-      }
-      if (count > 0) console.log(`Created ${count} brew snapshot(s)`);
-    };
-
-    const [histResult, outageResult, snapResult] = await Promise.allSettled([tempHistoryTask(), outageTask(), snapshotTask()]);
-    if (histResult.status === 'rejected') console.error('Temp history error:', histResult.reason);
+    const [outageResult] = await Promise.allSettled([outageTask()]);
     if (outageResult.status === 'rejected') console.error('Outage log error:', outageResult.reason);
-    if (snapResult.status === 'rejected') console.error('Snapshot error:', snapResult.reason);
 
     // Dynamic sync frequency (sessions-driven only — no cloud automation left)
     try {
@@ -417,12 +190,11 @@ Deno.serve(async (req) => {
     }
 
     console.log(`⏱️ Phase 3 (execute): ${Date.now() - tPhase3}ms`);
-    console.log(`Quick sync complete: ${customBrewsUpdated} custom brews synced, ${controllerList.length} controllers`);
+    console.log(`Quick sync complete: ${controllerList.length} controllers`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        customBrewsUpdated,
         controllersTracked: controllerList.length,
         activeSessions: activeSessCheck?.length ?? 0,
         health: healthResult && !healthResult.__error ? healthResult.overall_status : null,
