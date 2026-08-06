@@ -27,12 +27,15 @@ Deno.serve(async (req) => {
 
   const { kind, controller_id, data } = body;
 
-  // Levererad on-tid är sanningen för inlärning; duty_pct är bara begärt.
+  // Levererad on-tid är sanningen; duty_pct/duty_mean är bara begärt och får
+  // aldrig loggas som levererad kylning.
   function deliveredDuty(d: any): number | null {
     if (d?.delivered_on_s != null && d?.pwm_period_s) {
       return Math.round((Number(d.delivered_on_s) / Number(d.pwm_period_s)) * 1000) / 10;
     }
-    return d?.duty_mean ?? d?.duty_pct ?? null;
+    // Utan levererad on-tid: relästatus avgör. Inget relä på → 0 %.
+    if (d?.cooling_relay_on === false && d?.heating_relay_on === false) return 0;
+    return null;
   }
 
   // Pi skickar korta 8-tecken-id:n; DB har fulla uuid:n.
