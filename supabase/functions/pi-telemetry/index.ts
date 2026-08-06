@@ -416,6 +416,18 @@ Deno.serve(async (req) => {
     // samma 180 s-fönster. Grafer/historik ska använda dem; punktvärdena
     // beskriver bara enskilda PID-beslut.
     const means = data.means ?? {};
+    console.log("ROLLUP_PWM", JSON.stringify({
+      controller_id,
+      recorded_at: data.recorded_at ?? null,
+      delivered_on_s: data.delivered_on_s ?? null,
+      duty_mean: data.duty_mean ?? null,
+      duty_pct: data.duty_pct ?? null,
+      cooling_relay_on: data.cooling_relay_on ?? null,
+      heating_relay_on: data.heating_relay_on ?? null,
+      pwm_start: data.pwm_start ?? null,
+      pwm_stop: data.pwm_stop ?? null,
+      keys: Object.keys(data),
+    }));
 
     // Rollups med regulating:false förorenar historiken (degraderat sensor-
     // underlag, ingen duty). Logga underlaget och hoppa över insert.
