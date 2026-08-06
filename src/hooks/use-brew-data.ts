@@ -129,25 +129,27 @@ export function useBrewData(): UseBrewDataReturn {
 
   // Internal function to load brews data (returns data instead of setting state)
   const loadBrewsInternal = useCallback(async (): Promise<BrewData[]> => {
-    const { data: selectedBrews, error: selectedError } = await supabase
-      .from('selected_brews')
-      .select('batch_id')
-      .eq('is_visible', true)
-      .order('display_order');
+    // Dashboarden visar exakt de bryggningar Pi:n rapporterar som aktiva
+    // (fermentation_sessions skrivs av Pi-rollupen var 3:e minut).
+    const { data: piSessions, error: piSessionsError } = await supabase
+      .from('fermentation_sessions')
+      .select('brew_id')
+      .in('status', ['running', 'paused'])
+      .not('brew_id', 'is', null);
 
-    if (selectedError) throw selectedError;
+    if (piSessionsError) throw piSessionsError;
 
-    if (!selectedBrews || selectedBrews.length === 0) {
+    const activeBrewIds = [...new Set((piSessions || []).map(s => s.brew_id as string))];
+
+    if (activeBrewIds.length === 0) {
       return [];
     }
-
-    const selectedBatchIds = selectedBrews.map(sb => sb.batch_id);
 
     const [brewReadingsRes, eventsRes, sessionsRes, metricsRes] = await Promise.all([
       supabase
         .from('brew_readings')
         .select('*')
-        .in('batch_id', selectedBatchIds)
+        .in('id', activeBrewIds)
         .order('created_at', { ascending: false }),
       supabase
         .from('brew_events')
