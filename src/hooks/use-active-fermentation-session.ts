@@ -268,6 +268,11 @@ export function useActiveFermentationSession({
     return Math.min(Math.max(elapsed / currentStep.duration_hours, 0), 1);
   }, [session]);
 
+  return {
+    session,
+    controllerData,
+    loading,
+    isAuthenticated,
     calculateProgress,
     calculateStepProgress,
     getRampProgress,
