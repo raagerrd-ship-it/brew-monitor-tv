@@ -263,6 +263,7 @@ export function CustomBrewDialog({
         setStyle(prefill?.style || "");
         setOriginalGravity("1.050");
         setFinalGravity("1.010");
+        setVolumeL("");
         setStatus("Jäsning");
         setOriginalStatus("Jäsning");
         setSgData([]);
