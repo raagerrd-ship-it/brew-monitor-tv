@@ -1,25 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { PillData, TempController } from '@/types/brew';
 import type { CustomBrewData, CustomBrewPrefill } from '@/components/CustomBrewDialog';
 
 
-interface SelectedBrew {
-  batch_id: string;
-  display_order: number;
-  is_visible: boolean;
-}
-
 export function useBrewManagement() {
-  const navigate = useNavigate();
   const [customBrews, setCustomBrews] = useState<CustomBrewData[]>([]);
-  const [selectedBrews, setSelectedBrews] = useState<SelectedBrew[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [showCustomBrewDialog, setShowCustomBrewDialog] = useState(false);
   const [editingBrew, setEditingBrew] = useState<CustomBrewData | null>(null);
   const [prefillData, setPrefillData] = useState<CustomBrewPrefill | null>(null);
@@ -31,37 +21,17 @@ export function useBrewManagement() {
     label_image_url?: string;
   } | null>(null);
   const { toast } = useToast();
-  const isLocalChange = useRef(false);
 
   useEffect(() => {
     loadData();
     loadTimerData();
-
-    const channel = supabase
-      .channel('selected_brews_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'selected_brews' },
-        (payload) => {
-          console.log('Selected brews updated:', payload);
-          if (!isLocalChange.current) {
-            toast({ title: "Uppdatering från annan enhet", description: "Öl-valet har ändrats" });
-          }
-          isLocalChange.current = false;
-          loadData();
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [toast]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
-      const [selectedResponse, customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
-        supabase.from('selected_brews').select('batch_id').eq('is_visible', true),
+      const [customBrewsResponse, pillsResponse, controllersResponse] = await Promise.all([
         supabase.from('brew_readings')
           .select('id, batch_id, name, style, batch_number, original_gravity, final_gravity, volume_l, pi_pending_at, linked_controller_id, linked_pill_id, status, fermentation_start, label_image_url, description, pill_compensation, recipe')
           .like('batch_id', 'custom_%'),
@@ -70,18 +40,9 @@ export function useBrewManagement() {
           .select('id, controller_id, name, current_temp, pill_temp, actual_temp, target_temp, last_update, min_target_temp, max_target_temp, cooling_enabled, heating_enabled, heating_utilisation, linked_pill_id, cooling_hysteresis, heating_hysteresis, cooling_run_time, cooling_starts, heating_run_time, heating_starts')
       ]);
 
-      if (selectedResponse.error) throw selectedResponse.error;
-
-      setCustomBrews(customBrewsResponse.data || []);
       setCustomBrews(customBrewsResponse.data || []);
       setPills(pillsResponse.data || []);
       setControllers(controllersResponse.data || []);
-
-      setSelectedBrews((selectedResponse.data || []).map((b, index) => ({
-        batch_id: b.batch_id,
-        display_order: index + 1,
-        is_visible: true
-      })));
     } catch (error) {
       console.error('Error loading data:', error);
       toast({ title: "Fel", description: "Kunde inte ladda data", variant: "destructive" });
@@ -126,30 +87,6 @@ export function useBrewManagement() {
     }
   };
 
-  const selectedBatchIds = useMemo(() =>
-    new Set(selectedBrews.map(brew => brew.batch_id)),
-    [selectedBrews]
-  );
-
-  const isSelected = useCallback((batchId: string) => {
-    return selectedBatchIds.has(batchId);
-  }, [selectedBatchIds]);
-
-  const toggleBrew = useCallback((batchId: string) => {
-    if (isSelected(batchId)) {
-      setSelectedBrews(prev => prev.filter(brew => brew.batch_id !== batchId));
-    } else {
-      if (selectedBrews.length >= 3) {
-        toast({ title: "Maximum 3 öl", description: "Du kan bara visa upp till 3 öl samtidigt", variant: "destructive" });
-        return;
-      }
-      setSelectedBrews(prev => [
-        ...prev,
-        { batch_id: batchId, display_order: prev.length + 1, is_visible: true },
-      ]);
-    }
-  }, [selectedBrews.length, isSelected, toast]);
-
   const setPiPending = useCallback(async (brewId: string, pending: boolean) => {
     const { error } = await supabase
       .from('brew_readings')
@@ -168,58 +105,17 @@ export function useBrewManagement() {
     });
   }, [toast]);
 
-  const deleteCustomBrew = useCallback(async (brewId: string, batchId: string) => {
+  const deleteCustomBrew = useCallback(async (brewId: string) => {
     try {
-      await supabase.from('selected_brews').delete().eq('batch_id', batchId);
       const { error } = await supabase.from('brew_readings').delete().eq('id', brewId);
       if (error) throw error;
       toast({ title: "Borttagen", description: "Egen öl har tagits bort" });
       setCustomBrews(prev => prev.filter(b => b.id !== brewId));
-      setSelectedBrews(prev => prev.filter(b => b.batch_id !== batchId));
     } catch (error) {
       console.error('Error deleting custom brew:', error);
       toast({ title: "Fel", description: "Kunde inte ta bort ölen", variant: "destructive" });
     }
   }, [toast]);
-
-  const saveSelection = useCallback(async () => {
-    try {
-      isLocalChange.current = true;
-      setSaving(true);
-
-      const { error: deleteError } = await supabase
-        .from('selected_brews')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-      if (deleteError) throw deleteError;
-
-      if (selectedBrews.length > 0) {
-        const { error: insertError } = await supabase
-          .from('selected_brews')
-          .insert(selectedBrews.map((brew, index) => ({
-            batch_id: brew.batch_id,
-            display_order: index + 1,
-            is_visible: true,
-          })));
-        if (insertError) throw insertError;
-      }
-
-      const { error: syncError } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
-      if (syncError) {
-        console.error('Error during sync:', syncError);
-        toast({ title: "Varning", description: "Val sparade men synkroniseringen misslyckades", variant: "destructive" });
-      } else {
-        toast({ title: "Sparat!", description: "Dina val har sparats och synkroniserats" });
-      }
-
-      setTimeout(() => navigate("/"), 1000);
-    } catch (error) {
-      console.error('Error saving selection:', error);
-      toast({ title: "Fel", description: "Kunde inte spara dina val", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  }, [selectedBrews, navigate, toast]);
 
   const openCustomBrewDialog = useCallback((prefill?: CustomBrewPrefill | null) => {
     setPrefillData(prefill ?? null);
@@ -240,21 +136,16 @@ export function useBrewManagement() {
 
   return {
     customBrews,
-    selectedBrews,
     pills,
     controllers,
     loading,
-    saving,
     showCustomBrewDialog,
     editingBrew,
     prefillData,
     timerRecipeName,
     timerBeerStyle,
     timerBrewMatch,
-    isSelected,
-    toggleBrew,
     deleteCustomBrew,
-    saveSelection,
     setPiPending,
     openCustomBrewDialog,
     openEditBrewDialog,
