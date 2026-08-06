@@ -289,15 +289,6 @@ function BrewCardComponent({
                         </PopoverContent>
                       </Popover>
                     )}
-                    {brew.status === "Jäsning" && devices.controller && !brew.fermentationSession && (
-                      <button
-                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
-                        onClick={() => { setStartSessionOpen(true); setMenuOpen(false); }}
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        Starta jäsningsprofil
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -441,15 +432,6 @@ function BrewCardComponent({
         brew={brew}
       />
 
-      {/* Start Fermentation Session Dialog */}
-      {devices.controller && (
-        <StartFermentationSessionDialog
-          open={startSessionOpen}
-          onOpenChange={setStartSessionOpen}
-          preselectedControllerId={devices.controller.controller_id}
-          preselectedBrewId={brew.id}
-        />
-      )}
     </Card>
   );
 }
