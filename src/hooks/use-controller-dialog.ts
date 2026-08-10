@@ -32,6 +32,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const [piHeartbeat, setPiHeartbeat] = useState<string | null>(null);
   const [piCoolingOn, setPiCoolingOn] = useState(false);
   const [piHeatingOn, setPiHeatingOn] = useState(false);
+  const [hasPiLive, setHasPiLive] = useState(false);
   const [piTarget, setPiTarget] = useState<number | null>(null);
 
   // Check authentication
@@ -89,6 +90,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
         setPiCoolingOn(!!live?.cooling_relay_on);
         setPiHeatingOn(!!live?.heating_relay_on);
         setPiHeartbeat(live?.last_heartbeat ?? null);
+        setHasPiLive(!!live);
 
         if (isGlycol) {
           const piDerived = (ctrlData as any)?.target_temp;
@@ -267,12 +269,12 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
   const heatingHyst = ctrl.heating_hysteresis ?? 0.2;
 
   const sensorTemp = ctrl.actual_temp ?? null;
-  const isActivelyCooling = isPi ? piCoolingOn : ctrl.cooling_enabled === true &&
+  const isActivelyCooling = isPi ? (hasPiLive ? piCoolingOn : ctrl.cooling_enabled === true) : ctrl.cooling_enabled === true &&
     sensorTemp != null &&
     ctrl.target_temp != null &&
     sensorTemp > (ctrl.target_temp + coolingHyst);
 
-  const isActivelyHeating = isPi ? piHeatingOn : ctrl.heating_enabled === true &&
+  const isActivelyHeating = isPi ? (hasPiLive ? piHeatingOn : ctrl.heating_enabled === true) : ctrl.heating_enabled === true &&
     sensorTemp != null &&
     ctrl.target_temp != null &&
     sensorTemp < (ctrl.target_temp - heatingHyst);
@@ -294,7 +296,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     dutyCyclePct,
     dutyMode,
     isPi,
-    piHeartbeat,
+    piHeartbeat: piHeartbeat ?? (isPi ? (ctrl.last_update ?? null) : null),
     piTarget,
   };
 }
