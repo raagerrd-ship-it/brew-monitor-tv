@@ -126,6 +126,14 @@ export function BrewManagement() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Visa öl"
+                      onClick={() => navigate(`/brew/${brew.batch_id}`)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => openEditBrewDialog(brew)}
                     >
                       <Pencil className="h-4 w-4" />
