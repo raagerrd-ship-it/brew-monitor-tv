@@ -24,6 +24,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function BrewManagement() {
+  const navigate = useNavigate();
   const {
     customBrews, pills, controllers,
     loading, showCustomBrewDialog, editingBrew, prefillData,
