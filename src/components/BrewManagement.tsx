@@ -1,6 +1,7 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check, ExternalLink } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
 import { useBrewManagement } from "@/hooks";
@@ -23,6 +24,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function BrewManagement() {
+  const navigate = useNavigate();
   const {
     customBrews, pills, controllers,
     loading, showCustomBrewDialog, editingBrew, prefillData,
@@ -121,6 +123,14 @@ export function BrewManagement() {
                         Skicka till Jäscontroller
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Visa öl"
+                      onClick={() => navigate(`/brew/${brew.batch_id}`)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
