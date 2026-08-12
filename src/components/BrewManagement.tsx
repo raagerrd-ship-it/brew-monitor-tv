@@ -1,6 +1,7 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check, ExternalLink } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
 import { useBrewManagement } from "@/hooks";
