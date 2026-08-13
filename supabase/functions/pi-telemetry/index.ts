@@ -88,16 +88,9 @@ Deno.serve(async (req) => {
     // fermentation_learnings. RAPT-PID:n kör inte längre för Pi-tankar,
     // så Pi:n måste själv hålla dessa nycklar färska.
     const fullId = rows?.[0]?.controller_id;
-    if (fullId && isRegulating(d) && deliveredDuty(d) != null) {
+    if (fullId && isRegulating(d)) {
       const now = new Date().toISOString();
-      await supabase.from("fermentation_learnings").upsert([
-        {
-          controller_id: fullId,
-          parameter_name: "pid_last_duty",
-          learned_value: Number(deliveredDuty(d) ?? d.duty_pct),
-          sample_count: 1,
-          last_updated_at: now,
-        },
+      const rows2: any[] = [
         {
           controller_id: fullId,
           parameter_name: "pid_current_mode",
@@ -105,7 +98,20 @@ Deno.serve(async (req) => {
           sample_count: 1,
           last_updated_at: now,
         },
-      ], { onConflict: "controller_id,parameter_name" });
+      ];
+      // Duty skrivs bara när hela PWM-fönstrets summa finns (rollup).
+      // Live-paketen läser relästatus mitt i fönstret och skulle annars
+      // pendla mellan värdet och 0 % i UI:t var 30:e sekund.
+      if (d?.last_delivered_s != null) {
+        rows2.push({
+          controller_id: fullId,
+          parameter_name: "pid_last_duty",
+          learned_value: Number(deliveredDuty(d) ?? d.duty_pct ?? 0),
+          sample_count: 1,
+          last_updated_at: now,
+        });
+      }
+      await supabase.from("fermentation_learnings").upsert(rows2, { onConflict: "controller_id,parameter_name" });
     }
     return fullId ?? null;
   }
