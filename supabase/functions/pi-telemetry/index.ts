@@ -395,7 +395,11 @@ Deno.serve(async (req) => {
         cooling_relay_on: data.cooling_relay_on ?? false,
         heating_relay_on: data.heating_relay_on ?? false,
         glycol_temp: data.glycol_temp ?? null,
-        pid_terms: data.pid_terms ?? null,
+        // duty_requested_pct bakas in i pid_terms så mättnad (begärt > levererat)
+        // syns i live-vyn utan schemaändring.
+        pid_terms: data.duty_requested_pct != null
+          ? { ...(data.pid_terms ?? {}), duty_requested_pct: data.duty_requested_pct }
+          : (data.pid_terms ?? null),
         constraints_hit: data.constraints_hit ?? null,
         // Hålls separat från constraints_hit: mjuka PID-villkor är normal drift,
         // blocked_by betyder att tanken inte regleras alls.
