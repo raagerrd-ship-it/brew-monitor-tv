@@ -55,7 +55,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
     showTempAdjust, setShowTempAdjust, setTargetTemperature,
     isActivelyCooling, isActivelyHeating, originalTarget,
     dutyCyclePct, dutyMode,
-    isPi, piHeartbeat, piTarget,
+    isPi, piHeartbeat, hasPiLive, piTarget,
   } = useControllerDialog({ controller, open, onOpenChange });
 
   const isPillCompActive = !isCooler && currentController.pill_temp != null && currentController.current_temp != null;
@@ -272,12 +272,12 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 ? formatDistanceToNow(new Date(currentController.last_update), { addSuffix: true, locale: sv })
                 : '—'}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            {(!isPi || hasPiLive) && <div className="flex items-center gap-1.5">
               <RefreshCw className="w-3 h-3" />
               <span>{isPi ? 'Pi' : 'Synk'}: {(isPi ? piHeartbeat : lastSync)
                 ? formatDistanceToNow(new Date((isPi ? piHeartbeat : lastSync) as string), { addSuffix: true, locale: sv })
                 : '—'}</span>
-            </div>
+            </div>}
           </div>
 
           {/* Temperature Chart */}

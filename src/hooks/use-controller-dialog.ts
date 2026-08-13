@@ -297,6 +297,7 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
     dutyMode,
     isPi,
     piHeartbeat: piHeartbeat ?? (isPi ? (ctrl.last_update ?? null) : null),
+    hasPiLive,
     piTarget,
   };
 }
