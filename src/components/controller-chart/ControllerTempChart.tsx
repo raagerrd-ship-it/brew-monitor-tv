@@ -7,6 +7,8 @@ import { CHART_MARGINS, COLORS, AXIS_CONFIG, TOOLTIP_STYLE, LINE_CONFIG } from '
 interface ControllerTempChartProps {
   controllerId: string;
   controllerColor?: string;
+  /** Kylare: bara kyla, ingen pill/fusion — visa endast Kylning %, Probe-temp och HW-mål */
+  coolingOnly?: boolean;
 }
 
 const LABEL_MAP: Record<string, string> = {
@@ -21,9 +23,11 @@ const LABEL_MAP: Record<string, string> = {
 // Lines hidden by default — user clicks legend to show
 const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent', 'heatingPercent']);
 
-export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' }: ControllerTempChartProps) {
+export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6', coolingOnly = false }: ControllerTempChartProps) {
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
-  const [hidden, setHidden] = useState<Set<string>>(new Set(DEFAULT_HIDDEN));
+  const [hidden, setHidden] = useState<Set<string>>(
+    () => new Set(coolingOnly ? ['profileTargetTemp'] : DEFAULT_HIDDEN)
+  );
 
   // Dynamic temp domain based on visible series only
   const dynamicDomain = useMemo<[number, number]>(() => {
@@ -71,8 +75,8 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
     );
   }
 
-  const hasActualTemp = data.some(d => d.actualTemp != null);
-  const hasProfileTarget = data.some(d => d.profileTargetTemp != null);
+  const hasActualTemp = !coolingOnly && data.some(d => d.actualTemp != null);
+  const hasProfileTarget = !coolingOnly && data.some(d => d.profileTargetTemp != null);
 
   return (
     <div className="space-y-2">
@@ -160,7 +164,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               hide={hidden.has('coolingPercent')}
             />
             {/* Heating % area */}
-            <Area 
+            {!coolingOnly && <Area 
               yAxisId="cooling"
               type="stepAfter"
               dataKey="heatingPercent"
@@ -171,7 +175,7 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6' 
               dot={false}
               name="heatingPercent"
               hide={hidden.has('heatingPercent')}
-            />
+            />}
             {/* Probe temp (always shown by default) */}
             <Area 
               yAxisId="temp"
