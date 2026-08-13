@@ -30,14 +30,20 @@ Deno.serve(async (req) => {
   // Levererad on-tid är sanningen; duty_pct/duty_mean är bara begärt och får
   // aldrig loggas som levererad kylning.
   function deliveredDuty(d: any): number | null {
+    const period = Number(d?.pwm_period_s ?? 180);
+    // last_delivered_s är hela det avslutade PWM-fönstrets summa (Pi V6+).
+    // Den är alltid giltig och behöver ingen färskhetsgrind.
+    if (d?.last_delivered_s != null && period > 0) {
+      return Math.round((Number(d.last_delivered_s) / period) * 1000) / 10;
+    }
     const recordedAt = new Date(d?.recorded_at ?? Date.now()).getTime();
     const lastPwmEvent = Math.max(
       d?.pwm_start ? new Date(d.pwm_start).getTime() : 0,
       d?.pwm_stop ? new Date(d.pwm_stop).getTime() : 0,
     );
-    const periodMs = Number(d?.pwm_period_s ?? 180) * 1000;
-    // delivered_on_s kan ligga kvar från ett äldre PWM-fönster. Om senaste
-    // relähändelsen ligger före aktuellt fönster har inget levererats nu.
+    const periodMs = period * 1000;
+    // delivered_on_s nollställs vid varje pulsstart och läses mitt i pulsen —
+    // missvisande. Används bara som fallback för äldre Pi-versioner.
     if (lastPwmEvent > 0 && recordedAt - lastPwmEvent > periodMs) return 0;
     if (d?.delivered_on_s != null && d?.pwm_period_s) {
       return Math.round((Number(d.delivered_on_s) / Number(d.pwm_period_s)) * 1000) / 10;
