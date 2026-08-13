@@ -182,7 +182,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
                   PWM {Math.round(dutyCyclePct)}% {dutyMode === 'cooling' ? '❄️' : dutyMode === 'heating' ? '🔥' : ''}
                 </p>
-              ) : currentController.pill_temp !== null && !isPillCompActive ? (
+              ) : !isCooler && currentController.pill_temp != null && !isPillCompActive ? (
                 <p className="text-[10px] text-muted-foreground/70 mt-1">
                   Pill: {currentController.pill_temp.toFixed(1)}°
                 </p>
@@ -235,7 +235,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {/* Givarval sker lokalt på Pi:n (use_pt100 / use_pill i tank_map.json) */}
           {/* Heating/Cooling Status */}
           <div className="flex gap-2">
-            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+            {!isCooler && <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
               isActivelyHeating 
                 ? 'bg-orange-500/15 border border-orange-500/30' 
                 : 'bg-muted/20 border border-border/20'
@@ -247,7 +247,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               }`}>
                 {!isPi && !currentController.heating_enabled ? 'Inaktiv' : isActivelyHeating ? 'Värmer' : 'Standby'}
               </span>
-            </div>
+            </div>}
             
             <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
               isActivelyCooling 
@@ -285,6 +285,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             <ControllerTempChart 
               controllerId={controller.controller_id} 
               controllerColor={controllerColor}
+              coolingOnly={isCooler}
             />
           </div>
         </div>
