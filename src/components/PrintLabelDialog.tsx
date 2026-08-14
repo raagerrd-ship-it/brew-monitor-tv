@@ -16,10 +16,11 @@ interface PrintLabelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   brew: BrewData;
+  defaultType?: LabelType;
 }
 
-export function PrintLabelDialog({ open, onOpenChange, brew }: PrintLabelDialogProps) {
-  const [labelType, setLabelType] = useState<LabelType>('tank');
+export function PrintLabelDialog({ open, onOpenChange, brew, defaultType = 'tank' }: PrintLabelDialogProps) {
+  const [labelType, setLabelType] = useState<LabelType>(defaultType);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copies, setCopies] = useState(1);
   const [debugOpen, setDebugOpen] = useState(false);
