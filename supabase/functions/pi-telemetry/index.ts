@@ -217,9 +217,7 @@ Deno.serve(async (req) => {
       console.warn(
         `[pi-telemetry] Skippad snapshot (ofullständig mätning) ${fullId}: actual=${snapActual} pill=${snapPill} pt100=${snapPt100}`,
       );
-      return;
-    }
-
+    } else {
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: bucketedAt,
       sg,
@@ -231,6 +229,7 @@ Deno.serve(async (req) => {
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
     });
+    }
 
     if (sg != null) {
       const og = Number(brew.original_gravity);
