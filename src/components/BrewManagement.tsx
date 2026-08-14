@@ -136,20 +136,18 @@ export function BrewManagement() {
               })
               .map((brew) => (
               <Card key={brew.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{brew.name}</h3>
-                        <StatusBadge status={brew.status} />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {brew.style || 'Custom'}
-                        {brew.original_gravity ? ` · OG ${brew.original_gravity.toFixed(3)}` : ''}
-                      </p>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{brew.name}</h3>
+                      <StatusBadge status={brew.status} />
                     </div>
+                    <p className="text-sm text-muted-foreground">
+                      {brew.style || 'Custom'}
+                      {brew.original_gravity ? ` · OG ${brew.original_gravity.toFixed(3)}` : ''}
+                    </p>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     {brew.pi_pending_at ? (
                       <Button
                         variant="outline"
@@ -171,34 +169,38 @@ export function BrewManagement() {
                     )}
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       title="Visa öl"
                       onClick={() => navigate(`/brew/${brew.batch_id}`)}
                     >
-                      <ExternalLink className="h-4 w-4" />
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Visa öl
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       title="Skriv ut fatetikett"
                       onClick={() => setPrintBrew(brew)}
                     >
-                      <Printer className="h-4 w-4" />
+                      <Printer className="mr-1.5 h-3.5 w-3.5" />
+                      Skriv ut
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={() => openEditBrewDialog(brew)}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Redigera
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={() => deleteCustomBrew(brew.id)}
                       className="text-destructive hover:text-destructive"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Ta bort
                     </Button>
                   </div>
                 </div>
