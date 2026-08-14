@@ -539,7 +539,7 @@ Deno.serve(async (req) => {
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
       // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
-      await writeProfileState(data.profile);
+      await writeProfileState(data.profile, fullId);
       await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
       if (data.profile?.brew_id) {
