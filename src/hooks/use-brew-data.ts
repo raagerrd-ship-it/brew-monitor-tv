@@ -131,10 +131,12 @@ export function useBrewData(): UseBrewDataReturn {
   const loadBrewsInternal = useCallback(async (): Promise<BrewData[]> => {
     // Dashboarden visar exakt de bryggningar Pi:n rapporterar som aktiva
     // (fermentation_sessions skrivs av Pi-rollupen var 3:e minut).
+    // Avslutad profil (Pi skickar profile: null) döljer inte ölet — det går
+    // bara över i manuellt läge tills ölet arkiveras.
     const { data: piSessions, error: piSessionsError } = await supabase
       .from('fermentation_sessions')
       .select('brew_id')
-      .in('status', ['running', 'paused'])
+      .in('status', ['running', 'paused', 'completed'])
       .not('brew_id', 'is', null);
 
     if (piSessionsError) throw piSessionsError;
@@ -150,6 +152,7 @@ export function useBrewData(): UseBrewDataReturn {
         .from('brew_readings')
         .select('*')
         .in('id', activeBrewIds)
+        .neq('status', 'Arkiverad')
         .order('created_at', { ascending: false }),
       supabase
         .from('brew_events')
@@ -223,7 +226,8 @@ export function useBrewData(): UseBrewDataReturn {
     // Build session data by brew_id
     const sessionsByBrewId = new Map<string, FermentationSessionData>();
     activeSessions.forEach(session => {
-      if (session.brew_id) {
+      // Bara pågående profiler ger sessionsvy — completed = manuellt läge.
+      if (session.brew_id && (session.status === 'running' || session.status === 'paused')) {
         const profile = profilesMap.get(session.profile_id);
         const steps = stepsMap.get(session.profile_id) || [];
         const controller = sessionControllersMap.get(session.controller_id);
