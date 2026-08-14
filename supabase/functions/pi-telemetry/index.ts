@@ -206,17 +206,30 @@ Deno.serve(async (req) => {
       Math.floor(new Date(recordedAt).getTime() / bucketMs) * bucketMs,
     ).toISOString();
 
+    const snapActual = m.actual ?? d.actual_temp ?? null;
+    const snapPill = m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null);
+    const snapPt100 = m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null);
+
+    // Ofullständig mätning = ogiltig. Saknas någon av de tre temperaturerna
+    // hoppar vi över hela snapshoten — annars ritas en spik i grafen när
+    // actual faller tillbaka på en enskild givare.
+    if (snapActual == null || snapPill == null || snapPt100 == null) {
+      console.warn(
+        `[pi-telemetry] Skippad snapshot (ofullständig mätning) ${fullId}: actual=${snapActual} pill=${snapPill} pt100=${snapPt100}`,
+      );
+    } else {
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: bucketedAt,
       sg,
-      pill_temp: m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null),
-      controller_temp: m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null),
+      pill_temp: snapPill,
+      controller_temp: snapPt100,
       profile_target_temp: d.target_temp ?? null,
-      actual_temp: m.actual ?? d.actual_temp ?? null,
+      actual_temp: snapActual,
       duty_pct: duty,
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
     });
+    }
 
     if (sg != null) {
       const og = Number(brew.original_gravity);
@@ -465,22 +478,29 @@ Deno.serve(async (req) => {
         keys: Object.keys(data),
       }));
     } else {
+      // Ofullständig mätning = ogiltig. Saknas actual hoppar vi över raden
+      // hellre än att falla tillbaka på en enskild givare (ger spikar).
+      const histActual = means.actual ?? data.actual_temp ?? null;
+      if (histActual == null) {
+        console.warn("SKIPPED_HISTORY saknad actual_temp", controller_id);
+      } else {
       const { error: histError } = await supabase
         .from("temp_controller_history")
         .insert({
           controller_id,
-          current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
+          current_temp: histActual,
           target_temp: data.target_temp ?? null,
           cooling_enabled: data.mode === "cooling",
           recorded_at: data.recorded_at || new Date().toISOString(),
           profile_target_temp: data.target_temp ?? null,
           duty_pct: deliveredDuty(data),
-          actual_temp: means.actual ?? data.actual_temp ?? null,
+          actual_temp: histActual,
           pid_mode: data.mode ?? "v6",
         });
 
       if (histError) {
         console.error("History insert failed:", histError);
+      }
       }
     }
 
