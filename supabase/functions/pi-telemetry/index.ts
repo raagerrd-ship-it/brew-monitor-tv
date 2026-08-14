@@ -210,10 +210,21 @@ Deno.serve(async (req) => {
     const snapPill = m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null);
     const snapPt100 = m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null);
 
-    // Ofullständig mätning = ogiltig. Saknas någon av de tre temperaturerna
-    // hoppar vi över hela snapshoten — annars ritas en spik i grafen när
-    // actual faller tillbaka på en enskild givare.
-    if (snapActual == null || snapPill == null || snapPt100 == null) {
+    // En tank som normalt kör en givare ska fortsätta logga. Men om en givare
+    // som fanns i förra snapshoten plötsligt saknas är mätningen ogiltig —
+    // actual faller då tillbaka på den kvarvarande givaren och ger en spik.
+    const { data: prevSnap } = await supabase
+      .from("brew_data_snapshots")
+      .select("pill_temp, controller_temp")
+      .eq("brew_id", brew.id)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lostSensor =
+      (prevSnap?.pill_temp != null && snapPill == null) ||
+      (prevSnap?.controller_temp != null && snapPt100 == null);
+
+    if (snapActual == null || lostSensor) {
       console.warn(
         `[pi-telemetry] Skippad snapshot (ofullständig mätning) ${fullId}: actual=${snapActual} pill=${snapPill} pt100=${snapPt100}`,
       );
