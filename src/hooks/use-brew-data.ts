@@ -131,10 +131,12 @@ export function useBrewData(): UseBrewDataReturn {
   const loadBrewsInternal = useCallback(async (): Promise<BrewData[]> => {
     // Dashboarden visar exakt de bryggningar Pi:n rapporterar som aktiva
     // (fermentation_sessions skrivs av Pi-rollupen var 3:e minut).
+    // Avslutad profil (Pi skickar profile: null) döljer inte ölet — det går
+    // bara över i manuellt läge tills ölet arkiveras.
     const { data: piSessions, error: piSessionsError } = await supabase
       .from('fermentation_sessions')
       .select('brew_id')
-      .in('status', ['running', 'paused'])
+      .in('status', ['running', 'paused', 'completed'])
       .not('brew_id', 'is', null);
 
     if (piSessionsError) throw piSessionsError;
