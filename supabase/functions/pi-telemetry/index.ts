@@ -206,13 +206,27 @@ Deno.serve(async (req) => {
       Math.floor(new Date(recordedAt).getTime() / bucketMs) * bucketMs,
     ).toISOString();
 
+    const snapActual = m.actual ?? d.actual_temp ?? null;
+    const snapPill = m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null);
+    const snapPt100 = m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null);
+
+    // Ofullständig mätning = ogiltig. Saknas någon av de tre temperaturerna
+    // hoppar vi över hela snapshoten — annars ritas en spik i grafen när
+    // actual faller tillbaka på en enskild givare.
+    if (snapActual == null || snapPill == null || snapPt100 == null) {
+      console.warn(
+        `[pi-telemetry] Skippad snapshot (ofullständig mätning) ${fullId}: actual=${snapActual} pill=${snapPill} pt100=${snapPt100}`,
+      );
+      return;
+    }
+
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: bucketedAt,
       sg,
-      pill_temp: m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null),
-      controller_temp: m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null),
+      pill_temp: snapPill,
+      controller_temp: snapPt100,
       profile_target_temp: d.target_temp ?? null,
-      actual_temp: m.actual ?? d.actual_temp ?? null,
+      actual_temp: snapActual,
       duty_pct: duty,
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
