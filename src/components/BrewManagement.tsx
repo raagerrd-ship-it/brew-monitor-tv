@@ -1,10 +1,55 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check, ExternalLink } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Beer, Flame, Thermometer, GlassWater, Archive, FlaskConical, Send, Check, ExternalLink, Printer } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
+import type { CustomBrewData } from "./CustomBrewDialog";
+import { PrintLabelDialog } from "./PrintLabelDialog";
+import type { BrewData } from "@/types/brew";
 import { useBrewManagement } from "@/hooks";
+
+/** Minimal BrewData shape needed to render a keg label */
+function toLabelBrew(brew: CustomBrewData): BrewData {
+  const og = brew.original_gravity || 0;
+  const fg = brew.final_gravity || 0;
+  const abv = og && fg ? (og - fg) * 131.25 : 0;
+  return {
+    id: brew.id,
+    batch_id: brew.batch_id,
+    share_id: null,
+    name: brew.name,
+    style: brew.style,
+    batchNumber: brew.batch_number,
+    status: brew.status,
+    currentSG: fg,
+    currentTemp: 0,
+    attenuation: 0,
+    abv,
+    originalGravity: og,
+    finalGravity: fg,
+    lastUpdate: '',
+    lastUpdateRaw: null,
+    battery: null,
+    sgData: [],
+    fermentationRate: null,
+    coldcrashAcknowledged: false,
+    events: [],
+    linked_controller_id: brew.linked_controller_id,
+    linked_pill_id: brew.linked_pill_id,
+    fermentationSession: null,
+    label_image_url: brew.label_image_url,
+    description: brew.description,
+    pill_compensation: brew.pill_compensation,
+    fermentationEnd: null,
+    overshootReason: null,
+    originalTarget: null,
+    pidReason: null,
+    dutyPct: null,
+    dutyMode: null,
+  } as BrewData;
+}
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -25,6 +70,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function BrewManagement() {
   const navigate = useNavigate();
+  const [printBrew, setPrintBrew] = useState<CustomBrewData | null>(null);
   const {
     customBrews, pills, controllers,
     loading, showCustomBrewDialog, editingBrew, prefillData,
@@ -134,6 +180,14 @@ export function BrewManagement() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Skriv ut fatetikett"
+                      onClick={() => setPrintBrew(brew)}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => openEditBrewDialog(brew)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -167,6 +221,15 @@ export function BrewManagement() {
         pills={pills}
         controllers={controllers}
       />
+
+      {printBrew && (
+        <PrintLabelDialog
+          open={!!printBrew}
+          onOpenChange={(o) => { if (!o) setPrintBrew(null); }}
+          brew={toLabelBrew(printBrew)}
+          defaultType="keg"
+        />
+      )}
     </div>
   );
 }
