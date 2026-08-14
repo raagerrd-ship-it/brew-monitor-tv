@@ -152,6 +152,7 @@ export function useBrewData(): UseBrewDataReturn {
         .from('brew_readings')
         .select('*')
         .in('id', activeBrewIds)
+        .neq('status', 'Arkiverad')
         .order('created_at', { ascending: false }),
       supabase
         .from('brew_events')
@@ -225,7 +226,8 @@ export function useBrewData(): UseBrewDataReturn {
     // Build session data by brew_id
     const sessionsByBrewId = new Map<string, FermentationSessionData>();
     activeSessions.forEach(session => {
-      if (session.brew_id) {
+      // Bara pågående profiler ger sessionsvy — completed = manuellt läge.
+      if (session.brew_id && (session.status === 'running' || session.status === 'paused')) {
         const profile = profilesMap.get(session.profile_id);
         const steps = stepsMap.get(session.profile_id) || [];
         const controller = sessionControllersMap.get(session.controller_id);
