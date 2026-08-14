@@ -478,22 +478,29 @@ Deno.serve(async (req) => {
         keys: Object.keys(data),
       }));
     } else {
+      // Ofullständig mätning = ogiltig. Saknas actual hoppar vi över raden
+      // hellre än att falla tillbaka på en enskild givare (ger spikar).
+      const histActual = means.actual ?? data.actual_temp ?? null;
+      if (histActual == null) {
+        console.warn("SKIPPED_HISTORY saknad actual_temp", controller_id);
+      } else {
       const { error: histError } = await supabase
         .from("temp_controller_history")
         .insert({
           controller_id,
-          current_temp: means.actual ?? data.temp_mean ?? data.actual_temp ?? null,
+          current_temp: histActual,
           target_temp: data.target_temp ?? null,
           cooling_enabled: data.mode === "cooling",
           recorded_at: data.recorded_at || new Date().toISOString(),
           profile_target_temp: data.target_temp ?? null,
           duty_pct: deliveredDuty(data),
-          actual_temp: means.actual ?? data.actual_temp ?? null,
+          actual_temp: histActual,
           pid_mode: data.mode ?? "v6",
         });
 
       if (histError) {
         console.error("History insert failed:", histError);
+      }
       }
     }
 
