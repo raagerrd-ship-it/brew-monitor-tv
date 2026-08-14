@@ -1,0 +1,1 @@
+UPDATE public.fermentation_sessions SET status='completed', completed_at=now(), step_label=NULL, step_progress=NULL, updated_at=now() WHERE id='82a53834-5a58-4980-8570-314ca2716a80' AND status='running';

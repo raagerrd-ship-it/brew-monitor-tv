@@ -117,8 +117,26 @@ Deno.serve(async (req) => {
   }
 
   // ── Profil-/metrics-state från Pi:ns profilmotor (Pi äger sanningen) ──
-  async function writeProfileState(p: any) {
-    if (!p || !p.session_id) return;
+  async function writeProfileState(p: any, fullId?: string | null) {
+    // profile: null betyder "sessionen är avslutad" — inte "inget nytt".
+    // Städa bort kvarvarande running-sessioner för tanken.
+    if (!p) {
+      if (!fullId) return
+      const { error } = await supabase
+        .from("fermentation_sessions")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          step_label: null,
+          step_progress: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("controller_id", fullId)
+        .eq("status", "running");
+      if (error) console.error("profile clear failed:", error.message);
+      return;
+    }
+    if (!p.session_id) return;
     if (p.shadow === true) return; // skuggkörning = inte verklig historik
     const patch: Record<string, any> = {
       status: p.status,
@@ -521,7 +539,7 @@ Deno.serve(async (req) => {
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
       // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
-      await writeProfileState(data.profile);
+      await writeProfileState(data.profile, fullId);
       await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
       if (data.profile?.brew_id) {
