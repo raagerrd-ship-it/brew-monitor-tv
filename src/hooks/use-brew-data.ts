@@ -141,7 +141,18 @@ export function useBrewData(): UseBrewDataReturn {
 
     if (piSessionsError) throw piSessionsError;
 
-    const activeBrewIds = [...new Set((piSessions || []).map(s => s.brew_id as string))];
+    // Öl med status Jäsning visas alltid, även utan session.
+    const { data: fermentingBrews, error: fermentingError } = await supabase
+      .from('brew_readings')
+      .select('id')
+      .in('status', ['Jäsning', 'Fermenting']);
+
+    if (fermentingError) throw fermentingError;
+
+    const activeBrewIds = [...new Set([
+      ...(piSessions || []).map(s => s.brew_id as string),
+      ...(fermentingBrews || []).map(b => b.id as string),
+    ])];
 
     if (activeBrewIds.length === 0) {
       return [];
