@@ -141,11 +141,13 @@ export function useBrewData(): UseBrewDataReturn {
 
     if (piSessionsError) throw piSessionsError;
 
-    // Öl med status Jäsning visas alltid, även utan session.
+    // Öl med status Jäsning visas alltid, även utan session — men bara om de
+    // ligger på en tank (annars är det inskickade utkast utan mätdata).
     const { data: fermentingBrews, error: fermentingError } = await supabase
       .from('brew_readings')
       .select('id')
-      .in('status', ['Jäsning', 'Fermenting']);
+      .in('status', ['Jäsning', 'Fermenting'])
+      .not('linked_controller_id', 'is', null);
 
     if (fermentingError) throw fermentingError;
 
