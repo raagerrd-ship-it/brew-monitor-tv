@@ -1678,6 +1678,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_empty_brew_drafts: { Args: never; Returns: undefined }
       generate_share_id: { Args: { length?: number }; Returns: string }
       get_temp_history_sampled: {
         Args: {
