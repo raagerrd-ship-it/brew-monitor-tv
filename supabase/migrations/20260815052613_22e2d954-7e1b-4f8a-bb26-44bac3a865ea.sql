@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.archive_empty_brew_drafts() FROM anon, authenticated, PUBLIC;
