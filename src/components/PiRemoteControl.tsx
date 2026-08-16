@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Power, Hand, Play } from 'lucide-react';
+import { Loader2, Power, Hand, Play, Cpu } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { usePiRemoteControl } from '@/hooks/use-pi-remote-control';
@@ -26,6 +26,14 @@ export function PiRemoteControl({
 
   // "Av" vinner alltid över "manuellt" i visningen.
   const source = remote.enabled === false ? 'off' : remote.targetSource;
+  const isRemote = source === 'manual' || source === 'off';
+  const shownTarget = remote.effectiveTarget ?? remote.piTarget ?? currentTarget ?? null;
+
+  const statusStyle = source === 'off'
+    ? { hue: '0 72% 55%', title: 'Avstängd', sub: 'Fjärrstyrd — regleringen är av' }
+    : source === 'manual'
+      ? { hue: '38 92% 55%', title: 'Fjärrstyrd — manuellt mål', sub: 'Profilen är pausad tills du återgår' }
+      : { hue: '150 55% 48%', title: 'Pi:n styr', sub: 'Profilstyrd lokalt på Raspberry Pi:n' };
 
   const run = async (fn: () => Promise<void>, msg: string) => {
     try {
@@ -49,16 +57,38 @@ export function PiRemoteControl({
         </span>
       </div>
 
-      <div className="flex items-center gap-2 text-xs">
-        <span className={`px-2 py-0.5 rounded-md font-medium ${
-          source === 'off' ? 'bg-destructive/15 text-destructive'
-            : source === 'manual' ? 'bg-amber-500/15 text-amber-500'
-            : 'bg-muted/50 text-muted-foreground'
-        }`}>
-          {source === 'off' ? 'Avstängd' : source === 'manual' ? 'Manuellt läge' : 'Profilstyrd'}
-        </span>
-        {remote.effectiveTarget != null && (
-          <span className="tabular-nums text-muted-foreground">Mål {remote.effectiveTarget.toFixed(1)}°</span>
+      <div
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+        style={{
+          background: `hsl(${statusStyle.hue} / 0.12)`,
+          border: `1px solid hsl(${statusStyle.hue} / 0.45)`,
+        }}
+      >
+        <div
+          className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+          style={{ background: `hsl(${statusStyle.hue} / 0.18)` }}
+        >
+          {source === 'off'
+            ? <Power className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />
+            : source === 'manual'
+              ? <Hand className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />
+              : <Cpu className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-semibold truncate" style={{ color: `hsl(${statusStyle.hue})` }}>
+            {statusStyle.title}
+          </div>
+          <div className="text-[10px] text-muted-foreground truncate">
+            {statusStyle.sub}
+            {isRemote && remote.pausedAt
+              ? ` · ${formatDistanceToNow(new Date(remote.pausedAt), { addSuffix: true, locale: sv })}`
+              : ''}
+          </div>
+        </div>
+        {source !== 'off' && shownTarget != null && (
+          <span className="text-sm font-bold tabular-nums shrink-0" style={{ color: `hsl(${statusStyle.hue})` }}>
+            {shownTarget.toFixed(1)}°
+          </span>
         )}
       </div>
 

@@ -80,11 +80,13 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
       if (piActuated) {
         // Glykolkylaren: Pi:n härleder målet lokalt — visa bara dess värde.
         const isGlycol = (ctrlData as any)?.is_glycol_cooler === true;
-        const { data: live } = await supabase
+        // Pi:n skriver ibland kort 8-teckens id — matcha båda formerna.
+        const { data: liveRows } = await supabase
           .from('pi_live_state')
-          .select('duty_pct, mode, cooling_relay_on, heating_relay_on, last_heartbeat')
-          .eq('controller_id', controller.controller_id)
-          .maybeSingle();
+          .select('duty_pct, mode, cooling_relay_on, heating_relay_on, last_heartbeat, target_temp')
+          .like('controller_id', `${controller.controller_id.slice(0, 8)}%`)
+          .limit(1);
+        const live = liveRows?.[0] ?? null;
         setDutyCyclePct(live?.duty_pct != null ? Number(live.duty_pct) : null);
         setDutyMode(live?.mode === 'cooling' || live?.mode === 'heating' ? live.mode : null);
         setPiCoolingOn(!!live?.cooling_relay_on);
@@ -98,6 +100,13 @@ export function useControllerDialog({ controller, open, onOpenChange }: Controll
             setPiTarget(Number(piDerived));
             setTargetTemp(Math.round(Number(piDerived)));
           }
+          return;
+        }
+
+        // Pi:n är master: målet den faktiskt reglerar mot vinner över molnets avsikt.
+        if (live?.target_temp != null) {
+          setPiTarget(Number(live.target_temp));
+          setTargetTemp(Math.round(Number(live.target_temp)));
           return;
         }
 
