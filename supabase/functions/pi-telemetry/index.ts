@@ -58,6 +58,10 @@ Deno.serve(async (req) => {
   // temperaturen, inget duty-, snapshot- eller inlärningsdata ska sparas.
   const isRegulating = (d: any) => d?.regulating !== false;
 
+  // Tre lägen måste skiljas åt: fältet saknas = ingen information (lämna
+  // orört), fältet är null/tomt = värdet finns inte längre (rensa).
+  const has = (o: any, k: string) => o != null && Object.prototype.hasOwnProperty.call(o, k);
+
   async function writeBackToController(d: any) {
     // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
     // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
@@ -65,7 +69,6 @@ Deno.serve(async (req) => {
       actual_temp: d.actual_temp ?? null,
       current_temp: d.actual_temp ?? null,
       pt100_temp: d.pt100_temp ?? null,
-      pill_temp: d.pill_temp ?? null,
       // Måltempen är Pi:ns. UI:t läser den härifrån — utan skrivning visas
       // gamla RAPT-värden.
       target_temp: d.target_temp ?? null,
@@ -76,6 +79,8 @@ Deno.serve(async (req) => {
       heating_enabled: isRegulating(d) && d.mode === "heating",
       updated_at: new Date().toISOString(),
     };
+    // pill_temp: saknas = orört, null = pillen hörs inte längre → rensa.
+    if (has(d, "pill_temp")) patch.pill_temp = d.pill_temp ?? null;
     const { data: rows, error } = await supabase
       .from("rapt_temp_controllers")
       .update(patch)
@@ -117,7 +122,10 @@ Deno.serve(async (req) => {
   }
 
   // ── Profil-/metrics-state från Pi:ns profilmotor (Pi äger sanningen) ──
-  async function writeProfileState(p: any, fullId?: string | null) {
+  async function writeProfileState(d: any, fullId?: string | null) {
+    // Saknas fältet helt vet vi ingenting — rör inte lagrat state.
+    if (!has(d, "profile")) return;
+    const p = d.profile;
     // profile: null betyder "sessionen är avslutad" — inte "inget nytt".
     // Städa bort kvarvarande running-sessioner för tanken.
     if (!p) {
@@ -132,7 +140,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("controller_id", fullId)
-        .eq("status", "running");
+        .in("status", ["running", "paused"]);
       if (error) console.error("profile clear failed:", error.message);
       return;
     }
@@ -160,8 +168,18 @@ Deno.serve(async (req) => {
     if (error) console.error("profile state write failed:", error.message);
   }
 
-  async function writeMetrics(brewId: string | null | undefined, m: any) {
-    if (!brewId || !m) return;
+  async function writeMetrics(brewId: string | null | undefined, d: any) {
+    if (!brewId || !has(d, "metrics")) return;
+    const m = d.metrics;
+    // metrics: null = det finns inga mätvärden längre → rensa lagrad rad.
+    if (!m) {
+      const { error } = await supabase
+        .from("brew_fermentation_metrics")
+        .delete()
+        .eq("brew_id", brewId);
+      if (error) console.error("metrics clear failed:", error.message);
+      return;
+    }
     const row: Record<string, any> = {
       brew_id: brewId,
       fermentation_phase: m.fermentation_phase ?? "unknown",
@@ -466,7 +484,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    await writeBackToController(data);
+    const liveFullId = await writeBackToController(data);
+    // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
+    // inte behöva vänta på nästa rollup.
+    await writeProfileState(data, liveFullId);
 
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
@@ -536,11 +557,12 @@ Deno.serve(async (req) => {
     // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
     // dit ingest-pill-ble tidigare skrev (rapt_pills + brew_data_snapshots).
     const fullId = await writeBackToController(data);
+    // Profilstate speglas oavsett regulating: en avstängd tank ska också
+    // kunna rensa sitt sista steg.
+    await writeProfileState(data, fullId);
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
-      // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
-      await writeProfileState(data.profile, fullId);
-      await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
+      await writeMetrics(data.profile?.brew_id ?? null, data);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
       if (data.profile?.brew_id) {
         await supabase
@@ -603,7 +625,11 @@ Deno.serve(async (req) => {
           current_temp: data.glycol_temp,
           actual_temp: data.glycol_temp,
           pt100_temp: data.glycol_temp,
-          target_temp: data.glycol_target ?? data.target_temp ?? undefined,
+          // glycol_target satt = använd det; null = Pi:n har inget börvärde
+          // ännu → rensa i stället för att visa ett gammalt.
+          target_temp: has(data, "glycol_target")
+            ? data.glycol_target
+            : (data.target_temp ?? undefined),
           cooling_enabled: data.compressor_on ?? false,
           last_update: data.recorded_at || new Date().toISOString(),
           current_temp_updated_at: new Date().toISOString(),
@@ -615,7 +641,9 @@ Deno.serve(async (req) => {
         .insert({
           controller_id: cooler.controller_id,
           current_temp: data.glycol_temp,
-          target_temp: data.glycol_target ?? data.target_temp ?? null,
+          target_temp: has(data, "glycol_target")
+            ? data.glycol_target
+            : (data.target_temp ?? null),
           cooling_enabled: data.compressor_on ?? false,
           recorded_at: data.recorded_at || new Date().toISOString(),
           actual_temp: data.glycol_temp,
