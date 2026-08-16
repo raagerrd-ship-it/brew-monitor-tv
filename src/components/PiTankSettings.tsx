@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Snowflake, Flame, Check, Loader2, AlertTriangle } from "lucide-react";
 
@@ -9,7 +8,7 @@ type Row = {
   name: string;
   enabled: boolean;
   mode_allowed: string;
-  target_temp: number;
+  target_temp: number | null;
   set_at: string | null;
   pi_enabled: boolean | null;
   pi_mode: string | null;
@@ -52,7 +51,7 @@ export function PiTankSettings() {
           name: c.name,
           enabled: sp?.enabled ?? true,
           mode_allowed: sp?.mode_allowed ?? "both",
-          target_temp: Number(sp?.target_temp ?? 0),
+          target_temp: sp?.target_temp != null ? Number(sp.target_temp) : null,
           set_at: sp?.set_at ?? null,
           pi_enabled: ls?.enabled ?? null,
           pi_mode: ls?.mode_allowed ?? null,
