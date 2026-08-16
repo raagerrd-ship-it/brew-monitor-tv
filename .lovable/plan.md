@@ -67,7 +67,8 @@ Ingen tillståndsmaskin. Efter skrivning visas "Skickat 14:32" under panelen. St
 - `supabase/functions/pi-telemetry/index.ts` — ta emot och skriva `target_source` + `effective_target`
 - `src/hooks/use-controller-dialog.ts` — läsa nya fälten, realtidsprenumeration, skrivfunktioner (sätt mål / släpp / på-av) med `commanded_at`
 - `src/components/RaptControllerDialog.tsx` — panelen, bekräftelsedialogen, mobil bottom sheet, "Skickat"-raden
-- `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet + källetikett
+- `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet
+- `src/components/fermentation/FermentationSessionCompact.tsx`, `FermentationSessionMinimal.tsx`, `sessionStyles.ts` — overridevisning i profilrutan
 - `src/components/PiTankSettings.tsx` — behåller läge/på-av, men trestegskvittensen ersätts av samma källbaserade status
 
 ## Acceptanskriterier
