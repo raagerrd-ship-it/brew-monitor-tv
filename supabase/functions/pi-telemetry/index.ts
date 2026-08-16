@@ -625,7 +625,11 @@ Deno.serve(async (req) => {
           current_temp: data.glycol_temp,
           actual_temp: data.glycol_temp,
           pt100_temp: data.glycol_temp,
-          target_temp: data.glycol_target ?? data.target_temp ?? undefined,
+          // glycol_target satt = använd det; null = Pi:n har inget börvärde
+          // ännu → rensa i stället för att visa ett gammalt.
+          target_temp: has(data, "glycol_target")
+            ? data.glycol_target
+            : (data.target_temp ?? undefined),
           cooling_enabled: data.compressor_on ?? false,
           last_update: data.recorded_at || new Date().toISOString(),
           current_temp_updated_at: new Date().toISOString(),
@@ -637,7 +641,9 @@ Deno.serve(async (req) => {
         .insert({
           controller_id: cooler.controller_id,
           current_temp: data.glycol_temp,
-          target_temp: data.glycol_target ?? data.target_temp ?? null,
+          target_temp: has(data, "glycol_target")
+            ? data.glycol_target
+            : (data.target_temp ?? null),
           cooling_enabled: data.compressor_on ?? false,
           recorded_at: data.recorded_at || new Date().toISOString(),
           actual_temp: data.glycol_temp,
