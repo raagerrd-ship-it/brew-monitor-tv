@@ -58,6 +58,10 @@ Deno.serve(async (req) => {
   // temperaturen, inget duty-, snapshot- eller inlärningsdata ska sparas.
   const isRegulating = (d: any) => d?.regulating !== false;
 
+  // Tre lägen måste skiljas åt: fältet saknas = ingen information (lämna
+  // orört), fältet är null/tomt = värdet finns inte längre (rensa).
+  const has = (o: any, k: string) => o != null && Object.prototype.hasOwnProperty.call(o, k);
+
   async function writeBackToController(d: any) {
     // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
     // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
@@ -65,7 +69,6 @@ Deno.serve(async (req) => {
       actual_temp: d.actual_temp ?? null,
       current_temp: d.actual_temp ?? null,
       pt100_temp: d.pt100_temp ?? null,
-      pill_temp: d.pill_temp ?? null,
       // Måltempen är Pi:ns. UI:t läser den härifrån — utan skrivning visas
       // gamla RAPT-värden.
       target_temp: d.target_temp ?? null,
@@ -76,6 +79,8 @@ Deno.serve(async (req) => {
       heating_enabled: isRegulating(d) && d.mode === "heating",
       updated_at: new Date().toISOString(),
     };
+    // pill_temp: saknas = orört, null = pillen hörs inte längre → rensa.
+    if (has(d, "pill_temp")) patch.pill_temp = d.pill_temp ?? null;
     const { data: rows, error } = await supabase
       .from("rapt_temp_controllers")
       .update(patch)
