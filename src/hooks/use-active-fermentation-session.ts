@@ -178,7 +178,7 @@ export function useActiveFermentationSession({
     let query = supabase
       .from('fermentation_sessions')
       .select('*')
-      .in('status', ['running', 'paused', 'completed']);
+      .in('status', ['running', 'paused']);
 
     if (controllerId) {
       query = query.eq('controller_id', controllerId);
