@@ -554,11 +554,12 @@ Deno.serve(async (req) => {
     // Sensorer + PID-tillstånd tillbaka till controller-raden, och pill-datan
     // dit ingest-pill-ble tidigare skrev (rapt_pills + brew_data_snapshots).
     const fullId = await writeBackToController(data);
+    // Profilstate speglas oavsett regulating: en avstängd tank ska också
+    // kunna rensa sitt sista steg.
+    await writeProfileState(data, fullId);
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
-      // Pi:n äger profilmotorn — vi speglar bara dess state för TV:n.
-      await writeProfileState(data.profile, fullId);
-      await writeMetrics(data.profile?.brew_id ?? null, data.metrics);
+      await writeMetrics(data.profile?.brew_id ?? null, data);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
       if (data.profile?.brew_id) {
         await supabase
