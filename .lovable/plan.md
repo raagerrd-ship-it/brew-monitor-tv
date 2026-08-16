@@ -1,42 +1,71 @@
-# Fjärrkontroll för Pi-styrda tankar
+# Fjärrstyrning från mobilen — minsta möjliga, Pi:n är master
 
-Pi:n förblir master. Molnet skickar bara *avsikt* — Pi:n avgör om och när den verkställer, och kvitterar tillbaka. Om nätet ligger nere händer ingenting: senaste kvitterade läget gäller.
+Molnet skickar avsikt, Pi:n verkställer. Inga nya kommandokanaler: `target_temp` och `enabled` i `pi_setpoint` är hela styrytan, plus en tidsstämpel på knapptrycket.
 
-## Tre kommandon
+## Databas
 
-1. **Pausa/återuppta profil** — profilsteget fryser (timer stannar), måltemperaturen står kvar på det steget hade.
-2. **Manuellt mål** — sätter en fast temperatur. Pausar automatiskt profilen (ditt val), så det finns aldrig två källor som slåss om målet. Att släppa manuellt läge återupptar profilen.
-3. **Läge kyla/värme/auto/av** — finns redan i Inställningar, flyttas in i samma panel så alla tre sitter ihop.
+- `pi_setpoint.target_temp` är i dag **NOT NULL** — måste släppas till nullbar, annars går det inte att lämna manuellt läge på distans.
+- `pi_setpoint.commanded_at timestamptz null` — ny.
+- `pi_live_state.target_source text null` — ny.
+- `pi_live_state.effective_target numeric null` — ny (finns inte i dag; `target_temp` finns men betyder något annat).
 
-Inga timeouts: ett kommando gäller tills du ändrar det.
+Inga andra kolumner. Inget `manual_target_temp`, inget `profile_paused`.
 
-## Var det syns
+## Moln → Pi (`pi-control`)
 
-I controller-dialogen (klick på tanken). Ny sektion "Fjärrstyrning" med:
+Setpoint-svaret (både listan och enkelvarianten) får:
 
-- Paus-knapp (visas bara när en profil kör), med steg-etikett
-- Manuellt mål: +/- i 0,1° med Sätt/Släpp-knapp
-- Lägesväljare (auto / bara kyla / bara värme / av)
-- Kvittensrad per kommando: *Skickat → Väntar på Pi → Kvitterad av Pi*, samma mönster som PiTankSettings redan använder (jämför `set_at` mot `last_heartbeat` + echo-fält)
+- `target_temp` som `number | null` — i dag kastas värdet alltid till float, vilket gör null till `NaN`. Fixas så null skickas som äkta null.
+- `commanded_at` — nytt fält, rakt från kolumnen.
 
-Dashboardkortet får en liten diskret indikator när tanken står i manuellt läge eller pausad profil, så det syns på TV:n utan att lägga till knappar där.
+Utelämnat fält = ingen ändring. `null` = rensa. Den skillnaden är hela poängen.
 
-## Teknisk del
+## Pi → moln (`pi-telemetry`)
 
-**Databas** — nya kolumner:
+Tar emot `target_source` och `effective_target` i både live och rollup och skriver dem till `pi_live_state`. Samma regel som redan gäller i funktionen: fält som saknas lämnas orörda, null rensar. Bara Pi:n skriver dem.
 
-- `pi_setpoint.profile_paused boolean not null default false`
-- `pi_setpoint.manual_target_temp numeric null` (null = profilen/normal styrning äger målet)
-- `pi_live_state.profile_paused boolean null` och `pi_live_state.manual_target_temp numeric null` — Pi:ns echo, används enbart för kvittens
+## Frontend
 
-**pi-control** — lägg `profile_paused` och `manual_target_temp` i setpoint-svaret (både list- och enkelvarianten). Inga andra fält ändras.
+### Tankkortet (TV + mobil)
 
-**pi-telemetry** — ta emot `profile_paused` och `manual_target_temp` i live/rollup och skriva dem till `pi_live_state`. Följer samma null-regler som redan gäller: fältet saknas = lämna orört, null = rensa.
+- **Ålder på mätvärdet** bredvid temperaturen: "2 min sedan" normalt, markerad över 5 min, och över 15 min visas själva temperaturen som opålitlig (dämpad + varningsmarkering).
+- **Etikett när `target_source` inte är `profile`**: "Manuellt 6,5°" eller "AV". Diskret men läsbar på håll.
 
-**Frontend**
+### Kontrollpanelen (mobil)
 
-- `src/components/RaptControllerDialog.tsx`: ny sektion, skriver till `pi_setpoint` (sätta manuellt mål sätter samtidigt `profile_paused = true`; släppa sätter båda tillbaka).
-- `src/hooks/use-controller-dialog.ts`: läs och realtidsprenumerera på de nya fälten för kvittens.
-- `src/components/PiTankSettings.tsx`: oförändrad funktion, men visar pausad/manuell status.
+Ett tryck på tankkortet öppnar en bottom sheet (Sheet på mobil, befintlig dialog på desktop/TV).
 
-**Vad Pi:n behöver göra** (utanför den här appen, sammanfattas som en formulering att skicka vidare): läsa de två nya fälten i setpoint-pollen, frysa stegtimern när `profile_paused` är true, använda `manual_target_temp` som mål när det inte är null, och eka tillbaka båda i telemetrin.
+Läsning överst: aktuell temp, effektivt mål, källa, ålder.
+
+Tre åtgärder:
+
+- **Måltemperatur** — ± i steg om 0,1° med separat **Sätt**-knapp. Ingen skrivning på ±, bara på Sätt.
+- **Släpp till profil** — visas bara när `target_source == "manual"`. Skriver `target_temp: null`.
+- **Stäng av / Slå på** — skriver `enabled`. Avstängning kräver bekräftelsedialog som namnger tanken: *"Stäng av Blå (Skogens Sus)? Jäsprofilen pausas tills du slår på igen."*
+
+Alla tre sätter `commanded_at` till knapptryckets tidpunkt.
+
+På TV-bredd renderas panelen som ren läsning, utan knappar.
+
+### Kvittens
+
+Ingen tillståndsmaskin. Efter skrivning visas "Skickat 14:32" under panelen. Statusraden fortsätter visa `target_source` och `effective_target` från telemetrin — det är kvittensen. Har det gått mer än två minuter utan att de matchar det som skickades visas en diskret rad "Pi:n har inte bekräftat ännu". Blockerar inget.
+
+## Filer som berörs
+
+- migration: de fyra kolumnändringarna ovan
+- `supabase/functions/pi-control/index.ts` — nullbar `target_temp`, `commanded_at` i svaret
+- `supabase/functions/pi-telemetry/index.ts` — ta emot och skriva `target_source` + `effective_target`
+- `src/hooks/use-controller-dialog.ts` — läsa nya fälten, realtidsprenumeration, skrivfunktioner (sätt mål / släpp / på-av) med `commanded_at`
+- `src/components/RaptControllerDialog.tsx` — panelen, bekräftelsedialogen, mobil bottom sheet, "Skickat"-raden
+- `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet + källetikett
+- `src/components/PiTankSettings.tsx` — behåller läge/på-av, men trestegskvittensen ersätts av samma källbaserade status
+
+## Acceptanskriterier
+
+1. Manuellt mål från mobilen → effektivt mål ändras inom 30 s → kortet visar "Manuellt X°"
+2. Släpp → `target_source` blir `profile` igen och målet blir profilstegets
+3. Samma tal som redan visas verkställs ändå (`commanded_at` gör skillnaden)
+4. Avstängning kräver bekräftelse med tankens namn
+5. Utan nät: åldern stiger i appen, inget dubbelverkställs när nätet kommer tillbaka
+6. Ingen ny kolumn i `pi_setpoint` utöver `commanded_at`
