@@ -350,7 +350,9 @@ Deno.serve(async (req) => {
 
     return {
       controller_id: String(sp.controller_id).slice(0, 8),
-      target_temp: parseFloat(String(sp.target_temp)),
+      // null = släpp overriden. Får aldrig bli NaN.
+      target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+      commanded_at: sp.commanded_at ?? null,
       volume_l,
       setpoint_version: sp.params_version,
     };
@@ -369,7 +371,8 @@ Deno.serve(async (req) => {
 
     return {
       setpoint: {
-        target_temp: parseFloat(String(sp.target_temp)),
+        target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+        commanded_at: sp.commanded_at ?? null,
         mode_allowed: sp.mode_allowed,
         enabled: sp.enabled !== false,
         max_duty_pct: parseFloat(String(sp.max_duty_pct)),
@@ -488,6 +491,7 @@ Deno.serve(async (req) => {
         pump_started_at: pumpStartedAt,
         pump_stopped_at: pumpStoppedAt,
         last_heartbeat: new Date().toISOString(),
+        ...overrideFields(data),
       }, { onConflict: "controller_id" });
 
     if (error) {
@@ -604,6 +608,7 @@ Deno.serve(async (req) => {
           heating_relay_on: isRegulating(data) ? (data.heating_relay_on ?? false) : false,
           glycol_temp: data.glycol_temp ?? null,
           last_heartbeat: new Date().toISOString(),
+          ...overrideFields(data),
         }, { onConflict: "controller_id" });
     }
 
