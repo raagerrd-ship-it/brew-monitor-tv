@@ -9,6 +9,8 @@ import { FermentationSessionHeader } from "./FermentationSessionHeader";
 import { StepExecutionDisplay } from "./StepExecutionDisplay";
 import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
+import { usePiRemoteControl } from "@/hooks/use-pi-remote-control";
+import { PiOverrideBox } from "./PiOverrideBox";
 import { formatRemainingTime } from "./sessionStyles";
 
 
@@ -40,6 +42,11 @@ export function ActiveFermentationSession({
   } = useActiveFermentationSession({
     controllerId, brewId, compact, preloadedSession, isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
   });
+
+  // Pi:n ekar tillbaka vem som äger målet — "av" vinner över "manuellt".
+  const piRemote = usePiRemoteControl(controllerId ?? '', !!controllerId);
+  const overrideSource: 'manual' | 'off' | null =
+    piRemote.enabled === false ? 'off' : piRemote.targetSource === 'manual' ? 'manual' : null;
 
   if (!shouldRender && compact) {
     return (
@@ -224,6 +231,15 @@ export function ActiveFermentationSession({
 
     return (
       <div onClick={isAuthenticated ? () => { setExpanded(true); onExpandChange?.(true); } : undefined} className={isAuthenticated ? 'cursor-pointer' : ''}>
+        {overrideSource ? (
+          <PiOverrideBox
+            source={overrideSource}
+            effectiveTarget={piRemote.effectiveTarget}
+            pausedAt={piRemote.pausedAt}
+            profileName={session.profile?.name || ''}
+            stepLabel={currentStep ? getStepTypeLabel(currentStep.step_type) : null}
+          />
+        ) : (
         <FermentationSessionCompact
           profileName={session.profile?.name || ''}
           status={session.status}
@@ -248,6 +264,7 @@ export function ActiveFermentationSession({
           attenuation={attenuation}
           controllerProfileTarget={controllerData?.profile_target_temp ?? null}
         />
+        )}
       </div>
     );
   }
