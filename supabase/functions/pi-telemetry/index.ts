@@ -62,6 +62,18 @@ Deno.serve(async (req) => {
   // orört), fältet är null/tomt = värdet finns inte längre (rensa).
   const has = (o: any, k: string) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
+  // Pi:n äger dessa tre läsfält. Saknas fältet = orört (undefined utelämnas i
+  // upserten), null = rensa.
+  function overrideFields(d: any): Record<string, any> {
+    const p: Record<string, any> = {};
+    if (has(d, "target_source")) p.target_source = d.target_source ?? null;
+    if (has(d, "effective_target")) {
+      p.effective_target = d.effective_target != null ? Number(d.effective_target) : null;
+    }
+    if (has(d, "paused_at")) p.paused_at = d.paused_at ?? null;
+    return p;
+  }
+
   async function writeBackToController(d: any) {
     // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
     // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
@@ -310,7 +322,7 @@ Deno.serve(async (req) => {
   async function getSlimSetpointResponse() {
     const { data: sp } = await supabase
       .from("pi_setpoint")
-      .select("controller_id, target_temp, params_version")
+      .select("controller_id, target_temp, commanded_at, params_version")
       .like("controller_id", `${controller_id}%`)
       .maybeSingle();
     if (!sp) return null;
@@ -338,7 +350,9 @@ Deno.serve(async (req) => {
 
     return {
       controller_id: String(sp.controller_id).slice(0, 8),
-      target_temp: parseFloat(String(sp.target_temp)),
+      // null = släpp overriden. Får aldrig bli NaN.
+      target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+      commanded_at: sp.commanded_at ?? null,
       volume_l,
       setpoint_version: sp.params_version,
     };
@@ -357,7 +371,8 @@ Deno.serve(async (req) => {
 
     return {
       setpoint: {
-        target_temp: parseFloat(String(sp.target_temp)),
+        target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+        commanded_at: sp.commanded_at ?? null,
         mode_allowed: sp.mode_allowed,
         enabled: sp.enabled !== false,
         max_duty_pct: parseFloat(String(sp.max_duty_pct)),
@@ -476,6 +491,7 @@ Deno.serve(async (req) => {
         pump_started_at: pumpStartedAt,
         pump_stopped_at: pumpStoppedAt,
         last_heartbeat: new Date().toISOString(),
+        ...overrideFields(data),
       }, { onConflict: "controller_id" });
 
     if (error) {
@@ -592,6 +608,7 @@ Deno.serve(async (req) => {
           heating_relay_on: isRegulating(data) ? (data.heating_relay_on ?? false) : false,
           glycol_temp: data.glycol_temp ?? null,
           last_heartbeat: new Date().toISOString(),
+          ...overrideFields(data),
         }, { onConflict: "controller_id" });
     }
 

@@ -178,7 +178,9 @@ Deno.serve(async (req) => {
     const result = (setpoints || []).map((sp: any) => ({
       // Pi config uses the 8-char short id; DB uses the full uuid.
       controller_id: String(sp.controller_id).slice(0, 8),
-      target_temp: parseFloat(String(sp.target_temp)),
+      // null betyder "släpp overriden" — får aldrig castas till NaN.
+      target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+      commanded_at: sp.commanded_at ?? null,
       mode_allowed: sp.mode_allowed,
       enabled: sp.enabled !== false,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
@@ -212,7 +214,8 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify({
     setpoint: {
       controller_id: String(sp.controller_id).slice(0, 8),
-      target_temp: parseFloat(String(sp.target_temp)),
+      target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
+      commanded_at: sp.commanded_at ?? null,
       mode_allowed: sp.mode_allowed,
       enabled: sp.enabled !== false,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
