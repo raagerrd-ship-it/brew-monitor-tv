@@ -484,7 +484,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    await writeBackToController(data);
+    const liveFullId = await writeBackToController(data);
+    // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
+    // inte behöva vänta på nästa rollup.
+    await writeProfileState(data, liveFullId);
 
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
