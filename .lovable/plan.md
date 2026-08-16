@@ -44,6 +44,8 @@ När `target_source` inte är `profile` tar jäsprofilrutan över som overridema
 - Kör ingen profil alls visas bara "MANUELLT 6,5°" / "AVSTÄNGD" utan pausrad.
 - Rutan är ren statusvisning på TV — alla ändringar sker från mobilpanelen.
 
+Pausdurationen räknas från `paused_at` i telemetrin, inte från när appen först såg overriden.
+
 ### Kontrollpanelen (mobil)
 
 Ett tryck på tankkortet öppnar en bottom sheet (Sheet på mobil, befintlig dialog på desktop/TV).
@@ -66,14 +68,14 @@ Ingen tillståndsmaskin. Efter skrivning visas "Skickat 14:32" under panelen. St
 
 ## Filer som berörs
 
-- migration: de fyra kolumnändringarna ovan
+- migration: kolumnändringarna ovan (inkl. `pi_live_state.paused_at`)
 - `supabase/functions/pi-control/index.ts` — nullbar `target_temp`, `commanded_at` i svaret
-- `supabase/functions/pi-telemetry/index.ts` — ta emot och skriva `target_source` + `effective_target`
+- `supabase/functions/pi-telemetry/index.ts` — ta emot och skriva `target_source`, `effective_target`, `paused_at`
 - `src/hooks/use-controller-dialog.ts` — läsa nya fälten, realtidsprenumeration, skrivfunktioner (sätt mål / släpp / på-av) med `commanded_at`
 - `src/components/RaptControllerDialog.tsx` — panelen, bekräftelsedialogen, mobil bottom sheet, "Skickat"-raden
 - `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet
 - `src/components/fermentation/FermentationSessionCompact.tsx`, `FermentationSessionMinimal.tsx`, `sessionStyles.ts` — overridevisning i profilrutan
-- `src/components/PiTankSettings.tsx` — behåller läge/på-av, men trestegskvittensen ersätts av samma källbaserade status
+- `src/components/PiTankSettings.tsx` — på/av **tas bort** här (panelen äger den, med bekräftelse); lägesväljaren blir kvar och trestegskvittensen ersätts av samma källbaserade status
 
 ## Acceptanskriterier
 
@@ -83,3 +85,18 @@ Ingen tillståndsmaskin. Efter skrivning visas "Skickat 14:32" under panelen. St
 4. Avstängning kräver bekräftelse med tankens namn
 5. Utan nät: åldern stiger i appen, inget dubbelverkställs när nätet kommer tillbaka
 6. Ingen ny kolumn i `pi_setpoint` utöver `commanded_at`
+7. Byte av läge (t.ex. "både" → "bara kyla") ändrar inte målet och pausar inte profilen
+8. Pausduration och fryst progress överlever omladdning och nätavbrott (räknas från `paused_at`)
+
+## Databas, tillägg
+
+- `pi_live_state.paused_at timestamptz null`
+
+## Pi-sidan (utanför den här appen)
+
+Fyra saker, varav en är en befintlig bugg oavsett den här ändringen:
+
+1. **Per-fält-fingeravtryck** i stället för ett gemensamt `(target_temp, enabled, mode_allowed)`. I dag skriver ett lägesbyte in molnets gamla `target_temp` som manuell override och pausar profilen tyst. `target_temp` färsk vid ändrat `(värde, commanded_at)`, `enabled` och `mode_allowed` färska bara vid ändrat värde — och `mode_allowed` rör aldrig overriden.
+2. `target_temp: null` rensar den lokala overriden.
+3. `target_source` + `effective_target` i telemetrin, med `off` före `manual`.
+4. `session.paused_at` i telemetrin.
