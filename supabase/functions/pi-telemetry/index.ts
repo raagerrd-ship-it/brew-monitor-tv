@@ -62,6 +62,18 @@ Deno.serve(async (req) => {
   // orört), fältet är null/tomt = värdet finns inte längre (rensa).
   const has = (o: any, k: string) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
+  // Pi:n äger dessa tre läsfält. Saknas fältet = orört (undefined utelämnas i
+  // upserten), null = rensa.
+  function overrideFields(d: any): Record<string, any> {
+    const p: Record<string, any> = {};
+    if (has(d, "target_source")) p.target_source = d.target_source ?? null;
+    if (has(d, "effective_target")) {
+      p.effective_target = d.effective_target != null ? Number(d.effective_target) : null;
+    }
+    if (has(d, "paused_at")) p.paused_at = d.paused_at ?? null;
+    return p;
+  }
+
   async function writeBackToController(d: any) {
     // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
     // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
