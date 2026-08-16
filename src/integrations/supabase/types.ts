@@ -791,6 +791,7 @@ export type Database = {
           cooling_relay_on: boolean
           created_at: string
           duty_pct: number
+          effective_target: number | null
           enabled: boolean | null
           glycol_temp: number | null
           heating_relay_on: boolean
@@ -798,10 +799,12 @@ export type Database = {
           last_heartbeat: string
           mode: string | null
           mode_allowed: string | null
+          paused_at: string | null
           pid_terms: Json | null
           pump_started_at: string | null
           pump_stopped_at: string | null
           sensor_source: string | null
+          target_source: string | null
           target_temp: number | null
           updated_at: string
         }
@@ -813,6 +816,7 @@ export type Database = {
           cooling_relay_on?: boolean
           created_at?: string
           duty_pct?: number
+          effective_target?: number | null
           enabled?: boolean | null
           glycol_temp?: number | null
           heating_relay_on?: boolean
@@ -820,10 +824,12 @@ export type Database = {
           last_heartbeat?: string
           mode?: string | null
           mode_allowed?: string | null
+          paused_at?: string | null
           pid_terms?: Json | null
           pump_started_at?: string | null
           pump_stopped_at?: string | null
           sensor_source?: string | null
+          target_source?: string | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -835,6 +841,7 @@ export type Database = {
           cooling_relay_on?: boolean
           created_at?: string
           duty_pct?: number
+          effective_target?: number | null
           enabled?: boolean | null
           glycol_temp?: number | null
           heating_relay_on?: boolean
@@ -842,10 +849,12 @@ export type Database = {
           last_heartbeat?: string
           mode?: string | null
           mode_allowed?: string | null
+          paused_at?: string | null
           pid_terms?: Json | null
           pump_started_at?: string | null
           pump_stopped_at?: string | null
           sensor_source?: string | null
+          target_source?: string | null
           target_temp?: number | null
           updated_at?: string
         }
@@ -853,6 +862,7 @@ export type Database = {
       }
       pi_setpoint: {
         Row: {
+          commanded_at: string | null
           controller_id: string
           created_at: string
           enabled: boolean
@@ -867,10 +877,11 @@ export type Database = {
           pwm_period_s: number
           set_at: string
           set_by: string
-          target_temp: number
+          target_temp: number | null
           updated_at: string
         }
         Insert: {
+          commanded_at?: string | null
           controller_id: string
           created_at?: string
           enabled?: boolean
@@ -885,10 +896,11 @@ export type Database = {
           pwm_period_s?: number
           set_at?: string
           set_by?: string
-          target_temp: number
+          target_temp?: number | null
           updated_at?: string
         }
         Update: {
+          commanded_at?: string | null
           controller_id?: string
           created_at?: string
           enabled?: boolean
@@ -903,7 +915,7 @@ export type Database = {
           pwm_period_s?: number
           set_at?: string
           set_by?: string
-          target_temp?: number
+          target_temp?: number | null
           updated_at?: string
         }
         Relationships: []
