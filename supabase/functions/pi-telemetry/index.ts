@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
   async function getSlimSetpointResponse() {
     const { data: sp } = await supabase
       .from("pi_setpoint")
-      .select("controller_id, target_temp, params_version")
+      .select("controller_id, target_temp, commanded_at, params_version")
       .like("controller_id", `${controller_id}%`)
       .maybeSingle();
     if (!sp) return null;
