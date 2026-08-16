@@ -29,7 +29,16 @@ Tar emot `target_source` och `effective_target` i både live och rollup och skri
 ### Tankkortet (TV + mobil)
 
 - **Ålder på mätvärdet** bredvid temperaturen: "2 min sedan" normalt, markerad över 5 min, och över 15 min visas själva temperaturen som opålitlig (dämpad + varningsmarkering).
-- **Etikett när `target_source` inte är `profile`**: "Manuellt 6,5°" eller "AV". Diskret men läsbar på håll.
+
+### Override i profilrutan (TV)
+
+När `target_source` inte är `profile` tar jäsprofilrutan över som overridemarkör — samma yta som redan drar blicken, inget nytt element:
+
+- Rutan byter färg från profilgrönt till bärnsten (manuellt) respektive dämpat rött (AV), med markerad ram.
+- Rubriken byts från stegnamnet till **"MANUELLT 6,5°"** eller **"AVSTÄNGD"**, i samma storlek som stegetiketten så det är läsbart från soffan.
+- Under rubriken, mindre text: vilket profilsteg som är pausat och hur länge overriden varit aktiv ("Pausad: Diacetylvila · 25 min"). Stegets progress fryser visuellt i stället för att fortsätta räkna.
+- Kör ingen profil alls visas bara "MANUELLT 6,5°" / "AVSTÄNGD" utan pausrad.
+- Rutan är ren statusvisning på TV — alla ändringar sker från mobilpanelen.
 
 ### Kontrollpanelen (mobil)
 
@@ -58,7 +67,8 @@ Ingen tillståndsmaskin. Efter skrivning visas "Skickat 14:32" under panelen. St
 - `supabase/functions/pi-telemetry/index.ts` — ta emot och skriva `target_source` + `effective_target`
 - `src/hooks/use-controller-dialog.ts` — läsa nya fälten, realtidsprenumeration, skrivfunktioner (sätt mål / släpp / på-av) med `commanded_at`
 - `src/components/RaptControllerDialog.tsx` — panelen, bekräftelsedialogen, mobil bottom sheet, "Skickat"-raden
-- `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet + källetikett
+- `src/components/brew-card/TempStat.tsx` — ålder på mätvärdet
+- `src/components/fermentation/FermentationSessionCompact.tsx`, `FermentationSessionMinimal.tsx`, `sessionStyles.ts` — overridevisning i profilrutan
 - `src/components/PiTankSettings.tsx` — behåller läge/på-av, men trestegskvittensen ersätts av samma källbaserade status
 
 ## Acceptanskriterier
