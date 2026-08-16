@@ -10,6 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { ControllerTempChart } from './controller-chart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
+import { PiRemoteControl } from './PiRemoteControl';
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
 import { useControllerDialog } from '@/hooks';
 import { getDisplayTarget } from '@/lib/temp-display';
@@ -113,6 +114,17 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
         <div className="space-y-4">
           {/* Minimal Fermentation Session Status */}
           {!isCooler && <FermentationSessionMinimal controllerId={controller.controller_id} />}
+
+          {/* Fjärrstyrning — Pi:n är master, molnet uttrycker avsikt */}
+          {isAuthenticated && isPi && !isCooler && (
+            <PiRemoteControl
+              controllerId={controller.controller_id}
+              controllerName={controller.name}
+              minTemp={currentController.min_target_temp}
+              maxTemp={currentController.max_target_temp}
+              currentTarget={actualTarget}
+            />
+          )}
 
           {/* PID-motor toggle */}
           {isAuthenticated && !isCooler && !isPi && (
