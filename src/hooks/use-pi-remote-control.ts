@@ -9,6 +9,7 @@ export interface PiRemoteState {
   pausedAt: string | null;
   enabled: boolean | null;
   lastHeartbeat: string | null;
+  piTarget: number | null;
 }
 
 /**
@@ -17,7 +18,7 @@ export interface PiRemoteState {
  */
 export function usePiRemoteControl(controllerId: string, active = true) {
   const [state, setState] = useState<PiRemoteState>({
-    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null,
+    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null,
   });
   const [commandedAt, setCommandedAt] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -34,15 +35,18 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         pausedAt: row.paused_at ?? null,
         enabled: row.enabled ?? null,
         lastHeartbeat: row.last_heartbeat ?? null,
+        piTarget: row.target_temp != null ? Number(row.target_temp) : null,
       });
     };
 
+    // Pi:n skriver ibland kort 8-teckens id — matcha båda formerna.
+    const shortId = controllerId.slice(0, 8);
     supabase
       .from('pi_live_state')
-      .select('target_source, effective_target, paused_at, enabled, last_heartbeat')
-      .eq('controller_id', controllerId)
-      .maybeSingle()
-      .then(({ data }) => apply(data));
+      .select('target_source, effective_target, paused_at, enabled, last_heartbeat, target_temp, controller_id')
+      .like('controller_id', `${shortId}%`)
+      .limit(1)
+      .then(({ data }) => apply(data?.[0]));
 
     supabase
       .from('pi_setpoint')
@@ -55,8 +59,10 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       .channel(`pi-remote-${controllerId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'pi_live_state',
-        filter: `controller_id=eq.${controllerId}`,
-      }, (payload) => apply(payload.new))
+      }, (payload) => {
+        const rowId = String((payload.new as any)?.controller_id ?? '');
+        if (rowId.slice(0, 8) === shortId) apply(payload.new);
+      })
       .subscribe();
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
