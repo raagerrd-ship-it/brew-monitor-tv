@@ -22,7 +22,11 @@ Utelämnat fält = ingen ändring. `null` = rensa. Den skillnaden är hela poän
 
 ## Pi → moln (`pi-telemetry`)
 
-Tar emot `target_source` och `effective_target` i både live och rollup och skriver dem till `pi_live_state`. Samma regel som redan gäller i funktionen: fält som saknas lämnas orörda, null rensar. Bara Pi:n skriver dem.
+Tar emot `target_source`, `effective_target` och `paused_at` i både live och rollup och skriver dem till `pi_live_state`. Samma regel som redan gäller i funktionen: fält som saknas lämnas orörda, null rensar. Bara Pi:n skriver dem.
+
+`paused_at` är Pi:ns egen tidsstämpel för när profilen pausades. Utan den kan appen bara räkna från när *den* såg `target_source` bli `manual`, vilket börjar om vid omladdning och nätavbrott — samma buggklass som TV:n som inte rensade efter avslutad profil.
+
+Prioritet i visningen: `off` vinner över `manual`. Är tanken avstängd med ett manuellt mål satt är källan `off`. Pi:n avgör, appen visar bara.
 
 ## Frontend
 
