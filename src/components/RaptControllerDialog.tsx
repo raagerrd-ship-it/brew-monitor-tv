@@ -173,17 +173,17 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             
             <div 
               className={`bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30 transition-all ${
-                isAuthenticated && !hasActiveSession && !isCooler ? 'cursor-pointer hover:bg-muted/50 hover:border-primary/30' : ''
+                isAuthenticated && !hasActiveSession && !isCooler && !isPi ? 'cursor-pointer hover:bg-muted/50 hover:border-primary/30' : ''
               }`}
               onClick={() => {
-                if (isAuthenticated && !hasActiveSession && !isCooler) {
+                if (isAuthenticated && !hasActiveSession && !isCooler && !isPi) {
                   setShowTempAdjust(!showTempAdjust);
                 }
               }}
             >
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs text-muted-foreground">Mål</p>
-                {isAuthenticated && !hasActiveSession && !isCooler && (
+                {isAuthenticated && !hasActiveSession && !isCooler && !isPi && (
                   <Pencil className="w-3 h-3 text-muted-foreground/50" />
                 )}
               </div>
@@ -208,7 +208,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           </div>
 
           {/* Temperature adjustment */}
-          {isAuthenticated && showTempAdjust && !hasActiveSession && !isCooler && (
+          {isAuthenticated && showTempAdjust && !hasActiveSession && !isCooler && !isPi && (
             <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30 animate-fade-in">
               <div className="flex items-center justify-between">
                 <Label htmlFor="target-temp" className="text-xs font-medium text-muted-foreground">
