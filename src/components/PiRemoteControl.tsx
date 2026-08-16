@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Power, Hand, Play, Cpu } from 'lucide-react';
+import { Loader2, Power, Hand, Play, Cpu, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { usePiRemoteControl } from '@/hooks/use-pi-remote-control';
@@ -23,10 +23,12 @@ export function PiRemoteControl({
   const remote = usePiRemoteControl(controllerId);
   const [temp, setTemp] = useState<number>(currentTarget != null ? Math.round(currentTarget * 2) / 2 : 12);
   const [confirmOff, setConfirmOff] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // "Av" vinner alltid över "manuellt" i visningen.
   const source = remote.enabled === false ? 'off' : remote.targetSource;
   const isRemote = source === 'manual' || source === 'off';
+  const showControls = isRemote || expanded;
   const shownTarget = remote.effectiveTarget ?? remote.piTarget ?? currentTarget ?? null;
 
   const statusStyle = source === 'off'
@@ -92,6 +94,13 @@ export function PiRemoteControl({
         )}
       </div>
 
+      {!showControls && (
+        <Button size="sm" variant="outline" className="w-full" onClick={() => setExpanded(true)}>
+          <Hand className="w-3.5 h-3.5 mr-1" />Ta över manuellt
+        </Button>
+      )}
+
+      {showControls && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">Manuellt mål</Label>
@@ -125,7 +134,9 @@ export function PiRemoteControl({
           </Button>
         </div>
       </div>
+      )}
 
+      {showControls && (
       <div className="pt-1 border-t border-border/30">
         {remote.enabled === false ? (
           <Button
@@ -156,6 +167,13 @@ export function PiRemoteControl({
           </Button>
         )}
       </div>
+      )}
+
+      {showControls && !isRemote && (
+        <Button size="sm" variant="ghost" className="w-full text-muted-foreground" onClick={() => setExpanded(false)}>
+          <ChevronDown className="w-3.5 h-3.5 mr-1 rotate-180" />Dölj
+        </Button>
+      )}
     </div>
   );
 }
