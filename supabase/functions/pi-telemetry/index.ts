@@ -122,7 +122,10 @@ Deno.serve(async (req) => {
   }
 
   // ── Profil-/metrics-state från Pi:ns profilmotor (Pi äger sanningen) ──
-  async function writeProfileState(p: any, fullId?: string | null) {
+  async function writeProfileState(d: any, fullId?: string | null) {
+    // Saknas fältet helt vet vi ingenting — rör inte lagrat state.
+    if (!has(d, "profile")) return;
+    const p = d.profile;
     // profile: null betyder "sessionen är avslutad" — inte "inget nytt".
     // Städa bort kvarvarande running-sessioner för tanken.
     if (!p) {
@@ -137,7 +140,7 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("controller_id", fullId)
-        .eq("status", "running");
+        .in("status", ["running", "paused"]);
       if (error) console.error("profile clear failed:", error.message);
       return;
     }
@@ -165,8 +168,18 @@ Deno.serve(async (req) => {
     if (error) console.error("profile state write failed:", error.message);
   }
 
-  async function writeMetrics(brewId: string | null | undefined, m: any) {
-    if (!brewId || !m) return;
+  async function writeMetrics(brewId: string | null | undefined, d: any) {
+    if (!brewId || !has(d, "metrics")) return;
+    const m = d.metrics;
+    // metrics: null = det finns inga mätvärden längre → rensa lagrad rad.
+    if (!m) {
+      const { error } = await supabase
+        .from("brew_fermentation_metrics")
+        .delete()
+        .eq("brew_id", brewId);
+      if (error) console.error("metrics clear failed:", error.message);
+      return;
+    }
     const row: Record<string, any> = {
       brew_id: brewId,
       fermentation_phase: m.fermentation_phase ?? "unknown",
