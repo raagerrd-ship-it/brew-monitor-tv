@@ -32,10 +32,19 @@ export function PiRemoteControl({
   const showControls = isRemote || expanded;
   const shownTarget = remote.effectiveTarget ?? remote.piTarget ?? currentTarget ?? null;
 
+  const commandedTarget = remote.commandedTarget;
+  const commandedEnabled = remote.commandedEnabled;
+  const isPending = remote.pending;
+  const targetWillChange = isPending && commandedTarget != null && shownTarget != null && Math.abs(commandedTarget - shownTarget) >= 0.1;
+  const releasingToProfile = isPending && commandedTarget == null && source === 'manual';
+  const turningOff = isPending && commandedEnabled === false;
+  const anyPending = isPending && (targetWillChange || releasingToProfile || turningOff || commandedTarget != null);
+
   // Följ Pi:ns verkliga mål tills användaren själv rört reglaget.
   useEffect(() => {
     if (!touched.current && shownTarget != null) setTemp(Math.round(shownTarget * 2) / 2);
   }, [shownTarget]);
+
 
   const statusStyle = source === 'off'
     ? { hue: '0 72% 55%', title: 'AVSTÄNGD', sub: 'Fjärrstyrd av dig — ingen reglering' }
