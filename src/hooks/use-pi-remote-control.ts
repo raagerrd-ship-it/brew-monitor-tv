@@ -10,6 +10,8 @@ export interface PiRemoteState {
   enabled: boolean | null;
   lastHeartbeat: string | null;
   piTarget: number | null;
+  commandedTarget: number | null;
+  commandedEnabled: boolean | null;
 }
 
 /**
@@ -18,10 +20,11 @@ export interface PiRemoteState {
  */
 export function usePiRemoteControl(controllerId: string, active = true) {
   const [state, setState] = useState<PiRemoteState>({
-    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null,
+    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null, commandedTarget: null, commandedEnabled: null,
   });
   const [commandedAt, setCommandedAt] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
 
   useEffect(() => {
     if (!active || !controllerId) return;
@@ -29,15 +32,27 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
     const apply = (row: any) => {
       if (!row || cancelled) return;
-      setState({
+      setState((prev) => ({
+        ...prev,
         targetSource: (row.target_source ?? null) as TargetSource,
         effectiveTarget: row.effective_target != null ? Number(row.effective_target) : null,
         pausedAt: row.paused_at ?? null,
         enabled: row.enabled ?? null,
         lastHeartbeat: row.last_heartbeat ?? null,
         piTarget: row.target_temp != null ? Number(row.target_temp) : null,
-      });
+      }));
     };
+
+    const applySetpoint = (row: any) => {
+      if (!row || cancelled) return;
+      setState((prev) => ({
+        ...prev,
+        commandedTarget: row.target_temp != null ? Number(row.target_temp) : null,
+        commandedEnabled: row.enabled ?? null,
+      }));
+      setCommandedAt(row.commanded_at ?? null);
+    };
+
 
     // Pi:n skriver ibland kort 8-teckens id — matcha båda formerna.
     const shortId = controllerId.slice(0, 8);
@@ -50,10 +65,10 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
     supabase
       .from('pi_setpoint')
-      .select('commanded_at')
+      .select('commanded_at, target_temp, enabled')
       .eq('controller_id', controllerId)
       .maybeSingle()
-      .then(({ data }) => { if (!cancelled) setCommandedAt((data as any)?.commanded_at ?? null); });
+      .then(({ data }) => { if (!cancelled) applySetpoint(data); });
 
     const channel = supabase
       .channel(`pi-remote-${controllerId}`)
@@ -63,7 +78,14 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         const rowId = String((payload.new as any)?.controller_id ?? '');
         if (rowId.slice(0, 8) === shortId) apply(payload.new);
       })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'pi_setpoint',
+      }, (payload) => {
+        const rowId = String((payload.new as any)?.controller_id ?? '');
+        if (rowId === controllerId) applySetpoint(payload.new);
+      })
       .subscribe();
+
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [controllerId, active]);

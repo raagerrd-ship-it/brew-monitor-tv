@@ -32,10 +32,19 @@ export function PiRemoteControl({
   const showControls = isRemote || expanded;
   const shownTarget = remote.effectiveTarget ?? remote.piTarget ?? currentTarget ?? null;
 
+  const commandedTarget = remote.commandedTarget;
+  const commandedEnabled = remote.commandedEnabled;
+  const isPending = remote.pending;
+  const targetWillChange = isPending && commandedTarget != null && shownTarget != null && Math.abs(commandedTarget - shownTarget) >= 0.1;
+  const releasingToProfile = isPending && commandedTarget == null && source === 'manual';
+  const turningOff = isPending && commandedEnabled === false;
+  const anyPending = isPending && (targetWillChange || releasingToProfile || turningOff || commandedTarget != null);
+
   // Följ Pi:ns verkliga mål tills användaren själv rört reglaget.
   useEffect(() => {
     if (!touched.current && shownTarget != null) setTemp(Math.round(shownTarget * 2) / 2);
   }, [shownTarget]);
+
 
   const statusStyle = source === 'off'
     ? { hue: '0 72% 55%', title: 'AVSTÄNGD', sub: 'Fjärrstyrd av dig — ingen reglering' }
@@ -57,7 +66,7 @@ export function PiRemoteControl({
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs text-muted-foreground">Fjärrstyrning</Label>
         <span className="text-[10px] text-muted-foreground/70">
-          {remote.pending
+          {anyPending
             ? 'Skickat — väntar på Pi:n…'
             : remote.commandedAt
               ? `Kvitterat ${formatDistanceToNow(new Date(remote.commandedAt), { addSuffix: true, locale: sv })}`
@@ -70,14 +79,21 @@ export function PiRemoteControl({
         style={{
           background: `hsl(${statusStyle.hue} / 0.12)`,
           border: `1px solid hsl(${statusStyle.hue} / 0.45)`,
-          opacity: remote.pending ? 0.5 : 1,
+          opacity: anyPending ? 0.7 : 1,
+          animation: anyPending ? 'pulse-border 1.5s ease-in-out infinite' : undefined,
         }}
       >
+        <style>{`
+          @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 hsl(${statusStyle.hue} / 0.35); }
+            50% { box-shadow: 0 0 0 4px hsl(${statusStyle.hue} / 0); }
+          }
+        `}</style>
         <div
           className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
           style={{ background: `hsl(${statusStyle.hue} / 0.18)` }}
         >
-          {remote.pending
+          {anyPending
             ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: `hsl(${statusStyle.hue})` }} />
             : source === 'off'
             ? <Power className="w-4 h-4" style={{ color: `hsl(${statusStyle.hue})` }} />
@@ -90,21 +106,32 @@ export function PiRemoteControl({
             {statusStyle.title}
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
-            {remote.pending ? 'Väntar på Pi:ns kvittens…' : statusStyle.sub}
-            {isRemote && remote.pausedAt
+            {anyPending
+              ? (releasingToProfile
+                ? 'Väntar på Pi:n — återgår till profilstyrning…'
+                : turningOff
+                  ? 'Väntar på Pi:n — stänger av reglering…'
+                  : `Väntar på Pi:n — byter mål till ${commandedTarget?.toFixed(1) ?? '?'}°…`)
+              : statusStyle.sub}
+            {isRemote && remote.pausedAt && !anyPending
               ? ` · ${formatDistanceToNow(new Date(remote.pausedAt), { addSuffix: true, locale: sv })}`
               : ''}
           </div>
         </div>
         {source !== 'off' && shownTarget != null && (
           <div className="shrink-0 text-right leading-tight">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Reglerar mot</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {anyPending ? 'Byter till' : 'Reglerar mot'}
+            </div>
             <div className="text-base font-bold tabular-nums" style={{ color: `hsl(${statusStyle.hue})` }}>
-              {shownTarget.toFixed(1)}°
+              {targetWillChange
+                ? `${shownTarget.toFixed(1)}° → ${commandedTarget?.toFixed(1)}°`
+                : `${shownTarget.toFixed(1)}°`}
             </div>
           </div>
         )}
       </div>
+
 
       {!showControls && (
         <Button size="sm" variant="outline" className="w-full" onClick={() => setExpanded(true)}>
