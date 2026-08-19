@@ -32,15 +32,27 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
     const apply = (row: any) => {
       if (!row || cancelled) return;
-      setState({
+      setState((prev) => ({
+        ...prev,
         targetSource: (row.target_source ?? null) as TargetSource,
         effectiveTarget: row.effective_target != null ? Number(row.effective_target) : null,
         pausedAt: row.paused_at ?? null,
         enabled: row.enabled ?? null,
         lastHeartbeat: row.last_heartbeat ?? null,
         piTarget: row.target_temp != null ? Number(row.target_temp) : null,
-      });
+      }));
     };
+
+    const applySetpoint = (row: any) => {
+      if (!row || cancelled) return;
+      setState((prev) => ({
+        ...prev,
+        commandedTarget: row.target_temp != null ? Number(row.target_temp) : null,
+        commandedEnabled: row.enabled ?? null,
+      }));
+      setCommandedAt(row.commanded_at ?? null);
+    };
+
 
     // Pi:n skriver ibland kort 8-teckens id — matcha båda formerna.
     const shortId = controllerId.slice(0, 8);
