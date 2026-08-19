@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -22,6 +22,7 @@ export function PiRemoteControl({
   const { toast } = useToast();
   const remote = usePiRemoteControl(controllerId);
   const [temp, setTemp] = useState<number>(currentTarget != null ? Math.round(currentTarget * 2) / 2 : 12);
+  const touched = useRef(false);
   const [confirmOff, setConfirmOff] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -30,6 +31,11 @@ export function PiRemoteControl({
   const isRemote = source === 'manual' || source === 'off';
   const showControls = isRemote || expanded;
   const shownTarget = remote.effectiveTarget ?? remote.piTarget ?? currentTarget ?? null;
+
+  // Följ Pi:ns verkliga mål tills användaren själv rört reglaget.
+  useEffect(() => {
+    if (!touched.current && shownTarget != null) setTemp(Math.round(shownTarget * 2) / 2);
+  }, [shownTarget]);
 
   const statusStyle = source === 'off'
     ? { hue: '0 72% 55%', title: 'Avstängd', sub: 'Fjärrstyrd — regleringen är av' }
@@ -60,10 +66,11 @@ export function PiRemoteControl({
       </div>
 
       <div
-        className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 transition-opacity"
         style={{
           background: `hsl(${statusStyle.hue} / 0.12)`,
           border: `1px solid hsl(${statusStyle.hue} / 0.45)`,
+          opacity: remote.pending ? 0.5 : 1,
         }}
       >
         <div
@@ -81,7 +88,7 @@ export function PiRemoteControl({
             {statusStyle.title}
           </div>
           <div className="text-[10px] text-muted-foreground truncate">
-            {statusStyle.sub}
+            {remote.pending ? 'Väntar på Pi:ns kvittens…' : statusStyle.sub}
             {isRemote && remote.pausedAt
               ? ` · ${formatDistanceToNow(new Date(remote.pausedAt), { addSuffix: true, locale: sv })}`
               : ''}
@@ -111,7 +118,7 @@ export function PiRemoteControl({
           max={maxTemp ?? 25}
           step={0.5}
           value={[temp]}
-          onValueChange={(v) => setTemp(v[0])}
+          onValueChange={(v) => { touched.current = true; setTemp(v[0]); }}
           disabled={remote.sending}
         />
         <div className="flex gap-2">
