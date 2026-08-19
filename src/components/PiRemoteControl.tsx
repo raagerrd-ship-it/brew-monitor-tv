@@ -38,10 +38,10 @@ export function PiRemoteControl({
   }, [shownTarget]);
 
   const statusStyle = source === 'off'
-    ? { hue: '0 72% 55%', title: 'Avstängd', sub: 'Fjärrstyrd — regleringen är av' }
+    ? { hue: '0 72% 55%', title: 'AVSTÄNGD', sub: 'Fjärrstyrd av dig — ingen reglering' }
     : source === 'manual'
-      ? { hue: '38 92% 55%', title: 'Fjärrstyrd — manuellt mål', sub: 'Profilen är pausad tills du återgår' }
-      : { hue: '150 55% 48%', title: 'Pi:n styr', sub: 'Profilstyrd lokalt på Raspberry Pi:n' };
+      ? { hue: '38 92% 55%', title: 'MANUELLT MÅL', sub: 'Fjärrstyrd av dig · profilen pausad' }
+      : { hue: '150 55% 48%', title: 'PI:N STYR', sub: 'Profilen kör lokalt på Pi:n' };
 
   const run = async (fn: () => Promise<void>, msg: string) => {
     try {
@@ -66,7 +66,7 @@ export function PiRemoteControl({
       </div>
 
       <div
-        className="flex items-center gap-2.5 rounded-lg px-3 py-2 transition-opacity"
+        className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-opacity"
         style={{
           background: `hsl(${statusStyle.hue} / 0.12)`,
           border: `1px solid hsl(${statusStyle.hue} / 0.45)`,
@@ -74,20 +74,22 @@ export function PiRemoteControl({
         }}
       >
         <div
-          className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
           style={{ background: `hsl(${statusStyle.hue} / 0.18)` }}
         >
-          {source === 'off'
-            ? <Power className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />
+          {remote.pending
+            ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: `hsl(${statusStyle.hue})` }} />
+            : source === 'off'
+            ? <Power className="w-4 h-4" style={{ color: `hsl(${statusStyle.hue})` }} />
             : source === 'manual'
-              ? <Hand className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />
-              : <Cpu className="w-3.5 h-3.5" style={{ color: `hsl(${statusStyle.hue})` }} />}
+              ? <Hand className="w-4 h-4" style={{ color: `hsl(${statusStyle.hue})` }} />
+              : <Cpu className="w-4 h-4" style={{ color: `hsl(${statusStyle.hue})` }} />}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold truncate" style={{ color: `hsl(${statusStyle.hue})` }}>
+          <div className="text-sm font-bold tracking-wide truncate" style={{ color: `hsl(${statusStyle.hue})` }}>
             {statusStyle.title}
           </div>
-          <div className="text-[10px] text-muted-foreground truncate">
+          <div className="text-[11px] text-muted-foreground truncate">
             {remote.pending ? 'Väntar på Pi:ns kvittens…' : statusStyle.sub}
             {isRemote && remote.pausedAt
               ? ` · ${formatDistanceToNow(new Date(remote.pausedAt), { addSuffix: true, locale: sv })}`
@@ -95,9 +97,12 @@ export function PiRemoteControl({
           </div>
         </div>
         {source !== 'off' && shownTarget != null && (
-          <span className="text-sm font-bold tabular-nums shrink-0" style={{ color: `hsl(${statusStyle.hue})` }}>
-            {shownTarget.toFixed(1)}°
-          </span>
+          <div className="shrink-0 text-right leading-tight">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Reglerar mot</div>
+            <div className="text-base font-bold tabular-nums" style={{ color: `hsl(${statusStyle.hue})` }}>
+              {shownTarget.toFixed(1)}°
+            </div>
+          </div>
         )}
       </div>
 
