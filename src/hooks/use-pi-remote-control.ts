@@ -10,6 +10,8 @@ export interface PiRemoteState {
   enabled: boolean | null;
   lastHeartbeat: string | null;
   piTarget: number | null;
+  commandedTarget: number | null;
+  commandedEnabled: boolean | null;
 }
 
 /**
@@ -18,10 +20,11 @@ export interface PiRemoteState {
  */
 export function usePiRemoteControl(controllerId: string, active = true) {
   const [state, setState] = useState<PiRemoteState>({
-    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null,
+    targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null, commandedTarget: null, commandedEnabled: null,
   });
   const [commandedAt, setCommandedAt] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
 
   useEffect(() => {
     if (!active || !controllerId) return;
