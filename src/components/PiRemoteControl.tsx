@@ -115,7 +115,7 @@ export function PiRemoteControl({
       {showControls && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">Manuellt mål</Label>
+          <Label className="text-xs text-muted-foreground">Nytt manuellt mål</Label>
           <span className="text-sm font-bold text-primary tabular-nums">{temp.toFixed(1)}°</span>
         </div>
         <Slider
@@ -133,7 +133,7 @@ export function PiRemoteControl({
             disabled={remote.sending}
             onClick={() => run(() => remote.setManualTarget(temp), `${controllerName}: manuellt mål ${temp.toFixed(1)}° (profilen pausas)`)}
           >
-            {remote.sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Hand className="w-3.5 h-3.5 mr-1" />Sätt manuellt</>}
+            {remote.sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Hand className="w-3.5 h-3.5 mr-1" />Sätt {temp.toFixed(1)}°</>}
           </Button>
           <Button
             size="sm"
@@ -142,9 +142,14 @@ export function PiRemoteControl({
             disabled={remote.sending || source === 'profile'}
             onClick={() => run(() => remote.releaseToProfile(), `${controllerName}: tillbaka till profilstyrning`)}
           >
-            <Play className="w-3.5 h-3.5 mr-1" />Återgå
+            <Play className="w-3.5 h-3.5 mr-1" />Återgå till profil
           </Button>
         </div>
+        <p className="text-[10px] text-muted-foreground/80">
+          {source === 'profile'
+            ? 'Sätter du ett manuellt mål pausas profilen tills du återgår.'
+            : 'Profilen är pausad — “Återgå till profil” lämnar tillbaka styrningen till Pi:n.'}
+        </p>
       </div>
       )}
 
