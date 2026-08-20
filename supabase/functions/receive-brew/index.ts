@@ -17,7 +17,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  if (req.headers.get("x-brew-secret") !== SECRET) {
+  const provided = req.headers.get("x-brew-secret");
+  if (!provided || !SECRETS.includes(provided)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
