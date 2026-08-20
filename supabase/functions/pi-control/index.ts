@@ -112,8 +112,8 @@ Deno.serve(async (req) => {
   }
 
   if (!controllerId) {
-    // ── Pending brews: skickade från appen, ej kvitterade, max 24h gamla ──
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // ── Pending brews: skickade från appen, ej kvitterade, max 7 dygn gamla ──
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: pendingRows } = await supabase
       .from("brew_readings")
       .select("id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at, recipe")
