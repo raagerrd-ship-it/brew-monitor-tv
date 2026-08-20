@@ -1,7 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const SECRET = Deno.env.get("BREW_INGEST_SECRET")!;
+const SECRETS = [
+  Deno.env.get("BREW_INGEST_SECRET"),
+  Deno.env.get("BREW_INGEST_SECRET_2"),
+].filter(Boolean);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,7 +17,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  if (req.headers.get("x-brew-secret") !== SECRET) {
+  const provided = req.headers.get("x-brew-secret");
+  if (!provided || !SECRETS.includes(provided)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
