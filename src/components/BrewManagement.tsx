@@ -123,6 +123,34 @@ export function BrewManagement() {
         </div>
       </div>
 
+      {/* Kö till Jäscontrollern */}
+      {customBrews.filter(b => b.pi_pending_at).length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-muted-foreground">Väntar på Jäscontroller</h3>
+          <div className="grid gap-2">
+            {customBrews
+              .filter(b => b.pi_pending_at)
+              .map((brew) => (
+                <Card key={`pending-${brew.id}`} className="p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{brew.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        I kön sedan {new Date(brew.pi_pending_at!).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' })}
+                        {' · '}välj tank på Pi:n
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setPiPending(brew.id, false)}>
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Ta bort ur kön
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Custom brews section */}
       {customBrews.filter(b => b.status !== 'Arkiverad').length > 0 && (
         <div className="space-y-2">
