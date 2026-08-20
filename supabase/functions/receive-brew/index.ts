@@ -74,6 +74,13 @@ Deno.serve(async (req) => {
     pi_pending_at: new Date().toISOString(),
   };
 
+  // Fanns bryggen redan i kön? I så fall är det en omsändning och ska inte notifiera.
+  const { data: existing } = await supabase
+    .from("brew_readings")
+    .select("pi_pending_at")
+    .eq("batch_id", batchId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from("brew_readings")
     .upsert(row, { onConflict: "batch_id" })
@@ -81,6 +88,15 @@ Deno.serve(async (req) => {
     .single();
 
   if (error) return json({ error: error.message }, 400);
+
+  if (!existing?.pi_pending_at) {
+    await supabase.from("pending_notifications").insert({
+      type: "brew_pending",
+      title: "Ny brygg från Dashboard",
+      body: `${data.name} väntar på tank i Jäscontrollern`,
+      brew_id: data.id,
+    });
+  }
 
   return json({ ok: true, brew: data });
 });
