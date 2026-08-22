@@ -109,6 +109,12 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       } as any, { onConflict: 'controller_id' });
     setSending(false);
     if (error) throw error;
+    // Optimistisk kvittens så UI:t visar "väntar på Pi:n" direkt.
+    setState((prev) => ({
+      ...prev,
+      commandedTarget: 'target_temp' in patch ? (patch.target_temp as number | null) : prev.commandedTarget,
+      commandedEnabled: 'enabled' in patch ? (patch.enabled as boolean) : prev.commandedEnabled,
+    }));
     setCommandedAt(now);
   }, [controllerId]);
 
