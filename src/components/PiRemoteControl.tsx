@@ -155,12 +155,32 @@ export function PiRemoteControl({
 
 
       {!showControls && (
-        <Button size="sm" variant="outline" className="w-full" onClick={() => setExpanded(true)}>
-          <Hand className="w-3.5 h-3.5 mr-1" />Ta över manuellt
+        <Button size="sm" variant="outline" className="w-full" onClick={activateManual} disabled={remote.sending}>
+          {remote.sending && activatedAt != null
+            ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Aktiverar…</>
+            : <><Hand className="w-3.5 h-3.5 mr-1" />Ta över manuellt</>}
         </Button>
       )}
 
-      {showControls && (
+      {showControls && awaitingActivation && (
+        <div
+          className="rounded-lg px-3 py-3 text-sm text-center"
+          style={{
+            background: 'hsl(38 92% 55% / 0.12)',
+            border: '1px solid hsl(38 92% 55% / 0.45)',
+            animation: 'pulse-border 1.5s ease-in-out infinite',
+          }}
+        >
+          <div className="font-semibold" style={{ color: 'hsl(38 92% 55%)' }}>
+            Manuell styrning aktiverad
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Väntar på kvittens från Pi:n…
+          </div>
+        </div>
+      )}
+
+      {showControls && !awaitingActivation && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">Nytt manuellt mål</Label>
