@@ -25,6 +25,7 @@ export function PiRemoteControl({
   const touched = useRef(false);
   const [confirmOff, setConfirmOff] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [activatedAt, setActivatedAt] = useState<string | null>(null);
 
   // "Av" vinner alltid över "manuellt" i visningen.
   const source = remote.enabled === false ? 'off' : remote.targetSource;
@@ -40,10 +41,20 @@ export function PiRemoteControl({
   const turningOff = isPending && commandedEnabled === false;
   const anyPending = isPending && (targetWillChange || releasingToProfile || turningOff || commandedTarget != null);
 
+  // När användaren precis aktiverat manuellt läge men Pi:n inte kvitterat än.
+  const awaitingActivation = activatedAt != null && source !== 'manual' && isPending;
+
   // Följ Pi:ns verkliga mål tills användaren själv rört reglaget.
   useEffect(() => {
     if (!touched.current && shownTarget != null) setTemp(Math.round(shownTarget * 2) / 2);
   }, [shownTarget]);
+
+  // Lås upp kontrollerna när Pi:n bekräftat manuellt läge.
+  useEffect(() => {
+    if (source === 'manual' && activatedAt != null) {
+      setActivatedAt(null);
+    }
+  }, [source, activatedAt]);
 
 
   const statusStyle = source === 'off'
@@ -59,6 +70,16 @@ export function PiRemoteControl({
     } catch (e) {
       toast({ title: 'Kunde inte skicka', description: 'Kommandot nådde inte fram.', variant: 'destructive' });
     }
+  };
+
+  const activateManual = async () => {
+    const target = shownTarget ?? temp;
+    setActivatedAt(new Date().toISOString());
+    setExpanded(true);
+    await run(
+      () => remote.setManualTarget(target),
+      `${controllerName}: manuell styrning aktiverad, väntar på kvittens`,
+    );
   };
 
   return (
