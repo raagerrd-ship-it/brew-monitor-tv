@@ -56,22 +56,28 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
     // Pi:n skriver ibland kort 8-teckens id — matcha båda formerna.
     const shortId = controllerId.slice(0, 8);
-    supabase
-      .from('pi_live_state')
-      .select('target_source, effective_target, paused_at, enabled, last_heartbeat, target_temp, controller_id')
-      .like('controller_id', `${shortId}%`)
-      .limit(1)
-      .then(({ data }) => apply(data?.[0]));
 
-    supabase
-      .from('pi_setpoint')
-      .select('commanded_at, target_temp, enabled')
-      .eq('controller_id', controllerId)
-      .maybeSingle()
-      .then(({ data }) => { if (!cancelled) applySetpoint(data); });
+    const refetch = () => {
+      supabase
+        .from('pi_live_state')
+        .select('target_source, effective_target, paused_at, enabled, last_heartbeat, target_temp, controller_id')
+        .like('controller_id', `${shortId}%`)
+        .limit(1)
+        .then(({ data }) => apply(data?.[0]));
 
+      supabase
+        .from('pi_setpoint')
+        .select('commanded_at, target_temp, enabled')
+        .eq('controller_id', controllerId)
+        .maybeSingle()
+        .then(({ data }) => { if (!cancelled) applySetpoint(data); });
+    };
+
+    refetch();
+
+    // Unikt topic per instans — annars krockar flera komponenter om samma kanal.
     const channel = supabase
-      .channel(`pi-remote-${controllerId}`)
+      .channel(`pi-remote-${controllerId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'pi_live_state',
       }, (payload) => {
@@ -84,11 +90,14 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         const rowId = String((payload.new as any)?.controller_id ?? '');
         if (rowId === controllerId) applySetpoint(payload.new);
       })
-      .subscribe();
+      .subscribe((status) => { if (status === 'SUBSCRIBED') refetch(); });
 
+    // Fallback om realtime tappar bort sig — Pi:n hörs av var ~30 s.
+    const poll = window.setInterval(refetch, 15000);
 
-    return () => { cancelled = true; supabase.removeChannel(channel); };
+    return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(channel); };
   }, [controllerId, active]);
+
 
   // Kvittens: kommandot är bekräftat först när Pi:n hörts av efter att vi tryckte.
   const pending = commandedAt != null && (
