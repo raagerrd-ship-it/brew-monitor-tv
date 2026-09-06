@@ -88,6 +88,9 @@ export function DashboardHeader({
   // RAPT bar data — self-contained
   const { controllers, pills, piDisabled } = useRaptBarData();
 
+  // Sonos visibility drives header layout: chips grow when Sonos is hidden.
+  const [sonosVisible, setSonosVisible] = useState(true);
+
   // Alarm/Timer dialog state
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
   const { entry: alarmEntry } = useAlarmTimer();
@@ -160,7 +163,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -168,12 +171,21 @@ export function DashboardHeader({
           <>
             <div className="flex items-center flex-shrink-0 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
-            <div className="flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer', maxWidth: '220px' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-              <SonosWidget isMobile={false} variant="header" />
+            <div
+              className="flex items-center justify-center min-w-0 overflow-hidden"
+              style={{
+                cursor: isTvMode ? 'default' : 'pointer',
+                maxWidth: sonosVisible ? '220px' : '0px',
+                opacity: sonosVisible ? 1 : 0,
+                transition: 'max-width 400ms ease, opacity 300ms ease',
+              }}
+              onClick={isTvMode ? undefined : () => navigate('/')}
+            >
+              <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
@@ -247,6 +259,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
   isTvMode?: boolean;
   piDisabled?: Record<string, boolean>;
+  compact?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
@@ -270,6 +283,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false,
   piDisabled = {},
+  compact = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
@@ -377,11 +391,14 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div
                     className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
                     style={{
-                      width: isMobile ? (isCooler ? '132px' : '162px') : (isCooler ? '165px' : '195px'),
-                      height: isMobile ? '50px' : '56px',
+                      width: isMobile
+                        ? (isCooler ? (compact ? '118px' : '142px') : (compact ? '142px' : '172px'))
+                        : (isCooler ? (compact ? '145px' : '185px') : (compact ? '175px' : '220px')),
+                      height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '58px'),
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
-                      padding: isMobile ? '4px 10px 8px' : '5px 12px 9px',
+                      padding: isMobile ? (compact ? '3px 8px 7px' : '4px 10px 8px') : (compact ? '4px 10px 8px' : '5px 12px 9px'),
+                      transition: 'width 400ms ease, height 400ms ease, padding 400ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                     onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBgHover; } : undefined}

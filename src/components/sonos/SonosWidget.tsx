@@ -4,7 +4,6 @@ import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
-import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
@@ -41,11 +40,13 @@ function MarqueeText({ children }: { children: React.ReactNode }) {
 interface SonosWidgetProps {
   isMobile?: boolean;
   variant?: "floating" | "header";
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
   variant = "floating",
+  onVisibilityChange,
 }: SonosWidgetProps) {
   const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
@@ -113,6 +114,11 @@ export const SonosWidget = memo(function SonosWidget({
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
   });
 
+  // Report visibility to parent so the header can resize chips around us.
+  useEffect(() => {
+    onVisibilityChange?.(!shouldHide && !!nowPlaying);
+  }, [shouldHide, nowPlaying, onVisibilityChange]);
+
   // Send bg image on init when nowPlaying arrives with bg_image_url,
   // but never re-activate background while the widget is intentionally hidden.
   useEffect(() => {
@@ -156,7 +162,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   const isHeader = variant === "header";
 
-  if (isHidden) return isHeader ? <Logo /> : null;
+  if (isHidden) return null;
 
   // Header variant: transparent item matching RAPT controller-bar style
   if (isHeader) {
