@@ -186,8 +186,8 @@ export const SonosWidget = memo(function SonosWidget({
         {/* Progress bar — battery-bar style */}
         {nowPlaying.duration_ms && (
           <div className="absolute bottom-0 left-0 right-0 overflow-hidden" style={{
-            height: '3px',
-            background: 'hsl(var(--muted) / 0.5)',
+            height: '2px',
+            background: 'hsl(var(--muted) / 0.35)',
           }}>
             <div
               ref={progressBarRef}
