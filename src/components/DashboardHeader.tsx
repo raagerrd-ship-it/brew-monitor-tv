@@ -160,6 +160,7 @@ export function DashboardHeader({
                 />
               )}
 
+              <div className="self-center h-8 w-px mx-2 flex-shrink-0" style={{ background: 'hsl(var(--border))' }} />
               <Clock />
             </div>
           </>
