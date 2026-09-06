@@ -391,14 +391,18 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div
                     className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
                     style={{
+                      flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
                         ? (isCooler ? (compact ? '118px' : '142px') : (compact ? '142px' : '172px'))
-                        : (isCooler ? (compact ? '145px' : '185px') : (compact ? '175px' : '220px')),
+                        : undefined,
+                      minWidth: isMobile
+                        ? undefined
+                        : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
                       height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '58px'),
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
                       padding: isMobile ? (compact ? '3px 8px 7px' : '4px 10px 8px') : (compact ? '4px 10px 8px' : '5px 12px 9px'),
-                      transition: 'width 400ms ease, height 400ms ease, padding 400ms ease',
+                      transition: 'flex 400ms ease, width 400ms ease, height 400ms ease, padding 400ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                     onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBgHover; } : undefined}
