@@ -328,11 +328,11 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div
                     className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
                     style={{
-                      width: isMobile ? (isCooler ? '96px' : '124px') : (isCooler ? '118px' : '132px'),
-                      height: isMobile ? '42px' : '46px',
+                      width: isMobile ? (isCooler ? '120px' : '148px') : (isCooler ? '150px' : '176px'),
+                      height: isMobile ? '48px' : '54px',
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
-                      padding: isMobile ? '3px 8px 7px' : '4px 10px 8px',
+                      padding: isMobile ? '4px 10px 8px' : '5px 12px 9px',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                     onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBgHover; } : undefined}
