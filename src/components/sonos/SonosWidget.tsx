@@ -191,9 +191,12 @@ export const SonosWidget = memo(function SonosWidget({
           }}>
             <div
               ref={progressBarRef}
-              className="absolute top-0 bottom-0 left-0 bg-foreground/55"
+              className="absolute top-0 bottom-0 left-0"
               style={{
                 width: `${Math.max(progress, 0.5)}%`,
+                background: 'hsl(var(--foreground) / 0.55)',
+                opacity: 0.8,
+                boxShadow: '0 0 3px hsl(var(--foreground) / 0.4)',
               }}
             />
           </div>
