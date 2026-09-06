@@ -47,6 +47,7 @@ interface SonosWidgetProps {
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
   variant = "floating",
+  onVisibilityChange,
 }: SonosWidgetProps) {
   const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
