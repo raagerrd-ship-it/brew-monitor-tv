@@ -160,12 +160,14 @@ export function useBrewData(): UseBrewDataReturn {
       return [];
     }
 
+    const HIDDEN_STATUSES = ['Arkiverad', 'Klar', 'Completed', 'Konditionering', 'Conditioning'];
+
     const [brewReadingsRes, eventsRes, sessionsRes, metricsRes] = await Promise.all([
       supabase
         .from('brew_readings')
         .select('*')
         .in('id', activeBrewIds)
-        .neq('status', 'Arkiverad')
+        .not('status', 'in', `(${HIDDEN_STATUSES.map(s => `"${s}"`).join(',')})`)
         .order('created_at', { ascending: false }),
       supabase
         .from('brew_events')
