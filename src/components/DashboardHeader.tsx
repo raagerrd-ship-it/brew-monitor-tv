@@ -119,17 +119,17 @@ export function DashboardHeader({
           <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
         )}
 
-        {/* Desktop: Three-column layout */}
+        {/* Desktop: controllers left, Sonos center, actions + clock right */}
         {!isMobile && (
           <>
-            <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-              {(!isMobile || isTvMode) ? <SonosWidget isMobile={false} variant="header" /> : <Logo />}
-            </div>
-
-            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
+            <div className="flex items-center flex-shrink-0 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
                 <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
               )}
+            </div>
+
+            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
+              <SonosWidget isMobile={false} variant="header" />
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
