@@ -4,7 +4,6 @@ import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
-import { Logo } from "../Logo";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
