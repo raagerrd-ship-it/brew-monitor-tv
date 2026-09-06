@@ -8,7 +8,7 @@ import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
-function MarqueeText({ children }: { children: React.ReactNode }) {
+function MarqueeText({ children, className }: { children: React.ReactNode; className?: string }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -22,7 +22,7 @@ function MarqueeText({ children }: { children: React.ReactNode }) {
   }, [children]);
 
   return (
-    <div ref={outerRef} className="overflow-hidden text-foreground" style={{ fontSize: '14px' }}>
+    <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>
       <div
         ref={innerRef}
         className="whitespace-nowrap inline-block"
