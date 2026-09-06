@@ -632,6 +632,14 @@ export function useBrewData(): UseBrewDataReturn {
       }
 
 
+      // Ett öl som bytt status till dolt läge (Klar/Konditionering/Arkiverad)
+      // ska försvinna direkt — inte först vid nästa omladdning.
+      const HIDDEN_RT = ['Arkiverad', 'Klar', 'Completed', 'Konditionering', 'Conditioning'];
+      if (updatedReading.status && HIDDEN_RT.includes(updatedReading.status)) {
+        setBrews(prevBrews => prevBrews.filter(brew => brew.batch_id !== updatedReading.batch_id));
+        return;
+      }
+
       setBrews(prevBrews =>
         prevBrews.map(brew => {
           if (brew.batch_id === updatedReading.batch_id) {
