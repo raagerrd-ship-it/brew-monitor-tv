@@ -174,13 +174,17 @@ export const SonosWidget = memo(function SonosWidget({
       <div
         className="relative flex min-w-0 flex-1 flex-col justify-center px-5 pb-2 pt-1.5 bg-transparent"
       >
-        <span className="mb-0.5 text-[9px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.1em' }}>
+        <span className="mb-0.5 uppercase font-bold truncate" style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'hsl(var(--muted-foreground))' }}>
           Spelar nu
         </span>
         <MarqueeText>
-          {nowPlaying.artist_name && <span ref={artistNameRef} className="font-semibold">{nowPlaying.artist_name}</span>}
+          {nowPlaying.artist_name && (
+            <span ref={artistNameRef} className="font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '15px', lineHeight: 1.2, color: 'hsl(0 0% 95%)', textShadow: '0 0 8px hsl(var(--foreground) / 0.25)' }}>
+              {nowPlaying.artist_name}
+            </span>
+          )}
           {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-muted-foreground font-normal"> — </span>}
-          <span ref={trackNameRef} className="text-muted-foreground font-normal">{nowPlaying.track_name}</span>
+          <span ref={trackNameRef} className="text-muted-foreground" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{nowPlaying.track_name}</span>
         </MarqueeText>
 
         {/* Progress bar — battery-bar style */}
