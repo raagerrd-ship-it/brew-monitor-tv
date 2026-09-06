@@ -172,35 +172,43 @@ export const SonosWidget = memo(function SonosWidget({
 
     return (
       <div
-        className="relative flex min-w-0 flex-1 flex-col justify-center px-5 pb-2 pt-1.5 bg-transparent"
+        className="relative flex min-w-0 flex-1 flex-col justify-center bg-transparent"
+        style={{ padding: '5px 18px 9px' }}
       >
-        <span className="mb-0.5 uppercase font-bold truncate" style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'hsl(var(--muted-foreground))' }}>
-          Spelar nu
-        </span>
-        <MarqueeText>
-          {nowPlaying.artist_name && (
-            <span ref={artistNameRef} className="font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '15px', lineHeight: 1.2, color: 'hsl(0 0% 95%)', textShadow: '0 0 8px hsl(var(--foreground) / 0.25)' }}>
-              {nowPlaying.artist_name}
-            </span>
-          )}
-          {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-muted-foreground font-normal"> — </span>}
-          <span ref={trackNameRef} className="text-muted-foreground" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{nowPlaying.track_name}</span>
-        </MarqueeText>
+        {/* Label row — aligns with controller labels */}
+        <div className="flex items-center justify-between">
+          <span className="uppercase font-bold truncate" style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'hsl(var(--muted-foreground))' }}>
+            Spelar nu
+          </span>
+        </div>
 
-        {/* Progress bar — battery-bar style */}
+        {/* Value row — aligns with controller temp › target */}
+        <div className="flex items-baseline gap-1.5" style={{ lineHeight: 1.05 }}>
+          <MarqueeText>
+            {nowPlaying.artist_name && (
+              <span ref={artistNameRef} className="font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: 'hsl(0 0% 95%)', textShadow: '0 0 8px hsl(var(--foreground) / 0.25)' }}>
+                {nowPlaying.artist_name}
+              </span>
+            )}
+            {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-muted-foreground font-normal"> › </span>}
+            <span ref={trackNameRef} className="text-muted-foreground" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '15px' }}>{nowPlaying.track_name}</span>
+          </MarqueeText>
+        </div>
+
+        {/* Progress bar — aligns with controller battery bars */}
         {nowPlaying.duration_ms && (
-          <div className="absolute bottom-0 left-0 right-0 overflow-hidden" style={{
+          <div className="absolute bottom-0 left-0 right-0" style={{
             height: '2px',
             background: 'hsl(var(--muted) / 0.35)',
           }}>
             <div
               ref={progressBarRef}
-              className="absolute top-0 bottom-0 left-0"
+              className="absolute top-0 bottom-0 left-0 transition-all duration-500"
               style={{
                 width: `${Math.max(progress, 0.5)}%`,
-                background: 'hsl(var(--foreground) / 0.55)',
+                background: 'hsl(var(--foreground) / 0.8)',
                 opacity: 0.8,
-                boxShadow: '0 0 3px hsl(var(--foreground) / 0.4)',
+                boxShadow: '0 0 3px hsl(var(--foreground) / 0.5)',
               }}
             />
           </div>
