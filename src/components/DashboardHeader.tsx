@@ -2,7 +2,7 @@ import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
-import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
+import { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -118,11 +118,12 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-3 relative'}`}
+        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/60 bg-card/80'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-          background: isMobile ? 'hsl(222 20% 8%)' : 'transparent',
-          borderBottom: isMobile ? '1px solid hsl(0 0% 100% / 0.06)' : 'none'
+          background: isMobile ? 'hsl(var(--background))' : undefined,
+          borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.6)' : undefined,
+          backdropFilter: isMobile ? undefined : 'blur(18px)',
         }}
       >
         {/* Mobile: Logo row with settings */}
@@ -169,17 +170,17 @@ export function DashboardHeader({
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
         {!isMobile && (
           <>
-            <div className="flex items-center flex-1 min-w-0 overflow-hidden">
+            <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
                 <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
             <div
-              className={`flex items-center justify-center min-w-0 overflow-hidden ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
+              className={`flex items-stretch justify-center min-w-0 overflow-hidden border-l border-border/60 bg-muted/10 ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
-                maxWidth: isTvMode ? (sonosVisible ? '280px' : '0px') : (sonosVisible ? '150px' : '0px'),
+                maxWidth: isTvMode ? (sonosVisible ? '300px' : '0px') : (sonosVisible ? '180px' : '0px'),
                 opacity: sonosVisible ? 1 : 0,
                 transition: 'max-width 400ms ease, opacity 300ms ease, flex 400ms ease',
               }}
@@ -188,7 +189,7 @@ export function DashboardHeader({
               <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
             </div>
 
-            <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
+            <div className="flex items-center gap-1 flex-shrink-0 self-stretch border-l border-border/60 px-4">
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
@@ -221,7 +222,7 @@ export function DashboardHeader({
                 </DropdownMenu>
               )}
 
-              <div className="self-center h-8 w-px mx-2 flex-shrink-0" style={{ background: 'hsl(var(--border))' }} />
+              {!isTvMode && <div className="self-center h-8 w-px mx-2 flex-shrink-0 bg-border/60" />}
               <Clock />
             </div>
           </>
@@ -334,7 +335,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
       <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-center justify-start gap-2 scrollbar-hide w-full ${isMobile ? 'overflow-x-auto' : ''}`} style={{
+        <div className={`flex items-stretch justify-start gap-0 scrollbar-hide w-full h-full ${isMobile ? 'overflow-x-auto border border-border/60 rounded-md bg-card/80' : ''}`} style={{
           background: 'transparent',
           WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
         }}>
@@ -354,11 +355,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
-            return (
-              <Fragment key={controller.id}>
-
-
-                 {(() => {
+            return (() => {
                     const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                     const isControllerStale = controllerStaleMin > staleThresholdMin;
                     const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
@@ -386,11 +383,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     const pillActive = !isOff && hasPill;
                     const probeActive = !isOff && controller.current_temp != null;
                     const accent = isCooler ? 'hsl(200 70% 60%)' : controllerColor;
-                    const chipBg = isCooler ? 'hsl(200 70% 50% / 0.08)' : 'hsl(222 15% 20% / 0.45)';
-                    const chipBgHover = isCooler ? 'hsl(200 70% 50% / 0.14)' : 'hsl(222 15% 24% / 0.7)';
                     return (
                   <div
-                    className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
+                    key={controller.id}
+                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/60 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-muted/20'}`}
                     style={{
                       flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
@@ -400,14 +396,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         ? undefined
                         : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
                       height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '60px'),
-                      background: chipBg,
-                      border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
-                      padding: isMobile ? (compact ? '3px 8px 7px' : '4px 10px 8px') : (compact ? '4px 10px 8px' : '5px 14px 9px'),
-                      transition: 'flex 400ms ease, width 400ms ease, height 400ms ease, padding 400ms ease',
+                      padding: isMobile ? (compact ? '3px 10px 7px' : '4px 12px 8px') : (compact ? '4px 14px 8px' : '5px 18px 9px'),
+                      transition: 'flex 400ms ease, width 400ms ease, height 400ms ease, padding 400ms ease, background-color 200ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
-                    onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBgHover; } : undefined}
-                    onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBg; } : undefined}
                     title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
                   >
                     {/* Label row */}
@@ -503,9 +495,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     )}
                   </div>
                     );
-                  })()}
-                </Fragment>
-            );
+                  })();
           })}
         </div>
       </div>
