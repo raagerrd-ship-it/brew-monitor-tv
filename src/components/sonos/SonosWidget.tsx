@@ -173,7 +173,7 @@ export const SonosWidget = memo(function SonosWidget({
     return (
       <div
         className="relative flex min-w-0 flex-1 flex-col justify-center bg-transparent"
-        style={{ padding: '5px 18px 9px' }}
+        style={{ padding: '5px 18px 9px', height: '60px', alignSelf: 'center' }}
       >
         {/* Label row — exact copy of controller label row */}
         <div className="flex items-center justify-between gap-1">
