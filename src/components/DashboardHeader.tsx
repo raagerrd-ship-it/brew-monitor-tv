@@ -479,16 +479,16 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     {/* Bottom accent bar (battery) */}
                     {linkedPill && (
                       <div className="absolute bottom-0 left-0 right-0" style={{
-                        height: '3px',
-                        background: 'hsl(0 0% 0% / 0.4)',
+                        height: '2px',
+                        background: 'hsl(var(--muted) / 0.35)',
                       }}>
                         <div
                           className="absolute top-0 bottom-0 left-0 transition-all duration-500"
                           style={{
                             width: `${Math.max(batteryLevel, 1)}%`,
                             background: batteryColor,
-                            opacity: 0.85,
-                            boxShadow: `0 0 6px ${batteryColor}`,
+                            opacity: 0.8,
+                            boxShadow: `0 0 3px ${batteryColor}80`,
                           }}
                         />
                       </div>
