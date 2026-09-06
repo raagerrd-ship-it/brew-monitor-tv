@@ -41,6 +41,7 @@ function MarqueeText({ children }: { children: React.ReactNode }) {
 interface SonosWidgetProps {
   isMobile?: boolean;
   variant?: "floating" | "header";
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 export const SonosWidget = memo(function SonosWidget({
