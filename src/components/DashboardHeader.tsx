@@ -335,7 +335,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
       <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-stretch justify-start gap-0 scrollbar-hide w-full h-full ${isMobile ? 'overflow-x-auto' : ''}`} style={{
+        <div className={`flex items-stretch justify-start gap-0 scrollbar-hide w-full h-full ${isMobile ? 'overflow-x-auto' : 'bg-muted/10 rounded-md border border-border/20'}`} style={{
           background: 'transparent',
           WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
         }}>
