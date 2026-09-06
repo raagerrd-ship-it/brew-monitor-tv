@@ -332,9 +332,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, []);
 
   return (
-    <div className="w-full">
+      <div className="w-full">
       <div className="relative w-full">
-        <div className="flex items-center justify-start gap-3 scrollbar-hide w-full" style={{
+        <div className="flex items-center justify-start gap-2 scrollbar-hide w-full" style={{
           background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
