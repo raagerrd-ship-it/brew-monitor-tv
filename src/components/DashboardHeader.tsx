@@ -179,7 +179,7 @@ export function DashboardHeader({
               className="flex items-center justify-center min-w-0 overflow-hidden"
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
-                maxWidth: sonosVisible ? '220px' : '0px',
+                maxWidth: sonosVisible ? '160px' : '0px',
                 opacity: sonosVisible ? 1 : 0,
                 transition: 'max-width 400ms ease, opacity 300ms ease',
               }}
