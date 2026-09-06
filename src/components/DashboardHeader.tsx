@@ -88,6 +88,9 @@ export function DashboardHeader({
   // RAPT bar data — self-contained
   const { controllers, pills, piDisabled } = useRaptBarData();
 
+  // Sonos visibility drives header layout: chips grow when Sonos is hidden.
+  const [sonosVisible, setSonosVisible] = useState(true);
+
   // Alarm/Timer dialog state
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
   const { entry: alarmEntry } = useAlarmTimer();
