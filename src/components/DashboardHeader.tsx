@@ -439,14 +439,14 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                               height: '0.75rem',
                               opacity: pillActive ? 1 : 0.15,
                               color: pillActive ? controllerColor : 'currentColor',
-                              filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                              filter: pillActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
                             }} strokeWidth={2} />
                             <AirVent style={{
                               width: '0.75rem',
                               height: '0.75rem',
                               opacity: probeActive ? 0.9 : 0.15,
                               color: probeActive ? controllerColor : 'currentColor',
-                              filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                              filter: probeActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
                             }} />
                           </>
                         )}
