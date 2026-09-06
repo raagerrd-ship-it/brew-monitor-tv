@@ -118,7 +118,7 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/60 bg-card/80'}`}
+        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/30 bg-background/70'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
           background: isMobile ? 'hsl(var(--background))' : undefined,
@@ -335,7 +335,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
       <div className="w-full">
       <div className="relative w-full">
-        <div className={`flex items-stretch justify-start gap-0 scrollbar-hide w-full h-full ${isMobile ? 'overflow-x-auto border border-border/60 rounded-md bg-card/80' : ''}`} style={{
+        <div className={`flex items-stretch justify-start gap-0 scrollbar-hide w-full h-full ${isMobile ? 'overflow-x-auto' : ''}`} style={{
           background: 'transparent',
           WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
         }}>
@@ -386,7 +386,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     return (
                   <div
                     key={controller.id}
-                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/60 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-muted/20'}`}
+                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/30 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
                     style={{
                       flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
@@ -425,12 +425,12 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           >
                             <AlertTriangle
                               className="w-3 h-3 flex-shrink-0"
-                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 2px hsl(38 92% 55% / 0.35))' }}
                             />
                           </span>
                         )}
                         {!isControllerStale && isCooler && (
-                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 2px hsl(200 70% 60% / 0.35))' }} />
                         )}
                         {!isControllerStale && !isCooler && (
                           <>
@@ -439,14 +439,14 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                               height: '0.75rem',
                               opacity: pillActive ? 1 : 0.15,
                               color: pillActive ? controllerColor : 'currentColor',
-                              filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                              filter: pillActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
                             }} strokeWidth={2} />
                             <AirVent style={{
                               width: '0.75rem',
                               height: '0.75rem',
                               opacity: probeActive ? 0.9 : 0.15,
                               color: probeActive ? controllerColor : 'currentColor',
-                              filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                              filter: probeActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
                             }} />
                           </>
                         )}
@@ -460,7 +460,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         fontSize: isMobile ? '17px' : '22px',
                         lineHeight: 1.05,
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
-                        textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}55`,
+                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}40`,
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
@@ -479,16 +479,16 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     {/* Bottom accent bar (battery) */}
                     {linkedPill && (
                       <div className="absolute bottom-0 left-0 right-0" style={{
-                        height: '3px',
-                        background: 'hsl(0 0% 0% / 0.4)',
+                        height: '2px',
+                        background: 'hsl(var(--muted) / 0.35)',
                       }}>
                         <div
                           className="absolute top-0 bottom-0 left-0 transition-all duration-500"
                           style={{
                             width: `${Math.max(batteryLevel, 1)}%`,
                             background: batteryColor,
-                            opacity: 0.85,
-                            boxShadow: `0 0 6px ${batteryColor}`,
+                            opacity: 0.8,
+                            boxShadow: `0 0 3px ${batteryColor}80`,
                           }}
                         />
                       </div>
