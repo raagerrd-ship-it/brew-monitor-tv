@@ -118,7 +118,7 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-6 relative'}`}
+        className={`overflow-visible z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0' : 'flex-shrink-0 flex items-center justify-between pl-2 pr-6 gap-3 relative'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
           background: isMobile ? 'hsl(222 20% 8%)' : 'transparent',
@@ -179,7 +179,7 @@ export function DashboardHeader({
               className="flex items-center justify-center min-w-0 overflow-hidden"
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
-                maxWidth: sonosVisible ? '160px' : '0px',
+                maxWidth: sonosVisible ? '140px' : '0px',
                 opacity: sonosVisible ? 1 : 0,
                 transition: 'max-width 400ms ease, opacity 300ms ease',
               }}
@@ -332,9 +332,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   }, []);
 
   return (
-    <div className="w-full">
+      <div className="w-full">
       <div className="relative w-full">
-        <div className="flex items-center justify-start gap-3 scrollbar-hide w-full" style={{
+        <div className="flex items-center justify-start gap-2 scrollbar-hide w-full" style={{
           background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
@@ -398,10 +398,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       minWidth: isMobile
                         ? undefined
                         : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
-                      height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '58px'),
+                      height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '60px'),
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
-                      padding: isMobile ? (compact ? '3px 8px 7px' : '4px 10px 8px') : (compact ? '4px 10px 8px' : '5px 12px 9px'),
+                      padding: isMobile ? (compact ? '3px 8px 7px' : '4px 10px 8px') : (compact ? '4px 10px 8px' : '5px 14px 9px'),
                       transition: 'flex 400ms ease, width 400ms ease, height 400ms ease, padding 400ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
@@ -437,20 +437,20 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           </span>
                         )}
                         {!isControllerStale && isCooler && (
-                          <Snowflake style={{ width: '0.7rem', height: '0.7rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
                         )}
                         {!isControllerStale && !isCooler && (
                           <>
                             <Pill style={{
-                              width: '0.7rem',
-                              height: '0.7rem',
+                              width: '0.75rem',
+                              height: '0.75rem',
                               opacity: pillActive ? 1 : 0.15,
                               color: pillActive ? controllerColor : 'currentColor',
                               filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
                             }} strokeWidth={2} />
                             <AirVent style={{
-                              width: '0.7rem',
-                              height: '0.7rem',
+                              width: '0.75rem',
+                              height: '0.75rem',
                               opacity: probeActive ? 0.9 : 0.15,
                               color: probeActive ? controllerColor : 'currentColor',
                               filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
@@ -464,19 +464,19 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-bold whitespace-nowrap" style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: isMobile ? '16px' : '19px',
-                        lineHeight: 1.1,
+                        fontSize: isMobile ? '17px' : '22px',
+                        lineHeight: 1.05,
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
-                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}44`,
+                        textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}55`,
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
                       {controller.target_temp !== null && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '13px',
+                          fontSize: isMobile ? '13px' : '15px',
                           color: 'hsl(var(--muted-foreground))',
-                          opacity: 0.9,
+                          opacity: 0.95,
                         }}>
                           › {controller.target_temp.toFixed(1)}°
                         </span>
