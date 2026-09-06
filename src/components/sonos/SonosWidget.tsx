@@ -115,6 +115,11 @@ export const SonosWidget = memo(function SonosWidget({
     onAlbumArtChangeRef, bgSentRef, validBgBufferRef,
   });
 
+  // Report visibility to parent so the header can resize chips around us.
+  useEffect(() => {
+    onVisibilityChange?.(!shouldHide && !!nowPlaying);
+  }, [shouldHide, nowPlaying, onVisibilityChange]);
+
   // Send bg image on init when nowPlaying arrives with bg_image_url,
   // but never re-activate background while the widget is intentionally hidden.
   useEffect(() => {
