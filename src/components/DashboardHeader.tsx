@@ -171,12 +171,21 @@ export function DashboardHeader({
           <>
             <div className="flex items-center flex-shrink-0 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
-            <div className="flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer', maxWidth: '220px' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-              <SonosWidget isMobile={false} variant="header" />
+            <div
+              className="flex items-center justify-center min-w-0 overflow-hidden"
+              style={{
+                cursor: isTvMode ? 'default' : 'pointer',
+                maxWidth: sonosVisible ? '220px' : '0px',
+                opacity: sonosVisible ? 1 : 0,
+                transition: 'max-width 400ms ease, opacity 300ms ease',
+              }}
+              onClick={isTvMode ? undefined : () => navigate('/')}
+            >
+              <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
