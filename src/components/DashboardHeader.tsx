@@ -460,7 +460,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         fontSize: isMobile ? '17px' : '22px',
                         lineHeight: 1.05,
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
-                        textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}55`,
+                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}40`,
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
