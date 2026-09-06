@@ -288,6 +288,17 @@ Deno.serve(async (req) => {
       cooling_enabled: d.mode === "cooling",
       controller_id: fullId,
     });
+    // Backfill: omsända rollups (t.ex. från tiden innan pillen kopplades till
+    // bryggen) träffar dubblett-skyddet och skrivs inte om. Fyll då i SG på
+    // befintliga rader som saknar det.
+    if (sg != null) {
+      await supabase
+        .from("brew_data_snapshots")
+        .update({ sg })
+        .eq("brew_id", brew.id)
+        .eq("recorded_at", bucketedAt)
+        .is("sg", null);
+    }
     }
 
     if (sg != null) {
