@@ -283,6 +283,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false,
   piDisabled = {},
+  compact = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
