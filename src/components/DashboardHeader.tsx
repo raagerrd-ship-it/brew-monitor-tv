@@ -346,7 +346,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         letterSpacing: '0.1em',
                         color: isCooler ? 'hsl(200 70% 65%)' : 'hsl(var(--muted-foreground))',
                       }}>
-                        {isCooler ? 'Glykol' : controller.name}
+                        {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0" title={isOff ? `${controller.name} är avstängd` : undefined}>
                         {isControllerStale && (
