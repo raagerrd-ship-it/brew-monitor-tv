@@ -464,19 +464,19 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-bold whitespace-nowrap" style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: isMobile ? '16px' : '19px',
-                        lineHeight: 1.1,
+                        fontSize: isMobile ? '17px' : '22px',
+                        lineHeight: 1.05,
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
-                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}44`,
+                        textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}55`,
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
                       {controller.target_temp !== null && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '13px',
+                          fontSize: isMobile ? '13px' : '15px',
                           color: 'hsl(var(--muted-foreground))',
-                          opacity: 0.9,
+                          opacity: 0.95,
                         }}>
                           › {controller.target_temp.toFixed(1)}°
                         </span>
