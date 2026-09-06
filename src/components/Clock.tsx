@@ -23,7 +23,8 @@ function ClockComponent() {
       <p 
         className="font-semibold tabular-nums tracking-tight text-foreground"
         style={{ 
-          fontSize: '25px',
+          fontSize: '24px',
+          fontFamily: "'JetBrains Mono', monospace",
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1,
         }}
@@ -33,8 +34,8 @@ function ClockComponent() {
         <span className="text-muted-foreground/60">{time.slice(6, 8)}</span>
       </p>
       <p 
-        className="text-muted-foreground/50 uppercase tracking-wider font-medium" 
-        style={{ fontSize: '15px', lineHeight: 1.1 }}
+        className="text-muted-foreground/60 uppercase font-bold" 
+        style={{ fontSize: '10px', lineHeight: 1.1, letterSpacing: '0.18em' }}
       >
         {now.toLocaleDateString("sv-SE", {
           weekday: "short",

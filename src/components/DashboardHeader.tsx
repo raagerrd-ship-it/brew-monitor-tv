@@ -119,17 +119,17 @@ export function DashboardHeader({
           <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} />
         )}
 
-        {/* Desktop: Three-column layout */}
+        {/* Desktop: controllers left, Sonos center, actions + clock right */}
         {!isMobile && (
           <>
-            <div className="flex items-center flex-shrink-0" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
-              {(!isMobile || isTvMode) ? <SonosWidget isMobile={false} variant="header" /> : <Logo />}
-            </div>
-
-            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
+            <div className="flex items-center flex-shrink-0 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
                 <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} />
               )}
+            </div>
+
+            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
+              <SonosWidget isMobile={false} variant="header" />
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
@@ -160,6 +160,7 @@ export function DashboardHeader({
                 />
               )}
 
+              <div className="self-center h-8 w-px mx-2 flex-shrink-0" style={{ background: 'hsl(var(--border))' }} />
               <Clock />
             </div>
           </>
@@ -270,7 +271,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className="w-full">
       <div className="relative w-full">
-        <div className="flex items-center px-1 justify-center gap-1 scrollbar-hide" style={{
+        <div className="flex items-center justify-center gap-2 scrollbar-hide" style={{
           background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
@@ -285,151 +286,153 @@ export const RaptControllerBar = memo(function RaptControllerBar({
               <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
-          {controllers.map((controller, index) => {
+          {controllers.map((controller) => {
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <Fragment key={controller.id}>
-                {index > 0 && <div className={`h-5 ${isMobile ? 'mx-1' : 'mx-2'} w-px flex-shrink-0 rounded-full`} style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
+
 
                  {(() => {
-                   const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
-                   const isControllerStale = controllerStaleMin > staleThresholdMin;
-                   const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
-                   const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
-                   return (
-                 <div className={`relative flex items-center justify-center rounded ${isMobile ? 'px-1.5 gap-2' : 'px-3 gap-4'} ${isTvMode ? '' : 'cursor-pointer'}`} style={{ background: 'transparent', width: isMobile ? (controller.is_glycol_cooler ? '100px' : '140px') : (controller.is_glycol_cooler ? '120px' : '180px'), paddingTop: isMobile ? '2px' : '4px', paddingBottom: linkedPill ? (isMobile ? '8px' : '10px') : (isMobile ? '2px' : '4px') }}
-                   onClick={isTvMode ? undefined : () => onControllerClick(controller)}
-                   onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; } : undefined}
-                   onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = 'transparent'; } : undefined}
-                   title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
-                 >
-                    {isControllerStale && (
-                      <WifiOff className="w-3 h-3 text-destructive animate-pulse flex-shrink-0" />
-                    )}
+                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
+                    const isControllerStale = controllerStaleMin > staleThresholdMin;
+                    const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
+                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
+                    const pillAgeMin = linkedPill?.last_update
+                      ? (now - new Date(linkedPill.last_update).getTime()) / 60000
+                      : Infinity;
+                    const probeStamp = (controller as any).current_temp_updated_at ?? controller.last_update;
+                    const probeAgeMin = probeStamp
+                      ? (now - new Date(probeStamp).getTime()) / 60000
+                      : Infinity;
+                    const pillStale = !!linkedPill && pillAgeMin > pillStaleMin;
+                    const probeStale = controller.current_temp != null && probeAgeMin > probeStaleMin;
+                    const pillWarn = pillStale || probeStale;
+                    const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
+                    const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
+                    const displayTemp = controller.actual_temp ?? (
+                      pillTempVal != null && probeTempVal != null
+                        ? (pillTempVal + probeTempVal) / 2
+                        : (probeTempVal ?? pillTempVal)
+                    );
+                    const isCooler = controller.is_glycol_cooler;
+                    const isOff = piDisabled[controller.controller_id] === true;
+                    const hasPill = !!linkedPill && !isPillStale;
+                    const pillActive = !isOff && hasPill;
+                    const probeActive = !isOff && controller.current_temp != null;
+                    const accent = isCooler ? 'hsl(200 70% 60%)' : controllerColor;
+                    const chipBg = isCooler ? 'hsl(200 70% 50% / 0.08)' : 'hsl(222 15% 20% / 0.45)';
+                    const chipBgHover = isCooler ? 'hsl(200 70% 50% / 0.14)' : 'hsl(222 15% 24% / 0.7)';
+                    return (
+                  <div
+                    className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
+                    style={{
+                      width: isMobile ? (isCooler ? '96px' : '124px') : (isCooler ? '118px' : '132px'),
+                      height: isMobile ? '42px' : '46px',
+                      background: chipBg,
+                      border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
+                      padding: isMobile ? '3px 8px 7px' : '4px 10px 8px',
+                    }}
+                    onClick={isTvMode ? undefined : () => onControllerClick(controller)}
+                    onMouseEnter={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBgHover; } : undefined}
+                    onMouseLeave={!isMobile && !isTvMode ? e => { e.currentTarget.style.background = chipBg; } : undefined}
+                    title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
+                  >
+                    {/* Label row */}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="uppercase font-bold truncate" style={{
+                        fontSize: '9px',
+                        letterSpacing: '0.1em',
+                        color: isCooler ? 'hsl(200 70% 65%)' : 'hsl(var(--muted-foreground))',
+                      }}>
+                        {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
+                      </span>
+                      <span className="flex items-center gap-1.5 flex-shrink-0" title={isOff ? `${controller.name} är avstängd` : undefined}>
+                        {isControllerStale && (
+                          <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
+                        )}
+                        {!isControllerStale && pillWarn && (
+                          <span
+                            className="inline-flex"
+                            title={[
+                              pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel ${pillStaleMin} min)` : '',
+                              probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel ${probeStaleMin} min)` : '',
+                            ].filter(Boolean).join('\n')}
+                          >
+                            <AlertTriangle
+                              className="w-3 h-3 flex-shrink-0"
+                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                            />
+                          </span>
+                        )}
+                        {!isControllerStale && isCooler && (
+                          <Snowflake style={{ width: '0.7rem', height: '0.7rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                        )}
+                        {!isControllerStale && !isCooler && (
+                          <>
+                            <Pill style={{
+                              width: '0.7rem',
+                              height: '0.7rem',
+                              opacity: pillActive ? 1 : 0.15,
+                              color: pillActive ? controllerColor : 'currentColor',
+                              filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                            }} strokeWidth={2} />
+                            <AirVent style={{
+                              width: '0.7rem',
+                              height: '0.7rem',
+                              opacity: probeActive ? 0.9 : 0.15,
+                              color: probeActive ? controllerColor : 'currentColor',
+                              filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
+                            }} />
+                          </>
+                        )}
+                      </span>
+                    </div>
 
-                    {/* Temp first (left) */}
-                    {(() => {
-                       const pillAgeMin = linkedPill?.last_update
-                         ? (now - new Date(linkedPill.last_update).getTime()) / 60000
-                         : Infinity;
-                       const probeStamp = (controller as any).current_temp_updated_at ?? controller.last_update;
-                       const probeAgeMin = probeStamp
-                         ? (now - new Date(probeStamp).getTime()) / 60000
-                         : Infinity;
-                       const pillStale = !!linkedPill && pillAgeMin > pillStaleMin;
-                       const probeStale = controller.current_temp != null && probeAgeMin > probeStaleMin;
-                       const pillWarn = pillStale || probeStale;
-                       const pillTempVal = (controller as any).pill_temp != null ? Number((controller as any).pill_temp) : null;
-                       const probeTempVal = controller.current_temp != null ? Number(controller.current_temp) : null;
-                       const displayTemp = controller.actual_temp ?? (
-                         pillTempVal != null && probeTempVal != null
-                           ? (pillTempVal + probeTempVal) / 2
-                           : (probeTempVal ?? pillTempVal)
-                       );
-                       if (controller.is_glycol_cooler) {
-                         const targetTemp = controller.target_temp;
-                         return (
-                           <div className="flex items-center gap-1.5">
-                             <Snowflake style={{ width: '0.85rem', height: '0.85rem', flexShrink: 0, color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)', filter: isControllerStale ? 'none' : 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
-                              <span className="font-semibold tabular-nums whitespace-nowrap" style={{
-                                fontSize: isMobile ? '14px' : '16px',
-                                color: isControllerStale ? 'hsl(0 0% 95%)' : 'hsl(200 70% 60%)',
-                               textShadow: isControllerStale ? 'none' : '0 0 8px hsl(200 70% 60% / 0.3)',
-                             }}>
-                               {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                             </span>
-                             {targetTemp !== null && (
-                               <span className="tabular-nums whitespace-nowrap" style={{
-                                 fontSize: '11px',
-                                 color: 'hsl(200 40% 50%)',
-                                 opacity: 0.8,
-                               }}>
-                                 › {targetTemp.toFixed(1)}°
-                               </span>
-                             )}
-                           </div>
-                         );
-                       }
-                      return (
-                         <span className="font-semibold tabular-nums whitespace-nowrap inline-flex items-center gap-1" style={{
-                          fontSize: isMobile ? '14px' : '16px',
-                         ...(isControllerStale ? { color: 'hsl(0 0% 95%)' } : linkedPill?.color ? { color: linkedPill.color, textShadow: `0 0 8px ${controllerColor}44` } : {}),
+                    {/* Temp row */}
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold whitespace-nowrap" style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: isMobile ? '14px' : '16px',
+                        lineHeight: 1.1,
+                        color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
+                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}44`,
+                      }}>
+                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                      </span>
+                      {controller.target_temp !== null && (
+                        <span className="whitespace-nowrap" style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: '10px',
+                          color: 'hsl(var(--muted-foreground))',
+                          opacity: 0.8,
                         }}>
-                         {pillWarn && (
-                            <span
-                              title={[
-                                pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel ${pillStaleMin} min)` : '',
-                                probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel ${probeStaleMin} min)` : '',
-                              ].filter(Boolean).join('\n')}
-                              className="inline-flex"
-                            >
-                              <AlertTriangle
-                                className="w-3 h-3 flex-shrink-0"
-                                style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
-                              />
-                            </span>
-                          )}
-                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
-                       </span>
-                      );
-                    })()}
+                          › {controller.target_temp.toFixed(1)}°
+                        </span>
+                      )}
+                    </div>
 
-                   {/* Sensor icons (right) — show which sensors are active */}
-                   {!isControllerStale && !controller.is_glycol_cooler && (() => {
-                      const hasPill = !!linkedPill && !isPillStale;
-                      const isOff = piDisabled[controller.controller_id] === true;
-                      const pillActive = !isOff && hasPill;
-                      const probeActive = !isOff && controller.current_temp != null;
-                      return (
-                         <div className="flex items-center gap-3" title={isOff ? `${controller.name} är avstängd` : undefined}>
-                           <Pill style={{
-                             width: '0.85rem',
-                             height: '0.85rem',
-                             flexShrink: 0,
-                             opacity: pillActive ? 1 : 0.15,
-                             color: pillActive ? controllerColor : 'currentColor',
-                             filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
-                           }} strokeWidth={2} />
-                           <AirVent style={{
-                             width: '0.85rem',
-                             height: '0.85rem',
-                             flexShrink: 0,
-                             opacity: probeActive ? 0.9 : 0.15,
-                             color: probeActive ? controllerColor : 'currentColor',
-                             filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
-                           }} />
-                         </div>
-                      );
-                    })()}
-
-                   {/* Battery bar — styled like PWM duty bar */}
-                   {linkedPill && (
-                     <div className="absolute bottom-1 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
-                       height: '4px',
-                       background: 'hsl(0 0% 0% / 0.5)',
-                       boxShadow: 'inset 0 1px 2px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
-                     }}>
-                       <div
-                         className="absolute top-0 bottom-0 left-0 rounded-full transition-all duration-500"
-                         style={{
-                           width: `${Math.max(batteryLevel, 1)}%`,
-                           background: batteryColor,
-                           opacity: 0.7,
-                           boxShadow: `0 0 6px ${batteryColor}`,
-                         }}
-                       />
-                       {/* Glass highlight */}
-                       <div
-                         className="absolute inset-0 rounded-full pointer-events-none"
-                         style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
-                       />
-                     </div>
-                   )}
-                 </div>
-                   );
-                 })()}
+                    {/* Bottom accent bar (battery) */}
+                    {linkedPill && (
+                      <div className="absolute bottom-0 left-0 right-0" style={{
+                        height: '3px',
+                        background: 'hsl(0 0% 0% / 0.4)',
+                      }}>
+                        <div
+                          className="absolute top-0 bottom-0 left-0 transition-all duration-500"
+                          style={{
+                            width: `${Math.max(batteryLevel, 1)}%`,
+                            background: batteryColor,
+                            opacity: 0.85,
+                            boxShadow: `0 0 6px ${batteryColor}`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                    );
+                  })()}
                 </Fragment>
             );
           })}
