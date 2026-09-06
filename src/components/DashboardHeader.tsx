@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -16,8 +16,52 @@ import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
-import { PiHealthChip } from "./PiHealthChip";
 import { HeaderIconButton } from "./header/HeaderIconButton";
+
+function PiMenuItem() {
+  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
+  const [online, setOnline] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const evaluate = (hb: string | null) => {
+      const isOnline = hb ? (Date.now() - new Date(hb).getTime()) / 1000 < 300 : false;
+      setOnline((prev) => (prev === isOnline ? prev : isOnline));
+    };
+    const load = async () => {
+      const { data } = await supabase
+        .from("pi_live_state")
+        .select("last_heartbeat")
+        .order("last_heartbeat", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!mounted) return;
+      setLastHeartbeat(data?.last_heartbeat ?? null);
+      evaluate(data?.last_heartbeat ?? null);
+    };
+    load();
+    const iv = setInterval(load, 30000);
+    const tick = setInterval(() => evaluate(lastHeartbeat), 15000);
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+      clearInterval(tick);
+    };
+  }, [lastHeartbeat]);
+
+  const ageSec = lastHeartbeat ? (Date.now() - new Date(lastHeartbeat).getTime()) / 1000 : Infinity;
+  return (
+    <DropdownMenuItem disabled className="flex items-center justify-between opacity-100 cursor-default">
+      <span className="flex items-center gap-2">
+        <Cpu className="h-4 w-4" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }} />
+        Pi-status
+      </span>
+      <span className="text-xs" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }}>
+        {online ? `online (${Math.round(ageSec)}s)` : "offline"}
+      </span>
+    </DropdownMenuItem>
+  );
+}
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
