@@ -172,7 +172,7 @@ export const SonosWidget = memo(function SonosWidget({
 
     return (
       <div
-        className="relative flex min-w-0 flex-1 flex-col justify-center px-5 pb-2 pt-1.5 bg-transparent"
+        className="relative flex min-w-0 flex-1 flex-col justify-center px-5 pb-2 pt-1.5 bg-background/75 backdrop-blur-sm border-r border-border/30"
       >
         <span className="mb-0.5 uppercase font-bold truncate" style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'hsl(var(--muted-foreground))' }}>
           Spelar nu
