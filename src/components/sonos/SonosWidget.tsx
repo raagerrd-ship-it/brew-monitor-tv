@@ -8,7 +8,7 @@ import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
-function MarqueeText({ children, className }: { children: React.ReactNode; className?: string }) {
+function MarqueeText({ children, className, innerClassName }: { children: React.ReactNode; className?: string; innerClassName?: string }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -25,7 +25,7 @@ function MarqueeText({ children, className }: { children: React.ReactNode; class
     <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>
       <div
         ref={innerRef}
-        className="whitespace-nowrap inline-block"
+        className={innerClassName ?? "whitespace-nowrap inline-block"}
         style={overflow > 0 ? {
           animation: `marquee-scroll ${8 + overflow * 0.05}s linear 3s infinite`,
           '--marquee-offset': `-${overflow}px`,
@@ -173,7 +173,7 @@ export const SonosWidget = memo(function SonosWidget({
     return (
       <div
         className="relative flex min-w-0 flex-1 flex-col justify-center bg-transparent"
-        style={{ padding: '5px 18px 9px' }}
+        style={{ padding: '4px 14px 8px', height: '52px', alignSelf: 'flex-start' }}
       >
         {/* Label row — exact copy of controller label row */}
         <div className="flex items-center justify-between gap-1">
@@ -187,7 +187,7 @@ export const SonosWidget = memo(function SonosWidget({
         </div>
 
         {/* Value row — exact copy of controller temp row, showing track */}
-        <MarqueeText className="flex items-baseline gap-1.5">
+        <MarqueeText innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
           <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '22px',
