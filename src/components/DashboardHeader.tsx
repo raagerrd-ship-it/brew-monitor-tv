@@ -391,10 +391,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     </div>
 
                     {/* Temp row */}
-                    <div className="flex items-baseline gap-1">
+                    <div className="flex items-baseline gap-1.5">
                       <span className="font-bold whitespace-nowrap" style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: isMobile ? '14px' : '16px',
+                        fontSize: isMobile ? '16px' : '19px',
                         lineHeight: 1.1,
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
                         textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}44`,
@@ -404,7 +404,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       {controller.target_temp !== null && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '10px',
+                          fontSize: '11px',
                           color: 'hsl(var(--muted-foreground))',
                           opacity: 0.8,
                         }}>
