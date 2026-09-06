@@ -437,20 +437,20 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           </span>
                         )}
                         {!isControllerStale && isCooler && (
-                          <Snowflake style={{ width: '0.7rem', height: '0.7rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
                         )}
                         {!isControllerStale && !isCooler && (
                           <>
                             <Pill style={{
-                              width: '0.7rem',
-                              height: '0.7rem',
+                              width: '0.75rem',
+                              height: '0.75rem',
                               opacity: pillActive ? 1 : 0.15,
                               color: pillActive ? controllerColor : 'currentColor',
                               filter: pillActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
                             }} strokeWidth={2} />
                             <AirVent style={{
-                              width: '0.7rem',
-                              height: '0.7rem',
+                              width: '0.75rem',
+                              height: '0.75rem',
                               opacity: probeActive ? 0.9 : 0.15,
                               color: probeActive ? controllerColor : 'currentColor',
                               filter: probeActive ? `drop-shadow(0 0 4px ${controllerColor}88)` : 'none',
