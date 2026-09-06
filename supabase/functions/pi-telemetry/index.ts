@@ -591,12 +591,36 @@ Deno.serve(async (req) => {
       await writePillAndBrew(fullId, data);
       await writeMetrics(data.profile?.brew_id ?? null, data);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
+      // Samma koppling som gjorts på Pi:n speglas här: tank + pill sätts på
+      // bryggen automatiskt så den dyker upp på dashboarden utan manuell koppling.
       if (data.profile?.brew_id) {
-        await supabase
+        const { data: ctrlRow } = await supabase
+          .from("rapt_temp_controllers")
+          .select("linked_pill_id")
+          .eq("controller_id", fullId)
+          .maybeSingle();
+        const { data: brewRow } = await supabase
           .from("brew_readings")
-          .update({ pi_pending_at: null })
+          .select("status, linked_pill_id")
           .eq("id", data.profile.brew_id)
-          .not("pi_pending_at", "is", null);
+          .maybeSingle();
+        if (brewRow) {
+          const upd: Record<string, any> = {
+            pi_pending_at: null,
+            linked_controller_id: fullId,
+            updated_at: new Date().toISOString(),
+          };
+          if (!brewRow.linked_pill_id && ctrlRow?.linked_pill_id) {
+            upd.linked_pill_id = ctrlRow.linked_pill_id;
+          }
+          if (!["Jäsning", "fermenting", "active", "Klar", "Konditionering", "conditioning", "completed"].includes(brewRow.status)) {
+            upd.status = "Jäsning";
+          }
+          await supabase
+            .from("brew_readings")
+            .update(upd)
+            .eq("id", data.profile.brew_id);
+        }
       }
       // Pi:n äger inlärningen nu — molnet är bara ARKIV. Tomt objekt får
       // aldrig skriva över en tidigare sparad kopia.
