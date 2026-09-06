@@ -8,7 +8,7 @@ import { useAlbumArt } from "@/contexts/AlbumArtContext";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
-function MarqueeText({ children }: { children: React.ReactNode }) {
+function MarqueeText({ children, className }: { children: React.ReactNode; className?: string }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -22,7 +22,7 @@ function MarqueeText({ children }: { children: React.ReactNode }) {
   }, [children]);
 
   return (
-    <div ref={outerRef} className="overflow-hidden text-foreground" style={{ fontSize: '14px' }}>
+    <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>
       <div
         ref={innerRef}
         className="whitespace-nowrap inline-block"
@@ -187,28 +187,26 @@ export const SonosWidget = memo(function SonosWidget({
         </div>
 
         {/* Value row — exact copy of controller temp row, showing track */}
-        <div className="flex items-baseline gap-1.5">
-          <MarqueeText>
-            <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
+        <MarqueeText className="flex items-baseline gap-1.5">
+          <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '22px',
+            lineHeight: 1.05,
+            color: 'hsl(0 0% 95%)',
+          }}>
+            {nowPlaying.track_name}
+          </span>
+          {nowPlaying.artist_name && (
+            <span ref={artistNameRef} className="whitespace-nowrap" style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '22px',
-              lineHeight: 1.05,
-              color: 'hsl(0 0% 95%)',
+              fontSize: '15px',
+              color: 'hsl(var(--muted-foreground))',
+              opacity: 0.95,
             }}>
-              {nowPlaying.track_name}
+              › {nowPlaying.artist_name}
             </span>
-            {nowPlaying.artist_name && (
-              <span ref={artistNameRef} className="whitespace-nowrap" style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '15px',
-                color: 'hsl(var(--muted-foreground))',
-                opacity: 0.95,
-              }}>
-                › {nowPlaying.artist_name}
-              </span>
-            )}
-          </MarqueeText>
-        </div>
+          )}
+        </MarqueeText>
 
         {/* Bottom bar — exact copy of controller battery bar, showing progress */}
         {nowPlaying.duration_ms && (
