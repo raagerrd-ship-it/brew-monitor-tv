@@ -4,7 +4,8 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
 
@@ -135,29 +136,35 @@ export function DashboardHeader({
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
               {!isTvMode && <PiHealthChip />}
 
-              {!isTvMode && (
-                <HeaderIconButton
-                  icon={<Timer />}
-                  label="Timer / alarm"
-                  onClick={() => setAlarmDialogOpen(true)}
-                  active={!!(alarmEntry && !alarmEntry.fired)}
-                  dotColor={
-                    alarmEntry && !alarmEntry.fired
-                      ? "hsl(var(--primary))"
-                      : undefined
-                  }
-                />
-              )}
-
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
-                <HeaderIconButton
-                  icon={<Settings />}
-                  label="Inställningar"
-                  onClick={() => navigate('/settings')}
-                  active={isOnSettings}
-                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div>
+                      <HeaderIconButton
+                        icon={<Menu />}
+                        label="Meny"
+                        active={isOnSettings || !!(alarmEntry && !alarmEntry.fired)}
+                        dotColor={
+                          alarmEntry && !alarmEntry.fired
+                            ? "hsl(var(--primary))"
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setAlarmDialogOpen(true)}>
+                      <Timer className="mr-2 h-4 w-4" />
+                      Timer / alarm
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/settings')}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Inställningar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
               <div className="self-center h-8 w-px mx-2 flex-shrink-0" style={{ background: 'hsl(var(--border))' }} />

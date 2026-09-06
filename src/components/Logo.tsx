@@ -1,72 +1,28 @@
 import { memo } from "react";
+import { Beer } from "lucide-react";
 import { useIsMobile } from "@/hooks";
-import { useTvMode } from "@/contexts/TvModeContext";
 
 function LogoComponent() {
   const isMobile = useIsMobile();
-  const { isTvMode } = useTvMode();
-  const fontSize = isMobile ? '30px' : '34px';
-
-  const firstPart = "Brygg";
-  const secondPart = "övervakare";
-  const suffix = isTvMode ? "TV" : null;
+  const size = isMobile ? 26 : 28;
 
   return (
-    <span 
-      className="inline-flex items-baseline relative"
-      style={{ 
-        fontFamily: "'Cormorant Garamond', Georgia, serif",
-        fontSize,
-        fontWeight: 700,
-        letterSpacing: '0.02em',
+    <span
+      className="inline-flex items-center justify-center rounded-lg flex-shrink-0"
+      style={{
+        width: size + 12,
+        height: size + 12,
+        background: 'linear-gradient(160deg, hsl(36 60% 22%) 0%, hsl(28 45% 14%) 100%)',
+        border: '1px solid hsl(36 60% 45% / 0.35)',
+        boxShadow: '0 2px 8px hsl(30 80% 40% / 0.15)',
       }}
+      aria-label="Bryggövervakaren"
     >
-      {/* Brygg — warm bright copper */}
-      <span
-        style={{
-          background: 'linear-gradient(160deg, hsl(42 100% 72%) 0%, hsl(36 95% 60%) 40%, hsl(30 85% 50%) 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          color: 'transparent',
-          textShadow: 'none',
-        }}
-      >
-        {firstPart}
-      </span>
-      {/* övervakare — italic, lighter amber */}
-      <span
-        style={{ 
-          fontWeight: 500,
-          fontStyle: 'italic',
-          background: 'linear-gradient(160deg, hsl(38 70% 55%) 0%, hsl(32 60% 45%) 50%, hsl(28 50% 38%) 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          color: 'transparent',
-          textShadow: 'none',
-        }}
-      >
-        {secondPart}
-      </span>
-      {/* TV suffix — small caps style */}
-      {suffix && (
-        <span
-          style={{
-            fontWeight: 600,
-            fontStyle: 'normal',
-            fontSize: '0.5em',
-            letterSpacing: '0.12em',
-            marginLeft: '0.25em',
-            alignSelf: 'center',
-            background: 'linear-gradient(160deg, hsl(38 60% 50%) 0%, hsl(30 50% 40%) 100%)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            color: 'transparent',
-            textTransform: 'uppercase',
-          }}
-        >
-          {suffix}
-        </span>
-      )}
+      <Beer
+        size={size}
+        strokeWidth={1.75}
+        style={{ color: 'hsl(38 90% 62%)', filter: 'drop-shadow(0 0 6px hsl(36 95% 55% / 0.45))' }}
+      />
     </span>
   );
 }
