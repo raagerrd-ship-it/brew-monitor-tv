@@ -259,6 +259,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
   isTvMode?: boolean;
   piDisabled?: Record<string, boolean>;
+  compact?: boolean;
 }
 
 // Helper to format duration like "3t 24m"
