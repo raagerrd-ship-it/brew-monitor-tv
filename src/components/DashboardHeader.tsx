@@ -474,9 +474,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       {controller.target_temp !== null && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '11px',
+                          fontSize: '13px',
                           color: 'hsl(var(--muted-foreground))',
-                          opacity: 0.8,
+                          opacity: 0.9,
                         }}>
                           › {controller.target_temp.toFixed(1)}°
                         </span>
