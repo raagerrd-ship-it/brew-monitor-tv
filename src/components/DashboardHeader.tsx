@@ -176,12 +176,12 @@ export function DashboardHeader({
             </div>
 
             <div
-              className="flex items-center justify-center min-w-0 overflow-hidden"
+              className={`flex items-center justify-center min-w-0 overflow-hidden ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
-                maxWidth: sonosVisible ? '150px' : '0px',
+                maxWidth: isTvMode ? (sonosVisible ? '280px' : '0px') : (sonosVisible ? '150px' : '0px'),
                 opacity: sonosVisible ? 1 : 0,
-                transition: 'max-width 400ms ease, opacity 300ms ease',
+                transition: 'max-width 400ms ease, opacity 300ms ease, flex 400ms ease',
               }}
               onClick={isTvMode ? undefined : () => navigate('/')}
             >
