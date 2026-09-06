@@ -19,11 +19,11 @@ function ClockComponent() {
   });
 
   return (
-    <div className="flex flex-col items-end justify-center h-full">
+    <div className="flex flex-col items-end justify-center h-full min-w-[116px]">
       <p 
-        className="font-semibold tabular-nums tracking-tight text-foreground"
+        className="font-medium tabular-nums text-foreground"
         style={{ 
-          fontSize: '24px',
+          fontSize: '25px',
           fontFamily: "'JetBrains Mono', monospace",
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1,

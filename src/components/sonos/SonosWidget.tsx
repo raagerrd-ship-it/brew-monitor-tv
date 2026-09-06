@@ -22,7 +22,7 @@ function MarqueeText({ children }: { children: React.ReactNode }) {
   }, [children]);
 
   return (
-    <div ref={outerRef} className="overflow-hidden text-white" style={{ fontSize: '16px' }}>
+    <div ref={outerRef} className="overflow-hidden text-foreground" style={{ fontSize: '14px' }}>
       <div
         ref={innerRef}
         className="whitespace-nowrap inline-block"
@@ -164,7 +164,7 @@ export const SonosWidget = memo(function SonosWidget({
 
   if (isHidden) return null;
 
-  // Header variant: transparent item matching RAPT controller-bar style
+    // Header variant: integrated segment in the unified control strip
   if (isHeader) {
     const progress = nowPlaying.duration_ms
       ? Math.min(100, ((localProgressRef.current ?? nowPlaying.position_ms ?? 0) / nowPlaying.duration_ms) * 100)
@@ -172,36 +172,29 @@ export const SonosWidget = memo(function SonosWidget({
 
     return (
       <div
-        className="relative flex items-center justify-center rounded px-3 gap-2 flex-shrink-0 w-full"
-        style={{ background: 'transparent', paddingTop: '4px', paddingBottom: nowPlaying.duration_ms ? '10px' : '4px' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'hsl(222 18% 15%)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        className="relative flex min-w-0 flex-1 flex-col justify-center px-5 pb-2 pt-1.5 bg-transparent"
       >
+        <span className="mb-0.5 text-[9px] font-bold uppercase text-muted-foreground/60" style={{ letterSpacing: '0.1em' }}>
+          Spelar nu
+        </span>
         <MarqueeText>
           {nowPlaying.artist_name && <span ref={artistNameRef} className="font-semibold">{nowPlaying.artist_name}</span>}
-          {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-white/50 font-normal"> — </span>}
-          <span ref={trackNameRef} className="text-white/70 font-normal">{nowPlaying.track_name}</span>
+          {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-muted-foreground font-normal"> — </span>}
+          <span ref={trackNameRef} className="text-muted-foreground font-normal">{nowPlaying.track_name}</span>
         </MarqueeText>
 
         {/* Progress bar — battery-bar style */}
         {nowPlaying.duration_ms && (
-          <div className="absolute bottom-1 left-1.5 right-1.5 rounded-full overflow-hidden" style={{
-            height: '4px',
-            background: 'hsl(0 0% 0% / 0.5)',
-            boxShadow: 'inset 0 1px 2px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)',
+          <div className="absolute bottom-0 left-0 right-0 overflow-hidden" style={{
+            height: '3px',
+            background: 'hsl(var(--muted) / 0.5)',
           }}>
             <div
               ref={progressBarRef}
-              className="absolute top-0 bottom-0 left-0 rounded-full"
+              className="absolute top-0 bottom-0 left-0 bg-foreground/55"
               style={{
                 width: `${Math.max(progress, 0.5)}%`,
-                background: 'hsl(0 0% 100% / 0.7)',
-                boxShadow: '0 0 6px hsl(0 0% 100% / 0.6)',
               }}
-            />
-            <div
-              className="absolute inset-0 rounded-full pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
             />
           </div>
         )}
