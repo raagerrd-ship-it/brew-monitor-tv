@@ -154,7 +154,6 @@ export function DashboardHeader({
                 onClick={() => navigate('/settings')}
                 active={isOnSettings}
               />
-              {!isTvMode && <PiHealthChip />}
             </div>
           </div>
         ) : null}
@@ -178,8 +177,6 @@ export function DashboardHeader({
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
-              {!isTvMode && <PiHealthChip />}
-
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
@@ -199,6 +196,7 @@ export function DashboardHeader({
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <PiMenuItem />
                     <DropdownMenuItem onClick={() => setAlarmDialogOpen(true)}>
                       <Timer className="mr-2 h-4 w-4" />
                       Timer / alarm
@@ -379,8 +377,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div
                     className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
                     style={{
-                      width: isMobile ? (isCooler ? '120px' : '148px') : (isCooler ? '150px' : '176px'),
-                      height: isMobile ? '48px' : '54px',
+                      width: isMobile ? (isCooler ? '132px' : '162px') : (isCooler ? '165px' : '195px'),
+                      height: isMobile ? '50px' : '56px',
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
                       padding: isMobile ? '4px 10px 8px' : '5px 12px 9px',
