@@ -353,14 +353,18 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
                         )}
                         {!isControllerStale && pillWarn && (
-                          <AlertTriangle
-                            className="w-3 h-3 flex-shrink-0"
+                          <span
+                            className="inline-flex"
                             title={[
                               pillStale ? `Pill: ${Math.round(pillAgeMin)} min sedan uppdatering (tröskel ${pillStaleMin} min)` : '',
                               probeStale ? `Probe: ${Math.round(probeAgeMin)} min sedan uppdatering (tröskel ${probeStaleMin} min)` : '',
                             ].filter(Boolean).join('\n')}
-                            style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
-                          />
+                          >
+                            <AlertTriangle
+                              className="w-3 h-3 flex-shrink-0"
+                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                            />
+                          </span>
                         )}
                         {!isControllerStale && isCooler && (
                           <Snowflake style={{ width: '0.7rem', height: '0.7rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
