@@ -270,7 +270,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   return (
     <div className="w-full">
       <div className="relative w-full">
-        <div className="flex items-center px-1 justify-center gap-1 scrollbar-hide" style={{
+        <div className="flex items-center justify-center gap-2 scrollbar-hide" style={{
           background: 'transparent',
         }}>
           {/* RAPT API status indicator — stale data (no updates at all) */}
@@ -291,7 +291,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
             return (
               <Fragment key={controller.id}>
-                {index > 0 && <div className={`h-5 ${isMobile ? 'mx-1' : 'mx-2'} w-px flex-shrink-0 rounded-full`} style={{ background: 'hsl(0 0% 100% / 0.12)' }} />}
+
 
                  {(() => {
                    const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
