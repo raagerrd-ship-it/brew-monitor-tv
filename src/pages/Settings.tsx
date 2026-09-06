@@ -371,26 +371,8 @@ export default function Settings() {
                     <Button onClick={settings.handleQuickSync} disabled={settings.quickSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                       <RefreshCw className={`h-3 w-3 ${settings.quickSyncing ? 'animate-spin' : ''}`} />
                     </Button>
-
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">Full synk</p>
-                      <p className="text-[10px] text-muted-foreground">Alla batchar + enheter + AI-optimering</p>
-                    </div>
-                    <Select value={settings.fullSyncInterval} onValueChange={settings.handleFullSyncIntervalChange}>
-                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="0">Aldrig</SelectItem>
-                        <SelectItem value="3600">1 tim</SelectItem>
-                        <SelectItem value="21600">6 tim</SelectItem>
-                        <SelectItem value="43200">12 tim</SelectItem>
-                        <SelectItem value="86400">24 tim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={settings.handleFullSync} disabled={settings.syncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <RefreshCw className={`h-3 w-3 ${settings.syncing ? 'animate-spin' : ''}`} />
-                    </Button>
                   </div>
-                  {settings.syncing && settings.syncSteps.length > 0 && <SyncChecklist steps={settings.syncSteps} />}
+
                 </div>
               </div>
             </SettingsSection>
