@@ -430,7 +430,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           </span>
                         )}
                         {!isControllerStale && isCooler && (
-                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 4px hsl(200 70% 60% / 0.5))' }} />
+                          <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 2px hsl(200 70% 60% / 0.35))' }} />
                         )}
                         {!isControllerStale && !isCooler && (
                           <>
