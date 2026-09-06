@@ -169,7 +169,7 @@ export function DashboardHeader({
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
         {!isMobile && (
           <>
-            <div className="flex items-center flex-shrink-0 min-w-0 overflow-hidden">
+            <div className="flex items-center flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
                 <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
