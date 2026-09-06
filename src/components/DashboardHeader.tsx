@@ -386,7 +386,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     return (
                   <div
                     key={controller.id}
-                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/60 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-muted/20'}`}
+                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/30 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
                     style={{
                       flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
