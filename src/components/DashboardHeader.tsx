@@ -425,7 +425,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           >
                             <AlertTriangle
                               className="w-3 h-3 flex-shrink-0"
-                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 3px hsl(38 92% 55% / 0.6))' }}
+                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 2px hsl(38 92% 55% / 0.35))' }}
                             />
                           </span>
                         )}
