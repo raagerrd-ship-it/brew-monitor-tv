@@ -27,13 +27,6 @@ interface ApiSettings {
   rapt: { username: string; apiSecret: string; configured: boolean };
 }
 
-interface SyncStep {
-  id: string;
-  label: string;
-  completed: boolean;
-  inProgress: boolean;
-}
-
 export function useSettingsData() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -48,15 +41,12 @@ export function useSettingsData() {
   const [autoHideArchived, setAutoHideArchived] = useState(true);
   const [autoActivateFermenting, setAutoActivateFermenting] = useState(true);
   
-  const [fullSyncInterval, setFullSyncInterval] = useState<string>("21600");
   const [splashDelayMs, setSplashDelayMs] = useState<string>("1000");
   const [pillStaleThresholdMin, setPillStaleThresholdMin] = useState<string>("5");
   const [probeStaleThresholdMin, setProbeStaleThresholdMin] = useState<string>("31");
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [lastQuickSync, setLastQuickSync] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const [quickSyncing, setQuickSyncing] = useState(false);
-  const [syncSteps, setSyncSteps] = useState<SyncStep[]>([]);
   const [apiSettings, setApiSettings] = useState<ApiSettings | null>(null);
 
   // Cooler/followed controllers — derived from rapt_temp_controllers.is_glycol_cooler
@@ -127,7 +117,6 @@ export function useSettingsData() {
         setAutoHideArchived(data.auto_hide_archived ?? true);
         setAutoActivateFermenting(data.auto_activate_fermenting ?? true);
         
-        setFullSyncInterval(data.full_sync_interval?.toString() ?? "21600");
         setSplashDelayMs(data.splash_delay_ms?.toString() ?? "1000");
         setPillStaleThresholdMin(((data as any).pill_stale_threshold_min ?? 5).toString());
         setProbeStaleThresholdMin(((data as any).probe_stale_threshold_min ?? 31).toString());
@@ -297,11 +286,6 @@ export function useSettingsData() {
     await updateSyncSetting('rapt_sync_interval', parseInt(value));
   }, [updateSyncSetting]);
 
-  const handleFullSyncIntervalChange = useCallback(async (value: string) => {
-    setFullSyncInterval(value);
-    await updateSyncSetting('full_sync_interval', parseInt(value));
-  }, [updateSyncSetting]);
-
   const handleAutoSettingChange = useCallback(async (field: string, value: boolean) => {
     switch (field) {
       case 'auto_hide_completed': setAutoHideCompleted(value); break;
@@ -341,26 +325,6 @@ export function useSettingsData() {
     }
   }, [toast, loadSettings]);
 
-  const handleFullSync = useCallback(async () => {
-    setSyncing(true);
-    const steps = [
-      { id: 'ai-audit', label: 'AI-konsultation', completed: false, inProgress: false },
-    ];
-    setSyncSteps(steps);
-    try {
-      setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, inProgress: true } : s));
-      const { error } = await supabase.functions.invoke('ai-consultation', { body: {} });
-      if (error) throw error;
-      setSyncSteps(prev => prev.map(s => s.id === 'ai-audit' ? { ...s, completed: true, inProgress: false } : s));
-      toast({ title: "AI-konsultation klar", description: "AI-optimering har genomförts" });
-      await loadSettings();
-    } catch {
-      toast({ title: "Fel", description: "Kunde inte genomföra AI-konsultation", variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
-  }, [toast, loadSettings]);
-
   const handleLogout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
@@ -379,11 +343,10 @@ export function useSettingsData() {
     // Auth
     user, loading,
     // Sync — unified 2-tier
-    quickSyncInterval, fullSyncInterval, splashDelayMs,
+    quickSyncInterval, splashDelayMs,
     pillStaleThresholdMin, probeStaleThresholdMin,
     lastFullSync, lastQuickSync,
-    syncing, quickSyncing,
-    syncSteps,
+    quickSyncing,
     apiSettings,
     settingsId,
     autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
@@ -393,10 +356,10 @@ export function useSettingsData() {
     visiblePillsCount, visibleControllersCount, visibleBrewsCount,
     externalLoginDialogOpen, setExternalLoginDialogOpen,
     // Handlers
-    handleQuickSyncIntervalChange, handleFullSyncIntervalChange,
+    handleQuickSyncIntervalChange,
     handleAutoSettingChange, handleSplashDelayChange,
     handlePillStaleThresholdChange, handleProbeStaleThresholdChange,
-    handleQuickSync, handleFullSync,
+    handleQuickSync,
     handleLogout, handleForceTvRefresh,
   };
 }
