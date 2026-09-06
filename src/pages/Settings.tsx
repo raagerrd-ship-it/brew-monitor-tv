@@ -504,9 +504,6 @@ export default function Settings() {
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
               <CombinedControllerChart controllers={combinedChartControllers} />
             </SettingsSection>
-            <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar" collapsible defaultOpen={false}>
-              <AiAuditHistory />
-            </SettingsSection>
           </TabsContent>
 
           {/* DEVICES TAB */}
