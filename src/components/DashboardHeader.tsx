@@ -118,11 +118,11 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/30 bg-background/40'}`}
+        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/15 bg-background/20'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-          background: isMobile ? 'hsl(var(--background) / 0.45)' : undefined,
-          borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.6)' : undefined,
+          background: isMobile ? 'hsl(var(--background) / 0.22)' : undefined,
+          borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.35)' : undefined,
           backdropFilter: isMobile ? undefined : 'blur(18px)',
         }}
       >
