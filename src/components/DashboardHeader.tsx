@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { Fragment, memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -16,8 +16,52 @@ import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
-import { PiHealthChip } from "./PiHealthChip";
 import { HeaderIconButton } from "./header/HeaderIconButton";
+
+function PiMenuItem() {
+  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
+  const [online, setOnline] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const evaluate = (hb: string | null) => {
+      const isOnline = hb ? (Date.now() - new Date(hb).getTime()) / 1000 < 300 : false;
+      setOnline((prev) => (prev === isOnline ? prev : isOnline));
+    };
+    const load = async () => {
+      const { data } = await supabase
+        .from("pi_live_state")
+        .select("last_heartbeat")
+        .order("last_heartbeat", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!mounted) return;
+      setLastHeartbeat(data?.last_heartbeat ?? null);
+      evaluate(data?.last_heartbeat ?? null);
+    };
+    load();
+    const iv = setInterval(load, 30000);
+    const tick = setInterval(() => evaluate(lastHeartbeat), 15000);
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+      clearInterval(tick);
+    };
+  }, [lastHeartbeat]);
+
+  const ageSec = lastHeartbeat ? (Date.now() - new Date(lastHeartbeat).getTime()) / 1000 : Infinity;
+  return (
+    <DropdownMenuItem disabled className="flex items-center justify-between opacity-100 cursor-default">
+      <span className="flex items-center gap-2">
+        <Cpu className="h-4 w-4" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }} />
+        Pi-status
+      </span>
+      <span className="text-xs" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }}>
+        {online ? `online (${Math.round(ageSec)}s)` : "offline"}
+      </span>
+    </DropdownMenuItem>
+  );
+}
 
 const HEADER_HEIGHT_DESKTOP = 60;
 const HEADER_HEIGHT_TV = 60;
@@ -110,7 +154,6 @@ export function DashboardHeader({
                 onClick={() => navigate('/settings')}
                 active={isOnSettings}
               />
-              {!isTvMode && <PiHealthChip />}
             </div>
           </div>
         ) : null}
@@ -134,8 +177,6 @@ export function DashboardHeader({
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch">
-              {!isTvMode && <PiHealthChip />}
-
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
@@ -155,6 +196,7 @@ export function DashboardHeader({
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <PiMenuItem />
                     <DropdownMenuItem onClick={() => setAlarmDialogOpen(true)}>
                       <Timer className="mr-2 h-4 w-4" />
                       Timer / alarm
@@ -335,8 +377,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   <div
                     className={`relative flex flex-col justify-center rounded-lg overflow-hidden flex-shrink-0 ${isTvMode ? '' : 'cursor-pointer'}`}
                     style={{
-                      width: isMobile ? (isCooler ? '120px' : '148px') : (isCooler ? '150px' : '176px'),
-                      height: isMobile ? '48px' : '54px',
+                      width: isMobile ? (isCooler ? '132px' : '162px') : (isCooler ? '165px' : '195px'),
+                      height: isMobile ? '50px' : '56px',
                       background: chipBg,
                       border: `1px solid ${isCooler ? 'hsl(200 70% 50% / 0.25)' : 'hsl(222 15% 30% / 0.5)'}`,
                       padding: isMobile ? '4px 10px 8px' : '5px 12px 9px',
