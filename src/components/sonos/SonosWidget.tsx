@@ -182,16 +182,28 @@ export const SonosWidget = memo(function SonosWidget({
           </span>
         </div>
 
-        {/* Value row — aligns with controller temp › target */}
-        <div className="flex items-baseline gap-1.5" style={{ lineHeight: 1.05 }}>
+        {/* Value row — matches controller temp › target exactly */}
+        <div className="flex items-baseline gap-1.5">
           <MarqueeText>
-            {nowPlaying.artist_name && (
-              <span ref={artistNameRef} className="font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', color: 'hsl(0 0% 95%)', textShadow: '0 0 8px hsl(var(--foreground) / 0.25)' }}>
-                {nowPlaying.artist_name}
+            <span ref={artistNameRef} className="font-bold whitespace-nowrap" style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '22px',
+              lineHeight: 1.05,
+              color: 'hsl(0 0% 95%)',
+              textShadow: '0 0 8px hsl(var(--foreground) / 0.25)',
+            }}>
+              {nowPlaying.artist_name || nowPlaying.track_name}
+            </span>
+            {nowPlaying.artist_name && nowPlaying.track_name && (
+              <span ref={trackNameRef} className="whitespace-nowrap" style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '15px',
+                color: 'hsl(var(--muted-foreground))',
+                opacity: 0.95,
+              }}>
+                › {nowPlaying.track_name}
               </span>
             )}
-            {nowPlaying.artist_name && nowPlaying.track_name && <span className="text-muted-foreground font-normal"> › </span>}
-            <span ref={trackNameRef} className="text-muted-foreground" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '15px' }}>{nowPlaying.track_name}</span>
           </MarqueeText>
         </div>
 
