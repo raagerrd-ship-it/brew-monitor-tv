@@ -2,8 +2,6 @@ import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
-import { SyncChecklist } from "@/components/SyncChecklist";
-import { AiAuditHistory } from "@/components/AiAuditHistory";
 import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 
 import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
@@ -27,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Bot, Gauge, Search } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Gauge, Search } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
@@ -371,26 +369,8 @@ export default function Settings() {
                     <Button onClick={settings.handleQuickSync} disabled={settings.quickSyncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
                       <RefreshCw className={`h-3 w-3 ${settings.quickSyncing ? 'animate-spin' : ''}`} />
                     </Button>
-
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">Full synk</p>
-                      <p className="text-[10px] text-muted-foreground">Alla batchar + enheter + AI-optimering</p>
-                    </div>
-                    <Select value={settings.fullSyncInterval} onValueChange={settings.handleFullSyncIntervalChange}>
-                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="0">Aldrig</SelectItem>
-                        <SelectItem value="3600">1 tim</SelectItem>
-                        <SelectItem value="21600">6 tim</SelectItem>
-                        <SelectItem value="43200">12 tim</SelectItem>
-                        <SelectItem value="86400">24 tim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={settings.handleFullSync} disabled={settings.syncing} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary">
-                      <RefreshCw className={`h-3 w-3 ${settings.syncing ? 'animate-spin' : ''}`} />
-                    </Button>
                   </div>
-                  {settings.syncing && settings.syncSteps.length > 0 && <SyncChecklist steps={settings.syncSteps} />}
+
                 </div>
               </div>
             </SettingsSection>
@@ -521,9 +501,6 @@ export default function Settings() {
             <CategorySeparator icon={History} label="Historik" />
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
               <CombinedControllerChart controllers={combinedChartControllers} />
-            </SettingsSection>
-            <SettingsSection icon={Bot} title="AI-justeringshistorik" description="Historik över AI-auditens parameterändringar" collapsible defaultOpen={false}>
-              <AiAuditHistory />
             </SettingsSection>
           </TabsContent>
 

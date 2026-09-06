@@ -1710,7 +1710,6 @@ export type Database = {
           target_temp: number
         }[]
       }
-      trigger_ai_consultation: { Args: never; Returns: undefined }
       trigger_external_timer_sync: { Args: never; Returns: undefined }
       trigger_rapt_quick_sync: { Args: never; Returns: undefined }
       trigger_sonos_now_playing_sync: { Args: never; Returns: undefined }
