@@ -342,7 +342,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     {/* Label row */}
                     <div className="flex items-center justify-between gap-1">
                       <span className="uppercase font-bold truncate" style={{
-                        fontSize: '9px',
+                        fontSize: '10px',
                         letterSpacing: '0.1em',
                         color: isCooler ? 'hsl(200 70% 65%)' : 'hsl(var(--muted-foreground))',
                       }}>
