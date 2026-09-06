@@ -175,39 +175,42 @@ export const SonosWidget = memo(function SonosWidget({
         className="relative flex min-w-0 flex-1 flex-col justify-center bg-transparent"
         style={{ padding: '5px 18px 9px' }}
       >
-        {/* Label row — aligns with controller labels */}
-        <div className="flex items-center justify-between">
-          <span className="uppercase font-bold truncate" style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'hsl(var(--muted-foreground))' }}>
+        {/* Label row — exact copy of controller label row */}
+        <div className="flex items-center justify-between gap-1">
+          <span className="uppercase font-bold truncate" style={{
+            fontSize: '10px',
+            letterSpacing: '0.1em',
+            color: 'hsl(var(--muted-foreground))',
+          }}>
             Spelar nu
           </span>
         </div>
 
-        {/* Value row — matches controller temp › target exactly */}
+        {/* Value row — exact copy of controller temp row, showing track */}
         <div className="flex items-baseline gap-1.5">
           <MarqueeText>
-            <span ref={artistNameRef} className="font-bold whitespace-nowrap" style={{
+            <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: '22px',
               lineHeight: 1.05,
               color: 'hsl(0 0% 95%)',
-              textShadow: '0 0 8px hsl(var(--foreground) / 0.25)',
             }}>
-              {nowPlaying.artist_name || nowPlaying.track_name}
+              {nowPlaying.track_name}
             </span>
-            {nowPlaying.artist_name && nowPlaying.track_name && (
-              <span ref={trackNameRef} className="whitespace-nowrap" style={{
+            {nowPlaying.artist_name && (
+              <span ref={artistNameRef} className="whitespace-nowrap" style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: '15px',
                 color: 'hsl(var(--muted-foreground))',
                 opacity: 0.95,
               }}>
-                › {nowPlaying.track_name}
+                › {nowPlaying.artist_name}
               </span>
             )}
           </MarqueeText>
         </div>
 
-        {/* Progress bar — aligns with controller battery bars */}
+        {/* Bottom bar — exact copy of controller battery bar, showing progress */}
         {nowPlaying.duration_ms && (
           <div className="absolute bottom-0 left-0 right-0" style={{
             height: '2px',
@@ -217,10 +220,10 @@ export const SonosWidget = memo(function SonosWidget({
               ref={progressBarRef}
               className="absolute top-0 bottom-0 left-0 transition-all duration-500"
               style={{
-                width: `${Math.max(progress, 0.5)}%`,
-                background: 'hsl(var(--foreground) / 0.8)',
+                width: `${Math.max(progress, 1)}%`,
+                background: 'hsl(0 0% 95%)',
                 opacity: 0.8,
-                boxShadow: '0 0 3px hsl(var(--foreground) / 0.5)',
+                boxShadow: '0 0 3px hsl(0 0% 95% / 0.5)',
               }}
             />
           </div>
