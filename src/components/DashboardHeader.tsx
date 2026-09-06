@@ -285,7 +285,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
               <div className="h-8 mx-1 w-px" style={{ background: 'hsl(0 40% 30%)' }} />
             </>
           )}
-          {controllers.map((controller, index) => {
+          {controllers.map((controller) => {
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
             const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
