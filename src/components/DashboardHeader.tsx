@@ -128,7 +128,7 @@ export function DashboardHeader({
               )}
             </div>
 
-            <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer' }} onClick={isTvMode ? undefined : () => navigate('/')}>
+            <div className="flex items-center justify-center min-w-0 overflow-hidden" style={{ cursor: isTvMode ? 'default' : 'pointer', maxWidth: '220px' }} onClick={isTvMode ? undefined : () => navigate('/')}>
               <SonosWidget isMobile={false} variant="header" />
             </div>
 
