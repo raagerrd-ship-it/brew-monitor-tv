@@ -2,11 +2,15 @@
 // utan temperaturbandet kan Pi:n inte varna eller reglera inom jästens spann.
 
 export type Yeast = {
+  [k: string]: unknown;
   name: string | null;
   lab: string | null;
   min_temp: number | null;
   max_temp: number | null;
   attenuation: number | null;
+  tol_min_temp: number | null;
+  tol_max_temp: number | null;
+  temp_range_basis: string | null;
 };
 
 /** Tal ska vara tal. Tomt, gissning eller skräp blir null — aldrig 0. */
