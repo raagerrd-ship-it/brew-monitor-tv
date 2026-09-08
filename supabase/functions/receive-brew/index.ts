@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { normalizeYeasts } from "../_shared/yeast.ts";
 
 const SECRETS = [
   Deno.env.get("BREW_INGEST_SECRET"),
