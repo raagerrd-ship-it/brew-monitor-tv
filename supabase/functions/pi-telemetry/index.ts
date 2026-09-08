@@ -182,11 +182,29 @@ Deno.serve(async (req) => {
     else if (p.step_progress !== undefined) patch.step_progress = p.step_progress;
     if (p.status === "completed" && !patch.completed_at) patch.completed_at = new Date().toISOString();
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("fermentation_sessions")
       .update(patch)
-      .eq("id", p.session_id);
+      .eq("id", p.session_id)
+      .select("id");
     if (error) console.error("profile state write failed:", error.message);
+
+    // Pi:n äger sessionen. Finns den inte i molnet ännu speglar vi den hit,
+    // annars syns ingen profil i UI:t.
+    if (!error && (!updated || updated.length === 0) && p.profile_id && fullId) {
+      const { error: insErr } = await supabase
+        .from("fermentation_sessions")
+        .insert({
+          id: p.session_id,
+          profile_id: p.profile_id,
+          brew_id: p.brew_id ?? null,
+          controller_id: fullId,
+          started_at: p.started_at ?? new Date().toISOString(),
+          step_started_at: p.step_started_at ?? new Date().toISOString(),
+          ...patch,
+        });
+      if (insErr) console.error("profile session insert failed:", insErr.message);
+    }
   }
 
   async function writeMetrics(brewId: string | null | undefined, d: any) {
