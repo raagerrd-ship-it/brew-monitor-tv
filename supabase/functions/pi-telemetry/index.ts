@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
       }
       return;
     }
-    if (!p.session_id) return;
+    if (!p.session_id) { console.log("PROFILE_NO_SESSION_ID", JSON.stringify(p)); return; }
     if (p.shadow === true) return; // skuggkörning = inte verklig historik
     const patch: Record<string, any> = {
       status: p.status,
