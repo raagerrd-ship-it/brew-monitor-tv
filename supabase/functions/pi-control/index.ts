@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { normalizeYeasts } from "../_shared/yeast.ts";
 
 const SECRET = Deno.env.get("PI_BLE_INGEST_SECRET")!;
 
@@ -135,18 +136,9 @@ Deno.serve(async (req) => {
       profile_hint: b.style || null,
       // Pitchtid eller null — aldrig platshållare.
       fermentation_start: b.fermentation_start ?? null,
-      // Jäst: spannet Pi:n kan sätta hard_temp_limits på. null om okänt.
-      yeasts: Array.isArray(b.recipe?.yeasts)
-        ? b.recipe.yeasts.map((y: any) => ({
-            lab: y.lab ?? null,
-            product_id: y.product_id ?? null,
-            name: y.name ?? null,
-            attenuation: y.attenuation ?? null,
-            min_temp: y.min_temp ?? y.min_temp_c ?? y.temp_min ?? null,
-            max_temp: y.max_temp ?? y.max_temp_c ?? y.temp_max ?? null,
-            starter: y.starter ?? null,
-          }))
-        : null,
+      // Jäst: spannet Pi:n sätter hard_temp_limits på. Alltid en lista,
+      // alltid tal eller null — aldrig strängar och aldrig gissningar.
+      yeasts: normalizeYeasts(b.recipe?.yeasts),
       // Valfria fält — vidarebefordras oförändrade när de finns.
       dry_hops: Array.isArray(b.recipe?.dry_hops) ? b.recipe.dry_hops : null,
       notes: b.recipe?.notes ?? null,

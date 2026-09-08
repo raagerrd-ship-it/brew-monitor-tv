@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { normalizeYeasts } from "../_shared/yeast.ts";
 
 const SECRETS = [
   Deno.env.get("BREW_INGEST_SECRET"),
@@ -36,9 +37,12 @@ Deno.serve(async (req) => {
   const og = num(body.og) ?? num(m.og);
   const fg = num(body.fg) ?? num(m.fg);
 
-  // Jästen: temperaturspannet är det enda som kan rädda en sats, så vi
-  // lagrar hela listan i recipe-jsonen och låter pi-control plocka spannet.
-  const yeasts = Array.isArray(body.yeasts) ? body.yeasts : null;
+  // Jästen: temperaturspannet är det enda som kan rädda en sats. Utan jäst
+  // får bryggden inte hamna i kön till Pi:n.
+  const yeasts = normalizeYeasts(body.yeasts);
+  if (yeasts.length === 0) {
+    return json({ error: "yeasts krävs: minst en jäst med namn" }, 400);
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -73,7 +77,7 @@ Deno.serve(async (req) => {
     fermentation_start: body.fermentation_start ?? null,
     // Spara hela nyttolasten så inget avsändaren skickar går förlorat.
     // yeasts lyfts ut på toppnivå eftersom pi-control läser spannet därifrån.
-    recipe: { ...body, ...(yeasts ? { yeasts } : {}) },
+    recipe: { ...body, yeasts },
     // Lägger satsen direkt i kön till Jäscontrollern.
     pi_pending_at: new Date().toISOString(),
   };
