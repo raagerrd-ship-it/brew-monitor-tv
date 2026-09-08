@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   // ── Profil-/metrics-state från Pi:ns profilmotor (Pi äger sanningen) ──
   async function writeProfileState(d: any, fullId?: string | null) {
     // Saknas fältet helt vet vi ingenting — rör inte lagrat state.
-    if (!has(d, "profile")) return;
+    if (!has(d, "profile")) { console.log("PROFILE_FIELD_ABSENT", fullId ?? "?", JSON.stringify(Object.keys(d))); return; }
     const p = d.profile;
     // profile: null betyder "sessionen är avslutad" — inte "inget nytt".
     // Städa bort kvarvarande running-sessioner för tanken.
