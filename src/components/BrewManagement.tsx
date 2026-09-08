@@ -7,6 +7,7 @@ import { Badge } from "./ui/badge";
 import { CustomBrewDialog } from "./CustomBrewDialog";
 import type { CustomBrewData } from "./CustomBrewDialog";
 import { PrintLabelDialog } from "./PrintLabelDialog";
+import { YeastDialog } from "./YeastDialog";
 import type { BrewData } from "@/types/brew";
 import { useBrewManagement } from "@/hooks";
 
@@ -204,7 +205,7 @@ export function BrewManagement() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPiPending(brew.id, true)}
+                        onClick={() => sendToPi(brew)}
                       >
                         <Send className="mr-1.5 h-3.5 w-3.5" />
                         Skicka till Jäscontroller
@@ -266,6 +267,19 @@ export function BrewManagement() {
         pills={pills}
         controllers={controllers}
       />
+
+      {yeastBrew && (
+        <YeastDialog
+          open={!!yeastBrew}
+          brewName={yeastBrew.name}
+          onOpenChange={(o) => { if (!o) setYeastBrew(null); }}
+          onSave={async (yeast) => {
+            const brewId = yeastBrew.id;
+            setYeastBrew(null);
+            if (await saveYeast(brewId, yeast)) setPiPending(brewId, true);
+          }}
+        />
+      )}
 
       {printBrew && (
         <PrintLabelDialog
