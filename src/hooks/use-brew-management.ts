@@ -109,7 +109,7 @@ export function useBrewManagement() {
   const saveYeast = useCallback(async (brewId: string, yeast: unknown) => {
     const brew = customBrews.find(b => b.id === brewId);
     const recipe = { ...(brew?.recipe as Record<string, unknown> ?? {}), yeasts: [yeast] };
-    const { error } = await supabase.from('brew_readings').update({ recipe }).eq('id', brewId);
+    const { error } = await supabase.from('brew_readings').update({ recipe: recipe as never }).eq('id', brewId);
     if (error) {
       toast({ title: "Fel", description: "Kunde inte spara jästen", variant: "destructive" });
       return false;
