@@ -36,9 +36,12 @@ Deno.serve(async (req) => {
   const og = num(body.og) ?? num(m.og);
   const fg = num(body.fg) ?? num(m.fg);
 
-  // Jästen: temperaturspannet är det enda som kan rädda en sats, så vi
-  // lagrar hela listan i recipe-jsonen och låter pi-control plocka spannet.
-  const yeasts = Array.isArray(body.yeasts) ? body.yeasts : null;
+  // Jästen: temperaturspannet är det enda som kan rädda en sats. Utan jäst
+  // får bryggden inte hamna i kön till Pi:n.
+  const yeasts = normalizeYeasts(body.yeasts);
+  if (yeasts.length === 0) {
+    return json({ error: "yeasts krävs: minst en jäst med namn" }, 400);
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
