@@ -182,11 +182,15 @@ Deno.serve(async (req) => {
     else if (p.step_progress !== undefined) patch.step_progress = p.step_progress;
     if (p.status === "completed" && !patch.completed_at) patch.completed_at = new Date().toISOString();
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("fermentation_sessions")
       .update(patch)
-      .eq("id", p.session_id);
+      .eq("id", p.session_id)
+      .select("id");
     if (error) console.error("profile state write failed:", error.message);
+    if (!error && (!updated || updated.length === 0)) {
+      console.log("PROFILE_SESSION_MISSING", JSON.stringify(p));
+    }
   }
 
   async function writeMetrics(brewId: string | null | undefined, d: any) {
