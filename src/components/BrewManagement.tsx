@@ -68,18 +68,33 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
+/** Pi:n kräver minst en namngiven jäst innan bryggden får köas. */
+function hasYeast(brew: CustomBrewData): boolean {
+  const yeasts = (brew.recipe as { yeasts?: unknown })?.yeasts;
+  return Array.isArray(yeasts) && yeasts.some((y: any) => typeof y?.name === 'string' && y.name.trim());
+}
+
 export function BrewManagement() {
   const navigate = useNavigate();
   const [printBrew, setPrintBrew] = useState<CustomBrewData | null>(null);
+  const [yeastBrew, setYeastBrew] = useState<CustomBrewData | null>(null);
   const {
     customBrews, pills, controllers,
     loading, showCustomBrewDialog, editingBrew, prefillData,
     timerRecipeName, timerBeerStyle, timerBrewMatch,
     deleteCustomBrew,
-    setPiPending,
+    setPiPending, saveYeast,
     openCustomBrewDialog, openEditBrewDialog, closeCustomBrewDialog,
     setShowCustomBrewDialog, loadData,
   } = useBrewManagement();
+
+  const sendToPi = (brew: CustomBrewData) => {
+    if (!hasYeast(brew)) {
+      setYeastBrew(brew);
+      return;
+    }
+    setPiPending(brew.id, true);
+  };
 
   if (loading) {
     return (
