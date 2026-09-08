@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     // Städa bort kvarvarande running-sessioner för tanken.
     if (!p) {
       if (!fullId) return
-      const { error } = await supabase
+      const { data: closing, error } = await supabase
         .from("fermentation_sessions")
         .update({
           status: "completed",
@@ -152,8 +152,17 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("controller_id", fullId)
-        .in("status", ["running", "paused"]);
+        .in("status", ["running", "paused"])
+        .select("brew_id");
       if (error) console.error("profile clear failed:", error.message);
+      // Avslutad session → bryggden ska inte ligga kvar i Pi-kön.
+      const closedBrewIds = (closing || []).map((s: any) => s.brew_id).filter(Boolean);
+      if (closedBrewIds.length) {
+        await supabase
+          .from("brew_readings")
+          .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
+          .in("id", closedBrewIds);
+      }
       return;
     }
     if (!p.session_id) return;
@@ -587,6 +596,15 @@ Deno.serve(async (req) => {
     // Profilstate speglas oavsett regulating: en avstängd tank ska också
     // kunna rensa sitt sista steg.
     await writeProfileState(data, fullId);
+    // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
+    // tanken just nu inte reglerar.
+    if (data.profile?.brew_id) {
+      await supabase
+        .from("brew_readings")
+        .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
+        .eq("id", data.profile.brew_id)
+        .not("pi_pending_at", "is", null);
+    }
     if (fullId && isRegulating(data)) {
       await writePillAndBrew(fullId, data);
       await writeMetrics(data.profile?.brew_id ?? null, data);
