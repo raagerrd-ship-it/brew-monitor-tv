@@ -105,6 +105,19 @@ export function useBrewManagement() {
     });
   }, [toast]);
 
+  /** Skriver in manuellt ifylld jäst på receptet innan bryggden köas till Pi:n. */
+  const saveYeast = useCallback(async (brewId: string, yeast: unknown) => {
+    const brew = customBrews.find(b => b.id === brewId);
+    const recipe = { ...(brew?.recipe as Record<string, unknown> ?? {}), yeasts: [yeast] };
+    const { error } = await supabase.from('brew_readings').update({ recipe }).eq('id', brewId);
+    if (error) {
+      toast({ title: "Fel", description: "Kunde inte spara jästen", variant: "destructive" });
+      return false;
+    }
+    setCustomBrews(prev => prev.map(b => b.id === brewId ? { ...b, recipe } : b));
+    return true;
+  }, [customBrews, toast]);
+
   const deleteCustomBrew = useCallback(async (brewId: string) => {
     try {
       const { error } = await supabase.from('brew_readings').delete().eq('id', brewId);
