@@ -160,6 +160,7 @@ export function useBrewManagement() {
     timerBrewMatch,
     deleteCustomBrew,
     setPiPending,
+    saveYeast,
     openCustomBrewDialog,
     openEditBrewDialog,
     closeCustomBrewDialog,
