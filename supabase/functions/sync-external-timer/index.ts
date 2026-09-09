@@ -58,10 +58,14 @@ Deno.serve(async (req) => {
     });
 
     if (authError || !authData.session) {
-      const isTransient = authError?.message?.includes('connection') || 
-                          authError?.message?.includes('reset') ||
-                          authError?.message?.includes('timeout') ||
-                          authError?.message?.includes('SendRequest');
+      const authMsg = (authError?.message || '').toLowerCase();
+      const isTransient = authMsg.includes('connection') ||
+                          authMsg.includes('reset') ||
+                          authMsg.includes('timeout') ||
+                          authMsg.includes('timed out') ||
+                          authMsg.includes('gateway') ||
+                          authMsg.includes('unavailable') ||
+                          authMsg.includes('sendrequest');
       if (isTransient) {
         console.warn('⚠️ Transient auth error, skipping sync cycle:', authError?.message);
         return new Response(

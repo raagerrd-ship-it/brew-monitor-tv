@@ -54,6 +54,18 @@ Deno.serve(async (req) => {
     });
 
     if (error) {
+      const msg = (error.message || '').toLowerCase();
+      const isTransient = msg.includes('connection') || msg.includes('reset') ||
+        msg.includes('timeout') || msg.includes('timed out') ||
+        msg.includes('gateway') || msg.includes('unavailable') ||
+        msg.includes('sendrequest');
+      if (isTransient) {
+        console.warn('Transient external auth error, skipping:', error.message);
+        return new Response(
+          JSON.stringify({ transient: true, error: error.message }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       console.error('External auth error:', error.message);
       return new Response(
         JSON.stringify({ 
