@@ -154,52 +154,6 @@ export default function Settings() {
             {/* ═══════════════ DATAKÄLLOR ═══════════════ */}
             <SettingsSection icon={Cpu} title="Datakällor" description="Anslutna API:er och integrationer">
               <div className="space-y-3">
-                {/* RAPT */}
-                <Collapsible>
-                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                            <Cloud className="h-4 w-4 text-primary" />
-                          </div>
-                        </div>
-                        <span className="text-sm font-semibold">RAPT</span>
-                        {settings.apiSettings?.rapt?.configured ? (
-                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
-                            <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
-                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-4 space-y-3">
-                      {settings.apiSettings?.rapt && (
-                        <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Användarnamn:</span>
-                            <span className="font-mono">{settings.apiSettings.rapt.username}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">API-nyckel:</span>
-                            <span className="font-mono">{settings.apiSettings.rapt.apiSecret}</span>
-                          </div>
-                        </div>
-                      )}
-                      <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                        onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina RAPT API-nycklar i backend-inställningarna." })}>
-                        <Pencil className="h-3 w-3" /> Ändra API-uppgifter
-                      </button>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
 
                 {/* Brygg-timer */}
                 <Collapsible>
