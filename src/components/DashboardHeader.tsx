@@ -86,7 +86,7 @@ export function DashboardHeader({
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
-  const { controllers, pills, piDisabled } = useRaptBarData();
+  const { controllers, pills, piDisabled, activeSessions } = useRaptBarData();
 
   // Sonos visibility drives header layout: chips grow when Sonos is hidden.
   const [sonosVisible, setSonosVisible] = useState(true);
@@ -164,7 +164,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -172,7 +172,7 @@ export function DashboardHeader({
           <>
             <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
@@ -260,6 +260,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
   isTvMode?: boolean;
   piDisabled?: Record<string, boolean>;
+  activeSessions?: Record<string, boolean>;
   compact?: boolean;
 }
 
@@ -284,6 +285,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false,
   piDisabled = {},
+  activeSessions = {},
   compact = false,
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -464,7 +466,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
-                      {controller.target_temp !== null && (
+                      {controller.target_temp !== null && (isCooler || (!isOff && activeSessions[controller.controller_id])) && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: isMobile ? '13px' : '15px',

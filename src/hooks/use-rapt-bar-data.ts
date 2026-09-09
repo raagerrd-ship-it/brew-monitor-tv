@@ -6,6 +6,7 @@ interface RaptBarData {
   controllers: TempController[];
   pills: PillData[];
   piDisabled: Record<string, boolean>;
+  activeSessions: Record<string, boolean>;
   loading: boolean;
 }
 
@@ -13,6 +14,7 @@ export function useRaptBarData(): RaptBarData {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [piDisabled, setPiDisabled] = useState<Record<string, boolean>>({});
+  const [activeSessions, setActiveSessions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const controllerIdsRef = useRef<string[]>([]);
   const pillIdsRef = useRef<string[]>([]);
@@ -48,6 +50,15 @@ export function useRaptBarData(): RaptBarData {
 
       setControllers(sortedControllers);
       setPills(sortedPills);
+
+      // Aktiva jässessioner — styr om måltemperaturen ska visas i headern.
+      const { data: sessions } = await supabase
+        .from('fermentation_sessions')
+        .select('controller_id')
+        .in('status', ['running', 'paused']);
+      const sessMap: Record<string, boolean> = {};
+      for (const s of sessions || []) if (s.controller_id) sessMap[s.controller_id] = true;
+      setActiveSessions(sessMap);
 
       const piIds = sortedControllers
         .filter((c: any) => c.actuation === 'pi')
@@ -106,6 +117,9 @@ export function useRaptBarData(): RaptBarData {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => {
         loadData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => {
+        loadData();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_setpoint' }, (payload) => {
         const updated = payload.new as any;
         if (!updated?.controller_id) return;
@@ -122,5 +136,5 @@ export function useRaptBarData(): RaptBarData {
     };
   }, [loadData]);
 
-  return { controllers, pills, piDisabled, loading };
+  return { controllers, pills, piDisabled, activeSessions, loading };
 }
