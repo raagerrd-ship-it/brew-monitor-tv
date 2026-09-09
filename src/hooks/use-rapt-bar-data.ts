@@ -123,10 +123,15 @@ export function useRaptBarData(): RaptBarData {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => {
         loadData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_setpoint' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_live_state' }, (payload) => {
         const updated = payload.new as any;
         if (!updated?.controller_id) return;
-        setPiDisabled(prev => ({ ...prev, [updated.controller_id]: updated.enabled === false }));
+        setPiDisabled(prev => {
+          const full = Object.keys(prev).find((id) => id === updated.controller_id || id.startsWith(updated.controller_id));
+          if (!full) return prev;
+          return { ...prev, [full]: updated.enabled === false };
+        });
+        loadData();
       })
       .subscribe();
 
