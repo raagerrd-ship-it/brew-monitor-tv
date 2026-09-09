@@ -383,6 +383,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     );
                     const isCooler = controller.is_glycol_cooler;
                     const isOff = piDisabled[controller.controller_id] === true;
+                    const isManual = piManual[controller.controller_id] === true;
                     const hasPill = !!linkedPill && !isPillStale;
                     const pillActive = !isOff && hasPill;
                     const probeActive = !isOff && controller.current_temp != null;
@@ -415,7 +416,15 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : undefined}>
+                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : isManual ? `${controller.name} styrs manuellt härifrån` : undefined}>
+                        {isManual && !isOff && (
+                          <Hand style={{
+                            width: '0.75rem',
+                            height: '0.75rem',
+                            color: 'hsl(38 92% 55%)',
+                            filter: 'drop-shadow(0 0 2px hsl(38 92% 55% / 0.4))',
+                          }} />
+                        )}
                         {isControllerStale && (
                           <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
                         )}
@@ -468,12 +477,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
-                      {controller.target_temp !== null && (isCooler || (!isOff && activeSessions[controller.controller_id])) && (
+                      {controller.target_temp !== null && (isCooler || isManual || (!isOff && activeSessions[controller.controller_id])) && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: isMobile ? '13px' : '15px',
-                          color: 'hsl(var(--muted-foreground))',
+                          color: isManual && !isOff ? 'hsl(38 92% 55%)' : 'hsl(var(--muted-foreground))',
                           opacity: 0.95,
+                          textShadow: isManual && !isOff ? '0 0 6px hsl(38 92% 55% / 0.3)' : undefined,
                         }}>
                           › {controller.target_temp.toFixed(1)}°
                         </span>
