@@ -403,41 +403,6 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          {/* AUTOMATION TAB */}
-          <TabsContent value="automation" className="space-y-6">
-            <SettingsSection icon={Cpu} title="Autonoma funktioner" description="Aktivera eller inaktivera automatisk styrning">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <Gauge className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-medium">PID-reglering</p>
-                      <p className="text-[11px] text-muted-foreground">Kärnfunktion — alltid aktiv</p>
-                    </div>
-                  </div>
-                  <Switch checked={true} disabled className="opacity-60" />
-                </div>
-              </div>
-            </SettingsSection>
-
-            <CategorySeparator icon={Brain} label="Inlärning" />
-                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
-                  <LearnedDutyCycle />
-                </SettingsSection>
-
-                <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren" collapsible defaultOpen={false}>
-                  <LearnedThermalProfile />
-                  <SettingsDivider />
-                  <LearnedPidCoolingRates />
-                  <SettingsDivider />
-                  <LearnedCoolerMarginValues />
-                </SettingsSection>
-
-            <CategorySeparator icon={History} label="Historik" />
-            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
-              <CombinedControllerChart controllers={combinedChartControllers} />
-            </SettingsSection>
-          </TabsContent>
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
