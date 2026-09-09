@@ -1,13 +1,8 @@
 import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
-import { RaptPillsManagement } from "@/components/RaptPillsManagement";
-import { RaptControllersManagement } from "@/components/RaptControllersManagement";
-
 import { CombinedControllerChart } from "@/components/controller-chart";
 
-
-import { PumpStatusPanel } from "@/components/PumpStatusPanel";
-import { PiTankSettings } from "@/components/PiTankSettings";
+import { DeviceOverviewPanel } from "@/components/DeviceOverviewPanel";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
 import { ExternalLoginDialog } from "@/components/ExternalLoginDialog";
 import { SonosSettings } from "@/components/sonos/SonosSettings";
@@ -21,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Printer, Share2 } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Music, History, Printer, Share2 } from "lucide-react";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
