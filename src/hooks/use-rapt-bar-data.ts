@@ -64,12 +64,15 @@ export function useRaptBarData(): RaptBarData {
         .filter((c: any) => c.actuation === 'pi')
         .map((c) => c.controller_id);
       if (piIds.length > 0) {
-        const { data: setpoints } = await supabase
-          .from('pi_setpoint')
-          .select('controller_id, enabled')
-          .in('controller_id', piIds);
+        // pi_live_state är Pi:ns egen sanning; matcha på kort id (första segmentet).
+        const { data: liveStates } = await supabase
+          .from('pi_live_state')
+          .select('controller_id, enabled');
         const map: Record<string, boolean> = {};
-        for (const sp of setpoints || []) map[sp.controller_id] = sp.enabled === false;
+        for (const ls of liveStates || []) {
+          const full = piIds.find((id) => id === ls.controller_id || id.startsWith(ls.controller_id));
+          if (full) map[full] = ls.enabled === false;
+        }
         setPiDisabled(map);
       } else {
         setPiDisabled({});
@@ -120,10 +123,15 @@ export function useRaptBarData(): RaptBarData {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => {
         loadData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_setpoint' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_live_state' }, (payload) => {
         const updated = payload.new as any;
         if (!updated?.controller_id) return;
-        setPiDisabled(prev => ({ ...prev, [updated.controller_id]: updated.enabled === false }));
+        setPiDisabled(prev => {
+          const full = Object.keys(prev).find((id) => id === updated.controller_id || id.startsWith(updated.controller_id));
+          if (!full) return prev;
+          return { ...prev, [full]: updated.enabled === false };
+        });
+        loadData();
       })
       .subscribe();
 
