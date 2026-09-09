@@ -2,14 +2,10 @@ import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
-import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 
-import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
 
-import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
-import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { PumpStatusPanel } from "@/components/PumpStatusPanel";
 import { PiTankSettings } from "@/components/PiTankSettings";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
@@ -25,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Brain, Printer, Gauge, Share2 } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Printer, Share2 } from "lucide-react";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +39,7 @@ export default function Settings() {
 
 
   // Get initial tab from URL or default to "sync"
-  const validTabs = ["sync", "automation", "devices", "brews"];
+  const validTabs = ["sync", "devices", "brews"];
   const tabFromUrl = searchParams.get("tab");
   const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : "sync";
 
@@ -112,7 +108,7 @@ export default function Settings() {
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
         <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="sync" className="flex items-center gap-2 relative">
               <RefreshCw className="h-4 w-4" />
               Synk
@@ -121,10 +117,6 @@ export default function Settings() {
                   <AlertCircle className="h-3 w-3" />
                 </span>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="automation" className="flex items-center gap-2 relative">
-              <Thermometer className="h-4 w-4" />
-              Automatik
             </TabsTrigger>
             <TabsTrigger value="devices" className="flex items-center gap-2 relative">
               <Cpu className="h-4 w-4" />
@@ -403,41 +395,6 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          {/* AUTOMATION TAB */}
-          <TabsContent value="automation" className="space-y-6">
-            <SettingsSection icon={Cpu} title="Autonoma funktioner" description="Aktivera eller inaktivera automatisk styrning">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between py-2.5 px-1">
-                  <div className="flex items-center gap-2.5">
-                    <Gauge className="h-4 w-4 text-accent" />
-                    <div>
-                      <p className="text-sm font-medium">PID-reglering</p>
-                      <p className="text-[11px] text-muted-foreground">Kärnfunktion — alltid aktiv</p>
-                    </div>
-                  </div>
-                  <Switch checked={true} disabled className="opacity-60" />
-                </div>
-              </div>
-            </SettingsSection>
-
-            <CategorySeparator icon={Brain} label="Inlärning" />
-                <SettingsSection icon={Thermometer} title="Controller-inlärning" description="PID-kompensation och termiska hastigheter per controller" collapsible defaultOpen={false}>
-                  <LearnedDutyCycle />
-                </SettingsSection>
-
-                <SettingsSection icon={Snowflake} title="Kylare-inlärning" description="Inlärda marginaler för den gemensamma kylaren" collapsible defaultOpen={false}>
-                  <LearnedThermalProfile />
-                  <SettingsDivider />
-                  <LearnedPidCoolingRates />
-                  <SettingsDivider />
-                  <LearnedCoolerMarginValues />
-                </SettingsSection>
-
-            <CategorySeparator icon={History} label="Historik" />
-            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
-              <CombinedControllerChart controllers={combinedChartControllers} />
-            </SettingsSection>
-          </TabsContent>
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
@@ -455,6 +412,10 @@ export default function Settings() {
             </SettingsSection>
             <SettingsSection icon={Pill} title="RAPT Pills" description="Välj vilka pills Pi:n skriver till som ska visas separat på dashboarden">
               <RaptPillsManagement />
+            </SettingsSection>
+            <CategorySeparator icon={History} label="Historik" />
+            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
+              <CombinedControllerChart controllers={combinedChartControllers} />
             </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
             <SettingsSection icon={Printer} title="Termoskrivare" description="Bluetooth-anslutning till etikettskrivare">
