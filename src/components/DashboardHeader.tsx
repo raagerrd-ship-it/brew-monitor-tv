@@ -405,7 +405,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
                   >
                     {/* Label row */}
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span className="uppercase font-bold truncate" style={{
                         fontSize: '10px',
                         letterSpacing: '0.1em',
