@@ -244,6 +244,42 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            {/* ═══════════════ DELADE FUNKTIONER ═══════════════ */}
+            <CategorySeparator icon={Share2} label="Delade funktioner" />
+
+            <SettingsSection icon={Share2} title="Gränssnitt mot andra appar" description="Funktioner som både tar emot och skickar data">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Beer className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">receive-brew</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Tar emot bryggder från Brew Master Dashboard.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">pi-control / pi-telemetry</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Skickar kommandon till Pi:n och tar emot telemetri.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">sync-external-timer</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Hämtar live bryggtimer från extern bryggtjänst.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Music className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">Sonos bridge</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Visar nu spelad musik från Cast Away/Sonos-systemet.</p>
+                </div>
+              </div>
+            </SettingsSection>
+
             {/* ═══════════════ SYNK-FREKVENSER ═══════════════ */}
             <CategorySeparator icon={RefreshCw} label="Synkronisering" />
 
@@ -253,7 +289,7 @@ export default function Settings() {
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">RAPT mätvärden + automation</p>
+                      <p className="text-[10px] text-muted-foreground">Pi-telemetri + automation</p>
                     </div>
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
