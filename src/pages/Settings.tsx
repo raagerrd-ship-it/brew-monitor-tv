@@ -122,10 +122,6 @@ export default function Settings() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="automation" className="flex items-center gap-2 relative">
-              <Thermometer className="h-4 w-4" />
-              Automatik
-            </TabsTrigger>
             <TabsTrigger value="devices" className="flex items-center gap-2 relative">
               <Cpu className="h-4 w-4" />
               Enheter
