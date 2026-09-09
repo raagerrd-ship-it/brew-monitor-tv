@@ -2,14 +2,10 @@ import { toast } from "@/hooks";
 import { BrewManagement } from "@/components/BrewManagement";
 import { RaptPillsManagement } from "@/components/RaptPillsManagement";
 import { RaptControllersManagement } from "@/components/RaptControllersManagement";
-import { LearnedCoolerMarginValues } from "@/components/LearnedCoolerMarginValues";
 
-import { LearnedPidCoolingRates } from "@/components/LearnedPidCoolingRates";
 import { CombinedControllerChart } from "@/components/controller-chart";
 
 
-import { LearnedThermalProfile } from "@/components/LearnedThermalProfile";
-import { LearnedDutyCycle } from "@/components/LearnedDutyCycle";
 import { PumpStatusPanel } from "@/components/PumpStatusPanel";
 import { PiTankSettings } from "@/components/PiTankSettings";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
@@ -25,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Brain, Printer, Gauge, Share2 } from "lucide-react";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Printer, Share2 } from "lucide-react";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +39,7 @@ export default function Settings() {
 
 
   // Get initial tab from URL or default to "sync"
-  const validTabs = ["sync", "automation", "devices", "brews"];
+  const validTabs = ["sync", "devices", "brews"];
   const tabFromUrl = searchParams.get("tab");
   const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : "sync";
 
@@ -112,7 +108,7 @@ export default function Settings() {
         <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 pt-4">
         
         <Tabs value={initialTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="sync" className="flex items-center gap-2 relative">
               <RefreshCw className="h-4 w-4" />
               Synk
