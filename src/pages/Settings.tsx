@@ -59,13 +59,11 @@ export default function Settings() {
 
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
-    if (!settings.apiSettings) return null;
-    const raptMissing = !settings.apiSettings?.rapt?.configured;
-    if (raptMissing) {
+    if (!isExternalAuthenticated) {
       return { type: 'warning' as const, count: 1 };
     }
     return null;
-  }, [settings.apiSettings]);
+  }, [isExternalAuthenticated]);
 
   const devicesTabStatus = useMemo(() => {
     const total = settings.visiblePillsCount + settings.visibleControllersCount;
