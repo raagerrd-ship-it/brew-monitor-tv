@@ -25,70 +25,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, AlertTriangle, Pencil, Timer, Check, Tv, Snowflake, FlaskConical, Pill, Cloud, Music, ArrowDown, ArrowUp, History, Clock, Brain, Shield, Printer, Gauge, Search } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { sv } from "date-fns/locale";
+import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Pill, Music, History, Clock, Brain, Printer, Gauge, Share2 } from "lucide-react";
 import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
-import { useMemo, useCallback, useState } from "react";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
 
-function DeviceDiscoveryButton() {
-  const [discovering, setDiscovering] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-
-  const handleDiscover = async () => {
-    setDiscovering(true);
-    setResult(null);
-    try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { data, error } = await supabase.functions.invoke("sync-rapt-data-quick", {
-        body: { discover: true },
-      });
-      if (error) throw error;
-      const msg = data?.discovery_summary || "Sökning klar";
-      setResult(msg);
-      toast({ title: "Enhetssökning klar", description: msg });
-    } catch (e: any) {
-      console.error("Discovery failed:", e);
-      toast({ title: "Fel", description: e.message || "Kunde inte söka efter enheter", variant: "destructive" });
-    } finally {
-      setDiscovering(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
-      <div className="flex-1">
-        <h4 className="text-sm font-medium flex items-center gap-2">
-          <Search className="h-4 w-4 text-primary" />
-          Hitta nya enheter
-        </h4>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Sök efter nya RAPT Pills och Temperature Controllers i ditt konto
-        </p>
-        {result && (
-          <p className="text-xs text-primary mt-1">{result}</p>
-        )}
-      </div>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={handleDiscover}
-        disabled={discovering}
-        className="shrink-0"
-      >
-        {discovering ? (
-          <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Söker...</>
-        ) : (
-          <><Search className="h-4 w-4 mr-2" />Sök enheter</>
-        )}
-      </Button>
-    </div>
-  );
-}
 
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,13 +57,11 @@ export default function Settings() {
 
   // Tab status indicators
   const syncTabStatus = useMemo(() => {
-    if (!settings.apiSettings) return null;
-    const raptMissing = !settings.apiSettings?.rapt?.configured;
-    if (raptMissing) {
+    if (!isExternalAuthenticated) {
       return { type: 'warning' as const, count: 1 };
     }
     return null;
-  }, [settings.apiSettings]);
+  }, [isExternalAuthenticated]);
 
   const devicesTabStatus = useMemo(() => {
     const total = settings.visiblePillsCount + settings.visibleControllersCount;
@@ -210,52 +152,6 @@ export default function Settings() {
             {/* ═══════════════ DATAKÄLLOR ═══════════════ */}
             <SettingsSection icon={Cpu} title="Datakällor" description="Anslutna API:er och integrationer">
               <div className="space-y-3">
-                {/* RAPT */}
-                <Collapsible>
-                  <div className="rounded-lg border bg-card/30 border-border/40 p-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-                          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 border border-primary/30">
-                            <Cloud className="h-4 w-4 text-primary" />
-                          </div>
-                        </div>
-                        <span className="text-sm font-semibold">RAPT</span>
-                        {settings.apiSettings?.rapt?.configured ? (
-                          <Badge variant="outline" className="text-[10px] border-success/40 text-success px-1.5 py-0">
-                            <Check className="h-2.5 w-2.5 mr-0.5" /> OK
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning px-1.5 py-0">
-                            <AlertCircle className="h-2.5 w-2.5 mr-0.5" /> Saknas
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-4 space-y-3">
-                      {settings.apiSettings?.rapt && (
-                        <div className="text-xs space-y-1 p-3 rounded-lg bg-muted/30 border border-border/40">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Användarnamn:</span>
-                            <span className="font-mono">{settings.apiSettings.rapt.username}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">API-nyckel:</span>
-                            <span className="font-mono">{settings.apiSettings.rapt.apiSecret}</span>
-                          </div>
-                        </div>
-                      )}
-                      <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                        onClick={() => toast({ title: "Ändra API-uppgifter", description: "Uppdatera dina RAPT API-nycklar i backend-inställningarna." })}>
-                        <Pencil className="h-3 w-3" /> Ändra API-uppgifter
-                      </button>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
 
                 {/* Brygg-timer */}
                 <Collapsible>
@@ -278,6 +174,9 @@ export default function Settings() {
                             Ej ansluten
                           </Badge>
                         )}
+                        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary px-1.5 py-0" title="Data hämtas från extern bryggtjänst">
+                          <Share2 className="h-2.5 w-2.5 mr-0.5" /> Delad
+                        </Badge>
                       </div>
                       <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
                         <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
@@ -343,6 +242,42 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            {/* ═══════════════ DELADE FUNKTIONER ═══════════════ */}
+            <CategorySeparator icon={Share2} label="Delade funktioner" />
+
+            <SettingsSection icon={Share2} title="Gränssnitt mot andra appar" description="Funktioner som både tar emot och skickar data">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Beer className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">receive-brew</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Tar emot bryggder från Brew Master Dashboard.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">pi-control / pi-telemetry</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Skickar kommandon till Pi:n och tar emot telemetri.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">sync-external-timer</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Hämtar live bryggtimer från extern bryggtjänst.</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Music className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold">Sonos bridge</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Visar nu spelad musik från Cast Away/Sonos-systemet.</p>
+                </div>
+              </div>
+            </SettingsSection>
+
             {/* ═══════════════ SYNK-FREKVENSER ═══════════════ */}
             <CategorySeparator icon={RefreshCw} label="Synkronisering" />
 
@@ -352,7 +287,7 @@ export default function Settings() {
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">RAPT mätvärden + automation</p>
+                      <p className="text-[10px] text-muted-foreground">Pi-telemetri + automation</p>
                     </div>
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
@@ -506,7 +441,6 @@ export default function Settings() {
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
-            <DeviceDiscoveryButton />
             <SettingsSection icon={Thermometer} title="Pi-tankar" description="Aktivera/inaktivera reglering och begränsa tillåtet läge per Pi-styrd tank">
               <PiTankSettings />
             </SettingsSection>
@@ -516,10 +450,10 @@ export default function Settings() {
             <SettingsSection icon={Thermometer} title="Inlärningsarkiv (Pi)" description="Backup av Pi:ns inlärda reglervärden — kopiera JSON vid återställning" collapsible defaultOpen={false}>
               <PiLearnedArchive />
             </SettingsSection>
-            <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
+            <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka controllers Pi:n skriver till som ska visas på dashboarden">
               <RaptControllersManagement />
             </SettingsSection>
-            <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
+            <SettingsSection icon={Pill} title="RAPT Pills" description="Välj vilka pills Pi:n skriver till som ska visas separat på dashboarden">
               <RaptPillsManagement />
             </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
