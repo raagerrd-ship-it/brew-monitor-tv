@@ -413,7 +413,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0 mt-[1px]" title={isOff ? `${controller.name} är avstängd` : undefined}>
+                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : undefined}>
                         {isControllerStale && (
                           <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
                         )}
