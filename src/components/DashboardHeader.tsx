@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -86,7 +86,7 @@ export function DashboardHeader({
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
-  const { controllers, pills, piDisabled, activeSessions } = useRaptBarData();
+  const { controllers, pills, piDisabled, piManual, activeSessions } = useRaptBarData();
 
   // Sonos visibility drives header layout: chips grow when Sonos is hidden.
   const [sonosVisible, setSonosVisible] = useState(true);
@@ -164,7 +164,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -172,7 +172,7 @@ export function DashboardHeader({
           <>
             <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
@@ -260,6 +260,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
   isTvMode?: boolean;
   piDisabled?: Record<string, boolean>;
+  piManual?: Record<string, boolean>;
   activeSessions?: Record<string, boolean>;
   compact?: boolean;
 }
@@ -285,6 +286,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false,
   piDisabled = {},
+  piManual = {},
   activeSessions = {},
   compact = false,
 }: RaptControllerBarProps) {
