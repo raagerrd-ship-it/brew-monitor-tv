@@ -443,7 +443,6 @@ export default function Settings() {
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
-            <DeviceDiscoveryButton />
             <SettingsSection icon={Thermometer} title="Pi-tankar" description="Aktivera/inaktivera reglering och begränsa tillåtet läge per Pi-styrd tank">
               <PiTankSettings />
             </SettingsSection>
@@ -453,10 +452,10 @@ export default function Settings() {
             <SettingsSection icon={Thermometer} title="Inlärningsarkiv (Pi)" description="Backup av Pi:ns inlärda reglervärden — kopiera JSON vid återställning" collapsible defaultOpen={false}>
               <PiLearnedArchive />
             </SettingsSection>
-            <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka Temperature Controllers som ska visas på dashboarden">
+            <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka controllers Pi:n skriver till som ska visas på dashboarden">
               <RaptControllersManagement />
             </SettingsSection>
-            <SettingsSection icon={Pill} title="RAPT Pills" description="Ej kopplade pills som kan visas separat på dashboarden">
+            <SettingsSection icon={Pill} title="RAPT Pills" description="Välj vilka pills Pi:n skriver till som ska visas separat på dashboarden">
               <RaptPillsManagement />
             </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
