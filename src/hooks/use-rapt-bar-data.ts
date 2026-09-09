@@ -6,6 +6,7 @@ interface RaptBarData {
   controllers: TempController[];
   pills: PillData[];
   piDisabled: Record<string, boolean>;
+  piManual: Record<string, boolean>;
   activeSessions: Record<string, boolean>;
   loading: boolean;
 }
@@ -14,6 +15,7 @@ export function useRaptBarData(): RaptBarData {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [piDisabled, setPiDisabled] = useState<Record<string, boolean>>({});
+  const [piManual, setPiManual] = useState<Record<string, boolean>>({});
   const [activeSessions, setActiveSessions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const controllerIdsRef = useRef<string[]>([]);
@@ -67,15 +69,21 @@ export function useRaptBarData(): RaptBarData {
         // pi_live_state är Pi:ns egen sanning; matcha på kort id (första segmentet).
         const { data: liveStates } = await supabase
           .from('pi_live_state')
-          .select('controller_id, enabled');
+          .select('controller_id, enabled, target_source');
         const map: Record<string, boolean> = {};
+        const manualMap: Record<string, boolean> = {};
         for (const ls of liveStates || []) {
           const full = piIds.find((id) => id === ls.controller_id || id.startsWith(ls.controller_id));
-          if (full) map[full] = ls.enabled === false;
+          if (full) {
+            map[full] = ls.enabled === false;
+            manualMap[full] = ls.target_source === 'manual';
+          }
         }
         setPiDisabled(map);
+        setPiManual(manualMap);
       } else {
         setPiDisabled({});
+        setPiManual({});
       }
     } catch (error) {
       console.error('Error loading RAPT bar data:', error);
@@ -126,11 +134,20 @@ export function useRaptBarData(): RaptBarData {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_live_state' }, (payload) => {
         const updated = payload.new as any;
         if (!updated?.controller_id) return;
+        const matchKey = (prev: Record<string, boolean>) =>
+          Object.keys(prev).find((id) => id === updated.controller_id || id.startsWith(updated.controller_id));
         setPiDisabled(prev => {
-          const full = Object.keys(prev).find((id) => id === updated.controller_id || id.startsWith(updated.controller_id));
+          const full = matchKey(prev);
           if (!full) return prev;
           return { ...prev, [full]: updated.enabled === false };
         });
+        if (updated.target_source !== undefined) {
+          setPiManual(prev => {
+            const full = matchKey(prev);
+            if (!full) return prev;
+            return { ...prev, [full]: updated.target_source === 'manual' };
+          });
+        }
         loadData();
       })
       .subscribe();
@@ -144,5 +161,5 @@ export function useRaptBarData(): RaptBarData {
     };
   }, [loadData]);
 
-  return { controllers, pills, piDisabled, activeSessions, loading };
+  return { controllers, pills, piDisabled, piManual, activeSessions, loading };
 }
