@@ -89,7 +89,7 @@ export function DeviceOverviewPanel() {
 
   const tanks = controllers.filter((c) => !c.is_glycol_cooler);
   const cooler = controllers.find((c) => c.is_glycol_cooler);
-  const liveFor = (id: string) => live.find((l) => l.controller_id === id);
+  const liveFor = (id: string) => live.find((l) => l.controller_id === id || id.startsWith(l.controller_id));
 
   const renderCard = (c: ControllerRow) => {
     const lv = liveFor(c.controller_id);
