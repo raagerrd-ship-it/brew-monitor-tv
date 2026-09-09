@@ -286,8 +286,8 @@ export default function Settings() {
                 <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-2.5">
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-2">
                     <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">Snabb-synk</p>
-                      <p className="text-[10px] text-muted-foreground">Pi-telemetri + automation</p>
+                      <p className="text-xs font-medium text-foreground">Dataanalys</p>
+                      <p className="text-[10px] text-muted-foreground">Analys av rådata från Pi:n</p>
                     </div>
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
