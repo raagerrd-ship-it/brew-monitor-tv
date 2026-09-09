@@ -316,7 +316,7 @@ export function useSettingsData() {
     try {
       const { error } = await supabase.functions.invoke('sync-rapt-data-quick', { body: {} });
       if (error) throw error;
-      toast({ title: "Synkronisering klar", description: "Snabb-synk har genomförts (RAPT + custom)" });
+      toast({ title: "Analys klar", description: "Rådata från Pi:n har analyserats" });
       await loadSettings();
     } catch {
       toast({ title: "Fel", description: "Kunde inte genomföra synkronisering", variant: "destructive" });
