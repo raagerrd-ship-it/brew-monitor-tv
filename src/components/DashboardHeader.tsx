@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -86,7 +86,7 @@ export function DashboardHeader({
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
-  const { controllers, pills, piDisabled, activeSessions } = useRaptBarData();
+  const { controllers, pills, piDisabled, piManual, activeSessions } = useRaptBarData();
 
   // Sonos visibility drives header layout: chips grow when Sonos is hidden.
   const [sonosVisible, setSonosVisible] = useState(true);
@@ -164,7 +164,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -172,7 +172,7 @@ export function DashboardHeader({
           <>
             <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
               )}
             </div>
 
@@ -260,6 +260,7 @@ interface RaptControllerBarProps {
   isMobile: boolean;
   isTvMode?: boolean;
   piDisabled?: Record<string, boolean>;
+  piManual?: Record<string, boolean>;
   activeSessions?: Record<string, boolean>;
   compact?: boolean;
 }
@@ -285,6 +286,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   isMobile,
   isTvMode = false,
   piDisabled = {},
+  piManual = {},
   activeSessions = {},
   compact = false,
 }: RaptControllerBarProps) {
@@ -381,6 +383,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     );
                     const isCooler = controller.is_glycol_cooler;
                     const isOff = piDisabled[controller.controller_id] === true;
+                    const isManual = piManual[controller.controller_id] === true;
                     const hasPill = !!linkedPill && !isPillStale;
                     const pillActive = !isOff && hasPill;
                     const probeActive = !isOff && controller.current_temp != null;
@@ -413,7 +416,15 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : undefined}>
+                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : isManual ? `${controller.name} styrs manuellt härifrån` : undefined}>
+                        {isManual && !isOff && (
+                          <Hand style={{
+                            width: '0.75rem',
+                            height: '0.75rem',
+                            color: 'hsl(38 92% 55%)',
+                            filter: 'drop-shadow(0 0 2px hsl(38 92% 55% / 0.4))',
+                          }} />
+                        )}
                         {isControllerStale && (
                           <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
                         )}
@@ -466,12 +477,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
-                      {controller.target_temp !== null && (isCooler || (!isOff && activeSessions[controller.controller_id])) && (
+                      {controller.target_temp !== null && (isCooler || isManual || (!isOff && activeSessions[controller.controller_id])) && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: isMobile ? '13px' : '15px',
-                          color: 'hsl(var(--muted-foreground))',
+                          color: isManual && !isOff ? 'hsl(38 92% 55%)' : 'hsl(var(--muted-foreground))',
                           opacity: 0.95,
+                          textShadow: isManual && !isOff ? '0 0 6px hsl(38 92% 55% / 0.3)' : undefined,
                         }}>
                           › {controller.target_temp.toFixed(1)}°
                         </span>
