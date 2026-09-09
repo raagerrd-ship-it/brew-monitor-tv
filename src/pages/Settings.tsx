@@ -176,6 +176,9 @@ export default function Settings() {
                             Ej ansluten
                           </Badge>
                         )}
+                        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary px-1.5 py-0" title="Data hämtas från extern bryggtjänst">
+                          <Share2 className="h-2.5 w-2.5 mr-0.5" /> Delad
+                        </Badge>
                       </div>
                       <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
                         <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
