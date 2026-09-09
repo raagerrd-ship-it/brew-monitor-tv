@@ -466,7 +466,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
                       </span>
-                      {controller.target_temp !== null && (
+                      {controller.target_temp !== null && (isCooler || (!isOff && activeSessions[controller.controller_id])) && (
                         <span className="whitespace-nowrap" style={{
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: isMobile ? '13px' : '15px',
