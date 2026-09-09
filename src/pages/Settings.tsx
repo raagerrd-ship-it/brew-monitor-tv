@@ -421,6 +421,10 @@ export default function Settings() {
             <SettingsSection icon={Pill} title="RAPT Pills" description="Välj vilka pills Pi:n skriver till som ska visas separat på dashboarden">
               <RaptPillsManagement />
             </SettingsSection>
+            <CategorySeparator icon={History} label="Historik" />
+            <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
+              <CombinedControllerChart controllers={combinedChartControllers} />
+            </SettingsSection>
             <CategorySeparator icon={Printer} label="Skrivare" />
             <SettingsSection icon={Printer} title="Termoskrivare" description="Bluetooth-anslutning till etikettskrivare">
               <PrinterSettings />
