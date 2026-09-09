@@ -6,6 +6,7 @@ interface RaptBarData {
   controllers: TempController[];
   pills: PillData[];
   piDisabled: Record<string, boolean>;
+  activeSessions: Record<string, boolean>;
   loading: boolean;
 }
 
@@ -13,6 +14,7 @@ export function useRaptBarData(): RaptBarData {
   const [controllers, setControllers] = useState<TempController[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
   const [piDisabled, setPiDisabled] = useState<Record<string, boolean>>({});
+  const [activeSessions, setActiveSessions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const controllerIdsRef = useRef<string[]>([]);
   const pillIdsRef = useRef<string[]>([]);
