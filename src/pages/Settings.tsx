@@ -55,10 +55,12 @@ export default function Settings() {
   }, [isExternalAuthenticated]);
 
   const devicesTabStatus = useMemo(() => {
-    const total = settings.visiblePillsCount + settings.visibleControllersCount;
+    const total = settings.visibleControllersCount;
     if (total === 0) return null;
     return { type: 'info' as const, count: total };
-  }, [settings.visiblePillsCount, settings.visibleControllersCount]);
+  }, [settings.visibleControllersCount]);
+
+
 
   const brewsTabStatus = useMemo(() => {
     if (settings.visibleBrewsCount === 0) return null;
@@ -393,20 +395,11 @@ export default function Settings() {
 
           {/* DEVICES TAB */}
           <TabsContent value="devices" className="space-y-6">
-            <SettingsSection icon={Thermometer} title="Pi-tankar" description="Aktivera/inaktivera reglering och begränsa tillåtet läge per Pi-styrd tank">
-              <PiTankSettings />
-            </SettingsSection>
-            <SettingsSection icon={Thermometer} title="Cirkulationspumpar" description="Körstatus samt senaste start/stopp för Gul, Grön och Blå">
-              <PumpStatusPanel />
+            <SettingsSection icon={Thermometer} title="Enheter" description="Jästankarna och glykolkylaren med givare och styrsignaler — all reglering sker på Pi:n">
+              <DeviceOverviewPanel />
             </SettingsSection>
             <SettingsSection icon={Thermometer} title="Inlärningsarkiv (Pi)" description="Backup av Pi:ns inlärda reglervärden — kopiera JSON vid återställning" collapsible defaultOpen={false}>
               <PiLearnedArchive />
-            </SettingsSection>
-            <SettingsSection icon={Thermometer} title="Temperature Controllers" description="Välj vilka controllers Pi:n skriver till som ska visas på dashboarden">
-              <RaptControllersManagement />
-            </SettingsSection>
-            <SettingsSection icon={Pill} title="RAPT Pills" description="Välj vilka pills Pi:n skriver till som ska visas separat på dashboarden">
-              <RaptPillsManagement />
             </SettingsSection>
             <CategorySeparator icon={History} label="Historik" />
             <SettingsSection icon={Snowflake} title="Kylningshistorik" description="Kombinerad temperatur- och kylnings-% graf" collapsible defaultOpen={false}>
