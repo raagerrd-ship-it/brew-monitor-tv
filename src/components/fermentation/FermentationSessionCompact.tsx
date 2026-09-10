@@ -516,8 +516,8 @@ export function FermentationSessionCompact({
             {isRamping && !waitingForTemp && rampProgress !== null && (
               <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
             )}
-            {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
+            {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
+              <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
             )}
           </div>
         )}
