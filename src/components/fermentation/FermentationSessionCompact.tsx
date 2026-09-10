@@ -358,7 +358,7 @@ export function FermentationSessionCompact({
       {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
       {(currentStep?.step_type === 'wait_for_gravity_stable' || 
         ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
-        <ProgressOverlay progress={stabilityProgress} color="purple" />
+        <ProgressOverlay progress={piStepProgress ?? stabilityProgress} color="purple" />
       )}
       {isGradualRampStep && gradualRampProgress != null && (
         <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
