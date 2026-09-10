@@ -196,12 +196,14 @@ export function FermentationSessionCompact({
       case 'wait_for_temp':
         return `Nå ${step.target_temp}°`;
       case 'wait_for_gravity_stable': {
+        const reqHours = (step.gravity_stable_days ?? 0) * 24;
+        if (piStepProgress != null && reqHours > 0) {
+          return `Stabil ${Math.round(piStepProgress * reqHours)}h / ${reqHours}h`;
+        }
         if (stabilityDuration) {
-          const { days, hours, stableSince } = stabilityDuration;
-          const required = step.gravity_stable_days ?? 0;
+          const { days, hours } = stabilityDuration;
           const totalHours = days * 24 + hours;
-          const requiredHours = required * 24;
-          return `Stabil ${totalHours}h / ${requiredHours}h`;
+          return `Stabil ${totalHours}h / ${reqHours}h`;
         }
         const requiredHours = (step.gravity_stable_days ?? 0) * 24;
         return `Stabil i ${requiredHours}h`;
