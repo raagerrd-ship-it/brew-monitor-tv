@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
       .from("brew_status").select("final_report_at").eq("source_id", sourceId).maybeSingle();
     if (!existing?.final_report_at) {
       if (Array.isArray(body.steps_executed)) patch.steps_executed = body.steps_executed;
+      for (const k of FINAL_JSON) if (has(k) && Array.isArray(body[k])) patch[k] = body[k];
       if (body.phase === "done") patch.final_report_at = patch.updated_at;
     } else {
       delete patch.steps_executed;
