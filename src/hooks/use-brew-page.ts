@@ -101,6 +101,7 @@ export function useBrewPage(brewId: string | undefined) {
             step_started_at: sessionData.step_started_at,
             step_start_temp: sessionData.step_start_temp,
             ramp_triggered_at: sessionData.ramp_triggered_at ?? null,
+            step_progress: sessionData.step_progress ?? null,
             status: sessionData.status,
             started_at: sessionData.started_at,
             profile_name: profile?.name || 'Okänd profil',

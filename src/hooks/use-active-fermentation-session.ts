@@ -110,6 +110,7 @@ export function useActiveFermentationSession({
         updated_at: '',
         step_start_temp: preloadedSession.step_start_temp,
         ramp_triggered_at: preloadedSession.ramp_triggered_at ?? null,
+        step_progress: preloadedSession.step_progress ?? null,
         profile: {
           id: preloadedSession.profile_id,
           name: preloadedSession.profile_name,

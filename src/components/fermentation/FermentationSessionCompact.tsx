@@ -47,6 +47,8 @@ interface FermentationSessionCompactProps {
   fermentationPhase?: string | null;
   attenuation?: number | null;
   controllerProfileTarget?: number | null;
+  /** Stegets framdrift som Pi:n rapporterar (0-1) — sanningskälla före lokal beräkning */
+  piStepProgress?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -75,6 +77,7 @@ export function FermentationSessionCompact({
   fermentationPhase,
   attenuation,
   controllerProfileTarget,
+  piStepProgress,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth: backend-computed profile target stored on controller
@@ -193,12 +196,14 @@ export function FermentationSessionCompact({
       case 'wait_for_temp':
         return `Nå ${step.target_temp}°`;
       case 'wait_for_gravity_stable': {
+        const reqHours = (step.gravity_stable_days ?? 0) * 24;
+        if (piStepProgress != null && reqHours > 0) {
+          return `Stabil ${Math.round(piStepProgress * reqHours)}h / ${reqHours}h`;
+        }
         if (stabilityDuration) {
-          const { days, hours, stableSince } = stabilityDuration;
-          const required = step.gravity_stable_days ?? 0;
+          const { days, hours } = stabilityDuration;
           const totalHours = days * 24 + hours;
-          const requiredHours = required * 24;
-          return `Stabil ${totalHours}h / ${requiredHours}h`;
+          return `Stabil ${totalHours}h / ${reqHours}h`;
         }
         const requiredHours = (step.gravity_stable_days ?? 0) * 24;
         return `Stabil i ${requiredHours}h`;
@@ -214,8 +219,11 @@ export function FermentationSessionCompact({
           // Show stability countdown when ramping (backend requires gravity_stable_days + low activity to complete)
           const stableDays = step.gravity_stable_days ?? 2;
           const requiredHours = stableDays * 24;
+          if (piStepProgress != null) {
+            return `Rampar +${increase}° │ Stabil ${Math.round(piStepProgress * requiredHours)}h / ${requiredHours}h`;
+          }
           if (stabilityDuration) {
-            const { days, hours, stableSince } = stabilityDuration;
+            const { days, hours } = stabilityDuration;
             const totalStableHours = days * 24 + hours;
             return `Rampar +${increase}° │ Stabil ${totalStableHours}h / ${requiredHours}h`;
           }
@@ -508,8 +516,8 @@ export function FermentationSessionCompact({
             {isRamping && !waitingForTemp && rampProgress !== null && (
               <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
             )}
-            {currentStep?.step_type === 'wait_for_gravity_stable' && stabilityProgress !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(stabilityProgress * 100)}%</span>
+            {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
+              <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
             )}
           </div>
         )}

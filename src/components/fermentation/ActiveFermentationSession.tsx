@@ -263,6 +263,7 @@ export function ActiveFermentationSession({
           fermentationPhase={fermentationPhase}
           attenuation={attenuation}
           controllerProfileTarget={controllerData?.profile_target_temp ?? null}
+          piStepProgress={(session as { step_progress?: number | null }).step_progress ?? null}
         />
         )}
       </div>
