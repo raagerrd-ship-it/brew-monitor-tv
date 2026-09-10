@@ -46,6 +46,8 @@ export interface FermentationSession {
   step_started_at: string;
   step_start_temp: number | null;
   ramp_triggered_at: string | null;
+  /** Stegets framdrift (0-1) enligt Pi:n */
+  step_progress?: number | null;
   started_at: string;
   completed_at: string | null;
   created_at: string;
