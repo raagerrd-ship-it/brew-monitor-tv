@@ -295,6 +295,7 @@ export type Database = {
       }
       brew_status: {
         Row: {
+          abv_actual: number | null
           attenuation_final_pct: number | null
           attenuation_pct: number | null
           created_at: string
@@ -307,18 +308,24 @@ export type Database = {
           og_measured: number | null
           phase: string | null
           sg_current: number | null
+          sg_curve: Json | null
           source_id: string
           step_ends_at: string | null
           step_started_at: string | null
           steps_executed: Json | null
           temp_current_c: number | null
+          temp_max_c: number | null
           temp_max_deviation_c: number | null
+          temp_min_c: number | null
           temp_target_c: number | null
           time_in_band_pct: number | null
+          time_in_band_pct_per_step: Json | null
           updated_at: string
+          volume_l: number | null
           warnings: Json
         }
         Insert: {
+          abv_actual?: number | null
           attenuation_final_pct?: number | null
           attenuation_pct?: number | null
           created_at?: string
@@ -331,18 +338,24 @@ export type Database = {
           og_measured?: number | null
           phase?: string | null
           sg_current?: number | null
+          sg_curve?: Json | null
           source_id: string
           step_ends_at?: string | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null
+          temp_max_c?: number | null
           temp_max_deviation_c?: number | null
+          temp_min_c?: number | null
           temp_target_c?: number | null
           time_in_band_pct?: number | null
+          time_in_band_pct_per_step?: Json | null
           updated_at?: string
+          volume_l?: number | null
           warnings?: Json
         }
         Update: {
+          abv_actual?: number | null
           attenuation_final_pct?: number | null
           attenuation_pct?: number | null
           created_at?: string
@@ -355,15 +368,20 @@ export type Database = {
           og_measured?: number | null
           phase?: string | null
           sg_current?: number | null
+          sg_curve?: Json | null
           source_id?: string
           step_ends_at?: string | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null
+          temp_max_c?: number | null
           temp_max_deviation_c?: number | null
+          temp_min_c?: number | null
           temp_target_c?: number | null
           time_in_band_pct?: number | null
+          time_in_band_pct_per_step?: Json | null
           updated_at?: string
+          volume_l?: number | null
           warnings?: Json
         }
         Relationships: []
