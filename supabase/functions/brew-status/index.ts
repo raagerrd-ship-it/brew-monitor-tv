@@ -15,8 +15,8 @@ const NUM = [
   "og_measured", "fg_measured", "attenuation_final_pct", "fermentation_days",
   "time_in_band_pct", "temp_max_deviation_c",
 ];
-const TEXT = ["phase"];
-const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at"];
+const TEXT = ["phase", "fermenting_done_basis"];
+const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
