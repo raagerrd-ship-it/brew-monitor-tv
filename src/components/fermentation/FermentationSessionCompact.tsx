@@ -219,8 +219,11 @@ export function FermentationSessionCompact({
           // Show stability countdown when ramping (backend requires gravity_stable_days + low activity to complete)
           const stableDays = step.gravity_stable_days ?? 2;
           const requiredHours = stableDays * 24;
+          if (piStepProgress != null) {
+            return `Rampar +${increase}° │ Stabil ${Math.round(piStepProgress * requiredHours)}h / ${requiredHours}h`;
+          }
           if (stabilityDuration) {
-            const { days, hours, stableSince } = stabilityDuration;
+            const { days, hours } = stabilityDuration;
             const totalStableHours = days * 24 + hours;
             return `Rampar +${increase}° │ Stabil ${totalStableHours}h / ${requiredHours}h`;
           }
