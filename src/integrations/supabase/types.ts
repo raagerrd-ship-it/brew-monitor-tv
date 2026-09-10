@@ -293,6 +293,75 @@ export type Database = {
         }
         Relationships: []
       }
+      brew_status: {
+        Row: {
+          attenuation_final_pct: number | null
+          attenuation_pct: number | null
+          created_at: string
+          fermentation_days: number | null
+          fg_estimated_at: string | null
+          fg_measured: number | null
+          final_report_at: string | null
+          og_measured: number | null
+          phase: string | null
+          sg_current: number | null
+          source_id: string
+          step_ends_at: string | null
+          step_started_at: string | null
+          steps_executed: Json | null
+          temp_current_c: number | null
+          temp_max_deviation_c: number | null
+          temp_target_c: number | null
+          time_in_band_pct: number | null
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          attenuation_final_pct?: number | null
+          attenuation_pct?: number | null
+          created_at?: string
+          fermentation_days?: number | null
+          fg_estimated_at?: string | null
+          fg_measured?: number | null
+          final_report_at?: string | null
+          og_measured?: number | null
+          phase?: string | null
+          sg_current?: number | null
+          source_id: string
+          step_ends_at?: string | null
+          step_started_at?: string | null
+          steps_executed?: Json | null
+          temp_current_c?: number | null
+          temp_max_deviation_c?: number | null
+          temp_target_c?: number | null
+          time_in_band_pct?: number | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          attenuation_final_pct?: number | null
+          attenuation_pct?: number | null
+          created_at?: string
+          fermentation_days?: number | null
+          fg_estimated_at?: string | null
+          fg_measured?: number | null
+          final_report_at?: string | null
+          og_measured?: number | null
+          phase?: string | null
+          sg_current?: number | null
+          source_id?: string
+          step_ends_at?: string | null
+          step_started_at?: string | null
+          steps_executed?: Json | null
+          temp_current_c?: number | null
+          temp_max_deviation_c?: number | null
+          temp_target_c?: number | null
+          time_in_band_pct?: number | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: []
+      }
       cached_external_timer: {
         Row: {
           beer_style: string | null
