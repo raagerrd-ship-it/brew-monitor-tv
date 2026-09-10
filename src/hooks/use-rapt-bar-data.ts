@@ -148,7 +148,6 @@ export function useRaptBarData(): RaptBarData {
             return { ...prev, [full]: updated.target_source === 'manual' };
           });
         }
-        loadData();
       })
       .subscribe();
 
