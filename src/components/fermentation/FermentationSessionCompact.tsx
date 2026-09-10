@@ -47,6 +47,8 @@ interface FermentationSessionCompactProps {
   fermentationPhase?: string | null;
   attenuation?: number | null;
   controllerProfileTarget?: number | null;
+  /** Stegets framdrift som Pi:n rapporterar (0-1) — sanningskälla före lokal beräkning */
+  piStepProgress?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -75,6 +77,7 @@ export function FermentationSessionCompact({
   fermentationPhase,
   attenuation,
   controllerProfileTarget,
+  piStepProgress,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth: backend-computed profile target stored on controller
