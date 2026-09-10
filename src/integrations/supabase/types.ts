@@ -299,6 +299,8 @@ export type Database = {
           attenuation_pct: number | null
           created_at: string
           fermentation_days: number | null
+          fermenting_done_at: string | null
+          fermenting_done_basis: string | null
           fg_estimated_at: string | null
           fg_measured: number | null
           final_report_at: string | null
@@ -321,6 +323,8 @@ export type Database = {
           attenuation_pct?: number | null
           created_at?: string
           fermentation_days?: number | null
+          fermenting_done_at?: string | null
+          fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
           fg_measured?: number | null
           final_report_at?: string | null
@@ -343,6 +347,8 @@ export type Database = {
           attenuation_pct?: number | null
           created_at?: string
           fermentation_days?: number | null
+          fermenting_done_at?: string | null
+          fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
           fg_measured?: number | null
           final_report_at?: string | null
