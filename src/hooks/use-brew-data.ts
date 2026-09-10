@@ -256,6 +256,7 @@ export function useBrewData(): UseBrewDataReturn {
           started_at: session.started_at,
           step_start_temp: session.step_start_temp,
           ramp_triggered_at: session.ramp_triggered_at ?? null,
+          step_progress: session.step_progress ?? null,
           profile_name: profile?.name || '',
           steps: steps.map((s: FermentationProfileStep) => ({
             id: s.id,
