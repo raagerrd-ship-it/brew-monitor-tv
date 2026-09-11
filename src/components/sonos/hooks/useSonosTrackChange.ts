@@ -108,8 +108,11 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
               const dbMatchesPrevious = dbTrack === prev?.track_name;
               
               if (dbTrack && !dbMatchesPredicted && !dbMatchesPrevious) {
-                // DB has a different NEW track — prediction was wrong, accept DB track
+                // DB has a different NEW track — prediction was wrong, accept DB track + artist
                 tvDebug('sonos', `🔀 Prediktion fel: förväntade "${data.trackName}", DB har "${dbTrack}" — accepterar`);
+                if (trackNameRef.current) trackNameRef.current.textContent = dbTrack;
+                if (artistNameRef.current) artistNameRef.current.textContent = result?.artistName ?? '';
+                setNowPlaying(cur => cur ? { ...cur, track_name: dbTrack, artist_name: result?.artistName ?? null } : cur);
                 if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                   pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
                   onAlbumArtChangeRef.current?.(result.bgImageUrl, dbTrack);
@@ -117,6 +120,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 }
                 break;
               }
+
               
               if (dbTrack && !dbMatchesPredicted && dbMatchesPrevious) {
                 // DB still has the old track — wait for it to update
