@@ -178,9 +178,10 @@ export const SonosWidget = memo(function SonosWidget({
         {/* Label row — exact copy of controller label row */}
         <div className="flex items-center justify-between gap-1">
           <span className="uppercase font-bold truncate" style={{
-            fontSize: '10px',
-            letterSpacing: '0.1em',
-            color: 'hsl(var(--muted-foreground))',
+            fontSize: '12px',
+            letterSpacing: '0.18em',
+            color: 'hsl(0 0% 95%)',
+            opacity: 0.6,
           }}>
             Spelar nu
           </span>
