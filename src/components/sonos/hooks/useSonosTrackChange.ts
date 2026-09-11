@@ -150,7 +150,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
       return {
         ...prev,
         track_name: data.trackName,
-        artist_name: data.artistName ?? prev.artist_name,
+        artist_name: data.artistName ?? null,
         album_name: data.albumName ?? prev.album_name,
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
