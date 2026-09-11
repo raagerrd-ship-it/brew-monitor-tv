@@ -67,6 +67,8 @@ export type Database = {
           profile_target_temp: number | null
           recorded_at: string
           sg: number | null
+          sg_k: number | null
+          sg_raw: number | null
         }
         Insert: {
           actual_temp?: number | null
@@ -81,6 +83,8 @@ export type Database = {
           profile_target_temp?: number | null
           recorded_at: string
           sg?: number | null
+          sg_k?: number | null
+          sg_raw?: number | null
         }
         Update: {
           actual_temp?: number | null
@@ -95,6 +99,8 @@ export type Database = {
           profile_target_temp?: number | null
           recorded_at?: string
           sg?: number | null
+          sg_k?: number | null
+          sg_raw?: number | null
         }
         Relationships: [
           {
@@ -308,7 +314,9 @@ export type Database = {
           og_measured: number | null
           phase: string | null
           sg_current: number | null
+          sg_current_raw: number | null
           sg_curve: Json | null
+          sg_k: number | null
           source_id: string
           step_ends_at: string | null
           step_started_at: string | null
@@ -338,7 +346,9 @@ export type Database = {
           og_measured?: number | null
           phase?: string | null
           sg_current?: number | null
+          sg_current_raw?: number | null
           sg_curve?: Json | null
+          sg_k?: number | null
           source_id: string
           step_ends_at?: string | null
           step_started_at?: string | null
@@ -368,7 +378,9 @@ export type Database = {
           og_measured?: number | null
           phase?: string | null
           sg_current?: number | null
+          sg_current_raw?: number | null
           sg_curve?: Json | null
+          sg_k?: number | null
           source_id?: string
           step_ends_at?: string | null
           step_started_at?: string | null
