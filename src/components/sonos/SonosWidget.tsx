@@ -178,9 +178,10 @@ export const SonosWidget = memo(function SonosWidget({
         {/* Label row — exact copy of controller label row */}
         <div className="flex items-center justify-between gap-1">
           <span className="uppercase font-bold truncate" style={{
-            fontSize: '10px',
-            letterSpacing: '0.1em',
-            color: 'hsl(var(--muted-foreground))',
+            fontSize: '12px',
+            letterSpacing: '0.18em',
+            color: 'hsl(0 0% 95%)',
+            opacity: 0.6,
           }}>
             Spelar nu
           </span>
@@ -218,8 +219,8 @@ export const SonosWidget = memo(function SonosWidget({
         {/* Bottom bar — exact copy of controller battery bar, showing progress */}
         {nowPlaying.duration_ms && (
           <div className="absolute bottom-0 left-0 right-0" style={{
-            height: '2px',
-            background: 'hsl(var(--muted) / 0.35)',
+            height: '3px',
+            background: 'hsl(0 0% 95% / 0.15)',
           }}>
             <div
               ref={progressBarRef}
@@ -227,8 +228,8 @@ export const SonosWidget = memo(function SonosWidget({
               style={{
                 width: `${Math.max(progress, 1)}%`,
                 background: 'hsl(0 0% 95%)',
-                opacity: 0.8,
-                boxShadow: '0 0 3px hsl(0 0% 95% / 0.5)',
+                opacity: 0.9,
+                boxShadow: '0 0 8px hsl(0 0% 95% / 0.6)',
               }}
             />
           </div>
