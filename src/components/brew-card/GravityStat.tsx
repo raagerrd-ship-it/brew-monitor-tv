@@ -170,7 +170,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
 
   return (
     <StatCard
-      label="Gravity"
+      label="Gravity · 20 °C"
       value={
         <span className="tabular-nums">
           {mainPart}
