@@ -7,6 +7,10 @@
 export interface SnapshotData {
   recorded_at: string;
   sg: number | null;
+  /** Raravlasning fran pillen innan temperaturkorrigering till 20 C. */
+  sg_raw?: number | null;
+  /** Residualfaktor per pill som anvandes for korrigeringen (SG/C). */
+  sg_k?: number | null;
   pill_temp: number | null;
   controller_temp: number | null;
   profile_target_temp: number | null;
@@ -83,6 +87,8 @@ export async function createBrewSnapshot(
         brew_id: brewId,
         recorded_at: data.recorded_at,
         sg: data.sg,
+        sg_raw: data.sg_raw ?? null,
+        sg_k: data.sg_k ?? null,
         pill_temp: data.pill_temp,
         controller_temp: data.controller_temp,
         profile_target_temp: data.profile_target_temp,

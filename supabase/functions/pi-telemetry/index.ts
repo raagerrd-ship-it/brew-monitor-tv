@@ -270,7 +270,11 @@ Deno.serve(async (req) => {
     if (!brew) return;
     if (brew.fermentation_start && new Date(recordedAt) < new Date(brew.fermentation_start)) return;
 
+    // Pi:n skickar SG redan korrigerad till 20 C, plus raavlasningen och
+    // residualfaktorn. Molnet lagrar bada — korrigerar aldrig sjalv.
     const sg = d.pill_gravity_sg != null ? Number(d.pill_gravity_sg) : null;
+    const sgRaw = d.pill_gravity_raw != null ? Number(d.pill_gravity_raw) : null;
+    const sgK = d.pill_residual != null ? Number(d.pill_residual) : null;
     const duty = deliveredDuty(d);
     // Grafdata: fönstermedel när Pi:n skickar dem, annars punktvärden.
     const m = d.means ?? {};
@@ -307,6 +311,8 @@ Deno.serve(async (req) => {
     await createBrewSnapshot(supabase, brew.id, {
       recorded_at: bucketedAt,
       sg,
+      sg_raw: sgRaw,
+      sg_k: sgK,
       pill_temp: snapPill,
       controller_temp: snapPt100,
       profile_target_temp: d.target_temp ?? null,
@@ -321,7 +327,7 @@ Deno.serve(async (req) => {
     if (sg != null) {
       await supabase
         .from("brew_data_snapshots")
-        .update({ sg })
+        .update({ sg, sg_raw: sgRaw, sg_k: sgK })
         .eq("brew_id", brew.id)
         .eq("recorded_at", bucketedAt)
         .is("sg", null);
