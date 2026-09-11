@@ -409,11 +409,11 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                   >
                     {/* Label row */}
                     <div className="flex items-center gap-2.5">
-                      <span className="uppercase font-bold truncate" style={{
+                      <span className="uppercase font-extrabold truncate" style={{
                         fontSize: isMobile ? '11px' : '12px',
-                        letterSpacing: '0.18em',
-                        color: accent,
-                        opacity: 0.85,
+                        letterSpacing: '0.15em',
+                        color: 'hsl(var(--muted-foreground))',
+                        opacity: 0.9,
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
@@ -474,8 +474,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         fontSize: isMobile ? '17px' : '23px',
                         lineHeight: 1.05,
                         letterSpacing: '-0.02em',
-                        color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
-                        textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}40`,
+                        color: 'hsl(0 0% 96%)',
+                        textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}30`,
                       }}>
                         {displayTemp !== null ? displayTemp.toFixed(1) : '--'}
                         <span style={{ opacity: 0.55 }}>°</span>
