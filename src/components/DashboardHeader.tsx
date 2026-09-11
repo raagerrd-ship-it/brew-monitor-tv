@@ -493,20 +493,32 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       )}
                     </div>
 
-                    {/* Bottom accent bar (battery) */}
-                    <div className="absolute bottom-0 left-0 right-0" style={{
+                    {/* Bottom accent bar — segmented battery indicator */}
+                    <div className="absolute bottom-0 left-0 right-0 flex" style={{
                       height: '3px',
-                      background: `${accent}26`,
+                      gap: '2px',
+                      padding: '0 2px',
+                      background: `${accent}14`,
                     }}>
-                      {linkedPill && (
-                        <div
-                          className="absolute top-0 bottom-0 left-0 transition-all duration-500"
-                          style={{
-                            width: `${Math.max(batteryLevel, 1)}%`,
-                            background: batteryColor,
-                            boxShadow: `0 0 8px ${batteryColor}99`,
-                          }}
-                        />
+                      {linkedPill ? (
+                        [0, 1, 2, 3].map((i) => {
+                          const filled = batteryLevel >= (i + 1) * 25 - (i === 3 ? 1 : 0) || batteryLevel >= i * 25 + 12;
+                          return (
+                            <div
+                              key={i}
+                              className="flex-1 h-full transition-all duration-500"
+                              style={{
+                                background: filled ? batteryColor : `${accent}26`,
+                                boxShadow: filled ? `0 0 8px ${batteryColor}80` : 'none',
+                              }}
+                            />
+                          );
+                        })
+                      ) : (
+                        <div className="flex-1 h-full" style={{
+                          background: isCooler ? `${accent}40` : `${accent}26`,
+                          boxShadow: isCooler ? `0 0 8px ${accent}40` : 'none',
+                        }} />
                       )}
                     </div>
                   </div>
