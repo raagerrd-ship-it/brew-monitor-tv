@@ -471,12 +471,14 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-bold whitespace-nowrap" style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: isMobile ? '17px' : '22px',
+                        fontSize: isMobile ? '17px' : '23px',
                         lineHeight: 1.05,
+                        letterSpacing: '-0.02em',
                         color: isControllerStale ? 'hsl(0 0% 95%)' : accent,
                         textShadow: isControllerStale ? 'none' : `0 0 8px ${accent}40`,
                       }}>
-                        {displayTemp !== null ? `${displayTemp.toFixed(1)}°` : '--°'}
+                        {displayTemp !== null ? displayTemp.toFixed(1) : '--'}
+                        <span style={{ opacity: 0.55 }}>°</span>
                       </span>
                       {controller.target_temp !== null && (isCooler || isManual || (!isOff && activeSessions[controller.controller_id])) && (
                         <span className="whitespace-nowrap" style={{
@@ -492,22 +494,21 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     </div>
 
                     {/* Bottom accent bar (battery) */}
-                    {linkedPill && (
-                      <div className="absolute bottom-0 left-0 right-0" style={{
-                        height: '2px',
-                        background: 'hsl(var(--muted) / 0.35)',
-                      }}>
+                    <div className="absolute bottom-0 left-0 right-0" style={{
+                      height: '3px',
+                      background: `${accent}26`,
+                    }}>
+                      {linkedPill && (
                         <div
                           className="absolute top-0 bottom-0 left-0 transition-all duration-500"
                           style={{
                             width: `${Math.max(batteryLevel, 1)}%`,
                             background: batteryColor,
-                            opacity: 0.8,
-                            boxShadow: `0 0 3px ${batteryColor}80`,
+                            boxShadow: `0 0 8px ${batteryColor}99`,
                           }}
                         />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                     );
                   })();
