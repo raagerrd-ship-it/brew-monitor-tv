@@ -196,16 +196,23 @@ export const SonosWidget = memo(function SonosWidget({
           }}>
             {nowPlaying.track_name}
           </span>
-          {nowPlaying.artist_name && (
-            <span ref={artistNameRef} className="whitespace-nowrap" style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '15px',
-              color: 'hsl(var(--muted-foreground))',
-              opacity: 0.95,
-            }}>
-              › {nowPlaying.artist_name}
-            </span>
-          )}
+          <span className="whitespace-nowrap" style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '15px',
+            color: 'hsl(var(--muted-foreground))',
+            opacity: 0.95,
+          }}>
+            {nowPlaying.artist_name ? '›' : ''}
+          </span>
+          <span ref={artistNameRef} className="whitespace-nowrap" style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '15px',
+            color: 'hsl(var(--muted-foreground))',
+            opacity: 0.95,
+          }}>
+            {nowPlaying.artist_name ?? ''}
+          </span>
+
         </MarqueeText>
 
         {/* Bottom bar — exact copy of controller battery bar, showing progress */}
