@@ -104,13 +104,13 @@ export async function fetchPlaybackStatus(): Promise<{
  */
 export async function fetchNowPlayingImages(): Promise<{
   bgImageUrl?: string; albumArtUrl?: string;
-  trackName?: string;
+  trackName?: string; artistName?: string | null;
 } | null> {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     const { data } = await supabase
       .from('sonos_now_playing')
-      .select('bg_image_url, album_art_url, track_name')
+      .select('bg_image_url, album_art_url, track_name, artist_name')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
@@ -119,9 +119,11 @@ export async function fetchNowPlayingImages(): Promise<{
       bgImageUrl: data.bg_image_url ?? undefined,
       albumArtUrl: data.album_art_url ?? undefined,
       trackName: data.track_name ?? undefined,
+      artistName: data.artist_name ?? null,
     };
   } catch { return null; }
 }
+
 
 export function updateProgressDOM(
   progressBarRef: { current: HTMLDivElement | null },
