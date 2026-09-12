@@ -18,8 +18,9 @@ const NUM = [
 ];
 // Utfallsdata i slutrapporten — skrivs bara tillsammans med steps_executed.
 const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve"];
-const TEXT = ["phase", "fermenting_done_basis"];
-const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at"];
+const INT = ["step_index"];
+const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id"];
+const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,6 +56,7 @@ Deno.serve(async (req) => {
   };
 
   for (const k of NUM) if (has(k) && body[k] != null) patch[k] = Number(body[k]);
+  for (const k of INT) if (has(k) && body[k] != null) patch[k] = Math.trunc(Number(body[k]));
   for (const k of TEXT) if (has(k) && body[k] != null) patch[k] = String(body[k]);
   for (const k of TIME) if (has(k) && body[k] != null) patch[k] = body[k];
   // Tom lista är ett giltigt värde — friskt läge rensar gamla varningar.
@@ -63,8 +65,10 @@ Deno.serve(async (req) => {
   // Slutrapporten skrivs exakt en gång per bryggd.
   if (body.phase === "done" || has("steps_executed")) {
     const { data: existing } = await supabase
-      .from("brew_status").select("final_report_at").eq("source_id", sourceId).maybeSingle();
-    if (!existing?.final_report_at) {
+      .from("brew_status").select("final_report_at, racked_at").eq("source_id", sourceId).maybeSingle();
+    // En slutrapport utan racked_at ersätts av en senare med racked_at.
+    const accept = !existing?.final_report_at || (!existing.racked_at && body.racked_at != null);
+    if (accept) {
       if (Array.isArray(body.steps_executed)) patch.steps_executed = body.steps_executed;
       for (const k of FINAL_JSON) if (has(k) && Array.isArray(body[k])) patch[k] = body[k];
       if (body.phase === "done") patch.final_report_at = patch.updated_at;
