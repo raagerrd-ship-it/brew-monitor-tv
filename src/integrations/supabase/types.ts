@@ -312,13 +312,18 @@ export type Database = {
           fg_measured: number | null
           final_report_at: string | null
           og_measured: number | null
+          outcome: string | null
           phase: string | null
+          pi_brew_id: string | null
+          racked_at: string | null
           sg_current: number | null
           sg_current_raw: number | null
           sg_curve: Json | null
           sg_k: number | null
           source_id: string
           step_ends_at: string | null
+          step_index: number | null
+          step_label: string | null
           step_started_at: string | null
           steps_executed: Json | null
           temp_current_c: number | null
@@ -344,13 +349,18 @@ export type Database = {
           fg_measured?: number | null
           final_report_at?: string | null
           og_measured?: number | null
+          outcome?: string | null
           phase?: string | null
+          pi_brew_id?: string | null
+          racked_at?: string | null
           sg_current?: number | null
           sg_current_raw?: number | null
           sg_curve?: Json | null
           sg_k?: number | null
           source_id: string
           step_ends_at?: string | null
+          step_index?: number | null
+          step_label?: string | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null
@@ -376,13 +386,18 @@ export type Database = {
           fg_measured?: number | null
           final_report_at?: string | null
           og_measured?: number | null
+          outcome?: string | null
           phase?: string | null
+          pi_brew_id?: string | null
+          racked_at?: string | null
           sg_current?: number | null
           sg_current_raw?: number | null
           sg_curve?: Json | null
           sg_k?: number | null
           source_id?: string
           step_ends_at?: string | null
+          step_index?: number | null
+          step_label?: string | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null
