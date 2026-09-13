@@ -304,6 +304,7 @@ export type Database = {
           abv_actual: number | null
           attenuation_final_pct: number | null
           attenuation_pct: number | null
+          control_sensor: string | null
           created_at: string
           fermentation_days: number | null
           fermenting_done_at: string | null
@@ -330,6 +331,8 @@ export type Database = {
           temp_max_c: number | null
           temp_max_deviation_c: number | null
           temp_min_c: number | null
+          temp_pill_c: number | null
+          temp_pt100_c: number | null
           temp_target_c: number | null
           time_in_band_pct: number | null
           time_in_band_pct_per_step: Json | null
@@ -341,6 +344,7 @@ export type Database = {
           abv_actual?: number | null
           attenuation_final_pct?: number | null
           attenuation_pct?: number | null
+          control_sensor?: string | null
           created_at?: string
           fermentation_days?: number | null
           fermenting_done_at?: string | null
@@ -367,6 +371,8 @@ export type Database = {
           temp_max_c?: number | null
           temp_max_deviation_c?: number | null
           temp_min_c?: number | null
+          temp_pill_c?: number | null
+          temp_pt100_c?: number | null
           temp_target_c?: number | null
           time_in_band_pct?: number | null
           time_in_band_pct_per_step?: Json | null
@@ -378,6 +384,7 @@ export type Database = {
           abv_actual?: number | null
           attenuation_final_pct?: number | null
           attenuation_pct?: number | null
+          control_sensor?: string | null
           created_at?: string
           fermentation_days?: number | null
           fermenting_done_at?: string | null
@@ -404,6 +411,8 @@ export type Database = {
           temp_max_c?: number | null
           temp_max_deviation_c?: number | null
           temp_min_c?: number | null
+          temp_pill_c?: number | null
+          temp_pt100_c?: number | null
           temp_target_c?: number | null
           time_in_band_pct?: number | null
           time_in_band_pct_per_step?: Json | null

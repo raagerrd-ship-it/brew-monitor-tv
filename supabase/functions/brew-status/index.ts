@@ -11,7 +11,8 @@ const json = (body: unknown, status = 200) =>
 
 // Pi:n äger fälten. Saknas fältet = orört. null skrivs aldrig över ett känt värde.
 const NUM = [
-  "temp_current_c", "temp_target_c", "sg_current", "sg_current_raw", "sg_k", "attenuation_pct",
+  "temp_current_c", "temp_target_c", "temp_pt100_c", "temp_pill_c",
+  "sg_current", "sg_current_raw", "sg_k", "attenuation_pct",
   "og_measured", "fg_measured", "attenuation_final_pct", "fermentation_days",
   "time_in_band_pct", "temp_max_deviation_c",
   "volume_l", "abv_actual", "temp_max_c", "temp_min_c",
@@ -19,7 +20,7 @@ const NUM = [
 // Utfallsdata i slutrapporten — skrivs bara tillsammans med steps_executed.
 const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve"];
 const INT = ["step_index"];
-const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id"];
+const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id", "control_sensor"];
 const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at"];
 
 Deno.serve(async (req) => {
