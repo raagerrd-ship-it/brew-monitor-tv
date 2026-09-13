@@ -501,8 +501,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       background: `${accent}14`,
                     }}>
                       {linkedPill ? (
-                        [0, 1, 2, 3].map((i) => {
-                          const filled = batteryLevel >= (i + 1) * 25 - (i === 3 ? 1 : 0) || batteryLevel >= i * 25 + 12;
+                        Array.from({ length: 10 }, (_, i) => i).map((i) => {
+                          const filled = i < Math.round(batteryLevel / 10);
                           return (
                             <div
                               key={i}
