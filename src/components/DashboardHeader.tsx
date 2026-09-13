@@ -20,14 +20,10 @@ import { HeaderIconButton } from "./header/HeaderIconButton";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
-  const [online, setOnline] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let mounted = true;
-    const evaluate = (hb: string | null) => {
-      const isOnline = hb ? (Date.now() - new Date(hb).getTime()) / 1000 < 300 : false;
-      setOnline((prev) => (prev === isOnline ? prev : isOnline));
-    };
     const load = async () => {
       const { data } = await supabase
         .from("pi_live_state")
@@ -37,29 +33,42 @@ function PiMenuItem() {
         .maybeSingle();
       if (!mounted) return;
       setLastHeartbeat(data?.last_heartbeat ?? null);
-      evaluate(data?.last_heartbeat ?? null);
+      setNow(Date.now());
     };
     load();
     const iv = setInterval(load, 30000);
-    const tick = setInterval(() => evaluate(lastHeartbeat), 15000);
+    const tick = setInterval(() => setNow(Date.now()), 15000);
     return () => {
       mounted = false;
       clearInterval(iv);
       clearInterval(tick);
     };
-  }, [lastHeartbeat]);
+  }, []);
 
-  const ageSec = lastHeartbeat ? (Date.now() - new Date(lastHeartbeat).getTime()) / 1000 : Infinity;
+  const ageSec = lastHeartbeat ? Math.max(0, (now - new Date(lastHeartbeat).getTime()) / 1000) : Infinity;
+  const online = ageSec < 300;
+  const lastSeen = !lastHeartbeat
+    ? "Ingen telemetri mottagen"
+    : ageSec < 60
+      ? `Senast sedd för ${Math.round(ageSec)} sek sedan`
+      : `Senast sedd för ${Math.floor(ageSec / 60)} min sedan`;
+
   return (
-    <DropdownMenuItem disabled className="flex items-center justify-between opacity-100 cursor-default">
-      <span className="flex items-center gap-2">
-        <Cpu className="h-4 w-4" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }} />
-        Pi-status
+    <div className="mx-1 mb-1 flex min-w-[232px] items-center gap-3 rounded-md border border-border/60 bg-muted/35 px-3 py-2.5">
+      <span className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${online ? "border-success/35 bg-success/10 text-success" : "border-destructive/35 bg-destructive/10 text-destructive"}`}>
+        {online ? <Cpu className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+        <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-popover ${online ? "bg-success" : "bg-destructive"}`} />
       </span>
-      <span className="text-xs" style={{ color: online ? "hsl(142 60% 55%)" : "hsl(0 70% 60%)" }}>
-        {online ? `online (${Math.round(ageSec)}s)` : "offline"}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-4">
+          <span className="text-sm font-semibold text-foreground">Raspberry Pi</span>
+          <span className={`text-[10px] font-bold uppercase ${online ? "text-success" : "text-destructive"}`}>
+            {online ? "Online" : "Offline"}
+          </span>
+        </span>
+        <span className="mt-0.5 block text-[11px] text-muted-foreground">{lastSeen}</span>
       </span>
-    </DropdownMenuItem>
+    </div>
   );
 }
 
