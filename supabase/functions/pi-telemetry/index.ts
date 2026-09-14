@@ -192,6 +192,17 @@ Deno.serve(async (req) => {
     // Pi:n äger sessionen. Finns den inte i molnet ännu speglar vi den hit,
     // annars syns ingen profil i UI:t.
     if (!error && (!updated || updated.length === 0) && p.profile_id && fullId) {
+      // Profilen kan vara Pi-lokal och saknas i molnet — spegla den först,
+      // annars faller session-inserten på främmande nyckel varje telemetripost.
+      const { error: profErr } = await supabase
+        .from("fermentation_profiles")
+        .upsert({
+          id: p.profile_id,
+          name: p.profile_name ?? p.step_label ?? "Pi-profil",
+          description: "Speglad från Pi",
+        }, { onConflict: "id", ignoreDuplicates: true });
+      if (profErr) console.error("profile mirror failed:", profErr.message);
+
       const { error: insErr } = await supabase
         .from("fermentation_sessions")
         .insert({
@@ -205,6 +216,7 @@ Deno.serve(async (req) => {
         });
       if (insErr) console.error("profile session insert failed:", insErr.message);
     }
+
   }
 
   async function writeMetrics(brewId: string | null | undefined, d: any) {
