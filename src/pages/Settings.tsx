@@ -331,6 +331,10 @@ export default function Settings() {
               </div>
             </SettingsSection>
 
+            <SettingsSection icon={History} title="Utbyte med Pi:n" description="Vad appen skickat till Pi:n, vad som kommit tillbaka och bryggder i kö" collapsible defaultOpen={false}>
+              <PiExchangeLog />
+            </SettingsSection>
+
             {/* ═══════════════ SONOS ═══════════════ */}
             <CategorySeparator icon={Music} label="Sonos" />
             <SettingsSection icon={Music} title="Sonos-inställningar" description="Rum, widget och bakgrundsbildbehandling">
