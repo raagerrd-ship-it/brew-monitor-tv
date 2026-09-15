@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { useExternalAuth } from "@/contexts/ExternalAuthContext";
 import { SettingsSection, SettingsDivider, CategorySeparator } from "@/components/ui/settings-section";
+import { PiExchangeLog } from "@/components/PiExchangeLog";
 
 
 export default function Settings() {
@@ -281,7 +282,6 @@ export default function Settings() {
                     <Select value={settings.quickSyncInterval} onValueChange={settings.handleQuickSyncIntervalChange}>
                       <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="0">Aldrig</SelectItem>
                         <SelectItem value="60">1 min</SelectItem>
                         <SelectItem value="300">5 min</SelectItem>
                         <SelectItem value="600">10 min</SelectItem>
@@ -329,6 +329,10 @@ export default function Settings() {
                   onChange={(e) => settings.handleProbeStaleThresholdChange(e.target.value)}
                 />
               </div>
+            </SettingsSection>
+
+            <SettingsSection icon={History} title="Utbyte med Pi:n" description="Vad appen skickat till Pi:n, vad som kommit tillbaka och bryggder i kö" collapsible defaultOpen={false}>
+              <PiExchangeLog />
             </SettingsSection>
 
             {/* ═══════════════ SONOS ═══════════════ */}
