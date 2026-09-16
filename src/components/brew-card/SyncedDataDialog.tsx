@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
@@ -171,7 +171,7 @@ export function SyncedDataDialog({
             </div>
           )}
         </div>
-        <ScrollArea className="h-[400px] pr-2">
+        <div tabIndex={0} className="h-[400px] overflow-y-auto pr-2 outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
           <div className="space-y-1">
             {loading ? (
               <p className="text-muted-foreground text-center py-8">Laddar...</p>
@@ -269,7 +269,7 @@ export function SyncedDataDialog({
               </table>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
