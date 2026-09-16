@@ -3,6 +3,7 @@ import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 interface BatteryStatProps {
   brew: BrewData;
@@ -18,8 +19,9 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
   // Use pill battery if brew battery is null and we have a linked pill
   const batteryValue = brew.battery !== null ? brew.battery : (pill?.battery_level ?? null);
   
-  const isLowBattery = !isInactive && batteryValue !== null && batteryValue < 20;
-  const displayColor = isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
+  const isStale = isBatteryStale(pill?.last_update);
+  const isLowBattery = !isInactive && !isStale && batteryValue !== null && batteryValue < 20;
+  const displayColor = isStale ? 'hsl(var(--muted-foreground))' : isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
 
 
   // Format battery with 1 decimal, fading the decimal part including dot
@@ -44,6 +46,12 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
       isUpdated={updatedFields[brew.batch_id]?.battery}
       isInactive={isInactive}
       className={isLowBattery ? 'animate-battery-pulse' : ''}
+      title={isStale && !isInactive ? `Gammal avläsning · ${batteryAgeLabel(pill?.last_update)}` : undefined}
+      subValue={
+        isStale && !isInactive && batteryValue !== null ? (
+          <span className="text-[9px] text-muted-foreground/60">{batteryAgeLabel(pill?.last_update)}</span>
+        ) : undefined
+      }
     />
   );
 }

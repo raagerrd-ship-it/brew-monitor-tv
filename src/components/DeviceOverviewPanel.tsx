@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Flame, Waves, Thermometer, Radio } from "lucide-react";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 interface ControllerRow {
   controller_id: string;
@@ -37,6 +38,7 @@ interface PillRow {
   gravity: number | null;
   temperature: number | null;
   battery_level: number;
+  last_update: string | null;
 }
 
 function fmtTemp(v: number | null | undefined) {
@@ -72,7 +74,7 @@ export function DeviceOverviewPanel() {
       const [c, l, p] = await Promise.all([
         supabase.from("rapt_temp_controllers").select("controller_id, name, actual_temp, current_temp, pill_temp, target_temp, profile_target_temp, is_glycol_cooler, linked_pill_id, last_update"),
         supabase.from("pi_live_state").select("controller_id, duty_pct, target_temp, cooling_relay_on, heating_relay_on, sensor_source, mode, enabled, glycol_temp, pump_started_at, pump_stopped_at, last_heartbeat"),
-        supabase.from("rapt_pills").select("pill_id, name, color, gravity, temperature, battery_level"),
+        supabase.from("rapt_pills").select("pill_id, name, color, gravity, temperature, battery_level, last_update"),
       ]);
       if (!mounted) return;
       setControllers(c.data ?? []);
@@ -130,8 +132,9 @@ export function DeviceOverviewPanel() {
               <Radio className="h-3 w-3" style={{ color }} />
               {pill.name}
             </span>
-            <span className="font-mono">
+            <span className={`font-mono ${isBatteryStale(pill.last_update) ? "opacity-50" : ""}`}>
               SG {pill.gravity != null ? pill.gravity.toFixed(3) : "–"} · {pill.battery_level}%
+              {isBatteryStale(pill.last_update) && ` · ${batteryAgeLabel(pill.last_update)}`}
             </span>
           </div>
         )}

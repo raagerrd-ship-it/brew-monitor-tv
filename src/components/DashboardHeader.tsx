@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
@@ -372,7 +373,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                     const isControllerStale = controllerStaleMin > staleThresholdMin;
                     const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
-                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
+                    const batteryStale = !!linkedPill && isBatteryStale(linkedPill.last_update);
+                    const batteryColor = batteryStale
+                      ? 'hsl(var(--muted-foreground))'
+                      : batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                     const pillAgeMin = linkedPill?.last_update
                       ? (now - new Date(linkedPill.last_update).getTime()) / 60000
                       : Infinity;
@@ -503,12 +507,17 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     </div>
 
                     {/* Bottom accent bar — segmented battery indicator */}
-                    <div className="absolute bottom-0 left-0 right-0 flex" style={{
-                      height: '3px',
-                      gap: '2px',
-                      padding: '0 2px',
-                      background: `${accent}14`,
-                    }}>
+                    <div
+                      className="absolute bottom-0 left-0 right-0 flex"
+                      title={batteryStale ? `Batteri ${batteryLevel}% · ${batteryAgeLabel(linkedPill?.last_update)} (gammal avläsning)` : undefined}
+                      style={{
+                        height: '3px',
+                        gap: '2px',
+                        padding: '0 2px',
+                        background: `${accent}14`,
+                        opacity: batteryStale ? 0.35 : 1,
+                      }}
+                    >
                       {linkedPill ? (
                         Array.from({ length: 10 }, (_, i) => i).map((i) => {
                           const filled = i < Math.round(batteryLevel / 10);
