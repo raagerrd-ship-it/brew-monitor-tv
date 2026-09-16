@@ -368,7 +368,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
           {controllers.map((controller) => {
             const linkedPill = pills.find(p => p.pill_id === controller.linked_pill_id);
             const controllerColor = linkedPill?.color && linkedPill.color !== '#000000' ? linkedPill.color : DEFAULT_DEVICE_COLOR;
-            const isPillStale = linkedPill?.last_update ? (new Date().getTime() - new Date(linkedPill.last_update).getTime()) / (1000 * 60 * 60) > 24 : true;
+            
             return (() => {
                     const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                     const isControllerStale = controllerStaleMin > staleThresholdMin;
@@ -397,7 +397,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     const isCooler = controller.is_glycol_cooler;
                     const isOff = piDisabled[controller.controller_id] === true;
                     const isManual = piManual[controller.controller_id] === true;
-                    const hasPill = !!linkedPill && !isPillStale;
+                    const hasPill = !!linkedPill && !pillStale;
                     const pillActive = !isOff && hasPill;
                     const probeActive = !isOff && controller.current_temp != null;
                     const accent = isCooler ? 'hsl(200 70% 60%)' : controllerColor;
