@@ -269,7 +269,7 @@ export function SyncedDataDialog({
               </table>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
