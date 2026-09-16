@@ -381,6 +381,40 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Live-paketen bär numera också pillfält (även för avstängda tankar).
+  // Uppdatera bara pillens egna värden — ingen brygghistorik från live.
+  async function writePillFromLive(fullId: string, d: any) {
+    if (d.pill_temp == null && d.pill_battery_pct == null && d.pill_gravity_sg == null) return;
+    const { data: ctrl } = await supabase
+      .from("rapt_temp_controllers")
+      .select("linked_pill_id")
+      .eq("controller_id", fullId)
+      .maybeSingle();
+    const pillId = ctrl?.linked_pill_id;
+    if (!pillId) return;
+
+    const ageS = d.pill_age_s != null ? Number(d.pill_age_s) : 0;
+    const heardAt = new Date(Date.now() - ageS * 1000).toISOString();
+    const upd: Record<string, any> = { last_update: heardAt, updated_at: new Date().toISOString() };
+    if (d.pill_temp != null) upd.temperature = Number(Number(d.pill_temp).toFixed(3));
+    if (d.pill_battery_pct != null) upd.battery_level = Math.round(Number(d.pill_battery_pct));
+
+    // SG från en tank utan aktiv bryggd är luft — spara den inte.
+    if (d.pill_gravity_sg != null) {
+      const { data: brew } = await supabase
+        .from("brew_readings")
+        .select("id")
+        .eq("linked_pill_id", pillId)
+        .in("status", ["fermenting", "active", "Jäsning"])
+        .maybeSingle();
+      if (brew) upd.gravity = Number(Number(d.pill_gravity_sg).toFixed(5));
+    }
+
+    await supabase.from("rapt_pills").update(upd).eq("pill_id", pillId);
+  }
+
+
+
 
   if (!controller_id || !kind) {
     return new Response(JSON.stringify({ error: "Missing controller_id or kind" }), {
@@ -571,6 +605,8 @@ Deno.serve(async (req) => {
     }
 
     const liveFullId = await writeBackToController(data);
+    if (liveFullId) await writePillFromLive(liveFullId, data);
+
     // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
     // inte behöva vänta på nästa rollup.
     await writeProfileState(data, liveFullId);
