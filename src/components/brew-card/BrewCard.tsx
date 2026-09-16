@@ -319,12 +319,18 @@ function BrewCardComponent({
                 if (isBrewInactive(brew.status)) return null;
                 const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
                 if (batteryValue === null) return null;
-                const isLowBattery = batteryValue < 20;
+                const stale = isBatteryStale(devices.pill?.last_update);
+                const isLowBattery = batteryValue < 20 && !stale;
                 return (
                   <>
                     <span className="opacity-40"> · </span>
-                    <span style={{ color: isLowBattery ? 'hsl(0 70% 55%)' : undefined }}>
+                    <span
+                      className={stale ? 'opacity-50' : undefined}
+                      style={{ color: isLowBattery ? 'hsl(0 70% 55%)' : undefined }}
+                      title={stale ? 'Gammal avläsning – pillen har inte hörts av' : undefined}
+                    >
                       🔋 {batteryValue.toFixed(1)}%
+                      {stale && <span className="opacity-70"> · {batteryAgeLabel(devices.pill?.last_update)}</span>}
                     </span>
                   </>
                 );
