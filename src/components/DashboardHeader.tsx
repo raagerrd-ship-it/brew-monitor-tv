@@ -506,12 +506,17 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     </div>
 
                     {/* Bottom accent bar — segmented battery indicator */}
-                    <div className="absolute bottom-0 left-0 right-0 flex" style={{
-                      height: '3px',
-                      gap: '2px',
-                      padding: '0 2px',
-                      background: `${accent}14`,
-                    }}>
+                    <div
+                      className="absolute bottom-0 left-0 right-0 flex"
+                      title={batteryStale ? `Batteri ${batteryLevel}% · ${batteryAgeLabel(linkedPill?.last_update)} (gammal avläsning)` : undefined}
+                      style={{
+                        height: '3px',
+                        gap: '2px',
+                        padding: '0 2px',
+                        background: `${accent}14`,
+                        opacity: batteryStale ? 0.35 : 1,
+                      }}
+                    >
                       {linkedPill ? (
                         Array.from({ length: 10 }, (_, i) => i).map((i) => {
                           const filled = i < Math.round(batteryLevel / 10);
