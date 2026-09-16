@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Snowflake, Flame, Waves, Thermometer, Radio } from "lucide-react";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 interface ControllerRow {
   controller_id: string;
