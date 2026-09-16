@@ -37,6 +37,7 @@ interface PillRow {
   gravity: number | null;
   temperature: number | null;
   battery_level: number;
+  last_update: string | null;
 }
 
 function fmtTemp(v: number | null | undefined) {
