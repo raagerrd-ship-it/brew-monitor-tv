@@ -372,7 +372,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
                     const isControllerStale = controllerStaleMin > staleThresholdMin;
                     const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
-                    const batteryColor = batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
+                    const batteryStale = !!linkedPill && isBatteryStale(linkedPill.last_update);
+                    const batteryColor = batteryStale
+                      ? 'hsl(var(--muted-foreground))'
+                      : batteryLevel < 20 ? 'hsl(0 70% 50%)' : controllerColor;
                     const pillAgeMin = linkedPill?.last_update
                       ? (now - new Date(linkedPill.last_update).getTime()) / 60000
                       : Infinity;
