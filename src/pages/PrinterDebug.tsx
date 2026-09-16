@@ -162,7 +162,7 @@ export default function PrinterDebug() {
       {log.length > 0 && (
         <Card className="p-3">
           <h3 className="text-xs font-semibold text-muted-foreground mb-2">Logg</h3>
-          <div className="max-h-48 overflow-y-auto space-y-0.5 font-mono text-[11px] text-muted-foreground">
+          <div tabIndex={0} className="max-h-48 overflow-y-auto space-y-0.5 font-mono text-[11px] text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring rounded">
             {log.map((l, i) => (
               <div key={i} className={l.includes("FEL") ? "text-destructive" : l.includes("✓") ? "text-success" : ""}>{l}</div>
             ))}

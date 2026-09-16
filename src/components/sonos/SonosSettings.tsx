@@ -238,7 +238,7 @@ function SonosDebugLog() {
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="mt-3 max-h-[300px] overflow-y-auto rounded bg-black/50 p-2 font-mono text-[11px] leading-relaxed space-y-0.5">
+          <div tabIndex={0} className="mt-3 max-h-[300px] overflow-y-auto rounded bg-black/50 p-2 font-mono text-[11px] leading-relaxed space-y-0.5 outline-none focus-visible:ring-1 focus-visible:ring-ring">
             {entries.length === 0 && (
               <div className="text-muted-foreground text-center py-4">Inga loggar ännu — spela musik så dyker de upp</div>
             )}
