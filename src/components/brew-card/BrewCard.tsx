@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText, isBrewInactive } from "./utils";
 import { GravityStat } from "./GravityStat";
