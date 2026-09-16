@@ -18,8 +18,9 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
   // Use pill battery if brew battery is null and we have a linked pill
   const batteryValue = brew.battery !== null ? brew.battery : (pill?.battery_level ?? null);
   
-  const isLowBattery = !isInactive && batteryValue !== null && batteryValue < 20;
-  const displayColor = isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
+  const isStale = isBatteryStale(pill?.last_update);
+  const isLowBattery = !isInactive && !isStale && batteryValue !== null && batteryValue < 20;
+  const displayColor = isStale ? 'hsl(var(--muted-foreground))' : isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
 
 
   // Format battery with 1 decimal, fading the decimal part including dot
