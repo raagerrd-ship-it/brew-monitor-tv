@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
