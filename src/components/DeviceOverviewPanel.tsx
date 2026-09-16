@@ -73,7 +73,7 @@ export function DeviceOverviewPanel() {
       const [c, l, p] = await Promise.all([
         supabase.from("rapt_temp_controllers").select("controller_id, name, actual_temp, current_temp, pill_temp, target_temp, profile_target_temp, is_glycol_cooler, linked_pill_id, last_update"),
         supabase.from("pi_live_state").select("controller_id, duty_pct, target_temp, cooling_relay_on, heating_relay_on, sensor_source, mode, enabled, glycol_temp, pump_started_at, pump_stopped_at, last_heartbeat"),
-        supabase.from("rapt_pills").select("pill_id, name, color, gravity, temperature, battery_level"),
+        supabase.from("rapt_pills").select("pill_id, name, color, gravity, temperature, battery_level, last_update"),
       ]);
       if (!mounted) return;
       setControllers(c.data ?? []);
