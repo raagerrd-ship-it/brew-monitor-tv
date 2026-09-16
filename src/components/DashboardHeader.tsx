@@ -398,8 +398,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     const isOff = piDisabled[controller.controller_id] === true;
                     const isManual = piManual[controller.controller_id] === true;
                     const hasPill = !!linkedPill && !pillStale;
-                    const pillActive = !isOff && hasPill;
-                    const probeActive = !isOff && controller.current_temp != null;
+                    const pillActive = hasPill;
+                    const probeActive = controller.current_temp != null && !probeStale;
                     const accent = isCooler ? 'hsl(200 70% 60%)' : controllerColor;
                     return (
                   <div
