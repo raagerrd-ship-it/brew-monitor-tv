@@ -605,6 +605,8 @@ Deno.serve(async (req) => {
     }
 
     const liveFullId = await writeBackToController(data);
+    if (liveFullId) await writePillFromLive(liveFullId, data);
+
     // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
     // inte behöva vänta på nästa rollup.
     await writeProfileState(data, liveFullId);
