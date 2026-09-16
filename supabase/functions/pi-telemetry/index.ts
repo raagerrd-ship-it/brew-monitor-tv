@@ -301,19 +301,26 @@ Deno.serve(async (req) => {
     const snapPill = m.pill ?? (d.pill_temp != null ? Number(d.pill_temp) : null);
     const snapPt100 = m.pt100 ?? (d.pt100_temp != null ? Number(d.pt100_temp) : null);
 
-    // En tank som normalt kör en givare ska fortsätta logga. Men om en givare
-    // som fanns i förra snapshoten plötsligt saknas är mätningen ogiltig —
-    // actual faller då tillbaka på den kvarvarande givaren och ger en spik.
+    // En tank som normalt kör en givare ska fortsätta logga. Om en givare som
+    // fanns i förra snapshoten plötsligt saknas är den FÖRSTA mätningen ogiltig
+    // (actual faller tillbaka på kvarvarande givare och ger en spik) — men om
+    // givaren varit borta ett tag är det nya normalläget och vi måste fortsätta
+    // logga, annars dör grafen helt när t.ex. pillen laddar ur.
     const { data: prevSnap } = await supabase
       .from("brew_data_snapshots")
-      .select("pill_temp, controller_temp")
+      .select("pill_temp, controller_temp, recorded_at")
       .eq("brew_id", brew.id)
       .order("recorded_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    const prevAgeMs = prevSnap?.recorded_at
+      ? new Date(recordedAt).getTime() - new Date(prevSnap.recorded_at).getTime()
+      : Infinity;
     const lostSensor =
-      (prevSnap?.pill_temp != null && snapPill == null) ||
-      (prevSnap?.controller_temp != null && snapPt100 == null);
+      prevAgeMs <= 15 * 60 * 1000 &&
+      ((prevSnap?.pill_temp != null && snapPill == null) ||
+        (prevSnap?.controller_temp != null && snapPt100 == null));
+
 
     if (snapActual == null || lostSensor) {
       console.warn(
