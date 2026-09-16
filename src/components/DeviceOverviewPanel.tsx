@@ -131,8 +131,9 @@ export function DeviceOverviewPanel() {
               <Radio className="h-3 w-3" style={{ color }} />
               {pill.name}
             </span>
-            <span className="font-mono">
+            <span className={`font-mono ${isBatteryStale(pill.last_update) ? "opacity-50" : ""}`}>
               SG {pill.gravity != null ? pill.gravity.toFixed(3) : "–"} · {pill.battery_level}%
+              {isBatteryStale(pill.last_update) && ` · ${batteryAgeLabel(pill.last_update)}`}
             </span>
           </div>
         )}
