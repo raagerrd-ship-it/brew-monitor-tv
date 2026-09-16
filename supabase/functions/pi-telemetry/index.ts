@@ -264,14 +264,21 @@ Deno.serve(async (req) => {
     if (!pillId) return;
 
     const recordedAt = d.recorded_at || new Date().toISOString();
-    const pillUpdate: Record<string, any> = {
-      last_update: recordedAt,
-      updated_at: new Date().toISOString(),
-    };
-    if (d.pill_temp != null) pillUpdate.temperature = Number(Number(d.pill_temp).toFixed(3));
-    if (d.pill_gravity_sg != null) pillUpdate.gravity = Number(Number(d.pill_gravity_sg).toFixed(5));
-    if (d.pill_battery_pct != null) pillUpdate.battery_level = Math.round(Number(d.pill_battery_pct));
-    await supabase.from("rapt_pills").update(pillUpdate).eq("pill_id", pillId);
+    const hasPillData =
+      d.pill_temp != null || d.pill_gravity_sg != null || d.pill_battery_pct != null;
+    // Bumpa bara last_update när pillen faktiskt hörts — annars ser en tyst
+    // pill ut som färsk i UI:t.
+    if (hasPillData) {
+      const pillUpdate: Record<string, any> = {
+        last_update: recordedAt,
+        updated_at: new Date().toISOString(),
+      };
+      if (d.pill_temp != null) pillUpdate.temperature = Number(Number(d.pill_temp).toFixed(3));
+      if (d.pill_gravity_sg != null) pillUpdate.gravity = Number(Number(d.pill_gravity_sg).toFixed(5));
+      if (d.pill_battery_pct != null) pillUpdate.battery_level = Math.round(Number(d.pill_battery_pct));
+      await supabase.from("rapt_pills").update(pillUpdate).eq("pill_id", pillId);
+    }
+
 
     const { data: brew } = await supabase
       .from("brew_readings")
