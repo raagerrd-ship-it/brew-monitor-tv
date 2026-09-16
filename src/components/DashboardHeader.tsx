@@ -504,17 +504,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           › {controller.target_temp.toFixed(1)}°
                         </span>
                       )}
-                      {!isCooler && !isControllerStale && (pillActive || probeActive) && (
-                        <span className="whitespace-nowrap uppercase" style={{
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: isMobile ? '8px' : '9px',
-                          letterSpacing: '0.12em',
-                          color: 'hsl(var(--muted-foreground))',
-                          opacity: 0.75,
-                        }}>
-                          {pillActive && probeActive ? 'PT100+PILL' : pillActive ? 'PILL' : 'PT100'}
-                        </span>
-                      )}
                     </div>
 
                     {/* Bottom accent bar — segmented battery indicator */}
