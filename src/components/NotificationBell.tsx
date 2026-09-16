@@ -11,7 +11,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { HeaderIconButton } from "./header/HeaderIconButton";
@@ -200,7 +199,7 @@ function NotificationBellComponent() {
             )}
           </div>
         </DialogHeader>
-        <ScrollArea className="max-h-[400px]">
+        <div tabIndex={0} className="max-h-[400px] overflow-y-auto pr-2 outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md">
           {notifications.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
               Inga notifikationer
@@ -231,7 +230,7 @@ function NotificationBellComponent() {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

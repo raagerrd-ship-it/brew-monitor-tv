@@ -90,7 +90,7 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-0.5">
+      <div ref={scrollRef} tabIndex={0} className="flex-1 overflow-y-auto p-3 space-y-0.5 outline-none">
         {entries.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
             Väntar på BLE-kommandon... Starta en utskrift.
