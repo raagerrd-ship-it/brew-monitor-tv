@@ -11,7 +11,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { HeaderIconButton } from "./header/HeaderIconButton";
