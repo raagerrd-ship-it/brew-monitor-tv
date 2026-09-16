@@ -1,33 +1,33 @@
-# Sidhuvudet — finsköljning på plats
+# Sidhuvudet — finslipning med tydliga tanksektioner
 
-Du gillade inte riktningarna med rutor eller omstrukturerade layouter. Planen är därför: **behåll menyraden exakt som den är** — samma innehåll, samma ordning, samma höjd (60 px) — och polera bara detaljerna så den känns mer sammanhållen och professionell.
+Utgångspunkt: dagens menyrad och chips-känsla behålls. All information per jäskärl finns kvar, men varje tank blir en tydligt avgränsad sektion i raden.
 
-## Vad som finslipas
+## Vad som ändras
 
-1. **Typografi och rytm**
-   - Konsekvent teckenstorlek och radhöjd på etiketter (GLYKOL / JÄSKÄRL …) och värden
-   - Temperaturens heltal och decimal får samma behandling överallt (dämpad decimal), samma baseline-justering
-   - Jämn vertikal centrering av alla fält
+1. **Vertikala avskiljare**
+   - En tunn, enhetlig hårlinje (1 px, dämpad) mellan varje sektion: Glykol | Gul | Blå | Grön | Sonos | Klocka
+   - Samma höjd, opacitet och marginal på alla linjer — inga blandade kanter/färger
 
-2. **Avdelare**
-   - De tunna vertikala linjerna mellan grupperna (tankar / Sonos / klocka) får samma höjd, opacitet och marginaler — inga tjocka eller olikfärgade skiljelinjer
+2. **Varje tanksektion innehåller (som idag, men konsekvent)**
+   - Tanknamn (GLYKOL / JÄSKÄRL GUL / BLÅ / GRÖN) i tankens accentfärg
+   - Temperatur + mål med `›`-notation, dämpad decimal
+   - Givarkälla som symboler (PT100 / pill — tända när de levererar, släckta när tysta)
+   - Batteri för pillen: symbol + 10-segmentslinje längst ner, gråad med ålder vid gammal avläsning
+   - Orange hand/triangel vid manuellt läge
 
-3. **Batteri- och accentlinjer**
-   - 10-segmentslinjerna längst ner får samma höjd och samma padding i alla fält
-   - Accentfärgen (gul/blå/grön/cyan) används bara i etiketten och bottenlinjen — inga färgade bakgrunder eller kanter runt fälten
-
-4. **Ikoner**
-   - Givarikoner, varningstriangel/hand och notis/meny får enhetlig storlek och samma visuella vikt (släckta ikoner tydligt dämpade, tända klara)
-   - Sonos-raden och klockan justeras så de sitter optiskt centrerade mot tankfälten
+3. **Detaljpolish**
+   - Samma teckenstorlek, radhöjd och baseline-justering i alla sektioner
+   - Enhetlig ikonstorlek och visuell vikt
+   - Sonos, notis, meny och klocka optiskt centrerade mot tanksektionerna
 
 ## Vad som INTE ändras
 
-- Ingen ruta-i-ruta, inga nya kort eller bakgrunder i listen
-- Ingen ändring av innehåll, datakällor, ordning eller höjd
-- TV-läget och mobilen beter sig som idag
+- En rad, 60 px hög — inget staplat på höjden
+- Inga rutor/kort med egen bakgrund inne i listen
+- Innehåll, ordning, datakällor, TV-läge och mobilläge oförändrade
 - Alla färger via befintliga design-tokens
 
 ## Verifiering
 
-- Skärmbild av sidhuvudet före/efter i appen och i TV-läge, jämfört mot dagens utseende
+- Skärmbild före/efter i appen och TV-läget
 - Bygg utan fel
