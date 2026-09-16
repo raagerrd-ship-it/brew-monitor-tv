@@ -46,6 +46,12 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
       isUpdated={updatedFields[brew.batch_id]?.battery}
       isInactive={isInactive}
       className={isLowBattery ? 'animate-battery-pulse' : ''}
+      title={isStale && !isInactive ? `Gammal avläsning · ${batteryAgeLabel(pill?.last_update)}` : undefined}
+      subValue={
+        isStale && !isInactive && batteryValue !== null ? (
+          <span className="text-[9px] text-muted-foreground/60">{batteryAgeLabel(pill?.last_update)}</span>
+        ) : undefined
+      }
     />
   );
 }
