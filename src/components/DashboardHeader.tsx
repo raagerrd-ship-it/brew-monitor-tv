@@ -187,7 +187,7 @@ export function DashboardHeader({
             </div>
 
             <div
-              className={`flex items-stretch justify-center min-w-0 overflow-hidden border-l border-border/60 bg-muted/10 ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
+              className={`flex items-stretch justify-center min-w-0 overflow-hidden border-l border-border/40 bg-muted/10 ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
                 maxWidth: isTvMode ? (sonosVisible ? '300px' : '0px') : (sonosVisible ? '180px' : '0px'),
@@ -199,7 +199,7 @@ export function DashboardHeader({
               <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
             </div>
 
-            <div className="flex items-center gap-1 flex-shrink-0 self-stretch border-l border-border/60 px-4">
+            <div className="flex items-center gap-1 flex-shrink-0 self-stretch border-l border-border/40 px-4">
               {!isTvMode && <NotificationBell />}
 
               {!isTvMode && (
@@ -232,7 +232,7 @@ export function DashboardHeader({
                 </DropdownMenu>
               )}
 
-              {!isTvMode && <div className="self-center h-8 w-px mx-2 flex-shrink-0 bg-border/60" />}
+              {!isTvMode && <div className="self-stretch w-px mx-2 flex-shrink-0 bg-border/40" />}
               <Clock />
             </div>
           </>
@@ -404,7 +404,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     return (
                   <div
                     key={controller.id}
-                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/30 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
+                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/40 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
                     style={{
                       flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
@@ -425,8 +425,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       <span className="uppercase font-extrabold truncate" style={{
                         fontSize: isMobile ? '11px' : '12px',
                         letterSpacing: '0.15em',
-                        color: 'hsl(var(--muted-foreground))',
-                        opacity: 0.9,
+                        color: accent,
+                        opacity: 0.85,
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
