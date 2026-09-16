@@ -3,6 +3,7 @@ import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
+import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 
 interface BatteryStatProps {
   brew: BrewData;
