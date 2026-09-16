@@ -377,7 +377,8 @@ function BrewCardComponent({
       {/* Active Fermentation Session */}
       <div className={`flex-shrink-0 px-3 overflow-visible ${sessionExpanded ? 'flex-1 py-2' : 'mt-1 px-3 pb-1'}`}>
         <ActiveFermentationSession 
-          brewId={brew.id} 
+          brewId={brew.id}
+          controllerId={devices.controller?.controller_id ?? undefined}
           compact 
           preloadedSession={brew.fermentationSession}
           isAuthenticated={showInteractiveElements}
