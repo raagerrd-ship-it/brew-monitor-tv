@@ -426,7 +426,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       }}>
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
-                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : isManual ? `${controller.name} styrs manuellt härifrån` : undefined}>
+                      <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : isManual ? `${controller.name} har manuellt mål (profilen pausad)` : undefined}>
                         {isManual && !isOff && (
                           <Hand style={{
                             width: '0.75rem',
