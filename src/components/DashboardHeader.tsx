@@ -143,6 +143,7 @@ export function DashboardHeader({
             className="absolute left-0 right-0 pointer-events-none"
             style={{
               top: 0,
+              zIndex: -1,
               height: `${HEADER_HEIGHT_DESKTOP + 28}px`,
               background: 'hsl(var(--background) / 0.10)',
               backdropFilter: 'blur(18px)',
