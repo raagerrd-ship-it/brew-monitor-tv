@@ -19,7 +19,8 @@ function BatteryStatComponent({ brew, devices, updatedFields }: BatteryStatProps
   // Use pill battery if brew battery is null and we have a linked pill
   const batteryValue = brew.battery !== null ? brew.battery : (pill?.battery_level ?? null);
   
-  const isStale = isBatteryStale(pill?.last_update);
+  // Utan känd tidsstämpel vet vi inte åldern — märk inte värdet som gammalt.
+  const isStale = pill?.last_update ? isBatteryStale(pill.last_update) : false;
   const isLowBattery = !isInactive && !isStale && batteryValue !== null && batteryValue < 20;
   const displayColor = isStale ? 'hsl(var(--muted-foreground))' : isLowBattery ? 'hsl(0 70% 50%)' : batteryColor;
 

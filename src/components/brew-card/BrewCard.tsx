@@ -319,7 +319,7 @@ function BrewCardComponent({
                 if (isBrewInactive(brew.status)) return null;
                 const batteryValue = brew.battery ?? devices.pill?.battery_level ?? null;
                 if (batteryValue === null) return null;
-                const stale = isBatteryStale(devices.pill?.last_update);
+                const stale = devices.pill?.last_update ? isBatteryStale(devices.pill.last_update) : false;
                 const isLowBattery = batteryValue < 20 && !stale;
                 return (
                   <>
