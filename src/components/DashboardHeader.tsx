@@ -128,14 +128,29 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/15'}`}
+        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-visible'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-          background: isMobile ? 'hsl(var(--background) / 0.12)' : 'hsl(var(--background) / 0.10)',
+          background: isMobile ? 'hsl(var(--background) / 0.12)' : undefined,
           borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.35)' : undefined,
-          backdropFilter: isMobile ? undefined : 'blur(18px)',
+          backdropFilter: isMobile ? undefined : undefined,
         }}
       >
+        {/* Soft backdrop: blur + tint fade out below the header instead of a hard edge */}
+        {!isMobile && (
+          <div
+            aria-hidden
+            className="absolute left-0 right-0 pointer-events-none"
+            style={{
+              top: 0,
+              height: `${HEADER_HEIGHT_DESKTOP + 28}px`,
+              background: 'hsl(var(--background) / 0.10)',
+              backdropFilter: 'blur(18px)',
+              WebkitMaskImage: `linear-gradient(to bottom, black 0%, black ${HEADER_HEIGHT_DESKTOP - 12}px, transparent 100%)`,
+              maskImage: `linear-gradient(to bottom, black 0%, black ${HEADER_HEIGHT_DESKTOP - 12}px, transparent 100%)`,
+            }}
+          />
+        )}
         {/* Mobile: Logo row with settings */}
         {isMobile ? (
           <div className="flex items-center justify-between w-full">
