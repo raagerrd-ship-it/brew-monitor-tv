@@ -69,6 +69,8 @@ All colors MUST be HSL.
   :root {
     --background: 222 20% 8%;
     --foreground: 40 10% 95%;
+    --surface-veil: 0 0% 100%;
+
 
     --card: 222 18% 12%;
     --card-foreground: 40 10% 95%;
