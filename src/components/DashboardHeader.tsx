@@ -131,9 +131,9 @@ export function DashboardHeader({
         className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-hidden border-b border-border/15'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-          background: 'hsl(var(--surface-veil) / 0.12)',
+          background: isMobile ? 'hsl(var(--background) / 0.12)' : 'hsl(var(--background) / 0.10)',
           borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.35)' : undefined,
-          backdropFilter: isMobile ? undefined : 'blur(18px) brightness(1.5)',
+          backdropFilter: isMobile ? undefined : 'blur(18px)',
         }}
       >
         {/* Mobile: Logo row with settings */}
