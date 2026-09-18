@@ -180,8 +180,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    const bridgeHasArt = isStorageUrl(albumArtUri);
-    const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
+    // Bridge may send the image itself (base64) — upload it to storage and use that URL
+    let uploadedArtUrl: string | null = null;
+    let uploadedNextArtUrl: string | null = null;
+    if (typeof albumArtBase64 === 'string' && albumArtBase64.length > 0) {
+      uploadedArtUrl = await uploadBackground(supabase, albumArtBase64, 'bridge-current.jpg');
+    }
+    if (typeof nextAlbumArtBase64 === 'string' && nextAlbumArtBase64.length > 0) {
+      uploadedNextArtUrl = await uploadBackground(supabase, nextAlbumArtBase64, 'bridge-next.jpg');
+    }
+
+    const bridgeArtUrl = uploadedArtUrl ?? (isStorageUrl(albumArtUri) ? bustCache(albumArtUri) : null);
+    const bridgeNextArtUrl = uploadedNextArtUrl ?? (isStorageUrl(nextAlbumArtUri) ? bustCache(nextAlbumArtUri) : null);
+    const bridgeHasArt = !!bridgeArtUrl;
+    const bridgeHasNextArt = !!bridgeNextArtUrl;
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
     // Compensate for network latency using pushedAt timestamp
     const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0) ? Math.max(0, Date.now() - pushedAt) : 0;
