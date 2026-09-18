@@ -341,6 +341,11 @@ Deno.serve(async (req) => {
       phase1_ms: phase1Ms,
       has_bg: !!imageUpdate.bg_image_url,
       bridge_art: bridgeHasArt,
+      // ACK: false = cloud has what it needs, bridge can omit the base64 image
+      need_album_art: !(imageUpdate.bg_image_url || existingRow?.bg_image_url),
+      need_next_album_art: !(imageUpdate.next_bg_image_url || existingRow?.next_bg_image_url),
+      ack_track: decodedTrackName,
+      ack_next_track: decodeXmlEntities(nextTrackName),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
