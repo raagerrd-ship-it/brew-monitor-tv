@@ -207,7 +207,9 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
+      currentStepRef.current = null;
       dismissAlert('timer-milestone');
+
       prevLabelRef.current = timer.label;
     }
   }, [timer.label, dismissAlert]);
