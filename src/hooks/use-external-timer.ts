@@ -7,6 +7,7 @@ export interface TimerMilestone {
   atMs?: number;
   label: string;
   triggered?: boolean;
+  current?: boolean;
   pauseHere?: boolean;
   ack?: boolean;
   acknowledged?: boolean;
