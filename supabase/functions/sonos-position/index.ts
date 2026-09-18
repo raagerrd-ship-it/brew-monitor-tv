@@ -13,7 +13,13 @@ const corsHeaders = {
  * Heavy work (track metadata, album art, background generation) is handled by
  * sonos-bridge-push which is called only on state changes.
  */
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+);
+
 Deno.serve(async (req) => {
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
