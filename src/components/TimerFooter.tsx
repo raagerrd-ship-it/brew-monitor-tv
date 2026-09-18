@@ -43,19 +43,15 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   // Calculate current progress position
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
-  // Distribute markers evenly if all have same time (API issue workaround)
-  const allSameTime = sortedMilestones.length > 1 && sortedMilestones.every(m => m.time === sortedMilestones[0]?.time);
+  const getMarkerPosition = (milestone: TimerMilestone) =>
+    Math.max(0, Math.min(100, ((totalSeconds - milestone.time) / totalSeconds) * 100));
 
   return (
     <div className="relative w-full h-full flex flex-col justify-center -translate-y-2">
       {/* Time labels row */}
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
-          const position = allSameTime 
-            ? (index / Math.max(1, sortedMilestones.length - 1)) * 100
-            : totalSeconds > 0 
-              ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
-              : 0;
+          const position = getMarkerPosition(milestone);
           const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
@@ -120,11 +116,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
         
         {/* Milestone markers */}
         {sortedMilestones.map((milestone, index) => {
-          const position = allSameTime 
-            ? (index / Math.max(1, sortedMilestones.length - 1)) * 100
-            : totalSeconds > 0 
-              ? ((totalSeconds - milestone.time) / totalSeconds) * 100 
-              : 0;
+          const position = getMarkerPosition(milestone);
           const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
           const isNext = !isTriggered && 
             (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
