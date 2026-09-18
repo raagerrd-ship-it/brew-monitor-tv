@@ -205,11 +205,6 @@ Deno.serve(async (req) => {
       recipeName: responseData?.recipeName,
     });
 
-    // Initialize local Supabase client
-    const localSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const localSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
-
     // Prepare timer record
     const milestones: TimerMilestone[] = Array.isArray(timerData?.milestones)
       ? timerData.milestones
