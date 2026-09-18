@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, RotateCcw } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -18,6 +18,7 @@ import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
+import { useToast } from "@/hooks/use-toast";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export function DashboardHeader({
   const location = useLocation();
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
+  const { toast } = useToast();
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
@@ -124,6 +126,17 @@ export function DashboardHeader({
     setSelectedControllerIsCooler(coolerControllerId === controller.controller_id);
     setControllerDialogOpen(true);
   }, [coolerControllerId]);
+
+  const handleRestartTv = useCallback(async () => {
+    const { error } = await supabase
+      .from('sync_settings')
+      .update({ force_tv_refresh_at: new Date().toISOString() })
+      .not('id', 'is', null);
+
+    toast(error
+      ? { title: "Kunde inte starta om TV:n", variant: "destructive" }
+      : { title: "TV:n startas om inom kort" });
+  }, [toast]);
 
   return (
     <>
@@ -239,6 +252,10 @@ export function DashboardHeader({
                     <DropdownMenuItem onClick={() => setAlarmDialogOpen(true)}>
                       <Timer className="mr-2 h-4 w-4" />
                       Timer / alarm
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleRestartTv}>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Starta om TV
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/settings')}>
                       <Settings className="mr-2 h-4 w-4" />
