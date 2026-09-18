@@ -45,9 +45,6 @@ Deno.serve(async (req) => {
       pushedAt,
     } = body;
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Find the latest row to update (singleton-ish — bridge owns one active row)
     const { data: existingRow } = await supabase
