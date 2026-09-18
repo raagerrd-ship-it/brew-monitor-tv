@@ -163,6 +163,8 @@ export const TimerFooter = memo(function TimerFooter() {
   // Track triggered milestones for attention notification
   const lastTriggeredRef = useRef<Set<string>>(new Set());
   const prevLabelRef = useRef<string>(timer.label);
+  const currentStepRef = useRef<{ label: string; time: number } | null>(null);
+
 
   const isMash = timer.label === 'Mäskschema';
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
@@ -170,9 +172,22 @@ export const TimerFooter = memo(function TimerFooter() {
   
   // Find the current step: triggered but not yet acknowledged = active
   // If none active, fall back to most recently completed milestone
-  const currentMilestone = timer.milestones
+  const rawCurrentMilestone = timer.milestones
     .filter(m => m.triggered === true || (m.triggered !== false && m.time >= timer.remainingSeconds))
     .sort((a, b) => a.time - b.time)[0] || null;
+
+  // Latch the current step so sync jitter can't bounce it forward and back.
+  // Steps only ever advance (candidate time decreases) within the same timer.
+  let currentMilestone = rawCurrentMilestone;
+  const latched = currentStepRef.current;
+  if (latched && (!currentMilestone || currentMilestone.time > latched.time)) {
+    const kept = timer.milestones.find(m => m.label === latched.label);
+    if (kept) currentMilestone = kept;
+  }
+  if (currentMilestone) {
+    currentStepRef.current = { label: currentMilestone.label, time: currentMilestone.time };
+  }
+
 
   // Check if we should show based on TV mode setting
   const shouldShow = timerTvModeOnly ? isTvMode : true;
@@ -192,7 +207,9 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
+      currentStepRef.current = null;
       dismissAlert('timer-milestone');
+
       prevLabelRef.current = timer.label;
     }
   }, [timer.label, dismissAlert]);
