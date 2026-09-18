@@ -318,16 +318,16 @@ export const TimerFooter = memo(function TimerFooter() {
             "border-white/5"
           )}>
             {/* Current Step - show last triggered milestone or timer label */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-h-7">
               <span className={cn(
-                "text-sm uppercase tracking-wide flex-shrink-0 font-medium",
-                isMash ? "text-green-400/90" : "text-green-500/90"
+                "text-sm uppercase tracking-wide flex-shrink-0 font-bold",
+                isMash ? "text-green-300" : "text-green-400"
               )}>
                 Nu:
               </span>
               <span className={cn(
-                "text-base font-semibold truncate",
-                isMash ? "text-green-300" : "text-green-400"
+                "text-xl font-bold truncate",
+                isMash ? "text-green-100" : "text-foreground"
               )}>
                 {currentMilestone 
                   ? currentMilestone.label.replace(/🔥\s*/g, '') 
@@ -373,17 +373,16 @@ export const TimerFooter = memo(function TimerFooter() {
             </div>
             
             {/* Next Step */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 opacity-60">
               <span className={cn(
-                "text-sm uppercase tracking-wide flex-shrink-0 font-medium",
-                isMash ? "text-orange-400/90" : isWhirlpool ? "text-cyan-400/90" : "text-muted-foreground"
+                "text-xs uppercase tracking-wide flex-shrink-0 font-medium text-muted-foreground"
               )}>
                 Nästa:
               </span>
               {timer.nextMilestone ? (
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Flame className={cn(
-                    "w-4 h-4 flex-shrink-0",
+                    "w-3.5 h-3.5 flex-shrink-0",
                     isNextMilestoneImminent 
                       ? "text-yellow-400 animate-pulse" 
                       : isMash 
@@ -393,7 +392,7 @@ export const TimerFooter = memo(function TimerFooter() {
                           : "text-primary"
                   )} />
                   <span className={cn(
-                    "text-base font-semibold truncate",
+                    "text-sm font-medium truncate",
                     isNextMilestoneImminent 
                       ? "text-yellow-300" 
                       : isMash 
@@ -408,11 +407,11 @@ export const TimerFooter = memo(function TimerFooter() {
               ) : timer.nextConfig ? (
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <ArrowRight className={cn(
-                    "w-4 h-4 flex-shrink-0",
+                    "w-3.5 h-3.5 flex-shrink-0",
                     isMash ? "text-orange-400" : isWhirlpool ? "text-cyan-400" : "text-primary"
                   )} />
                   <span className={cn(
-                    "text-base font-semibold truncate",
+                    "text-sm font-medium truncate",
                     isMash ? "text-orange-100" : isWhirlpool ? "text-cyan-100" : "text-foreground"
                   )}>
                     {timer.nextConfig.label} ({timer.nextConfig.minutes} min)
@@ -420,7 +419,7 @@ export const TimerFooter = memo(function TimerFooter() {
                 </div>
               ) : (
                 <span className={cn(
-                  "text-base font-semibold",
+                  "text-sm font-medium",
                   isMash ? "text-green-400" : "text-green-500"
                 )}>
                   ✓ Klart!
