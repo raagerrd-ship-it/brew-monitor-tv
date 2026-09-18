@@ -88,6 +88,9 @@ Deno.serve(async (req) => {
       radioShowMd,
       originalTrackNumber,
       protocolInfo,
+      // Raw image bytes (base64) uploaded by the bridge
+      albumArtBase64,
+      nextAlbumArtBase64,
       // Bridge self-registration fields
       groupId: bridgeGroupId,
       groupName: bridgeGroupName,
