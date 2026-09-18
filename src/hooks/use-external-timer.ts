@@ -94,9 +94,12 @@ export function useExternalTimer() {
   const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
     const data = timerDataRef.current;
     if (!data || !data.milestones.length) return null;
-    const sortedMilestones = [...data.milestones].sort((a, b) => a.time - b.time);
-    const upcomingMilestones = sortedMilestones.filter(m => m.time < remainingSeconds && !m.triggered);
-    return upcomingMilestones.length > 0 ? upcomingMilestones[upcomingMilestones.length - 1] : null;
+    // "Next" = upcoming milestone that happens soonest. Trust `triggered`;
+    // only fall back to the countdown for legacy payloads without the flag.
+    const upcoming = data.milestones.filter(m =>
+      m.triggered === false ? true : m.triggered === true ? false : m.time < remainingSeconds
+    );
+    return upcoming.sort((a, b) => b.time - a.time)[0] ?? null;
   }, []);
 
   const calculateTimeToNextMilestone = useCallback((remainingSeconds: number, nextMilestone: TimerMilestone | null): number | null => {
