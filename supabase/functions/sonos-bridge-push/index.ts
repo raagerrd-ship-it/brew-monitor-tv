@@ -1,6 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackground, cleanupUnreferencedBackgrounds, uploadBackground } from "../_shared/sonos-storage.ts";
+import { simpleHash } from "../_shared/image-processing.ts";
+
+/** Cheap content fingerprint of a base64 image (radio keeps the same track name per song) */
+function artFingerprint(b64: unknown): string | null {
+  if (typeof b64 !== 'string' || b64.length === 0) return null;
+  return simpleHash(`${b64.length}-${b64.slice(0, 1024)}-${b64.slice(-1024)}`);
+}
 
 /** Decode common XML/HTML entities that UPnP metadata may contain */
 function decodeXmlEntities(s: string | null | undefined): string | null {
