@@ -281,7 +281,7 @@ export function useExternalTimer() {
     } catch (error) {
       console.error('Error fetching cached timer:', error);
     }
-  }, [parseMilestone, parseNextConfig, calculateRemainingSeconds]);
+  }, [parseMilestone, parseNextConfig, calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
   const triggerSync = useCallback(async () => {
     try {
