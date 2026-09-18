@@ -1,6 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackground, cleanupUnreferencedBackgrounds, uploadBackground } from "../_shared/sonos-storage.ts";
+import { simpleHash } from "../_shared/image-processing.ts";
+
+/** Cheap content fingerprint of a base64 image (radio keeps the same track name per song) */
+function artFingerprint(b64: unknown): string | null {
+  if (typeof b64 !== 'string' || b64.length === 0) return null;
+  return simpleHash(`${b64.length}-${b64.slice(0, 1024)}-${b64.slice(-1024)}`);
+}
 
 /** Decode common XML/HTML entities that UPnP metadata may contain */
 function decodeXmlEntities(s: string | null | undefined): string | null {
@@ -186,8 +193,15 @@ Deno.serve(async (req) => {
 
     // Bridge sends the image itself (base64) on every state push — only upload when we
     // actually need it (new track, or missing art/background), never on repeat pushes.
-    const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url;
-    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url;
+    const artHash = artFingerprint(albumArtBase64);
+    const nextArtHash = artFingerprint(nextAlbumArtBase64);
+    // The background file name starts with hash(trackName|artHash), so a new cover = new name
+    const expectedBgHash = artHash ? simpleHash(`${trackName || ''}|${artHash}`) : null;
+    const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
+    const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
+      || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
+    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url
+      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash));
 
     let uploadedArtUrl: string | null = null;
     let uploadedNextArtUrl: string | null = null;
@@ -262,7 +276,7 @@ Deno.serve(async (req) => {
     console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms +latency=${latencyMs}ms → written=${compensatedPosition}ms state=${playbackState} bridgeArt=${bridgeHasArt}`);
 
     // If same track AND background already exists, just a position/state update — done
-    const needsBg = !existingRow?.bg_image_url;
+    const needsBg = needsCurrentArt;
     if (sameTrack && !needsBg) {
       return new Response(JSON.stringify({
         ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
@@ -285,7 +299,8 @@ Deno.serve(async (req) => {
     const imageUpdate: Record<string, any> = {};
 
     if (currentArtUrl) {
-      const trackId = trackName || '';
+      // Cache key follows the image itself — radio keeps one track name across many covers
+      const trackId = `${trackName || ''}|${artHash ?? currentArtUrl}`;
       const result = await resolveBackground(
         supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
       );
@@ -303,7 +318,8 @@ Deno.serve(async (req) => {
         const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
           const nextResult = await resolveBackground(
-            supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
+            supabase, nextArtUrl, `${nextTrackName}|${nextArtHash ?? nextArtUrl}`,
+            bgSettings, viewportW, viewportH, false, nextTrackName
           );
           if (nextResult.bgUrl) {
             imageUpdate.next_bg_image_url = nextResult.bgUrl;
