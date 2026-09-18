@@ -265,8 +265,9 @@ export function useExternalTimer() {
         pausedByMilestone: data.paused_by_milestone,
         pausedAt: data.paused_at ?? null,
         milestones,
-        nextMilestone,
-        timeToNextMilestone: adjustedTimeToNext,
+        nextMilestone: localNextMilestone,
+        timeToNextMilestone: calculateTimeToNextMilestone(currentRemaining, localNextMilestone),
+
         progress: Math.min(100, Math.max(0, localProgress)),
         nextConfig,
         wizardStep: data.wizard_step ?? null,
