@@ -363,7 +363,8 @@ Deno.serve(async (req) => {
       bridge_art: bridgeHasArt,
       // ACK: false = cloud has what it needs, bridge can omit the base64 image
       need_album_art: !(imageUpdate.bg_image_url || existingRow?.bg_image_url),
-      need_next_album_art: !(imageUpdate.next_bg_image_url || existingRow?.next_bg_image_url),
+      need_next_album_art: wantsNextArt
+        && !(imageUpdate.next_bg_image_url || uploadedNextArtUrl || existingRow?.next_bg_image_url),
       ack_track: decodedTrackName,
       ack_next_track: decodeXmlEntities(nextTrackName),
     }), {
