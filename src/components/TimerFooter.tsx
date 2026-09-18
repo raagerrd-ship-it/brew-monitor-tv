@@ -222,7 +222,7 @@ export const TimerFooter = memo(function TimerFooter() {
     if (!timer.milestones.length || !timer.isActive) return;
     
     const justTriggered = timer.milestones.find(m => {
-      return m.triggered && !m.acknowledged && !lastTriggeredRef.current.has(m.label);
+      return m.triggered === true && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
