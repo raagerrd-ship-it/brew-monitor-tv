@@ -134,8 +134,11 @@ export function useExternalTimer() {
     return {
       time: typeof milestone.time === 'number' ? milestone.time : 0,
       atSeconds: typeof milestone.atSeconds === 'number' ? milestone.atSeconds : undefined,
+      atMs: typeof milestone.atMs === 'number' ? milestone.atMs : undefined,
       label: typeof milestone.label === 'string' ? milestone.label : '',
       triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
+      pauseHere: typeof milestone.pauseHere === 'boolean' ? milestone.pauseHere : undefined,
+      ack: typeof milestone.ack === 'boolean' ? milestone.ack : undefined,
       acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
       pauseForTemperature: typeof milestone.pauseForTemperature === 'boolean' ? milestone.pauseForTemperature : undefined,
       targetTemperature: typeof milestone.targetTemperature === 'number' ? milestone.targetTemperature : undefined,
