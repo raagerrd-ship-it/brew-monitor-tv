@@ -162,30 +162,13 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
         }
 
         const delay = Math.max(remaining - offsetMs, 100);
-        tvDebug('sonos', `🔮 Swap om ${(delay / 1000).toFixed(1)}s | ${(remaining / 1000).toFixed(1)}s innan låtbyte`);
+        tvDebug('sonos', `🔮 Kontroll om ${(delay / 1000).toFixed(1)}s | ${(remaining / 1000).toFixed(1)}s innan låtbyte`);
 
         predictiveTimer = setTimeout(() => {
-          const snap = nowPlayingRef?.current;
-          if (snap?.next_track_name) {
-            // Record what we're swapping FROM for revert guard
-            swappedFromRef.current = { trackName: trackName, ts: Date.now() };
-            tvDebug('sonos', `🔮 Swap → "${snap.next_track_name}"`);
-            // Bump seq to block all stale data until backend confirms
-            acceptedSeqRef.current = (snap.track_seq ?? acceptedSeqRef.current) + 1;
-            tvDebug('sonos', `🔮 Seq bumped to ${acceptedSeqRef.current}`);
-            if (snap.next_bg_image_url) { const img = new Image(); img.src = snap.next_bg_image_url; }
-            handleTrackChangeRef.current({
-              trackName: snap.next_track_name,
-              artistName: snap.next_artist_name,
-              playbackState: 'PLAYBACK_STATE_PLAYING',
-              positionMillis: 0,
-            });
-          } else {
-            tvDebug('sonos', `🔮 Ingen next-data — pollar`);
-            // Bump seq before polling too
-            acceptedSeqRef.current = (snap?.track_seq ?? acceptedSeqRef.current) + 1;
-            pollForNewTrack(PREDICTIVE_MAX_RETRIES);
-          }
+          // Keep the current background visible until Sonos confirms the new track.
+          // next_* is preload-only and must never drive the visible state by prediction.
+          tvDebug('sonos', `🔮 Väntar på bekräftat låtbyte`);
+          pollForNewTrack(PREDICTIVE_MAX_RETRIES);
         }, delay);
       }
 
