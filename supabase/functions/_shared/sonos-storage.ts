@@ -1,7 +1,7 @@
 import { BgSettings, simpleHash, fetchAndDecodeJpeg, processBackground } from "./image-processing.ts";
 
 // Upload base64 image to storage and return public URL
-async function uploadBackground(
+export async function uploadBackground(
   supabase: any,
   base64DataUrl: string,
   fileName: string,

@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackground, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
-import { resolveAlbumArt } from "../_shared/sonos-art.ts";
+import { resolveBackground, cleanupUnreferencedBackgrounds, uploadBackground } from "../_shared/sonos-storage.ts";
 
 /** Decode common XML/HTML entities that UPnP metadata may contain */
 function decodeXmlEntities(s: string | null | undefined): string | null {
@@ -89,6 +88,9 @@ Deno.serve(async (req) => {
       radioShowMd,
       originalTrackNumber,
       protocolInfo,
+      // Raw image bytes (base64) uploaded by the bridge
+      albumArtBase64,
+      nextAlbumArtBase64,
       // Bridge self-registration fields
       groupId: bridgeGroupId,
       groupName: bridgeGroupName,
@@ -178,8 +180,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    const bridgeHasArt = isStorageUrl(albumArtUri);
-    const bridgeHasNextArt = isStorageUrl(nextAlbumArtUri);
+    // Bridge may send the image itself (base64) — upload it to storage and use that URL
+    let uploadedArtUrl: string | null = null;
+    let uploadedNextArtUrl: string | null = null;
+    if (typeof albumArtBase64 === 'string' && albumArtBase64.length > 0) {
+      uploadedArtUrl = await uploadBackground(supabase, albumArtBase64, 'bridge-current.jpg');
+    }
+    if (typeof nextAlbumArtBase64 === 'string' && nextAlbumArtBase64.length > 0) {
+      uploadedNextArtUrl = await uploadBackground(supabase, nextAlbumArtBase64, 'bridge-next.jpg');
+    }
+
+    const bridgeArtUrl = uploadedArtUrl ?? (isStorageUrl(albumArtUri) ? bustCache(albumArtUri) : null);
+    const bridgeNextArtUrl = uploadedNextArtUrl ?? (isStorageUrl(nextAlbumArtUri) ? bustCache(nextAlbumArtUri) : null);
+    const bridgeHasArt = !!bridgeArtUrl;
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
     // Compensate for network latency using pushedAt timestamp
     const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0) ? Math.max(0, Date.now() - pushedAt) : 0;
@@ -191,7 +204,7 @@ Deno.serve(async (req) => {
       track_name: decodeXmlEntities(trackName),
       artist_name: decodeXmlEntities(artistName),
       album_name: decodeXmlEntities(albumName),
-      album_art_url_small: albumArtUri || null,
+      album_art_url_small: albumArtUri || bridgeArtUrl || null,
       next_track_name: decodeXmlEntities(nextTrackName),
       next_artist_name: decodeXmlEntities(nextArtistName),
       playback_state: effectivePlaybackState,
@@ -211,8 +224,8 @@ Deno.serve(async (req) => {
       track_uri: trackURI ?? null,
       nr_tracks: nrTracks ?? null,
       // If bridge uploaded art, set album_art_url immediately (cache-busted)
-      ...(bridgeHasArt ? { album_art_url: bustCache(albumArtUri) } : {}),
-      ...(bridgeHasNextArt ? { next_album_art_url: bustCache(nextAlbumArtUri) } : {}),
+      ...(bridgeArtUrl ? { album_art_url: bridgeArtUrl } : {}),
+      ...(bridgeNextArtUrl ? { next_album_art_url: bridgeNextArtUrl } : {}),
       // Extended UPnP metadata
       current_uri: currentURI ?? null,
       next_av_transport_uri: nextAVTransportURI ?? null,
@@ -251,20 +264,12 @@ Deno.serve(async (req) => {
       console.log(`[BridgePush] Same track but missing bg — running Phase 2`);
     }
 
-    // --- Phase 2: Resolve art + generate background ---
-    // If bridge uploaded art, use it directly; otherwise fall back to resolveAlbumArt
-    let currentArtUrl: string | null = null;
-    if (bridgeHasArt) {
-      currentArtUrl = bustCache(albumArtUri);
-    } else {
-      const resolved = await resolveAlbumArt(albumArtUri || null, undefined, trackName, artistName);
-      currentArtUrl = resolved.medium;
-    }
+    // --- Phase 2: Generate background from the bridge-provided image ---
+    const currentArtUrl = bridgeArtUrl;
 
     const imageUpdate: Record<string, any> = {};
 
     if (currentArtUrl) {
-      if (!bridgeHasArt) imageUpdate.album_art_url = currentArtUrl;
       const trackId = trackName || '';
       const result = await resolveBackground(
         supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
@@ -280,15 +285,8 @@ Deno.serve(async (req) => {
     const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
     if (nextTrackName && !isRadio) {
       try {
-        let nextArtUrl: string | null = null;
-        if (bridgeHasNextArt) {
-          nextArtUrl = bustCache(nextAlbumArtUri);
-        } else {
-          const nextResolved = await resolveAlbumArt(nextAlbumArtUri || null, undefined, nextTrackName, nextArtistName);
-          nextArtUrl = nextResolved.medium;
-        }
+        const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
-          if (!bridgeHasNextArt) imageUpdate.next_album_art_url = nextArtUrl;
           const nextResult = await resolveBackground(
             supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
           );
