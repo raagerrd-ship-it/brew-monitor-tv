@@ -4,8 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 export interface TimerMilestone {
   time: number;
   atSeconds?: number;
+  atMs?: number;
   label: string;
   triggered?: boolean;
+  pauseHere?: boolean;
+  ack?: boolean;
   acknowledged?: boolean;
   pauseForTemperature?: boolean;
   targetTemperature?: number;
