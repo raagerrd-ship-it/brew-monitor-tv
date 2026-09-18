@@ -315,7 +315,8 @@ Deno.serve(async (req) => {
         const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
           const nextResult = await resolveBackground(
-            supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
+            supabase, nextArtUrl, `${nextTrackName}|${nextArtHash ?? nextArtUrl}`,
+            bgSettings, viewportW, viewportH, false, nextTrackName
           );
           if (nextResult.bgUrl) {
             imageUpdate.next_bg_image_url = nextResult.bgUrl;
