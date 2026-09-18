@@ -34,12 +34,20 @@ interface TimelineProps {
   isTvMode: boolean;
 }
 
+// A milestone counts as reached when the brew app flags it `current`.
+// Without that flag we fall back to `triggered`, then to the countdown.
+const isPassed = (m: TimerMilestone, hasCurrentFlag: boolean, remainingSeconds: number) =>
+  hasCurrentFlag
+    ? m.current === true
+    : m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds);
+
 const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isWhirlpool, isTvMode }: TimelineProps) {
   if (!milestones.length || totalSeconds <= 0) return null;
 
   // Sort milestones by time descending (highest time = earliest in process)
   const sortedMilestones = [...milestones].sort((a, b) => b.time - a.time);
-  
+  const hasCurrentFlag = milestones.some(m => m.current === true);
+
   // Calculate current progress position
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
