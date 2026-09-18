@@ -163,6 +163,8 @@ export const TimerFooter = memo(function TimerFooter() {
   // Track triggered milestones for attention notification
   const lastTriggeredRef = useRef<Set<string>>(new Set());
   const prevLabelRef = useRef<string>(timer.label);
+  const currentStepRef = useRef<{ label: string; time: number } | null>(null);
+
 
   const isMash = timer.label === 'Mäskschema';
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
