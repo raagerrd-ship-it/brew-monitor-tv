@@ -70,8 +70,7 @@ export async function storageObjectExistsByPublicUrl(supabase: any, publicUrl: s
   }
 }
 
-// LRU cleanup: keep the newest MAX_CACHED files + bridge files + explicitly referenced URLs.
-const MAX_CACHED = 200;
+// Cleanup: keep only bridge files + explicitly referenced URLs (current + next background).
 export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUrls: (string | null | undefined)[]) {
   const BRIDGE_FILES = new Set(['bridge-current.jpg', 'bridge-next.jpg']);
 
@@ -88,21 +87,19 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
       .from('sonos-backgrounds')
       .list('', { limit: 500 });
 
-    if (!files || files.length <= MAX_CACHED) return;
+    if (!files) return;
 
-    // Sort newest first by updated_at
-    const sorted = [...files].sort((a: any, b: any) =>
-      new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
-    );
-
-    const toDelete = sorted
-      .slice(MAX_CACHED)
-      .map((f: any) => f.name)
-      .filter((name: string) => !keepNames.has(name));
+    // Keep only the current and next background — no cache of older covers.
+    // Files younger than 60s are spared (an in-flight prefetch may not be referenced yet).
+    const now = Date.now();
+    const toDelete = files
+      .filter((f: any) => !keepNames.has(f.name))
+      .filter((f: any) => now - new Date(f.updated_at || f.created_at).getTime() > 60_000)
+      .map((f: any) => f.name);
 
     if (toDelete.length > 0) {
       await supabase.storage.from('sonos-backgrounds').remove(toDelete);
-      console.log(`[SonosSync] LRU cleanup: deleted ${toDelete.length} old files, total was ${files.length}`);
+      console.log(`[SonosSync] cleanup: deleted ${toDelete.length} background(s), total was ${files.length}`);
     }
   } catch {
     // Non-critical, ignore
