@@ -84,6 +84,93 @@ Deno.serve(async (req) => {
     const accessToken = authData.session.access_token;
     console.log('✅ Authenticated as user:', userId);
 
+    // Local Supabase client (used by both paths below)
+    const localSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const localSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
+
+    // Preferred source: shared_brewing_session (brew app is the single writer)
+    const { data: sessionRow, error: sessionError } = await externalSupabase
+      .from('shared_brewing_session')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (sessionError) {
+      console.warn('⚠️ shared_brewing_session read failed, falling back:', sessionError.message);
+    }
+
+    if (sessionRow) {
+      const milestones: TimerMilestone[] = Array.isArray(sessionRow.timer_milestones)
+        ? sessionRow.timer_milestones
+        : [];
+
+      const label: string | null = sessionRow.timer_label ?? null;
+      const totalSeconds = Math.max(0, Math.round((sessionRow.timer_total_ms ?? 0) / 1000));
+      const pausedAtMs: number | null = sessionRow.timer_paused_at ?? null;
+      const isPaused = pausedAtMs !== null;
+
+      let remainingSeconds = isPaused
+        ? Math.max(0, Math.round((sessionRow.timer_remaining_ms ?? 0) / 1000))
+        : Math.max(0, Math.round(((sessionRow.timer_end_time ?? 0) - Date.now()) / 1000));
+      // Not-yet-started steps must show full length, never 0
+      if (totalSeconds > 0 && remainingSeconds > totalSeconds) remainingSeconds = totalSeconds;
+
+      // "Now" = triggered milestone with the largest time. Never guessed.
+      const current = milestones
+        .filter((m) => m.triggered === true)
+        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null;
+      // "Next" = upcoming milestone that happens soonest (largest time among untriggered)
+      const next = milestones
+        .filter((m) => m.triggered !== true)
+        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null;
+
+      const pausesHere = !!current && (current.pauseForTemperature === true || (current as Record<string, unknown>).pauseHere === true);
+      const acked = !!current && (current.acknowledged === true || (current as Record<string, unknown>).ack === true);
+
+      const record = {
+        external_user_id: userId,
+        is_active: !!label,
+        label,
+        remaining_seconds: remainingSeconds,
+        total_seconds: totalSeconds,
+        is_paused: isPaused,
+        paused_by_milestone: isPaused && pausesHere && !acked,
+        paused_at: pausedAtMs ? new Date(pausedAtMs).toISOString() : null,
+        milestones,
+        next_milestone: next,
+        time_to_next_milestone: next ? Math.max(0, remainingSeconds - (next.time ?? 0)) : null,
+        progress: totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0,
+        next_config: null,
+        timer_action: typeof current?.action === 'string' ? current.action : null,
+        timer_target_temperature: typeof current?.targetTemperature === 'number' ? current.targetTemperature : null,
+        wizard_step: sessionRow.wizard_step ?? null,
+        wizard_started_at: null,
+        recipe_name: sessionRow.profile_name ?? null,
+        beer_style: sessionRow.beer_style ?? null,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: sharedUpsertError } = await localSupabase
+        .from('cached_external_timer')
+        .upsert(record, { onConflict: 'external_user_id' });
+
+      if (sharedUpsertError) {
+        console.warn('⚠️ Upsert error (shared session):', sharedUpsertError.message);
+        return new Response(
+          JSON.stringify({ success: false, skipped: true, reason: 'upsert_error' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('✅ Timer cache updated from shared_brewing_session');
+      return new Response(
+        JSON.stringify({ success: true, source: 'shared_brewing_session', isActive: !!label, label, remainingSeconds }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch timer data from new brewing status endpoint
     console.log('📡 Fetching brewing status...');
     const timerResponse = await fetch(
@@ -117,11 +204,6 @@ Deno.serve(async (req) => {
       wizardStep: wizardData?.step,
       recipeName: responseData?.recipeName,
     });
-
-    // Initialize local Supabase client
-    const localSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const localSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
 
     // Prepare timer record
     const milestones: TimerMilestone[] = Array.isArray(timerData?.milestones)

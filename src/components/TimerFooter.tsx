@@ -52,7 +52,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
+          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
           
@@ -117,9 +117,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
         {/* Milestone markers */}
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
+          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
           const isNext = !isTriggered && 
-            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
+            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds)));
           
           return (
             <div
@@ -172,9 +172,12 @@ export const TimerFooter = memo(function TimerFooter() {
   
   // Find the current step: triggered but not yet acknowledged = active
   // If none active, fall back to most recently completed milestone
-  const rawCurrentMilestone = timer.milestones
-    .filter(m => m.triggered === true || (m.triggered !== false && m.time >= timer.remainingSeconds))
-    .sort((a, b) => a.time - b.time)[0] || null;
+  // "Now" = the triggered milestone with the largest time. Trust `triggered`;
+  // only fall back to the countdown for legacy payloads without the flag.
+  const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
+  const rawCurrentMilestone = hasTriggeredFlags
+    ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
+    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null;
 
   // Latch the current step so sync jitter can't bounce it forward and back.
   // Steps only ever advance (candidate time decreases) within the same timer.
@@ -219,7 +222,7 @@ export const TimerFooter = memo(function TimerFooter() {
     if (!timer.milestones.length || !timer.isActive) return;
     
     const justTriggered = timer.milestones.find(m => {
-      return m.triggered && !m.acknowledged && !lastTriggeredRef.current.has(m.label);
+      return m.triggered === true && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
@@ -276,7 +279,7 @@ export const TimerFooter = memo(function TimerFooter() {
     } else if (!isMash) {
       const shouldDismiss = timer.milestones.some(m => 
         lastTriggeredRef.current.has(m.label) && 
-        (m.acknowledged || (m.time - timer.remainingSeconds) >= 120)
+        (m.acknowledged || m.ack || (m.time - timer.remainingSeconds) >= 120)
       );
       if (shouldDismiss) {
         dismissAlert('timer-milestone');
