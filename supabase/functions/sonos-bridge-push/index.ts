@@ -200,8 +200,13 @@ Deno.serve(async (req) => {
     const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
     const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
       || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
-    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url
-      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash));
+    // Radio has no reliable next track — never ask the bridge for that image
+    const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
+    const wantsNextArt = !!nextTrackName && !isRadio;
+    const needsNextArt = wantsNextArt && (
+      !sameTrack || !existingRow?.next_bg_image_url
+      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash))
+    );
 
     let uploadedArtUrl: string | null = null;
     let uploadedNextArtUrl: string | null = null;
