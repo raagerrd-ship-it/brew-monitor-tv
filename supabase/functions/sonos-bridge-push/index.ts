@@ -200,8 +200,13 @@ Deno.serve(async (req) => {
     const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
     const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
       || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
-    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url
-      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash));
+    // Radio has no reliable next track — never ask the bridge for that image
+    const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
+    const wantsNextArt = !!nextTrackName && !isRadio;
+    const needsNextArt = wantsNextArt && (
+      !sameTrack || !existingRow?.next_bg_image_url
+      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash))
+    );
 
     let uploadedArtUrl: string | null = null;
     let uploadedNextArtUrl: string | null = null;
@@ -282,7 +287,7 @@ Deno.serve(async (req) => {
         ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
         // ACK: cloud already has the art for this track — bridge can omit the base64 image
         need_album_art: false,
-        need_next_album_art: !existingRow?.next_bg_image_url,
+        need_next_album_art: needsNextArt && !uploadedNextArtUrl,
         ack_track: decodedTrackName,
         ack_next_track: decodeXmlEntities(nextTrackName),
       }), {
@@ -312,8 +317,7 @@ Deno.serve(async (req) => {
     }
 
     // Next track background (skip for radio — next track metadata is unreliable)
-    const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
-    if (nextTrackName && !isRadio) {
+    if (wantsNextArt) {
       try {
         const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
@@ -359,7 +363,8 @@ Deno.serve(async (req) => {
       bridge_art: bridgeHasArt,
       // ACK: false = cloud has what it needs, bridge can omit the base64 image
       need_album_art: !(imageUpdate.bg_image_url || existingRow?.bg_image_url),
-      need_next_album_art: !(imageUpdate.next_bg_image_url || existingRow?.next_bg_image_url),
+      need_next_album_art: wantsNextArt
+        && !(imageUpdate.next_bg_image_url || uploadedNextArtUrl || existingRow?.next_bg_image_url),
       ack_track: decodedTrackName,
       ack_next_track: decodeXmlEntities(nextTrackName),
     }), {
