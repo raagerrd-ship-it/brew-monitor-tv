@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
-import { resolveBackground, cleanupUnreferencedBackgrounds } from "../_shared/sonos-storage.ts";
-import { resolveAlbumArt } from "../_shared/sonos-art.ts";
+import { resolveBackground, cleanupUnreferencedBackgrounds, uploadBackground } from "../_shared/sonos-storage.ts";
 
 /** Decode common XML/HTML entities that UPnP metadata may contain */
 function decodeXmlEntities(s: string | null | undefined): string | null {
