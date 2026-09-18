@@ -265,20 +265,12 @@ Deno.serve(async (req) => {
       console.log(`[BridgePush] Same track but missing bg — running Phase 2`);
     }
 
-    // --- Phase 2: Resolve art + generate background ---
-    // If bridge uploaded art, use it directly; otherwise fall back to resolveAlbumArt
-    let currentArtUrl: string | null = null;
-    if (bridgeHasArt) {
-      currentArtUrl = bustCache(albumArtUri);
-    } else {
-      const resolved = await resolveAlbumArt(albumArtUri || null, undefined, trackName, artistName);
-      currentArtUrl = resolved.medium;
-    }
+    // --- Phase 2: Generate background from the bridge-provided image ---
+    const currentArtUrl = bridgeArtUrl;
 
     const imageUpdate: Record<string, any> = {};
 
     if (currentArtUrl) {
-      if (!bridgeHasArt) imageUpdate.album_art_url = currentArtUrl;
       const trackId = trackName || '';
       const result = await resolveBackground(
         supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
