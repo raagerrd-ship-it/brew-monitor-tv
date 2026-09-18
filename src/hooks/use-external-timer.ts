@@ -213,10 +213,14 @@ export function useExternalTimer() {
       } else {
         // Same state — check drift before resetting
         const localRemaining = calculateRemainingSeconds();
-        const drift = Math.abs(localRemaining - adjustedRemaining);
-        
-        if (drift > 3) {
-          // Significant drift, correct it
+        const diff = adjustedRemaining - localRemaining; // >0 = server says more time left
+        const drift = Math.abs(diff);
+
+        // Never let the countdown jump backwards (remaining increasing) on small
+        // sync jitter — only accept an upward correction for a genuinely new value.
+        const acceptCorrection = diff < 0 ? drift > 3 : drift > 15;
+
+        if (acceptCorrection) {
           timerDataRef.current = {
             startedAt: new Date().toISOString(),
             remainingAtStart: adjustedRemaining,
@@ -227,7 +231,7 @@ export function useExternalTimer() {
             timeToNextMilestoneAtStart: adjustedTimeToNext,
           };
         } else {
-          // Small drift — only update milestones/metadata, keep countdown base stable
+          // Keep countdown base stable, only refresh metadata
           timerDataRef.current = {
             ...prev,
             milestones,
@@ -236,6 +240,7 @@ export function useExternalTimer() {
           };
         }
       }
+
 
       if (!data.is_active) {
         isActiveRef.current = false;
@@ -247,6 +252,8 @@ export function useExternalTimer() {
 
       const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
       const currentRemaining = calculateRemainingSeconds();
+      const localNextMilestone = calculateNextMilestone(currentRemaining) ?? nextMilestone;
+
       const localProgress = data.total_seconds > 0 
         ? ((data.total_seconds - currentRemaining) / data.total_seconds) * 100 
         : apiProgress;
@@ -260,8 +267,9 @@ export function useExternalTimer() {
         pausedByMilestone: data.paused_by_milestone,
         pausedAt: data.paused_at ?? null,
         milestones,
-        nextMilestone,
-        timeToNextMilestone: adjustedTimeToNext,
+        nextMilestone: localNextMilestone,
+        timeToNextMilestone: calculateTimeToNextMilestone(currentRemaining, localNextMilestone),
+
         progress: Math.min(100, Math.max(0, localProgress)),
         nextConfig,
         wizardStep: data.wizard_step ?? null,
@@ -273,7 +281,7 @@ export function useExternalTimer() {
     } catch (error) {
       console.error('Error fetching cached timer:', error);
     }
-  }, [parseMilestone, parseNextConfig, calculateRemainingSeconds]);
+  }, [parseMilestone, parseNextConfig, calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
   const triggerSync = useCallback(async () => {
     try {
