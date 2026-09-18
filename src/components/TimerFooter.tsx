@@ -279,7 +279,7 @@ export const TimerFooter = memo(function TimerFooter() {
     } else if (!isMash) {
       const shouldDismiss = timer.milestones.some(m => 
         lastTriggeredRef.current.has(m.label) && 
-        (m.acknowledged || (m.time - timer.remainingSeconds) >= 120)
+        (m.acknowledged || m.ack || (m.time - timer.remainingSeconds) >= 120)
       );
       if (shouldDismiss) {
         dismissAlert('timer-milestone');
