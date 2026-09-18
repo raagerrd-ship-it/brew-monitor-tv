@@ -117,9 +117,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
         {/* Milestone markers */}
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
+          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
           const isNext = !isTriggered && 
-            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered || m.time >= remainingSeconds));
+            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds)));
           
           return (
             <div
