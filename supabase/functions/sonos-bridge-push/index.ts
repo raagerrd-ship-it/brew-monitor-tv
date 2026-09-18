@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
         ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
         // ACK: cloud already has the art for this track — bridge can omit the base64 image
         need_album_art: false,
-        need_next_album_art: !existingRow?.next_bg_image_url,
+        need_next_album_art: needsNextArt && !uploadedNextArtUrl,
         ack_track: decodedTrackName,
         ack_next_track: decodeXmlEntities(nextTrackName),
       }), {
