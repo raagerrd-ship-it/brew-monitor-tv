@@ -210,12 +210,14 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [timer.label, dismissAlert]);
 
-  // Detect when a milestone becomes triggered+unacknowledged (needs attention)
+  // Detect when the current milestone is unacknowledged (needs attention)
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
-    
+
+    const hasCurrentFlag = timer.milestones.some(m => m.current === true);
     const justTriggered = timer.milestones.find(m => {
-      return m.triggered === true && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
+      const isNow = hasCurrentFlag ? m.current === true : m.triggered === true;
+      return isNow && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {
