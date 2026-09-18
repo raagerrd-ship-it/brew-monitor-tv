@@ -44,7 +44,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
   // Distribute markers evenly if all have same time (API issue workaround)
-  const allSameTime = sortedMilestones.every(m => m.time === sortedMilestones[0]?.time);
+  const allSameTime = sortedMilestones.length > 1 && sortedMilestones.every(m => m.time === sortedMilestones[0]?.time);
 
   return (
     <div className="relative w-full h-full flex flex-col justify-center -translate-y-2">
