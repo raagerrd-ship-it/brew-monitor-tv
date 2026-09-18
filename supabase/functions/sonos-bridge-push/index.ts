@@ -193,7 +193,6 @@ Deno.serve(async (req) => {
     const bridgeArtUrl = uploadedArtUrl ?? (isStorageUrl(albumArtUri) ? bustCache(albumArtUri) : null);
     const bridgeNextArtUrl = uploadedNextArtUrl ?? (isStorageUrl(nextAlbumArtUri) ? bustCache(nextAlbumArtUri) : null);
     const bridgeHasArt = !!bridgeArtUrl;
-    const bridgeHasNextArt = !!bridgeNextArtUrl;
     const hasRealPosition = typeof positionMillis === 'number' && positionMillis > 0;
     // Compensate for network latency using pushedAt timestamp
     const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0) ? Math.max(0, Date.now() - pushedAt) : 0;
