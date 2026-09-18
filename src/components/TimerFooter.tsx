@@ -52,7 +52,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered !== false && milestone.time >= remainingSeconds);
+          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
           
