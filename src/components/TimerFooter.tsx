@@ -172,9 +172,12 @@ export const TimerFooter = memo(function TimerFooter() {
   
   // Find the current step: triggered but not yet acknowledged = active
   // If none active, fall back to most recently completed milestone
-  const rawCurrentMilestone = timer.milestones
-    .filter(m => m.triggered === true || (m.triggered !== false && m.time >= timer.remainingSeconds))
-    .sort((a, b) => a.time - b.time)[0] || null;
+  // "Now" = the triggered milestone with the largest time. Trust `triggered`;
+  // only fall back to the countdown for legacy payloads without the flag.
+  const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
+  const rawCurrentMilestone = hasTriggeredFlags
+    ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
+    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null;
 
   // Latch the current step so sync jitter can't bounce it forward and back.
   // Steps only ever advance (candidate time decreases) within the same timer.
