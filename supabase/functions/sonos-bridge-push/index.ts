@@ -195,10 +195,13 @@ Deno.serve(async (req) => {
     // actually need it (new track, or missing art/background), never on repeat pushes.
     const artHash = artFingerprint(albumArtBase64);
     const nextArtHash = artFingerprint(nextAlbumArtBase64);
+    // The background file name starts with hash(trackName|artHash), so a new cover = new name
+    const expectedBgHash = artHash ? simpleHash(`${trackName || ''}|${artHash}`) : null;
+    const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
     const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
-      || (!!artHash && !existingRow.bg_image_url.includes(artHash));
+      || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
     const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url
-      || (!!nextArtHash && !existingRow.next_bg_image_url.includes(nextArtHash));
+      || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash));
 
     let uploadedArtUrl: string | null = null;
     let uploadedNextArtUrl: string | null = null;
