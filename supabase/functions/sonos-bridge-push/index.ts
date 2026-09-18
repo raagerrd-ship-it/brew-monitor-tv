@@ -317,8 +317,7 @@ Deno.serve(async (req) => {
     }
 
     // Next track background (skip for radio — next track metadata is unreliable)
-    const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
-    if (nextTrackName && !isRadio) {
+    if (wantsNextArt) {
       try {
         const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
