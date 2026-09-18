@@ -52,7 +52,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
+          const isTriggered = isPassed(milestone, hasCurrentFlag, remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
           
@@ -196,7 +196,6 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
-      currentStepRef.current = null;
       dismissAlert('timer-milestone');
 
       prevLabelRef.current = timer.label;
