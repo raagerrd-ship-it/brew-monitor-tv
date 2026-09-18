@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
     console.log(`[BridgePush] Phase 1 done in ${phase1Ms}ms — ${sameTrack ? 'same' : 'NEW'} track "${trackName}" bridgePos=${positionMillis ?? 'null'}ms +latency=${latencyMs}ms → written=${compensatedPosition}ms state=${playbackState} bridgeArt=${bridgeHasArt}`);
 
     // If same track AND background already exists, just a position/state update — done
-    const needsBg = !existingRow?.bg_image_url;
+    const needsBg = needsCurrentArt;
     if (sameTrack && !needsBg) {
       return new Response(JSON.stringify({
         ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
