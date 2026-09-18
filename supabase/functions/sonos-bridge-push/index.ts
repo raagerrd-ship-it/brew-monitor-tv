@@ -149,7 +149,11 @@ Deno.serve(async (req) => {
       }
       const duration = Date.now() - startTime;
       console.log(`[BridgePush] IDLE in ${duration}ms${isNonMusicInput ? ' (non-music input)' : ''}`);
-      return new Response(JSON.stringify({ ok: true, idle: true, non_music: isNonMusicInput, duration_ms: duration }), {
+      return new Response(JSON.stringify({
+        ok: true, idle: true, non_music: isNonMusicInput, duration_ms: duration,
+        need_album_art: false,
+        need_next_album_art: false,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
