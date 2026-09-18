@@ -149,7 +149,11 @@ Deno.serve(async (req) => {
       }
       const duration = Date.now() - startTime;
       console.log(`[BridgePush] IDLE in ${duration}ms${isNonMusicInput ? ' (non-music input)' : ''}`);
-      return new Response(JSON.stringify({ ok: true, idle: true, non_music: isNonMusicInput, duration_ms: duration }), {
+      return new Response(JSON.stringify({
+        ok: true, idle: true, non_music: isNonMusicInput, duration_ms: duration,
+        need_album_art: false,
+        need_next_album_art: false,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -260,7 +264,14 @@ Deno.serve(async (req) => {
     // If same track AND background already exists, just a position/state update — done
     const needsBg = !existingRow?.bg_image_url;
     if (sameTrack && !needsBg) {
-      return new Response(JSON.stringify({ ok: true, phase: 1, same_track: true, duration_ms: phase1Ms }), {
+      return new Response(JSON.stringify({
+        ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
+        // ACK: cloud already has the art for this track — bridge can omit the base64 image
+        need_album_art: false,
+        need_next_album_art: !existingRow?.next_bg_image_url,
+        ack_track: decodedTrackName,
+        ack_next_track: decodeXmlEntities(nextTrackName),
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -330,6 +341,11 @@ Deno.serve(async (req) => {
       phase1_ms: phase1Ms,
       has_bg: !!imageUpdate.bg_image_url,
       bridge_art: bridgeHasArt,
+      // ACK: false = cloud has what it needs, bridge can omit the base64 image
+      need_album_art: !(imageUpdate.bg_image_url || existingRow?.bg_image_url),
+      need_next_album_art: !(imageUpdate.next_bg_image_url || existingRow?.next_bg_image_url),
+      ack_track: decodedTrackName,
+      ack_next_track: decodeXmlEntities(nextTrackName),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
