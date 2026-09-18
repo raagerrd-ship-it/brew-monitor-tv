@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
       track_name: decodeXmlEntities(trackName),
       artist_name: decodeXmlEntities(artistName),
       album_name: decodeXmlEntities(albumName),
-      album_art_url_small: albumArtUri || null,
+      album_art_url_small: albumArtUri || bridgeArtUrl || null,
       next_track_name: decodeXmlEntities(nextTrackName),
       next_artist_name: decodeXmlEntities(nextArtistName),
       playback_state: effectivePlaybackState,
@@ -225,8 +225,8 @@ Deno.serve(async (req) => {
       track_uri: trackURI ?? null,
       nr_tracks: nrTracks ?? null,
       // If bridge uploaded art, set album_art_url immediately (cache-busted)
-      ...(bridgeHasArt ? { album_art_url: bustCache(albumArtUri) } : {}),
-      ...(bridgeHasNextArt ? { next_album_art_url: bustCache(nextAlbumArtUri) } : {}),
+      ...(bridgeArtUrl ? { album_art_url: bridgeArtUrl } : {}),
+      ...(bridgeNextArtUrl ? { next_album_art_url: bridgeNextArtUrl } : {}),
       // Extended UPnP metadata
       current_uri: currentURI ?? null,
       next_av_transport_uri: nextAVTransportURI ?? null,
