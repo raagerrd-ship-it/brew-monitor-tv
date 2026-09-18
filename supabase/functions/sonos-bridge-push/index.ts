@@ -286,15 +286,8 @@ Deno.serve(async (req) => {
     const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
     if (nextTrackName && !isRadio) {
       try {
-        let nextArtUrl: string | null = null;
-        if (bridgeHasNextArt) {
-          nextArtUrl = bustCache(nextAlbumArtUri);
-        } else {
-          const nextResolved = await resolveAlbumArt(nextAlbumArtUri || null, undefined, nextTrackName, nextArtistName);
-          nextArtUrl = nextResolved.medium;
-        }
+        const nextArtUrl = bridgeNextArtUrl;
         if (nextArtUrl) {
-          if (!bridgeHasNextArt) imageUpdate.next_album_art_url = nextArtUrl;
           const nextResult = await resolveBackground(
             supabase, nextArtUrl, nextTrackName, bgSettings, viewportW, viewportH, false, nextTrackName
           );
