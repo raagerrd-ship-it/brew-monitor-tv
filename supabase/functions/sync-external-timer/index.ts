@@ -10,6 +10,7 @@ interface TimerMilestone {
   atSeconds?: number;
   label: string;
   triggered?: boolean;
+  current?: boolean;
   acknowledged?: boolean;
   pauseForTemperature?: boolean;
   targetTemperature?: number;
@@ -116,13 +117,15 @@ Deno.serve(async (req) => {
       // Not-yet-started steps must show full length, never 0
       if (totalSeconds > 0 && remainingSeconds > totalSeconds) remainingSeconds = totalSeconds;
 
-      // "Now" = triggered milestone with the largest time. Never guessed.
-      const current = milestones
-        .filter((m) => m.triggered === true)
-        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null;
-      // "Next" = upcoming milestone that happens soonest (largest time among untriggered)
+      // "Now" = the milestone flagged current by the brew app. Never guessed.
+      // `triggered` remains a legacy fallback only.
+      const current = milestones.find((m) => (m as Record<string, unknown>).current === true)
+        ?? (milestones
+          .filter((m) => m.triggered === true)
+          .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null);
+      // "Next" = upcoming milestone that happens soonest (largest time among the rest)
       const next = milestones
-        .filter((m) => m.triggered !== true)
+        .filter((m) => m !== current && (m as Record<string, unknown>).current !== true && m.triggered !== true)
         .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null;
 
       const pausesHere = !!current && (current.pauseForTemperature === true || (current as Record<string, unknown>).pauseHere === true);

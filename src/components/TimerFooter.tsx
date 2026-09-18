@@ -34,12 +34,20 @@ interface TimelineProps {
   isTvMode: boolean;
 }
 
+// A milestone counts as reached when the brew app flags it `current`.
+// Without that flag we fall back to `triggered`, then to the countdown.
+const isPassed = (m: TimerMilestone, hasCurrentFlag: boolean, remainingSeconds: number) =>
+  hasCurrentFlag
+    ? m.current === true
+    : m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds);
+
 const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isWhirlpool, isTvMode }: TimelineProps) {
   if (!milestones.length || totalSeconds <= 0) return null;
 
   // Sort milestones by time descending (highest time = earliest in process)
   const sortedMilestones = [...milestones].sort((a, b) => b.time - a.time);
-  
+  const hasCurrentFlag = milestones.some(m => m.current === true);
+
   // Calculate current progress position
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
 
@@ -52,7 +60,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
+          const isTriggered = isPassed(milestone, hasCurrentFlag, remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
           
@@ -117,9 +125,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
         {/* Milestone markers */}
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
-          const isTriggered = milestone.triggered === true || (milestone.triggered === undefined && milestone.time >= remainingSeconds);
-          const isNext = !isTriggered && 
-            (index === 0 || sortedMilestones.slice(0, index).every(m => m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds)));
+          const isTriggered = isPassed(milestone, hasCurrentFlag, remainingSeconds);
+          const isNext = !isTriggered &&
+            (index === 0 || sortedMilestones.slice(0, index).every(m => isPassed(m, hasCurrentFlag, remainingSeconds)));
           
           return (
             <div
@@ -163,33 +171,19 @@ export const TimerFooter = memo(function TimerFooter() {
   // Track triggered milestones for attention notification
   const lastTriggeredRef = useRef<Set<string>>(new Set());
   const prevLabelRef = useRef<string>(timer.label);
-  const currentStepRef = useRef<{ label: string; time: number } | null>(null);
 
 
   const isMash = timer.label === 'Mäskschema';
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
-  // Find the current step: triggered but not yet acknowledged = active
-  // If none active, fall back to most recently completed milestone
-  // "Now" = the triggered milestone with the largest time. Trust `triggered`;
-  // only fall back to the countdown for legacy payloads without the flag.
+  // "Now" = the milestone the brew app flagged `current`. Never derived here.
+  // `triggered` stays as a legacy fallback for older payloads.
+  const flaggedCurrent = timer.milestones.find(m => m.current === true) || null;
   const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
-  const rawCurrentMilestone = hasTriggeredFlags
+  const currentMilestone = flaggedCurrent ?? (hasTriggeredFlags
     ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
-    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null;
-
-  // Latch the current step so sync jitter can't bounce it forward and back.
-  // Steps only ever advance (candidate time decreases) within the same timer.
-  let currentMilestone = rawCurrentMilestone;
-  const latched = currentStepRef.current;
-  if (latched && (!currentMilestone || currentMilestone.time > latched.time)) {
-    const kept = timer.milestones.find(m => m.label === latched.label);
-    if (kept) currentMilestone = kept;
-  }
-  if (currentMilestone) {
-    currentStepRef.current = { label: currentMilestone.label, time: currentMilestone.time };
-  }
+    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null);
 
 
   // Check if we should show based on TV mode setting
@@ -210,19 +204,20 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
-      currentStepRef.current = null;
       dismissAlert('timer-milestone');
 
       prevLabelRef.current = timer.label;
     }
   }, [timer.label, dismissAlert]);
 
-  // Detect when a milestone becomes triggered+unacknowledged (needs attention)
+  // Detect when the current milestone is unacknowledged (needs attention)
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
-    
+
+    const hasCurrentFlag = timer.milestones.some(m => m.current === true);
     const justTriggered = timer.milestones.find(m => {
-      return m.triggered === true && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
+      const isNow = hasCurrentFlag ? m.current === true : m.triggered === true;
+      return isNow && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
     });
     
     if (justTriggered) {

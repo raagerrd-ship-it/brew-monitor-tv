@@ -7,6 +7,7 @@ export interface TimerMilestone {
   atMs?: number;
   label: string;
   triggered?: boolean;
+  current?: boolean;
   pauseHere?: boolean;
   ack?: boolean;
   acknowledged?: boolean;
@@ -97,11 +98,14 @@ export function useExternalTimer() {
   const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
     const data = timerDataRef.current;
     if (!data || !data.milestones.length) return null;
-    // "Next" = upcoming milestone that happens soonest. Trust `triggered`;
-    // only fall back to the countdown for legacy payloads without the flag.
-    const upcoming = data.milestones.filter(m =>
-      m.triggered === false ? true : m.triggered === true ? false : m.time < remainingSeconds
-    );
+    // "Next" = every milestone except the one the brew app flagged `current`.
+    // `triggered` is a legacy fallback only.
+    const hasCurrentFlag = data.milestones.some(m => m.current === true);
+    const upcoming = hasCurrentFlag
+      ? data.milestones.filter(m => m.current !== true)
+      : data.milestones.filter(m =>
+          m.triggered === false ? true : m.triggered === true ? false : m.time < remainingSeconds
+        );
     return upcoming.sort((a, b) => b.time - a.time)[0] ?? null;
   }, []);
 
@@ -137,6 +141,7 @@ export function useExternalTimer() {
       atMs: typeof milestone.atMs === 'number' ? milestone.atMs : undefined,
       label: typeof milestone.label === 'string' ? milestone.label : '',
       triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
+      current: typeof milestone.current === 'boolean' ? milestone.current : undefined,
       pauseHere: typeof milestone.pauseHere === 'boolean' ? milestone.pauseHere : undefined,
       ack: typeof milestone.ack === 'boolean' ? milestone.ack : undefined,
       acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
