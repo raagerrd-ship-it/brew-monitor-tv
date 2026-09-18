@@ -264,7 +264,14 @@ Deno.serve(async (req) => {
     // If same track AND background already exists, just a position/state update — done
     const needsBg = !existingRow?.bg_image_url;
     if (sameTrack && !needsBg) {
-      return new Response(JSON.stringify({ ok: true, phase: 1, same_track: true, duration_ms: phase1Ms }), {
+      return new Response(JSON.stringify({
+        ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
+        // ACK: cloud already has the art for this track — bridge can omit the base64 image
+        need_album_art: false,
+        need_next_album_art: !existingRow?.next_bg_image_url,
+        ack_track: decodedTrackName,
+        ack_next_track: decodeXmlEntities(nextTrackName),
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
