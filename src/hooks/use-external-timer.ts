@@ -252,6 +252,8 @@ export function useExternalTimer() {
 
       const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
       const currentRemaining = calculateRemainingSeconds();
+      const localNextMilestone = calculateNextMilestone(currentRemaining) ?? nextMilestone;
+
       const localProgress = data.total_seconds > 0 
         ? ((data.total_seconds - currentRemaining) / data.total_seconds) * 100 
         : apiProgress;
