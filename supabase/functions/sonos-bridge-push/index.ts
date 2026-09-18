@@ -193,8 +193,12 @@ Deno.serve(async (req) => {
 
     // Bridge sends the image itself (base64) on every state push — only upload when we
     // actually need it (new track, or missing art/background), never on repeat pushes.
-    const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url;
-    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url;
+    const artHash = artFingerprint(albumArtBase64);
+    const nextArtHash = artFingerprint(nextAlbumArtBase64);
+    const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
+      || (!!artHash && !existingRow.bg_image_url.includes(artHash));
+    const needsNextArt = !sameTrack || !existingRow?.next_bg_image_url
+      || (!!nextArtHash && !existingRow.next_bg_image_url.includes(nextArtHash));
 
     let uploadedArtUrl: string | null = null;
     let uploadedNextArtUrl: string | null = null;
