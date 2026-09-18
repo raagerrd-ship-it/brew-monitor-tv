@@ -296,7 +296,8 @@ Deno.serve(async (req) => {
     const imageUpdate: Record<string, any> = {};
 
     if (currentArtUrl) {
-      const trackId = trackName || '';
+      // Cache key follows the image itself — radio keeps one track name across many covers
+      const trackId = `${trackName || ''}|${artHash ?? currentArtUrl}`;
       const result = await resolveBackground(
         supabase, currentArtUrl, trackId, bgSettings, viewportW, viewportH, false, trackName
       );
