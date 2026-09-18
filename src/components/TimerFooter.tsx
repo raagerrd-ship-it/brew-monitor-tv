@@ -170,26 +170,13 @@ export const TimerFooter = memo(function TimerFooter() {
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
-  // Find the current step: triggered but not yet acknowledged = active
-  // If none active, fall back to most recently completed milestone
-  // "Now" = the triggered milestone with the largest time. Trust `triggered`;
-  // only fall back to the countdown for legacy payloads without the flag.
+  // "Now" = the milestone the brew app flagged `current`. Never derived here.
+  // `triggered` stays as a legacy fallback for older payloads.
+  const flaggedCurrent = timer.milestones.find(m => m.current === true) || null;
   const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
-  const rawCurrentMilestone = hasTriggeredFlags
+  const currentMilestone = flaggedCurrent ?? (hasTriggeredFlags
     ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
-    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null;
-
-  // Latch the current step so sync jitter can't bounce it forward and back.
-  // Steps only ever advance (candidate time decreases) within the same timer.
-  let currentMilestone = rawCurrentMilestone;
-  const latched = currentStepRef.current;
-  if (latched && (!currentMilestone || currentMilestone.time > latched.time)) {
-    const kept = timer.milestones.find(m => m.label === latched.label);
-    if (kept) currentMilestone = kept;
-  }
-  if (currentMilestone) {
-    currentStepRef.current = { label: currentMilestone.label, time: currentMilestone.time };
-  }
+    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null);
 
 
   // Check if we should show based on TV mode setting
