@@ -331,8 +331,8 @@ function CleaningChecklistOverlayComponent() {
                         key={i}
                         className="flex items-baseline gap-2.5 text-[22px] leading-tight text-foreground"
                       >
-                        <span className="flex-shrink-0 font-bold tabular-nums" style={{ color: accent }}>
-                          {rows.slice(0, i).filter((r) => r.kind === 'item').length + 1}.
+                        <span className="w-4 flex-shrink-0 text-right text-[16px] font-bold tabular-nums text-foreground/35">
+                          {rows.slice(0, i).filter((r) => r.kind === 'item').length + 1}
                         </span>
                         <span>{highlightItem(row.text, accent)}</span>
                       </li>
