@@ -5,7 +5,9 @@ import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleanin
 interface Section {
   num: string;
   title: string;
-  hint?: string;
+  freq: string;
+  /** true = varje bryggdag, false = enstaka underhåll */
+  every: boolean;
   items: string[];
   /** hue for the phase accent */
   hue: number;
@@ -24,7 +26,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       num: '01',
       title: 'Mäskkärl',
       hue: 25,
-      hint: 'CIP – samma vatten hela vägen',
+      freq: 'Varje gång',
+      every: true,
       items: [
         'Fyll **10 L** vatten — täck elementet helt',
         'Värm till rätt temp, stäng sedan av värmen',
@@ -36,6 +39,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       num: '02',
       title: 'Kokkärl',
       hue: 0,
+      freq: 'Varje gång',
+      every: true,
       items: [
         'Pumpa över den heta lösningen',
         'Spola mäskkärlet med **10 L** → kokkärlet, nu **20 L**',
@@ -47,6 +52,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       num: '03',
       title: 'Skölj',
       hue: 200,
+      freq: 'Varje gång',
+      every: true,
       items: [
         'Töm smutsvattnet',
         'Skölj väggar och element med kranvatten',
@@ -58,6 +65,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       num: '04',
       title: 'Avkalkning & sanitering',
       hue: 150,
+      freq: 'Sanitering varje gång · avkalkning vid behov',
+      every: true,
       items: [
         'Citronsyra på ren utrustning: **200 ml per 10 L**, ca **65 °C**',
         'Cirkulera **15–20 min**, skölj bort syran (tar ölsten)',
@@ -83,7 +92,8 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       num: '01',
       title: 'Förbered & demontera',
       hue: 25,
-      hint: 'Varje kärl, varje gång',
+      freq: 'Varje kärl, varje gång',
+      every: true,
       items: [
         'Skölj ur alla kärl direkt efter tömning',
         'Plocka isär allt — kulkopplingar med poppets, O-ringar, lock, PRV',
@@ -95,6 +105,8 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       num: '02',
       title: 'Cirkulera & skölj',
       hue: 200,
+      freq: 'Varje gång',
+      every: true,
       items: [
         'Stäng avloppet, fyll **15–20 L**, **55 °C**, lös Chemclean',
         'Cirkulera minst: fat **5 min** · jäskärl **20 min**',
@@ -106,6 +118,8 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       num: '03',
       title: 'Sanitera & förvara',
       hue: 150,
+      freq: 'Varje gång',
+      every: true,
       items: [
         'Kalk eller ölsten: gör avkalkningen nu',
         'Ny kall sats: Saniclean **3 min** med delarna',
@@ -117,7 +131,8 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       num: '04',
       title: 'Underhåll',
       hue: 280,
-      hint: 'Inte varje gång',
+      freq: 'Var 5:e körning',
+      every: false,
       items: [
         'Var 5:e körning: **200 ml citronsyra per 10 L**, **50 °C**, **15 min** (tung kalk: dubbel dos, **30 min**)',
         'Kolla O-ringar, packningar, PRV, spundingsäte — hårda eller ölluktande byts',
@@ -214,9 +229,16 @@ function CleaningChecklistOverlayComponent() {
                   <h3 className="font-bold leading-tight text-foreground" style={{ fontSize: 'clamp(18px, 1.6vw, 30px)' }}>
                     <span className="tabular-nums" style={{ color: accent }}>{s.num}</span> {s.title}
                   </h3>
-                  {s.hint && (
-                    <p className="text-sm uppercase tracking-[0.16em] text-muted-foreground">{s.hint}</p>
-                  )}
+                  <p
+                    className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em]"
+                    style={{ color: s.every ? 'hsl(150 65% 62%)' : 'hsl(38 95% 66%)' }}
+                  >
+                    <span
+                      className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ background: s.every ? 'hsl(150 70% 55%)' : 'hsl(38 95% 60%)' }}
+                    />
+                    {s.freq}
+                  </p>
                 </div>
                 <ol className="flex min-h-0 flex-1 flex-col justify-evenly pl-2">
                   {s.items.map((item, i) => (
