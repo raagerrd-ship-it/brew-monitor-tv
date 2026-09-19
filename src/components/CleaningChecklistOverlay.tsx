@@ -280,13 +280,19 @@ function CleaningChecklistOverlayComponent() {
                   className="absolute inset-y-0 left-0 w-1"
                   style={{ background: accent, opacity: 0.8 }}
                 />
-                <div className="mb-1 flex flex-shrink-0 items-baseline gap-3 pl-2">
-                  <h3 className="text-[20px] font-bold leading-tight text-foreground">
-                    <span className="tabular-nums" style={{ color: accent }}>{s.num}</span> {s.title}
+                <div className="mb-1 flex flex-shrink-0 items-center gap-2.5 border-b border-white/10 pb-1 pl-2">
+                  <span
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[14px] font-black leading-none tabular-nums"
+                    style={{ background: accent, color: 'hsl(222 30% 8%)' }}
+                  >
+                    {Number(s.num)}
+                  </span>
+                  <h3 className="min-w-0 flex-1 truncate text-[21px] font-bold leading-none tracking-tight text-foreground">
+                    {s.title}
                   </h3>
                   {s.freq && (
                     <p
-                      className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                      className="flex flex-shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]"
                       style={{ color: s.every ? 'hsl(150 65% 62%)' : 'hsl(38 95% 66%)' }}
                     >
                       <span
