@@ -175,7 +175,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       ],
     },
   ],
-  footer: ['Ingen kaustik på plast', 'Ingen eftersköljning'],
+  footer: ['Ingen eftersköljning — Star San får ligga kvar'],
 };
 
 /** Renders **highlighted** segments (volumes, temps, doses) in the phase accent color. */
