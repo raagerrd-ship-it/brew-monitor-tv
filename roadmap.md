@@ -1,0 +1,1 @@
+- [ ] Behåll timerlisten som sidfot över hela bredden; gör aktuellt steg lättläst genom förenklat innehåll.
