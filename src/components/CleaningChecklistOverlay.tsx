@@ -210,25 +210,13 @@ function CleaningChecklistOverlayComponent() {
                   className="absolute inset-y-0 left-0 w-1.5"
                   style={{ background: accent, opacity: 0.8 }}
                 />
-                <div className="mb-3 flex flex-shrink-0 items-center gap-3 pl-2">
-                  <div
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border"
-                    style={{ borderColor: `${accent}55`, background: `hsl(${s.hue} 70% 55% / 0.16)` }}
-                  >
-                    <Icon className="h-5 w-5" style={{ color: accent }} />
-                  </div>
-                  <div className="min-w-0">
-                    <p
-                      className="text-[11px] font-bold uppercase tracking-[0.25em]"
-                      style={{ color: accent }}
-                    >
-                      Steg {s.num}
-                    </p>
-                    <h3 className="text-xl font-bold leading-tight text-foreground">{s.title}</h3>
-                    {s.hint && (
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{s.hint}</p>
-                    )}
-                  </div>
+                <div className="mb-2 flex flex-shrink-0 items-baseline gap-3 pl-2">
+                  <h3 className="font-bold leading-tight text-foreground" style={{ fontSize: 'clamp(18px, 1.6vw, 30px)' }}>
+                    <span className="tabular-nums" style={{ color: accent }}>{s.num}</span> {s.title}
+                  </h3>
+                  {s.hint && (
+                    <p className="text-sm uppercase tracking-[0.16em] text-muted-foreground">{s.hint}</p>
+                  )}
                 </div>
                 <ol className="flex min-h-0 flex-1 flex-col justify-evenly pl-2">
                   {s.items.map((item, i) => (
