@@ -96,7 +96,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       every: true,
       items: [
         'Skölj ur alla kärl direkt efter tömning',
-        'Plocka isär allt — kulkopplingar med poppets, O-ringar, lock, PRV',
+        'Plocka isär: kulkopplingar, poppets, O-ringar, lock, PRV',
         'Pumpen och smådelarna i hon',
         'Flera kärl: renast först, fat före jäskärl',
       ],
