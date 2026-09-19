@@ -245,13 +245,18 @@ function CleaningChecklistOverlayComponent() {
         </div>
 
         {/* Chemicals */}
-        <div className="flex flex-shrink-0 flex-wrap items-baseline gap-x-5 gap-y-0 px-6">
+        <div className="flex flex-shrink-0 flex-wrap items-stretch gap-2 px-6">
           {data.chem.map(([name, dose]) => (
-            <p key={name} className="flex items-baseline gap-1.5 text-[14px] text-foreground/85">
-              <FlaskConical className="h-3 w-3 flex-shrink-0 self-center text-primary/80" />
-              <span className="font-bold uppercase tracking-wide text-primary">{name}</span>
-              <span>{dose}</span>
-            </p>
+            <div
+              key={name}
+              className="flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.05] px-2.5 py-1"
+            >
+              <FlaskConical className="h-3.5 w-3.5 flex-shrink-0 text-primary/80" />
+              <div className="leading-none">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-primary">{name}</p>
+                <p className="mt-0.5 text-[13px] text-foreground/85">{dose}</p>
+              </div>
+            </div>
           ))}
         </div>
 
