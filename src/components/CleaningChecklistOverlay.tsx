@@ -1,9 +1,5 @@
 import { memo } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import {
-  X, ShieldAlert, Droplets, Flame, CookingPot, ShowerHead, Sparkles,
-  Wrench, RefreshCw, CheckCircle2, Boxes, FlaskConical,
-} from 'lucide-react';
+import { X, ShieldAlert, Droplets, FlaskConical } from 'lucide-react';
 import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleaning-checklist';
 
 interface Section {
@@ -11,7 +7,6 @@ interface Section {
   title: string;
   hint?: string;
   items: string[];
-  icon: LucideIcon;
   /** hue for the phase accent */
   hue: number;
 }
