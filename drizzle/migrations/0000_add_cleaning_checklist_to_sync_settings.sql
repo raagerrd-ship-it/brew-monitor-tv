@@ -1,0 +1,2 @@
+ALTER TABLE public.sync_settings ADD COLUMN IF NOT EXISTS cleaning_checklist TEXT;
+COMMENT ON COLUMN public.sync_settings.cleaning_checklist IS 'Which cleaning checklist to show on shared screens: brewhouse | vessels | NULL (hidden)';
