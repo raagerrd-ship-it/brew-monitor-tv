@@ -81,43 +81,44 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
   sections: [
     {
       num: '01',
-      title: 'Förbered',
+      title: 'Förbered & demontera',
       hue: 25,
       hint: 'Varje kärl, varje gång',
       items: [
         'Skölj ur alla kärl direkt efter tömning',
         'Plocka isär allt — kulkopplingar med poppets, O-ringar, lock, PRV',
         'Pumpen och smådelarna i hon',
+        'Flera kärl: renast först, fat före jäskärl',
       ],
     },
     {
       num: '02',
-      title: 'Cirkulera',
+      title: 'Cirkulera & skölj',
       hue: 200,
       items: [
         'Stäng avloppet, fyll **15–20 L**, **55 °C**, lös Chemclean',
         'Cirkulera minst: fat **5 min** · jäskärl **20 min**',
         'Töm hon. Skölj kärl och delar',
+        'Byt lösning om grumlig eller under **40 °C** — efter **3–4 kärl**',
       ],
     },
     {
       num: '03',
-      title: 'Avsluta',
+      title: 'Sanitera & förvara',
       hue: 150,
       items: [
         'Kalk eller ölsten: gör avkalkningen nu',
         'Ny kall sats: Saniclean **3 min** med delarna',
         'Skölj inte. Montera och stäng',
+        'Förvaring: fyll fatet med Star San, tryck vidare med **CO₂**, lämna trycket kvar',
       ],
     },
     {
       num: '04',
-      title: 'Flera kärl, förvaring & slitdelar',
+      title: 'Underhåll',
       hue: 280,
+      hint: 'Inte varje gång',
       items: [
-        'Renast först: fat före jäskärl',
-        'Byt lösning om grumlig eller under **40 °C** — efter **3–4 kärl**',
-        'Förvaring: fyll fatet med Star San, tryck vidare med **CO₂**, lämna trycket kvar',
         'Var 5:e körning: **200 ml citronsyra per 10 L**, **50 °C**, **15 min** (tung kalk: dubbel dos, **30 min**)',
         'Kolla O-ringar, packningar, PRV, spundingsäte — hårda eller ölluktande byts',
       ],
