@@ -160,7 +160,7 @@ function CleaningChecklistOverlayComponent() {
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-5 px-8 pt-6 pb-4">
+        <div className="flex flex-shrink-0 items-center gap-4 px-8 pt-5 pb-3">
           <div
             className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/30"
             style={{ background: 'hsl(var(--primary) / 0.15)' }}
@@ -184,7 +184,7 @@ function CleaningChecklistOverlayComponent() {
 
         {/* Safety banner */}
         <div
-          className="mx-8 flex items-start gap-3 rounded-2xl border px-5 py-3"
+          className="mx-8 flex flex-shrink-0 items-start gap-3 rounded-2xl border px-5 py-2.5"
           style={{ borderColor: 'hsl(38 92% 60% / 0.35)', background: 'hsl(38 92% 55% / 0.1)' }}
         >
           <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
@@ -192,11 +192,11 @@ function CleaningChecklistOverlayComponent() {
         </div>
 
         {/* Chemicals */}
-        <div className="flex flex-wrap gap-3 px-8 pt-4">
+        <div className="flex flex-shrink-0 flex-wrap gap-3 px-8 pt-3">
           {data.chem.map(([name, dose]) => (
             <div
               key={name}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5"
+              className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5"
             >
               <FlaskConical className="h-5 w-5 flex-shrink-0 text-primary/80" />
               <div>
@@ -208,14 +208,14 @@ function CleaningChecklistOverlayComponent() {
         </div>
 
         {/* Phases */}
-        <div className="grid flex-1 grid-cols-1 gap-5 overflow-auto px-8 py-5 lg:grid-cols-2">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 overflow-hidden px-8 py-4">
           {data.sections.map((s) => {
             const Icon = s.icon;
             const accent = `hsl(${s.hue} 80% 62%)`;
             return (
               <div
                 key={s.num}
-                className="relative overflow-hidden rounded-2xl border border-white/10 p-5"
+                className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 p-4"
                 style={{
                   background: `linear-gradient(135deg, hsl(${s.hue} 60% 50% / 0.1), hsl(222 20% 12% / 0.7) 55%)`,
                 }}
@@ -224,12 +224,12 @@ function CleaningChecklistOverlayComponent() {
                   className="absolute inset-y-0 left-0 w-1.5"
                   style={{ background: accent, opacity: 0.8 }}
                 />
-                <div className="mb-4 flex items-center gap-4 pl-2">
+                <div className="mb-3 flex flex-shrink-0 items-center gap-3 pl-2">
                   <div
-                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border"
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border"
                     style={{ borderColor: `${accent}55`, background: `hsl(${s.hue} 70% 55% / 0.16)` }}
                   >
-                    <Icon className="h-6 w-6" style={{ color: accent }} />
+                    <Icon className="h-5 w-5" style={{ color: accent }} />
                   </div>
                   <div className="min-w-0">
                     <p
@@ -238,20 +238,21 @@ function CleaningChecklistOverlayComponent() {
                     >
                       Steg {s.num}
                     </p>
-                    <h3 className="text-2xl font-bold leading-tight text-foreground">{s.title}</h3>
+                    <h3 className="text-xl font-bold leading-tight text-foreground">{s.title}</h3>
                     {s.hint && (
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{s.hint}</p>
                     )}
                   </div>
                 </div>
-                <ol className="space-y-2.5 pl-2">
+                <ol className="min-h-0 flex-1 space-y-1.5 pl-2">
                   {s.items.map((item, i) => (
                     <li
                       key={i}
-                      className="flex items-start gap-3 rounded-xl bg-white/[0.04] px-3 py-2 text-[15px] leading-snug text-foreground/90"
+                      className="flex items-start gap-2.5 rounded-lg bg-white/[0.04] px-2.5 py-1.5 leading-snug text-foreground/90"
+                      style={{ fontSize: 'clamp(12px, 1.05vw, 17px)' }"
                     >
                       <span
-                        className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                        className="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold"
                         style={{ background: `hsl(${s.hue} 70% 55% / 0.2)`, color: accent }}
                       >
                         {i + 1}
@@ -266,7 +267,7 @@ function CleaningChecklistOverlayComponent() {
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap gap-3 border-t border-white/10 px-8 py-4">
+        <div className="flex flex-shrink-0 flex-wrap gap-3 border-t border-white/10 px-8 py-3">
           {data.footer.map((f) => (
             <span
               key={f}
