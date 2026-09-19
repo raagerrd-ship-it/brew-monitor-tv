@@ -182,7 +182,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
 function valueColor(v: string, accent: string): string {
   if (/°C/.test(v)) return 'hsl(20 95% 66%)';
   if (/\bmin|tim/i.test(v)) return 'hsl(280 85% 74%)';
-  if (/[\d<]/.test(v) && /(L\b|ml|g\b|dos|kärl)/i.test(v)) return 'hsl(190 90% 66%)';
+  if (/\d|<|dos|kärl/i.test(v) && /(L\b|ml|g\b|dos|kärl)/i.test(v)) return 'hsl(190 90% 66%)';
   return accent;
 }
 
