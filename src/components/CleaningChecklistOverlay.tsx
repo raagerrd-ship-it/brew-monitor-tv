@@ -182,15 +182,6 @@ function CleaningChecklistOverlayComponent() {
           </button>
         </div>
 
-        {/* Safety banner */}
-        <div
-          className="mx-8 flex flex-shrink-0 items-start gap-3 rounded-2xl border px-5 py-2.5"
-          style={{ borderColor: 'hsl(38 92% 60% / 0.35)', background: 'hsl(38 92% 55% / 0.1)' }}
-        >
-          <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
-          <p className="text-base font-medium leading-snug text-amber-100/90">{data.warning}</p>
-        </div>
-
         {/* Chemicals */}
         <div className="flex flex-shrink-0 flex-wrap gap-3 px-8 pt-3">
           {data.chem.map(([name, dose]) => (
@@ -244,18 +235,15 @@ function CleaningChecklistOverlayComponent() {
                     )}
                   </div>
                 </div>
-                <ol className="min-h-0 flex-1 space-y-1.5 pl-2">
+                <ol className="flex min-h-0 flex-1 flex-col justify-evenly pl-2">
                   {s.items.map((item, i) => (
                     <li
                       key={i}
-                      className="flex items-start gap-2.5 rounded-lg bg-white/[0.04] px-2.5 py-1.5 leading-snug text-foreground/90"
-                      style={{ fontSize: 'clamp(12px, 1.05vw, 17px)' }}
+                      className="flex items-baseline gap-3 leading-snug text-foreground/90"
+                      style={{ fontSize: 'clamp(15px, 1.35vw, 24px)' }}
                     >
-                      <span
-                        className="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold"
-                        style={{ background: `hsl(${s.hue} 70% 55% / 0.2)`, color: accent }}
-                      >
-                        {i + 1}
+                      <span className="flex-shrink-0 font-bold tabular-nums" style={{ color: accent }}>
+                        {i + 1}.
                       </span>
                       {item}
                     </li>
@@ -266,17 +254,12 @@ function CleaningChecklistOverlayComponent() {
           })}
         </div>
 
-        {/* Footer */}
-        <div className="flex flex-shrink-0 flex-wrap gap-3 border-t border-white/10 px-8 py-3">
-          {data.footer.map((f) => (
-            <span
-              key={f}
-              className="flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-sm font-bold uppercase tracking-[0.12em] text-amber-300"
-            >
-              <ShieldAlert className="h-4 w-4" />
-              {f}
-            </span>
-          ))}
+        {/* Footer — one warning line */}
+        <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 px-8 py-2.5">
+          <ShieldAlert className="h-5 w-5 flex-shrink-0 text-amber-300" />
+          <p className="text-base font-medium text-amber-100/90">
+            {data.warning} <span className="font-bold uppercase tracking-wide text-amber-300">{data.footer.join(' · ')}</span>
+          </p>
         </div>
       </div>
     </div>
