@@ -249,7 +249,7 @@ function CleaningChecklistOverlayComponent() {
                     <li
                       key={i}
                       className="flex items-start gap-2.5 rounded-lg bg-white/[0.04] px-2.5 py-1.5 leading-snug text-foreground/90"
-                      style={{ fontSize: 'clamp(12px, 1.05vw, 17px)' }"
+                      style={{ fontSize: 'clamp(12px, 1.05vw, 17px)' }}
                     >
                       <span
                         className="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[11px] font-bold"
