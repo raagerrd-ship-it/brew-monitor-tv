@@ -134,8 +134,10 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       freq: 'Var 5:e körning',
       every: false,
       items: [
-        'Var 5:e körning: **200 ml citronsyra per 10 L**, **50 °C**, **15 min** (tung kalk: dubbel dos, **30 min**)',
-        'Kolla O-ringar, packningar, PRV, spundingsäte — hårda eller ölluktande byts',
+        'Citronsyra **200 ml per 10 L**, **50 °C**, **15 min**',
+        'Tung kalk: dubbel dos, **30 min**',
+        'Kolla O-ringar, packningar, PRV, spundingsäte',
+        'Hårda, spruckna eller ölluktande delar byts',
       ],
     },
   ],
