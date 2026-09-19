@@ -44,7 +44,7 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       items: [
         'Pumpa över den heta lösningen',
         'Spola mäskkärlet med **10 L** → kokkärlet, nu **20 L**',
-        'Tillsätt **1 dos** extra kemi, värm tillbaka (inbränd trub: egen fräsch sats)',
+        'Tillsätt **1 dos** extra, värm tillbaka (inbränd trub: fräsch sats)',
         'Cirkulera **20–30 min** genom pump och kylare',
       ],
     },
