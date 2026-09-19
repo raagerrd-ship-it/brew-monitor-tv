@@ -220,27 +220,27 @@ function CleaningChecklistOverlayComponent() {
         }}
       >
         {/* Header */}
-        <div className="flex flex-shrink-0 items-center gap-3 px-6 pb-1 pt-2.5">
+        <div className="flex flex-shrink-0 items-center gap-4 px-6 pb-2 pt-3.5">
           <div
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-primary/30"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-primary/30"
             style={{ background: 'hsl(var(--primary) / 0.15)' }}
           >
-            <Droplets className="h-4 w-4 text-primary" />
+            <Droplets className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[21px] font-bold leading-none tracking-tight text-foreground">
+            <h2 className="truncate text-[30px] font-bold leading-none tracking-tight text-foreground">
               {title}
-              <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="ml-4 align-middle text-[13px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Dosering per 10 L vatten
               </span>
             </h2>
           </div>
           <button
             onClick={() => setChecklist(null)}
-            className="flex-shrink-0 rounded-lg border border-white/15 p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+            className="flex-shrink-0 rounded-lg border border-white/15 p-2 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
             aria-label="Stäng checklista"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
