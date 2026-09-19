@@ -23,7 +23,6 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
     {
       num: '01',
       title: 'Mäskkärl',
-      icon: Flame,
       hue: 25,
       hint: 'CIP – samma vatten hela vägen',
       items: [
@@ -36,7 +35,6 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
     {
       num: '02',
       title: 'Kokkärl',
-      icon: CookingPot,
       hue: 0,
       items: [
         'Pumpa över den heta lösningen',
@@ -48,7 +46,6 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
     {
       num: '03',
       title: 'Skölj',
-      icon: ShowerHead,
       hue: 200,
       items: [
         'Töm smutsvattnet',
@@ -60,7 +57,6 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
     {
       num: '04',
       title: 'Avkalkning & sanitering',
-      icon: Sparkles,
       hue: 150,
       items: [
         'Citronsyra efter CIP på ren utrustning: 200 ml per 10 L · 60–70 °C',
@@ -86,7 +82,6 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
     {
       num: '01',
       title: 'Förbered',
-      icon: Wrench,
       hue: 25,
       hint: 'Varje kärl, varje gång',
       items: [
@@ -98,7 +93,6 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
     {
       num: '02',
       title: 'Cirkulera',
-      icon: RefreshCw,
       hue: 200,
       items: [
         'Stäng avloppet, fyll 15–20 L 55 °C, lös Chemclean',
@@ -109,7 +103,6 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
     {
       num: '03',
       title: 'Avsluta',
-      icon: CheckCircle2,
       hue: 150,
       items: [
         'Kalk eller ölsten: gör avkalkningen nu',
@@ -120,7 +113,6 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
     {
       num: '04',
       title: 'Flera kärl, förvaring & slitdelar',
-      icon: Boxes,
       hue: 280,
       items: [
         'Renast först: fat före jäskärl, mest jästkaka sist',
