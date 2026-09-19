@@ -24,7 +24,7 @@ export function useCleaningChecklist() {
     load();
 
     const channel = supabase
-      .channel('cleaning-checklist')
+      .channel(`cleaning-checklist-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes' as any,
         { event: 'UPDATE', schema: 'public', table: 'sync_settings' },
