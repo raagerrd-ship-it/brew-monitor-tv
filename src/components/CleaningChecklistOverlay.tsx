@@ -126,6 +126,19 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
   footer: ['Ingen kaustik på plast', 'Ingen eftersköljning'],
 };
 
+/** Renders **highlighted** segments (volumes, temps, doses) in the phase accent color. */
+function highlightItem(text: string, accent: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-bold" style={{ color: accent }}>
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
 function CleaningChecklistOverlayComponent() {
   const { view, setChecklist } = useCleaningChecklist();
   if (!view) return null;
@@ -214,7 +227,7 @@ function CleaningChecklistOverlayComponent() {
                       <span className="flex-shrink-0 font-bold tabular-nums" style={{ color: accent }}>
                         {i + 1}.
                       </span>
-                      {item}
+                      <span>{highlightItem(item, accent)}</span>
                     </li>
                   ))}
                 </ol>
