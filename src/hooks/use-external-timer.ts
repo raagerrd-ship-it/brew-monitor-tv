@@ -102,7 +102,7 @@ export function useExternalTimer() {
     // `triggered` is a legacy fallback only.
     const hasCurrentFlag = data.milestones.some(m => m.current === true);
     const upcoming = hasCurrentFlag
-      ? data.milestones.filter(m => m.current !== true)
+      ? data.milestones.filter(m => m.current !== true && m.time < remainingSeconds)
       : data.milestones.filter(m =>
           m.triggered === false ? true : m.triggered === true ? false : m.time < remainingSeconds
         );
