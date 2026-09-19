@@ -4,7 +4,7 @@ import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, RotateCcw } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, RotateCcw, Droplets } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -19,6 +19,7 @@ import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { useToast } from "@/hooks/use-toast";
+import { useCleaningChecklist } from "@/hooks/use-cleaning-checklist";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export function DashboardHeader({
   const isMobile = useIsMobile();
   const { isTvMode } = useTvMode();
   const { toast } = useToast();
+  const { view: checklistView, setChecklist } = useCleaningChecklist();
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
@@ -252,6 +254,18 @@ export function DashboardHeader({
                     <DropdownMenuItem onClick={() => setAlarmDialogOpen(true)}>
                       <Timer className="mr-2 h-4 w-4" />
                       Timer / alarm
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setChecklist(checklistView === 'brewhouse' ? null : 'brewhouse')}
+                    >
+                      <Droplets className={`mr-2 h-4 w-4 ${checklistView === 'brewhouse' ? 'text-primary' : ''}`} />
+                      {checklistView === 'brewhouse' ? 'Dölj bryggverksrengöring' : 'Visa bryggverksrengöring'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setChecklist(checklistView === 'vessels' ? null : 'vessels')}
+                    >
+                      <Droplets className={`mr-2 h-4 w-4 ${checklistView === 'vessels' ? 'text-primary' : ''}`} />
+                      {checklistView === 'vessels' ? 'Dölj fat- & jäskärlsrengöring' : 'Visa fat- & jäskärlsrengöring'}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleRestartTv}>
                       <RotateCcw className="mr-2 h-4 w-4" />

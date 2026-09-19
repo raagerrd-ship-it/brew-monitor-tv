@@ -1633,6 +1633,7 @@ export type Database = {
           auto_hide_conditioning: boolean | null
           chart_smooth_lines: boolean
           chart_time_range: string
+          cleaning_checklist: string | null
           created_at: string
           force_tv_refresh_at: string | null
           full_sync_interval: number | null
@@ -1654,6 +1655,7 @@ export type Database = {
           auto_hide_conditioning?: boolean | null
           chart_smooth_lines?: boolean
           chart_time_range?: string
+          cleaning_checklist?: string | null
           created_at?: string
           force_tv_refresh_at?: string | null
           full_sync_interval?: number | null
@@ -1675,6 +1677,7 @@ export type Database = {
           auto_hide_conditioning?: boolean | null
           chart_smooth_lines?: boolean
           chart_time_range?: string
+          cleaning_checklist?: string | null
           created_at?: string
           force_tv_refresh_at?: string | null
           full_sync_interval?: number | null
