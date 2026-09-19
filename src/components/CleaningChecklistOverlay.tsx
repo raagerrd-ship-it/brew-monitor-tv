@@ -44,7 +44,7 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       items: [
         'Pumpa över den heta lösningen',
         'Spola mäskkärlet med **10 L** → kokkärlet, nu **20 L**',
-        'Tillsätt **1 dos** extra kemi, värm tillbaka (inbränd trub: egen fräsch sats)',
+        'Tillsätt **1 dos** extra, värm tillbaka (inbränd trub: fräsch sats)',
         'Cirkulera **20–30 min** genom pump och kylare',
       ],
     },
@@ -96,7 +96,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       every: true,
       items: [
         'Skölj ur alla kärl direkt efter tömning',
-        'Plocka isär allt — kulkopplingar med poppets, O-ringar, lock, PRV',
+        'Plocka isär: kulkopplingar, poppets, O-ringar, lock, PRV',
         'Pumpen och smådelarna i hon',
         'Flera kärl: renast först, fat före jäskärl',
       ],
@@ -124,7 +124,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
         'Kalk eller ölsten: gör avkalkningen nu',
         'Ny kall sats: Saniclean **3 min** med delarna',
         'Skölj inte. Montera och stäng',
-        'Förvaring: fyll fatet med Star San, tryck vidare med **CO₂**, lämna trycket kvar',
+        'Förvaring: Star San i fatet, tryck på **CO₂** — låt trycket stå',
       ],
     },
     {
@@ -134,8 +134,10 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       freq: 'Var 5:e körning',
       every: false,
       items: [
-        'Var 5:e körning: **200 ml citronsyra per 10 L**, **50 °C**, **15 min** (tung kalk: dubbel dos, **30 min**)',
-        'Kolla O-ringar, packningar, PRV, spundingsäte — hårda eller ölluktande byts',
+        'Citronsyra **200 ml per 10 L**, **50 °C**, **15 min**',
+        'Tung kalk: dubbel dos, **30 min**',
+        'Kolla O-ringar, packningar, PRV, spundingsäte',
+        'Hårda, spruckna eller ölluktande delar byts',
       ],
     },
   ],
