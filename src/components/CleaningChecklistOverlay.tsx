@@ -245,7 +245,7 @@ function CleaningChecklistOverlayComponent() {
         </div>
 
         {/* Chemicals */}
-        <div className="flex flex-shrink-0 flex-wrap items-stretch gap-2.5 px-6 py-2">
+        <div className="flex flex-shrink-0 items-stretch gap-2.5 px-6 py-2">
           {data.chem.map(([name, dose]) => (
             <div
               key={name}
