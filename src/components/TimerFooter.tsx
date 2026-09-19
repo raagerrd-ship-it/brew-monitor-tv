@@ -38,7 +38,7 @@ interface TimelineProps {
 // Without that flag we fall back to `triggered`, then to the countdown.
 const isPassed = (m: TimerMilestone, hasCurrentFlag: boolean, remainingSeconds: number) =>
   hasCurrentFlag
-    ? m.current === true
+    ? m.current === true || m.time >= remainingSeconds
     : m.triggered === true || (m.triggered === undefined && m.time >= remainingSeconds);
 
 const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, remainingSeconds, isMash, isWhirlpool, isTvMode }: TimelineProps) {
