@@ -125,7 +125,12 @@ Deno.serve(async (req) => {
           .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null);
       // "Next" = upcoming milestone that happens soonest (largest time among the rest)
       const next = milestones
-        .filter((m) => m !== current && (m as Record<string, unknown>).current !== true && m.triggered !== true)
+        .filter((m) =>
+          m !== current &&
+          (m as Record<string, unknown>).current !== true &&
+          m.triggered !== true &&
+          (m.time ?? 0) < remainingSeconds
+        )
         .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))[0] ?? null;
 
       const pausesHere = !!current && (current.pauseForTemperature === true || (current as Record<string, unknown>).pauseHere === true);
