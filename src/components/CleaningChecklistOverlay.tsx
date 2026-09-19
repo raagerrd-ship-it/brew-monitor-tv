@@ -26,10 +26,10 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       hue: 25,
       hint: 'CIP – samma vatten hela vägen',
       items: [
-        'Fyll 10 L vatten — täck elementet helt',
+        'Fyll **10 L** vatten — täck elementet helt',
         'Värm till rätt temp, stäng sedan av värmen',
-        'Tillsätt vald kemi — 1 dos',
-        'Cirkulera minst 20 min',
+        'Tillsätt vald kemi — **1 dos**',
+        'Cirkulera minst **20 min**',
       ],
     },
     {
@@ -38,9 +38,9 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       hue: 0,
       items: [
         'Pumpa över den heta lösningen',
-        'Spola mäskkärlet med 10 L vatten → kokkärlet, nu 20 L',
-        'Tillsätt 1 dos extra kemi, värm tillbaka (inbränd trub: kör egen fräsch sats)',
-        'Cirkulera 20–30 min genom pump och kylare',
+        'Spola mäskkärlet med **10 L** → kokkärlet, nu **20 L**',
+        'Tillsätt **1 dos** extra kemi, värm tillbaka (inbränd trub: egen fräsch sats)',
+        'Cirkulera **20–30 min** genom pump och kylare',
       ],
     },
     {
@@ -50,8 +50,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       items: [
         'Töm smutsvattnet',
         'Skölj väggar och element med kranvatten',
-        'Skölj pump, slangar, kylare tills sköljvattnet är neutralt',
-        'Låt utrustningen rinna av och torka',
+        'Skölj pump, slangar och kylare tills vattnet är neutralt',
+        'Låt allt rinna av och torka',
       ],
     },
     {
@@ -59,10 +59,10 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
       title: 'Avkalkning & sanitering',
       hue: 150,
       items: [
-        'Citronsyra efter CIP på ren utrustning: 200 ml per 10 L · 60–70 °C',
-        'Cirkulera 15–20 min, skölj bort syran (tar ölsten även i mjukt vatten)',
-        'Saniclean sist, bara på ren sköljd utrustning: 25–30 ml per 10 L · kallt',
-        'Cirkulera 5 min genom pump och kylare — ingen eftersköljning, låt kylaren rinna tom',
+        'Citronsyra på ren utrustning: **200 ml per 10 L**, ca **65 °C**',
+        'Cirkulera **15–20 min**, skölj bort syran (tar ölsten)',
+        'Saniclean sist: **25 ml per 10 L**, kallt',
+        'Cirkulera **5 min** — ingen eftersköljning, låt kylaren rinna tom',
       ],
     },
   ],
@@ -95,8 +95,8 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       title: 'Cirkulera',
       hue: 200,
       items: [
-        'Stäng avloppet, fyll 15–20 L 55 °C, lös Chemclean',
-        'Cirkulera minst: fat 5 min · jäskärl 20 min',
+        'Stäng avloppet, fyll **15–20 L**, **55 °C**, lös Chemclean',
+        'Cirkulera minst: fat **5 min** · jäskärl **20 min**',
         'Töm hon. Skölj kärl och delar',
       ],
     },
@@ -106,7 +106,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       hue: 150,
       items: [
         'Kalk eller ölsten: gör avkalkningen nu',
-        'Ny kall sats: Saniclean 3 min med delarna',
+        'Ny kall sats: Saniclean **3 min** med delarna',
         'Skölj inte. Montera och stäng',
       ],
     },
@@ -115,10 +115,10 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
       title: 'Flera kärl, förvaring & slitdelar',
       hue: 280,
       items: [
-        'Renast först: fat före jäskärl, mest jästkaka sist',
-        'Byt lösning när den är grumlig eller under 40 °C — efter 3–4 kärl',
-        'Fat till förvaring: fyll helt med Star San, tryck vidare med CO₂, lämna trycket kvar',
-        'Var 5:e körning: 200 ml citronsyra per 10 L, 50 °C, cirkulera 15 min (tung kalk: dubbel dos, 30 min)',
+        'Renast först: fat före jäskärl',
+        'Byt lösning om grumlig eller under **40 °C** — efter **3–4 kärl**',
+        'Förvaring: fyll fatet med Star San, tryck vidare med **CO₂**, lämna trycket kvar',
+        'Var 5:e körning: **200 ml citronsyra per 10 L**, **50 °C**, **15 min** (tung kalk: dubbel dos, **30 min**)',
         'Kolla O-ringar, packningar, PRV, spundingsäte — hårda eller ölluktande byts',
       ],
     },
