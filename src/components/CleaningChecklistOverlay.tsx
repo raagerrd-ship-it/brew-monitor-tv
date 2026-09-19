@@ -81,9 +81,8 @@ const BREWHOUSE: { warning: string; chem: [string, string][]; sections: Section[
           every: false,
           freq: 'Vid behov',
           items: [
-            'Citronsyra på ren utrustning',
-            '**200 ml per 10 L**, ca **65 °C**',
-            'Cirkulera **15–20 min** — tar ölsten',
+            'Citronsyra på ren utrustning, **200 ml per 10 L**',
+            'Cirkulera **15–20 min**, ca **65 °C** — tar ölsten',
             'Skölj bort syran',
           ],
         },
