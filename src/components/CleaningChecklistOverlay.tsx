@@ -197,13 +197,13 @@ function CleaningChecklistOverlayComponent() {
         <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 overflow-hidden px-8 py-4">
           {data.sections.map((s) => {
             const Icon = s.icon;
-            const accent = `hsl(${s.hue} 80% 62%)`;
+            const accent = `hsl(${s.hue} 90% 68%)`;
             return (
               <div
                 key={s.num}
                 className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 p-4"
                 style={{
-                  background: `linear-gradient(135deg, hsl(${s.hue} 60% 50% / 0.1), hsl(222 20% 12% / 0.7) 55%)`,
+                  background: `linear-gradient(135deg, hsl(${s.hue} 60% 50% / 0.16), hsl(222 20% 12% / 0.7) 55%)`,
                 }}
               >
                 <span
@@ -234,7 +234,7 @@ function CleaningChecklistOverlayComponent() {
                   {s.items.map((item, i) => (
                     <li
                       key={i}
-                      className="flex items-baseline gap-3 leading-snug text-foreground/90"
+                      className="flex items-baseline gap-3 leading-snug text-foreground"
                       style={{ fontSize: 'clamp(15px, 1.35vw, 24px)' }}
                     >
                       <span className="flex-shrink-0 font-bold tabular-nums" style={{ color: accent }}>
@@ -252,7 +252,7 @@ function CleaningChecklistOverlayComponent() {
         {/* Footer — one warning line */}
         <div className="flex flex-shrink-0 items-center gap-3 border-t border-white/10 px-8 py-2.5">
           <ShieldAlert className="h-5 w-5 flex-shrink-0 text-amber-300" />
-          <p className="text-base font-medium text-amber-100/90">
+          <p className="whitespace-nowrap text-sm font-medium text-amber-100/90" style={{ fontSize: 'clamp(12px, 0.95vw, 17px)' }}>
             {data.warning} <span className="font-bold uppercase tracking-wide text-amber-300">{data.footer.join(' · ')}</span>
           </p>
         </div>
