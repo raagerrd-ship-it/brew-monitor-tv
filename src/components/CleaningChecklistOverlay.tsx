@@ -178,11 +178,19 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
   footer: ['Ingen eftersköljning — Star San får ligga kvar'],
 };
 
-/** Renders **highlighted** segments (volumes, temps, doses) in the phase accent color. */
+/** Color by value type: temperature = orange, amount/dose = cyan, time = violet, rest = phase accent. */
+function valueColor(v: string, accent: string): string {
+  if (/°C/.test(v)) return 'hsl(20 95% 66%)';
+  if (/\bmin|tim/i.test(v)) return 'hsl(280 85% 74%)';
+  if (/[\d<]/.test(v) && /(L\b|ml|g\b|dos|kärl)/i.test(v)) return 'hsl(190 90% 66%)';
+  return accent;
+}
+
+/** Renders **highlighted** segments (volumes, temps, doses, times) with type-based colors. */
 function highlightItem(text: string, accent: string) {
   return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
     part.startsWith('**') && part.endsWith('**') ? (
-      <strong key={i} className="font-bold" style={{ color: accent }}>
+      <strong key={i} className="font-bold" style={{ color: valueColor(part.slice(2, -2), accent) }}>
         {part.slice(2, -2)}
       </strong>
     ) : (
