@@ -196,7 +196,6 @@ function CleaningChecklistOverlayComponent() {
         {/* Phases */}
         <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 overflow-hidden px-8 py-4">
           {data.sections.map((s) => {
-            const Icon = s.icon;
             const accent = `hsl(${s.hue} 90% 68%)`;
             return (
               <div
