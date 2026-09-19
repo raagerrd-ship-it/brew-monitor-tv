@@ -18,6 +18,7 @@ import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
 import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
 import { DashboardAlertOverlay } from "./DashboardAlertOverlay";
+import { CleaningChecklistOverlay } from "./CleaningChecklistOverlay";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -284,6 +285,9 @@ export function BrewingDashboard() {
 
       {/* Global alert overlay */}
       <DashboardAlertOverlay />
+
+      {/* Shared cleaning checklist (toggled from the menu, mirrored on TV) */}
+      <CleaningChecklistOverlay />
 
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
