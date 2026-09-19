@@ -124,7 +124,7 @@ const VESSELS: { warning: string; chem: [string, string][]; sections: Section[];
         'Kalk eller ölsten: gör avkalkningen nu',
         'Ny kall sats: Saniclean **3 min** med delarna',
         'Skölj inte. Montera och stäng',
-        'Förvaring: fyll fatet med Star San, tryck vidare med **CO₂**, lämna trycket kvar',
+        'Förvaring: Star San i fatet, tryck på **CO₂** — låt trycket stå',
       ],
     },
     {
