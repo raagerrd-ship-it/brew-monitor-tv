@@ -1,1 +1,1 @@
-- [ ] Behåll timerlisten som sidfot över hela bredden; gör aktuellt steg lättläst genom förenklat innehåll.
+- [x] Behåll timerlisten som sidfot över hela bredden; gör aktuellt steg lättläst genom förenklat innehåll.

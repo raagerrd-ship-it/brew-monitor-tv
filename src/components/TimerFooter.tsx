@@ -8,7 +8,7 @@ import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { cn } from '@/lib/utils';
 
-const TIMER_FOOTER_HEIGHT = 90; // pixels - compact 3-column layout for TV
+const TIMER_FOOTER_HEIGHT = 112; // pixels - full-width TV footer with a dedicated detail row
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -317,7 +317,7 @@ export const TimerFooter = memo(function TimerFooter() {
           }}
         />
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[350px_1fr_auto] h-full">
+        <div className="grid grid-cols-[minmax(430px,38%)_1fr_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
@@ -325,7 +325,7 @@ export const TimerFooter = memo(function TimerFooter() {
             "border-white/5"
           )}>
             {/* Current Step - show last triggered milestone or timer label */}
-            <div className="flex items-center gap-2 min-h-7">
+            <div className="flex items-center gap-2 min-h-7 min-w-0">
               <span className={cn(
                 "text-sm uppercase tracking-wide flex-shrink-0 font-bold",
                 isMash ? "text-green-300" : "text-green-400"
@@ -336,10 +336,14 @@ export const TimerFooter = memo(function TimerFooter() {
                 "text-xl font-bold truncate",
                 isMash ? "text-green-100" : "text-foreground"
               )}>
-                {currentMilestone 
+                 {currentMilestone
                   ? currentMilestone.label.replace(/🔥\s*/g, '') 
                   : timer.label || 'Pågår'}
               </span>
+            </div>
+
+            {/* Current-step details stay below the title so the title remains readable on TV. */}
+            <div className="flex items-center gap-2 min-h-5 pl-10">
               {/* Temperature target badge — action-driven (heat/cool/hold) */}
               {(() => {
                 const action =
