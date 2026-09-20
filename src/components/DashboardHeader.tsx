@@ -193,6 +193,31 @@ export function DashboardHeader({
                 }
               />
               <NotificationBell />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div>
+                    <HeaderIconButton
+                      icon={<Droplets />}
+                      label="Rengöringschecklista"
+                      active={!!checklistView}
+                    />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => setChecklist(checklistView === 'brewhouse' ? null : 'brewhouse')}
+                  >
+                    <Droplets className={`mr-2 h-4 w-4 ${checklistView === 'brewhouse' ? 'text-primary' : ''}`} />
+                    {checklistView === 'brewhouse' ? 'Dölj bryggverksrengöring' : 'Visa bryggverksrengöring'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setChecklist(checklistView === 'vessels' ? null : 'vessels')}
+                  >
+                    <Droplets className={`mr-2 h-4 w-4 ${checklistView === 'vessels' ? 'text-primary' : ''}`} />
+                    {checklistView === 'vessels' ? 'Dölj fat- & jäskärlsrengöring' : 'Visa fat- & jäskärlsrengöring'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <HeaderIconButton
                 icon={<Settings />}
                 label="Inställningar"
