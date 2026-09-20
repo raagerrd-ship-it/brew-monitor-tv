@@ -21,7 +21,7 @@ const NUM = [
 const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve"];
 const INT = ["step_index"];
 const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id", "control_sensor"];
-const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at"];
+const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at", "og_measured_at"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
