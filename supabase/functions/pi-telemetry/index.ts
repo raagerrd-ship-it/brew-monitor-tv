@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
               attenuation_trigger: s.attenuation_trigger ?? null,
               temp_increase: s.temp_increase ?? null,
               activity_trigger: s.activity_trigger ?? null,
-              min_ramp_hours: s.min_ramp_hours ?? null,
+              min_ramp_hours: s.min_ramp_hours ?? s.max_ramp_hours ?? null,
               ramp_curve: s.ramp_curve ?? null,
               stability_window_minutes: s.stability_window_minutes ?? null,
               stability_max_deviation: s.stability_max_deviation ?? null,
