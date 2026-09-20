@@ -1,4 +1,4 @@
-export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'diacetyl_rest' | 'gradual_ramp';
+export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'wait_for_pitch' | 'diacetyl_rest' | 'gradual_ramp' | 'smart_cold_crash';
 export type RampType = 'linear' | 'immediate';
 export type SgComparison = 'at_or_below' | 'at_or_above';
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'cancelled';
