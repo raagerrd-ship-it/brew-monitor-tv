@@ -1,0 +1,2 @@
+ALTER TABLE public.fermentation_sessions DROP CONSTRAINT fermentation_sessions_status_check;
+ALTER TABLE public.fermentation_sessions ADD CONSTRAINT fermentation_sessions_status_check CHECK (status IN ('running','paused','completed','cancelled','stopped','aborted'));

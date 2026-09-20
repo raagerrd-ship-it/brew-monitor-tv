@@ -15,6 +15,13 @@
       "when": 1789884435237,
       "tag": "0001_pi_contract_step_types_and_og_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789884812256,
+      "tag": "0002_session_status_stopped_aborted",
+      "breakpoints": true
     }
   ]
 }
