@@ -72,6 +72,8 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'wait_for_acknowledgement': 'Kvittering',
   'diacetyl_rest': 'Diacetylvila',
   'gradual_ramp': 'Smart diacetylvila',
+  'wait_for_pitch': 'Väntar på jäst',
+  'smart_cold_crash': 'Smart cold-crash',
 };
 
 export const RAMP_TYPE_LABELS: Record<RampType, string> = {
