@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) =>
 const NUM = [
   "temp_current_c", "temp_target_c", "temp_pt100_c", "temp_pill_c",
   "sg_current", "sg_current_raw", "sg_k", "attenuation_pct",
-  "og_measured", "fg_measured", "attenuation_final_pct", "fermentation_days",
+  "og_measured", "fg_expected", "fg_measured", "attenuation_final_pct", "fermentation_days",
   "time_in_band_pct", "temp_max_deviation_c",
   "volume_l", "abv_actual", "temp_max_c", "temp_min_c",
 ];
