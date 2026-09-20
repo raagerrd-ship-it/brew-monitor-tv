@@ -62,6 +62,19 @@ Deno.serve(async (req) => {
   // orört), fältet är null/tomt = värdet finns inte längre (rensa).
   const has = (o: any, k: string) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
+  // Pi:n kan använda slug-id för profiler ("novalager-v2") men molnkolumnen är
+  // uuid. Deterministisk SHA-1-hash ger samma uuid varje gång för samma slug.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  async function toUuid(id: string): Promise<string> {
+    if (UUID_RE.test(id)) return id;
+    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`pi-profile:${id}`));
+    const b = Array.from(new Uint8Array(buf)).slice(0, 16);
+    b[6] = (b[6] & 0x0f) | 0x50;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = b.map((x) => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  }
+
   // Pi:n äger dessa tre läsfält. Saknas fältet = orört (undefined utelämnas i
   // upserten), null = rensa.
   function overrideFields(d: any): Record<string, any> {
