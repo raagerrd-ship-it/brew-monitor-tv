@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { X, ShieldAlert, Droplets, FlaskConical } from 'lucide-react';
 import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleaning-checklist';
+import { useTvMode } from '@/contexts/TvModeContext';
 
 interface Group {
   label: string;
@@ -201,7 +202,8 @@ function highlightItem(text: string, accent: string) {
 
 function CleaningChecklistOverlayComponent() {
   const { view, setChecklist } = useCleaningChecklist();
-  if (!view) return null;
+  const { isTvMode } = useTvMode();
+  if (!view || !isTvMode) return null;
 
   const data = view === 'brewhouse' ? BREWHOUSE : VESSELS;
   const title = view === 'brewhouse' ? 'Bryggverksrengöring' : 'Fat- och jäskärlsrengöring';
