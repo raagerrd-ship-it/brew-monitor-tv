@@ -754,6 +754,7 @@ Deno.serve(async (req) => {
     // Profilstate speglas oavsett regulating: en avstängd tank ska också
     // kunna rensa sitt sista steg.
     await writeProfileState(data, fullId);
+    await closeEndedSessions(data);
     // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
     // tanken just nu inte reglerar.
     if (data.profile?.brew_id) {
