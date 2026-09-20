@@ -271,6 +271,26 @@ Deno.serve(async (req) => {
 
   }
 
+  // Sessioner som avslutats på Pi:n sedan förra rollupen (profilbyte m.m.).
+  // Idempotent: samma rad kan komma flera gånger.
+  async function closeEndedSessions(d: any) {
+    if (!Array.isArray(d?.ended_sessions)) return;
+    for (const s of d.ended_sessions) {
+      if (!s?.session_id) continue;
+      const status = ["stopped", "completed", "aborted", "cancelled"].includes(s.status) ? s.status : "completed";
+      const { error } = await supabase
+        .from("fermentation_sessions")
+        .update({
+          status,
+          completed_at: s.completed_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", s.session_id)
+        .in("status", ["running", "paused"]);
+      if (error) console.error("ended session close failed:", error.message);
+    }
+  }
+
   async function writeMetrics(brewId: string | null | undefined, d: any) {
     if (!brewId || !has(d, "metrics")) return;
     const m = d.metrics;
@@ -662,6 +682,7 @@ Deno.serve(async (req) => {
     // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
     // inte behöva vänta på nästa rollup.
     await writeProfileState(data, liveFullId);
+    await closeEndedSessions(data);
 
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
@@ -734,6 +755,7 @@ Deno.serve(async (req) => {
     // Profilstate speglas oavsett regulating: en avstängd tank ska också
     // kunna rensa sitt sista steg.
     await writeProfileState(data, fullId);
+    await closeEndedSessions(data);
     // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
     // tanken just nu inte reglerar.
     if (data.profile?.brew_id) {
