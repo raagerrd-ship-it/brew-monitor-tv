@@ -204,19 +204,57 @@ Deno.serve(async (req) => {
 
     // Pi:n äger sessionen. Finns den inte i molnet ännu speglar vi den hit,
     // annars syns ingen profil i UI:t.
-    if (!error && (!updated || updated.length === 0) && p.profile_id && fullId) {
-      // Profilen kan vara Pi-lokal och saknas i molnet — spegla den först,
-      // annars faller session-inserten på främmande nyckel varje telemetripost.
-      const profileUuid = await toUuid(String(p.profile_id));
+    // Profilen speglas alltid om Pi:n nämner den — namn och steg kan ändras
+    // mitt i en session, och appen ska bara läsa det Pi:n skriver.
+    let profileUuid: string | null = null;
+    if (p.profile_id) {
+      profileUuid = await toUuid(String(p.profile_id));
       const { error: profErr } = await supabase
         .from("fermentation_profiles")
         .upsert({
           id: profileUuid,
           name: p.profile_name ?? String(p.profile_id),
           description: "Speglad från Pi",
-        }, { onConflict: "id", ignoreDuplicates: true });
+        }, { onConflict: "id" });
       if (profErr) console.error("profile mirror failed:", profErr.message);
 
+      // Steg kommer från Pi:n — ersätt profilens steg när de skickas med.
+      if (!profErr && Array.isArray(p.steps)) {
+        await supabase
+          .from("fermentation_profile_steps")
+          .delete()
+          .eq("profile_id", profileUuid);
+        if (p.steps.length) {
+          const now = new Date().toISOString();
+          const { error: stepErr } = await supabase
+            .from("fermentation_profile_steps")
+            .insert(p.steps.map((s: any, i: number) => ({
+              profile_id: profileUuid,
+              step_order: s.step_order ?? i,
+              step_type: s.step_type ?? "hold",
+              target_temp: s.target_temp ?? null,
+              duration_hours: s.duration_hours ?? null,
+              ramp_type: s.ramp_type ?? null,
+              gravity_stable_days: s.gravity_stable_days ?? null,
+              gravity_threshold: s.gravity_threshold ?? null,
+              target_sg: s.target_sg ?? null,
+              sg_comparison: s.sg_comparison ?? null,
+              notes: s.notes ?? null,
+              attenuation_trigger: s.attenuation_trigger ?? null,
+              temp_increase: s.temp_increase ?? null,
+              activity_trigger: s.activity_trigger ?? null,
+              min_ramp_hours: s.min_ramp_hours ?? null,
+              ramp_curve: s.ramp_curve ?? null,
+              stability_window_minutes: s.stability_window_minutes ?? null,
+              stability_max_deviation: s.stability_max_deviation ?? null,
+              updated_at: now,
+            })));
+          if (stepErr) console.error("profile steps mirror failed:", stepErr.message);
+        }
+      }
+    }
+
+    if (!error && (!updated || updated.length === 0) && p.profile_id && fullId) {
       const { error: insErr } = await supabase
         .from("fermentation_sessions")
         .insert({

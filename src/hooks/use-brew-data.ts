@@ -786,7 +786,7 @@ export function useBrewData(): UseBrewDataReturn {
       } else if (table === 'selected_rapt_temp_controllers') {
         sonnerToast('Inställningar uppdaterade', { description: 'RAPT-kontrollerlistan har ändrats från en annan enhet', duration: 5000 });
         loadRaptData();
-      } else if (table === 'fermentation_sessions') {
+      } else if (table === 'fermentation_sessions' || table === 'fermentation_profile_steps') {
         loadBrews();
       }
     };
@@ -796,6 +796,7 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_profile_steps' }, () => handleConfigChange('fermentation_profile_steps'))
       .subscribe();
 
     return () => {
