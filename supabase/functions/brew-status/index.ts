@@ -82,5 +82,15 @@ Deno.serve(async (req) => {
     .from("brew_status").upsert(patch, { onConflict: "source_id" });
   if (error) return json({ error: error.message }, 500);
 
+  // Slutrapport med racked_at = ölet är tappat: kortet blir klart och slutar följa tanken.
+  if (patch.final_report_at && patch.racked_at) {
+    await supabase.from("brew_readings").update({
+      status: "Klar",
+      fermentation_end: (body.fermenting_done_at ?? body.racked_at) as string,
+      linked_controller_id: null,
+      linked_pill_id: null,
+    }).eq("id", sourceId);
+  }
+
   return json({ ok: true, source_id: sourceId });
 });
