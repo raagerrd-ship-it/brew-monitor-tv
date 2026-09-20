@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
               gravity_threshold: s.gravity_threshold ?? null,
               target_sg: s.target_sg ?? null,
               sg_comparison: s.sg_comparison ?? null,
-              notes: s.notes ?? null,
+              notes: s.notes ?? s.label ?? null,
               attenuation_trigger: s.attenuation_trigger ?? null,
               temp_increase: s.temp_increase ?? null,
               activity_trigger: s.activity_trigger ?? null,
