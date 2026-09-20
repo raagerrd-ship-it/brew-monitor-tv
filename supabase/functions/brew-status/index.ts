@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       fermentation_end: (body.fermenting_done_at ?? body.racked_at) as string,
       linked_controller_id: null,
       linked_pill_id: null,
-    }).eq("id", sourceId);
+    }).or(`id.eq.${sourceId}${body.pi_brew_id ? `,id.eq.${body.pi_brew_id}` : ""}`);
   }
 
   return json({ ok: true, source_id: sourceId });
