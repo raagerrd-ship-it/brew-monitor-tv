@@ -8,6 +8,13 @@
       "when": 1789825344920,
       "tag": "0000_add_cleaning_checklist_to_sync_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789884435237,
+      "tag": "0001_pi_contract_step_types_and_og_fields",
+      "breakpoints": true
     }
   ]
 }
