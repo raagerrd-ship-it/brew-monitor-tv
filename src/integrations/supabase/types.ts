@@ -310,9 +310,11 @@ export type Database = {
           fermenting_done_at: string | null
           fermenting_done_basis: string | null
           fg_estimated_at: string | null
+          fg_expected: number | null
           fg_measured: number | null
           final_report_at: string | null
           og_measured: number | null
+          og_measured_at: string | null
           outcome: string | null
           phase: string | null
           pi_brew_id: string | null
@@ -350,9 +352,11 @@ export type Database = {
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
+          fg_expected?: number | null
           fg_measured?: number | null
           final_report_at?: string | null
           og_measured?: number | null
+          og_measured_at?: string | null
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
@@ -390,9 +394,11 @@ export type Database = {
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
+          fg_expected?: number | null
           fg_measured?: number | null
           final_report_at?: string | null
           og_measured?: number | null
+          og_measured_at?: string | null
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
