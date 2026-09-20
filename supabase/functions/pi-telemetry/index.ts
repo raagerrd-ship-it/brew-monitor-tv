@@ -271,6 +271,26 @@ Deno.serve(async (req) => {
 
   }
 
+  // Sessioner som avslutats på Pi:n sedan förra rollupen (profilbyte m.m.).
+  // Idempotent: samma rad kan komma flera gånger.
+  async function closeEndedSessions(d: any) {
+    if (!Array.isArray(d?.ended_sessions)) return;
+    for (const s of d.ended_sessions) {
+      if (!s?.session_id) continue;
+      const status = ["stopped", "completed", "aborted", "cancelled"].includes(s.status) ? s.status : "completed";
+      const { error } = await supabase
+        .from("fermentation_sessions")
+        .update({
+          status,
+          completed_at: s.completed_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", s.session_id)
+        .in("status", ["running", "paused"]);
+      if (error) console.error("ended session close failed:", error.message);
+    }
+  }
+
   async function writeMetrics(brewId: string | null | undefined, d: any) {
     if (!brewId || !has(d, "metrics")) return;
     const m = d.metrics;
