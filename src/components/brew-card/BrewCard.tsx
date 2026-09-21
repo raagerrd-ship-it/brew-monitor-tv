@@ -241,6 +241,22 @@ function BrewCardComponent({
                         </button>
                       }
                     />
+                    {!isBrewInactive(brew.status) && (
+                      <button
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await supabase.from("pi_commands").insert({
+                            source_id: brew.id,
+                            command: "racked",
+                            racked_at: new Date().toISOString(),
+                          });
+                        }}
+                      >
+                        <PackageCheck className="h-3.5 w-3.5" />
+                        Tappad
+                      </button>
+                    )}
                     <button
                       className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
                       onClick={() => { setPrintLabelOpen(true); setMenuOpen(false); }}
