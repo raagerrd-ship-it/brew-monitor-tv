@@ -43,6 +43,13 @@ interface BrewEventDialogProps {
   trigger?: React.ReactNode;
 }
 
+// Pi:ns ordförråd för händelser.
+const PI_EVENT_KIND: Record<string, string> = {
+  jast: "pitch",
+  torrhumling: "dry_hop",
+  syresattning: "stir",
+};
+
 const EVENT_TYPES = [
   { value: "jast", label: "Jäst" },
   { value: "syresattning", label: "Syresättning" },
@@ -114,6 +121,14 @@ export function BrewEventDialog({
       });
 
       if (error) throw error;
+
+      // Samma händelse vidare till Pi:n, som sparar den i sin egen logg.
+      await supabase.from("pi_commands").insert({
+        source_id: brewId,
+        command: "event",
+        kind: PI_EVENT_KIND[eventType] ?? "note",
+        payload: { ts: combinedDate.toISOString(), data: { note: notes || null } },
+      });
 
       toast({
         title: "Händelse tillagd!",
