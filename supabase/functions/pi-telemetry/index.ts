@@ -644,6 +644,29 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Kvittens på ett kommando från appen: ut ur kön.
+  if (kind === "command_ack") {
+    if (!data?.id) {
+      return new Response(JSON.stringify({ error: "Missing id" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { error } = await supabase
+      .from("pi_commands")
+      .update({
+        applied_at: data.applied_at ?? new Date().toISOString(),
+        result: data.result ?? null,
+        brew_id: data.brew_id ?? null,
+        controller_id: data.controller_id ?? null,
+      })
+      .eq("id", data.id)
+      .is("applied_at", null);
+    if (error) console.error("command ack failed:", error.message);
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Omsändning efter tappat svar: samma (controller_id, kind, seq) sparas en gång.
   if (data?.seq != null && controller_id) {
     const { error: seqErr } = await supabase
