@@ -146,6 +146,25 @@ Deno.serve(async (req) => {
       recipe: b.recipe ?? null,
     }));
 
+    // Okvitterade kommandon från appen. Ligger kvar tills Pi:n kvitterar —
+    // Pi:n tillämpar varje id en gång.
+    const { data: cmdRows } = await supabase
+      .from("pi_commands")
+      .select("id, source_id, command, kind, payload, racked_at, issued_at")
+      .is("applied_at", null)
+      .gte("issued_at", cutoff)
+      .order("issued_at", { ascending: true });
+
+    const commands = (cmdRows || []).map((c: any) => ({
+      id: c.id,
+      source_id: c.source_id,
+      command: c.command,
+      issued_at: c.issued_at,
+      ...(c.racked_at ? { racked_at: c.racked_at } : {}),
+      ...(c.kind ? { kind: c.kind } : {}),
+      ...(c.payload ? { ts: c.payload.ts ?? c.issued_at, data: c.payload.data ?? null } : {}),
+    }));
+
     // Return all setpoints for this Pi
     const { data: controllers } = await supabase
       .from("rapt_temp_controllers")
