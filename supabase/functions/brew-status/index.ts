@@ -62,6 +62,8 @@ Deno.serve(async (req) => {
   for (const k of TIME) if (has(k) && body[k] != null) patch[k] = body[k];
   // Tom lista är ett giltigt värde — friskt läge rensar gamla varningar.
   if (has("warnings") && Array.isArray(body.warnings)) patch.warnings = body.warnings;
+  // Pitchen som bryggaren kvitterade på panelen.
+  if (has("pitch") && body.pitch != null) patch.pitch = body.pitch;
 
   // Slutrapporten skrivs exakt en gång per bryggd.
   if (body.phase === "done" || has("steps_executed")) {
