@@ -724,6 +724,7 @@ Deno.serve(async (req) => {
     // inte behöva vänta på nästa rollup.
     await writeProfileState(data, liveFullId);
     await closeEndedSessions(data);
+    await writeEvents(data);
 
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
@@ -797,6 +798,7 @@ Deno.serve(async (req) => {
     // kunna rensa sitt sista steg.
     await writeProfileState(data, fullId);
     await closeEndedSessions(data);
+    await writeEvents(data);
     // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
     // tanken just nu inte reglerar.
     if (data.profile?.brew_id) {
