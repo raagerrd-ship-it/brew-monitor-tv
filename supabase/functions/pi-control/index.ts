@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       .neq("is_glycol_cooler", true);
 
     if (!controllers || controllers.length === 0) {
-      return new Response(JSON.stringify({ setpoints: [], pending_brews }), {
+      return new Response(JSON.stringify({ setpoints: [], pending_brews, commands }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
       params_version: sp.params_version,
     }));
 
-    return new Response(JSON.stringify({ setpoints: result, pending_brews }), {
+    return new Response(JSON.stringify({ setpoints: result, pending_brews, commands }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
