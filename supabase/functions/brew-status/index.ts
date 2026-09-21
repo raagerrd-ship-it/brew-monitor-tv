@@ -84,6 +84,13 @@ Deno.serve(async (req) => {
     .from("brew_status").upsert(patch, { onConflict: "source_id" });
   if (error) return json({ error: error.message }, 500);
 
+  // Pitchtiden är Pi:ns: dygnsräkningen på kortet ska utgå från den.
+  if (patch.fermentation_start) {
+    await supabase.from("brew_readings")
+      .update({ fermentation_start: patch.fermentation_start as string })
+      .eq("id", sourceId);
+  }
+
   // Slutrapport med racked_at = ölet är tappat: kortet blir klart och slutar följa tanken.
   if (patch.final_report_at && patch.racked_at) {
     await supabase.from("brew_readings").update({
