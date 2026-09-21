@@ -857,6 +857,48 @@ export type Database = {
           },
         ]
       }
+      pi_commands: {
+        Row: {
+          applied_at: string | null
+          brew_id: string | null
+          command: string
+          controller_id: string | null
+          id: string
+          issued_at: string
+          kind: string | null
+          payload: Json | null
+          racked_at: string | null
+          result: string | null
+          source_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          brew_id?: string | null
+          command: string
+          controller_id?: string | null
+          id?: string
+          issued_at?: string
+          kind?: string | null
+          payload?: Json | null
+          racked_at?: string | null
+          result?: string | null
+          source_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          brew_id?: string | null
+          command?: string
+          controller_id?: string | null
+          id?: string
+          issued_at?: string
+          kind?: string | null
+          payload?: Json | null
+          racked_at?: string | null
+          result?: string | null
+          source_id?: string
+        }
+        Relationships: []
+      }
       pi_learned_params: {
         Row: {
           controller_id: string
