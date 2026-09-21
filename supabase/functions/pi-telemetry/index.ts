@@ -298,6 +298,28 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Bryggarens händelser från panelen. Fönstret överlappar — dedupe på Pi:ns id.
+  async function writeEvents(d: any) {
+    if (!Array.isArray(d?.events) || !d.events.length) return;
+    const rows: any[] = [];
+    for (const e of d.events) {
+      const brewId = e?.brew_id ?? d?.profile?.brew_id ?? null;
+      if (!e?.id || !brewId) continue;
+      rows.push({
+        id: await toUuid(String(e.id), "pi-event"),
+        brew_id: brewId,
+        event_type: e.kind ?? "note",
+        event_date: e.ts ?? new Date().toISOString(),
+        notes: e.text ?? (e.data ? JSON.stringify(e.data) : null),
+      });
+    }
+    if (!rows.length) return;
+    const { error } = await supabase
+      .from("brew_events")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+    if (error) console.error("events mirror failed:", error.message);
+  }
+
   async function writeMetrics(brewId: string | null | undefined, d: any) {
     if (!brewId || !has(d, "metrics")) return;
     const m = d.metrics;
