@@ -72,9 +72,9 @@ Deno.serve(async (req) => {
     "wait_for_acknowledgement", "wait_for_pitch", "diacetyl_rest", "gradual_ramp",
     "smart_cold_crash",
   ]);
-  async function toUuid(id: string): Promise<string> {
+  async function toUuid(id: string, ns = "pi-profile"): Promise<string> {
     if (UUID_RE.test(id)) return id;
-    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`pi-profile:${id}`));
+    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`${ns}:${id}`));
     const b = Array.from(new Uint8Array(buf)).slice(0, 16);
     b[6] = (b[6] & 0x0f) | 0x50;
     b[8] = (b[8] & 0x3f) | 0x80;
