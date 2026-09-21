@@ -72,9 +72,9 @@ Deno.serve(async (req) => {
     "wait_for_acknowledgement", "wait_for_pitch", "diacetyl_rest", "gradual_ramp",
     "smart_cold_crash",
   ]);
-  async function toUuid(id: string): Promise<string> {
+  async function toUuid(id: string, ns = "pi-profile"): Promise<string> {
     if (UUID_RE.test(id)) return id;
-    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`pi-profile:${id}`));
+    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`${ns}:${id}`));
     const b = Array.from(new Uint8Array(buf)).slice(0, 16);
     b[6] = (b[6] & 0x0f) | 0x50;
     b[8] = (b[8] & 0x3f) | 0x80;
@@ -296,6 +296,28 @@ Deno.serve(async (req) => {
         .in("status", ["running", "paused"]);
       if (error) console.error("ended session close failed:", error.message);
     }
+  }
+
+  // Bryggarens händelser från panelen. Fönstret överlappar — dedupe på Pi:ns id.
+  async function writeEvents(d: any) {
+    if (!Array.isArray(d?.events) || !d.events.length) return;
+    const rows: any[] = [];
+    for (const e of d.events) {
+      const brewId = e?.brew_id ?? d?.profile?.brew_id ?? null;
+      if (!e?.id || !brewId) continue;
+      rows.push({
+        id: await toUuid(String(e.id), "pi-event"),
+        brew_id: brewId,
+        event_type: e.kind ?? "note",
+        event_date: e.ts ?? new Date().toISOString(),
+        notes: e.text ?? (e.data ? JSON.stringify(e.data) : null),
+      });
+    }
+    if (!rows.length) return;
+    const { error } = await supabase
+      .from("brew_events")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+    if (error) console.error("events mirror failed:", error.message);
   }
 
   async function writeMetrics(brewId: string | null | undefined, d: any) {
@@ -622,6 +644,18 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Omsändning efter tappat svar: samma (controller_id, kind, seq) sparas en gång.
+  if (data?.seq != null && controller_id) {
+    const { error: seqErr } = await supabase
+      .from("pi_telemetry_seen")
+      .insert({ controller_id, kind, seq: Number(data.seq) });
+    if (seqErr?.code === "23505") {
+      return new Response(JSON.stringify({ ok: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   if (kind === "live") {
     // ── Snabbsynk: UPSERT singleton row ──
     if (!data) {
@@ -690,6 +724,7 @@ Deno.serve(async (req) => {
     // inte behöva vänta på nästa rollup.
     await writeProfileState(data, liveFullId);
     await closeEndedSessions(data);
+    await writeEvents(data);
 
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
@@ -763,6 +798,7 @@ Deno.serve(async (req) => {
     // kunna rensa sitt sista steg.
     await writeProfileState(data, fullId);
     await closeEndedSessions(data);
+    await writeEvents(data);
     // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
     // tanken just nu inte reglerar.
     if (data.profile?.brew_id) {

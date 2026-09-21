@@ -14,14 +14,14 @@ const NUM = [
   "temp_current_c", "temp_target_c", "temp_pt100_c", "temp_pill_c",
   "sg_current", "sg_current_raw", "sg_k", "attenuation_pct",
   "og_measured", "fg_expected", "fg_measured", "attenuation_final_pct", "fermentation_days",
-  "time_in_band_pct", "temp_max_deviation_c",
+  "time_in_band_pct", "temp_max_deviation_c", "temp_max_deviation_fermenting_c",
   "volume_l", "abv_actual", "temp_max_c", "temp_min_c",
 ];
 // Utfallsdata i slutrapporten — skrivs bara tillsammans med steps_executed.
-const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve"];
+const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve", "sessions"];
 const INT = ["step_index"];
 const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id", "control_sensor"];
-const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at", "og_measured_at"];
+const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at", "og_measured_at", "fermentation_start"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -62,6 +62,8 @@ Deno.serve(async (req) => {
   for (const k of TIME) if (has(k) && body[k] != null) patch[k] = body[k];
   // Tom lista är ett giltigt värde — friskt läge rensar gamla varningar.
   if (has("warnings") && Array.isArray(body.warnings)) patch.warnings = body.warnings;
+  // Pitchen som bryggaren kvitterade på panelen.
+  if (has("pitch") && body.pitch != null) patch.pitch = body.pitch;
 
   // Slutrapporten skrivs exakt en gång per bryggd.
   if (body.phase === "done" || has("steps_executed")) {
@@ -81,6 +83,13 @@ Deno.serve(async (req) => {
   const { error } = await supabase
     .from("brew_status").upsert(patch, { onConflict: "source_id" });
   if (error) return json({ error: error.message }, 500);
+
+  // Pitchtiden är Pi:ns: dygnsräkningen på kortet ska utgå från den.
+  if (patch.fermentation_start) {
+    await supabase.from("brew_readings")
+      .update({ fermentation_start: patch.fermentation_start as string })
+      .eq("id", sourceId);
+  }
 
   // Slutrapport med racked_at = ölet är tappat: kortet blir klart och slutar följa tanken.
   if (patch.final_report_at && patch.racked_at) {

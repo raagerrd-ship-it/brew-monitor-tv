@@ -307,6 +307,7 @@ export type Database = {
           control_sensor: string | null
           created_at: string
           fermentation_days: number | null
+          fermentation_start: string | null
           fermenting_done_at: string | null
           fermenting_done_basis: string | null
           fg_estimated_at: string | null
@@ -318,7 +319,9 @@ export type Database = {
           outcome: string | null
           phase: string | null
           pi_brew_id: string | null
+          pitch: Json | null
           racked_at: string | null
+          sessions: Json | null
           sg_current: number | null
           sg_current_raw: number | null
           sg_curve: Json | null
@@ -332,6 +335,7 @@ export type Database = {
           temp_current_c: number | null
           temp_max_c: number | null
           temp_max_deviation_c: number | null
+          temp_max_deviation_fermenting_c: number | null
           temp_min_c: number | null
           temp_pill_c: number | null
           temp_pt100_c: number | null
@@ -349,6 +353,7 @@ export type Database = {
           control_sensor?: string | null
           created_at?: string
           fermentation_days?: number | null
+          fermentation_start?: string | null
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
@@ -360,7 +365,9 @@ export type Database = {
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
+          pitch?: Json | null
           racked_at?: string | null
+          sessions?: Json | null
           sg_current?: number | null
           sg_current_raw?: number | null
           sg_curve?: Json | null
@@ -374,6 +381,7 @@ export type Database = {
           temp_current_c?: number | null
           temp_max_c?: number | null
           temp_max_deviation_c?: number | null
+          temp_max_deviation_fermenting_c?: number | null
           temp_min_c?: number | null
           temp_pill_c?: number | null
           temp_pt100_c?: number | null
@@ -391,6 +399,7 @@ export type Database = {
           control_sensor?: string | null
           created_at?: string
           fermentation_days?: number | null
+          fermentation_start?: string | null
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
@@ -402,7 +411,9 @@ export type Database = {
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
+          pitch?: Json | null
           racked_at?: string | null
+          sessions?: Json | null
           sg_current?: number | null
           sg_current_raw?: number | null
           sg_curve?: Json | null
@@ -416,6 +427,7 @@ export type Database = {
           temp_current_c?: number | null
           temp_max_c?: number | null
           temp_max_deviation_c?: number | null
+          temp_max_deviation_fermenting_c?: number | null
           temp_min_c?: number | null
           temp_pill_c?: number | null
           temp_pt100_c?: number | null
@@ -1052,6 +1064,27 @@ export type Database = {
           set_by?: string
           target_temp?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      pi_telemetry_seen: {
+        Row: {
+          controller_id: string
+          kind: string
+          received_at: string
+          seq: number
+        }
+        Insert: {
+          controller_id: string
+          kind: string
+          received_at?: string
+          seq: number
+        }
+        Update: {
+          controller_id?: string
+          kind?: string
+          received_at?: string
+          seq?: number
         }
         Relationships: []
       }
