@@ -644,6 +644,18 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Omsändning efter tappat svar: samma (controller_id, kind, seq) sparas en gång.
+  if (data?.seq != null && controller_id) {
+    const { error: seqErr } = await supabase
+      .from("pi_telemetry_seen")
+      .insert({ controller_id, kind, seq: Number(data.seq) });
+    if (seqErr?.code === "23505") {
+      return new Response(JSON.stringify({ ok: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   if (kind === "live") {
     // ── Snabbsynk: UPSERT singleton row ──
     if (!data) {
