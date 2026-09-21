@@ -65,6 +65,13 @@ Deno.serve(async (req) => {
   // Pi:n kan använda slug-id för profiler ("novalager-v2") men molnkolumnen är
   // uuid. Deterministisk SHA-1-hash ger samma uuid varje gång för samma slug.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // Måste matcha check-constrainten på fermentation_profile_steps.step_type.
+  // Okända steg från Pi:n faller tillbaka på "hold" så hela steglistan inte tappas.
+  const STEP_TYPES = new Set([
+    "hold", "ramp", "wait_for_temp", "wait_for_gravity_stable", "wait_for_sg",
+    "wait_for_acknowledgement", "wait_for_pitch", "diacetyl_rest", "gradual_ramp",
+    "smart_cold_crash",
+  ]);
   async function toUuid(id: string): Promise<string> {
     if (UUID_RE.test(id)) return id;
     const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(`pi-profile:${id}`));
@@ -231,7 +238,7 @@ Deno.serve(async (req) => {
             .insert(p.steps.map((s: any, i: number) => ({
               profile_id: profileUuid,
               step_order: s.step_order ?? i,
-              step_type: s.step_type ?? "hold",
+              step_type: STEP_TYPES.has(s.step_type) ? s.step_type : "hold",
               target_temp: s.target_temp ?? null,
               duration_hours: s.duration_hours ?? null,
               ramp_type: s.ramp_type ?? null,
