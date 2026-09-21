@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
             .insert(p.steps.map((s: any, i: number) => ({
               profile_id: profileUuid,
               step_order: s.step_order ?? i,
-              step_type: s.step_type ?? "hold",
+              step_type: STEP_TYPES.has(s.step_type) ? s.step_type : "hold",
               target_temp: s.target_temp ?? null,
               duration_hours: s.duration_hours ?? null,
               ramp_type: s.ramp_type ?? null,
