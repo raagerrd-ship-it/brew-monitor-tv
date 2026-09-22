@@ -9,6 +9,7 @@ import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
 import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -76,6 +77,8 @@ function BrewCardComponent({
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [recipeExpanded, setRecipeExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rackedSending, setRackedSending] = useState(false);
+  const [rackedSent, setRackedSent] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { isTvMode } = useTvMode();
 
