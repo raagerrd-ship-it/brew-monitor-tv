@@ -9,6 +9,7 @@ import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
 import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -76,6 +77,8 @@ function BrewCardComponent({
   const [labelExpanded, setLabelExpanded] = useState(false);
   const [recipeExpanded, setRecipeExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rackedSending, setRackedSending] = useState(false);
+  const [rackedSent, setRackedSent] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { isTvMode } = useTvMode();
 
@@ -241,20 +244,36 @@ function BrewCardComponent({
                         </button>
                       }
                     />
-                    {!isBrewInactive(brew.status) && (
+                    {isAuthenticated && !isBrewInactive(brew.status) && (
                       <button
-                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                        disabled={rackedSending || rackedSent}
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left disabled:opacity-50"
                         onClick={async () => {
-                          setMenuOpen(false);
-                          await supabase.from("pi_commands").insert({
+                          setRackedSending(true);
+                          const { error } = await supabase.from("pi_commands").insert({
                             source_id: brew.id,
                             command: "racked",
                             racked_at: new Date().toISOString(),
                           });
+                          setRackedSending(false);
+                          if (error) {
+                            toast({
+                              title: "Kunde inte markera som tappad",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          setRackedSent(true);
+                          setMenuOpen(false);
+                          toast({
+                            title: "Markerad som tappad",
+                            description: "Bryggverket hämtar besked inom 30 sekunder.",
+                          });
                         }}
                       >
                         <PackageCheck className="h-3.5 w-3.5" />
-                        Tappad
+                        {rackedSending ? "Skickar…" : rackedSent ? "Tappad skickad" : "Tappad"}
                       </button>
                     )}
                     <button

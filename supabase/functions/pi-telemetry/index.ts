@@ -299,16 +299,28 @@ Deno.serve(async (req) => {
   }
 
   // Bryggarens händelser från panelen. Fönstret överlappar — dedupe på Pi:ns id.
+  // Pi:ns engelska koder → appens svenska händelsetyper.
+  const EVENT_KIND_TO_APP: Record<string, string> = {
+    pitch: "jast",
+    stir: "syresattning",
+    dry_hop: "torrhumling",
+    cold_crash: "coldcrash",
+    diacetyl_rest: "diacetylrast",
+  };
+
   async function writeEvents(d: any) {
     if (!Array.isArray(d?.events) || !d.events.length) return;
     const rows: any[] = [];
     for (const e of d.events) {
       const brewId = e?.brew_id ?? d?.profile?.brew_id ?? null;
       if (!e?.id || !brewId) continue;
+      // Händelser appen själv skickade in finns redan — spegla inte tillbaka dem.
+      if (e?.source === "app") continue;
+      const kind = String(e.kind ?? "note");
       rows.push({
         id: await toUuid(String(e.id), "pi-event"),
         brew_id: brewId,
-        event_type: e.kind ?? "note",
+        event_type: EVENT_KIND_TO_APP[kind] ?? (kind === "note" ? "other" : kind),
         event_date: e.ts ?? new Date().toISOString(),
         notes: e.text ?? (e.data ? JSON.stringify(e.data) : null),
       });
