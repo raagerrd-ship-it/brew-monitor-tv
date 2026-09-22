@@ -51,23 +51,33 @@ Deno.serve(async (req) => {
     
     const externalSupabase = createClient(externalSupabaseUrl, externalSupabaseKey);
 
-    // Sign in to external Supabase
+    // Sign in to external Supabase (ett försök till vid övergående fel)
     console.log('🔐 Signing in to external Supabase...');
-    const { data: authData, error: authError } = await externalSupabase.auth.signInWithPassword({
-      email: externalEmail,
-      password: externalPassword,
-    });
+    const isTransientAuth = (msg: string, status?: number) => {
+      const m = (msg || '').toLowerCase();
+      return (typeof status === 'number' && status >= 500) ||
+        /\b5\d{2}\b/.test(m) ||
+        m.includes('connection') || m.includes('reset') ||
+        m.includes('timeout') || m.includes('timed out') ||
+        m.includes('gateway') || m.includes('unavailable') ||
+        m.includes('sendrequest') || m.includes('fetch failed');
+    };
 
-    if (authError || !authData.session) {
-      const authMsg = (authError?.message || '').toLowerCase();
-      const isTransient = authMsg.includes('connection') ||
-                          authMsg.includes('reset') ||
-                          authMsg.includes('timeout') ||
-                          authMsg.includes('timed out') ||
-                          authMsg.includes('gateway') ||
-                          authMsg.includes('unavailable') ||
-                          authMsg.includes('sendrequest');
-      if (isTransient) {
+    let authData, authError;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      ({ data: authData, error: authError } = await externalSupabase.auth.signInWithPassword({
+        email: externalEmail,
+        password: externalPassword,
+      }));
+      if (!authError && authData?.session) break;
+      const retryable = isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status);
+      if (!retryable || attempt === 1) break;
+      console.warn('⚠️ Transient auth error, retrying once:', authError?.message);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    if (authError || !authData?.session) {
+      if (isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status)) {
         console.warn('⚠️ Transient auth error, skipping sync cycle:', authError?.message);
         return new Response(
           JSON.stringify({ success: false, skipped: true, reason: 'transient_auth_error' }),
