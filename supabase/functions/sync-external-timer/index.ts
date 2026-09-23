@@ -218,16 +218,26 @@ Deno.serve(async (req) => {
 
     // Fetch timer data from new brewing status endpoint
     console.log('📡 Fetching brewing status...');
-    const timerResponse = await fetch(
-      `${externalSupabaseUrl}/functions/v1/get-brewing-status`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    let timerResponse: Response;
+    try {
+      timerResponse = await fetch(
+        `${externalSupabaseUrl}/functions/v1/get-brewing-status`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+    } catch (e) {
+      console.warn('⚠️ Timer fetch timed out/failed, skipping cycle:', String((e as Error)?.message ?? e));
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: 'fetch_timeout' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!timerResponse.ok) {
       // Don't return 500 for auth race conditions — just skip this sync cycle
