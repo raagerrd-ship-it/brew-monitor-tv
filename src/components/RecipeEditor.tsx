@@ -79,7 +79,7 @@ export function toRecipeData(raw: unknown): RecipeData {
         return {
           name: s(i?.name),
           amount: s(hasKg ? i.amount_kg : i?.amount_g ?? i?.amount_l ?? i?.amount),
-          unit: hasKg ? "kg" : "g" in (i ?? {}) && i?.amount_g != null ? "g" : i?.amount_l != null ? "l" : s(i?.unit) || "kg",
+          unit: hasKg ? "kg" : i?.amount_g != null ? "g" : i?.amount_l != null ? "l" : s(i?.unit) || "kg",
           type,
           time: s(i?.time_min ?? i?.time),
           use: s(i?.use),
