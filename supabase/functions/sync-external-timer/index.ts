@@ -63,12 +63,27 @@ Deno.serve(async (req) => {
         m.includes('sendrequest') || m.includes('fetch failed');
     };
 
+    // Tidsgräns så ett hängande externt svar inte dödar arbetaren (ger 502)
+    const withTimeout = <T>(p: Promise<T> | PromiseLike<T>, ms: number, what: string): Promise<T> =>
+      Promise.race([
+        p as Promise<T>,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${what}`)), ms)),
+      ]);
+
     let authData, authError;
     for (let attempt = 0; attempt < 2; attempt++) {
-      ({ data: authData, error: authError } = await externalSupabase.auth.signInWithPassword({
-        email: externalEmail,
-        password: externalPassword,
-      }));
+      try {
+        ({ data: authData, error: authError } = await withTimeout(
+          externalSupabase.auth.signInWithPassword({
+            email: externalEmail,
+            password: externalPassword,
+          }),
+          8000,
+          'auth',
+        ));
+      } catch (e) {
+        authError = { message: String((e as Error)?.message ?? e) } as typeof authError;
+      }
       if (!authError && authData?.session) break;
       const retryable = isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status);
       if (!retryable || attempt === 1) break;
@@ -101,11 +116,24 @@ Deno.serve(async (req) => {
     const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
 
     // Preferred source: shared_brewing_session (brew app is the single writer)
-    const { data: sessionRow, error: sessionError } = await externalSupabase
-      .from('shared_brewing_session')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sessionRow: any = null;
+    let sessionError: { message: string } | null = null;
+    try {
+      const res = await withTimeout(
+        externalSupabase
+          .from('shared_brewing_session')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        8000,
+        'session_read',
+      );
+      sessionRow = res.data as Record<string, unknown> | null;
+      sessionError = res.error;
+    } catch (e) {
+      sessionError = { message: String((e as Error)?.message ?? e) };
+    }
 
     if (sessionError) {
       console.warn('⚠️ shared_brewing_session read failed, falling back:', sessionError.message);
@@ -191,16 +219,26 @@ Deno.serve(async (req) => {
 
     // Fetch timer data from new brewing status endpoint
     console.log('📡 Fetching brewing status...');
-    const timerResponse = await fetch(
-      `${externalSupabaseUrl}/functions/v1/get-brewing-status`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    let timerResponse: Response;
+    try {
+      timerResponse = await fetch(
+        `${externalSupabaseUrl}/functions/v1/get-brewing-status`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+    } catch (e) {
+      console.warn('⚠️ Timer fetch timed out/failed, skipping cycle:', String((e as Error)?.message ?? e));
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: 'fetch_timeout' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!timerResponse.ok) {
       // Don't return 500 for auth race conditions — just skip this sync cycle
