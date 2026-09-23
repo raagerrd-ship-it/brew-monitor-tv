@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
     const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
 
     // Preferred source: shared_brewing_session (brew app is the single writer)
-    let sessionRow: Record<string, unknown> | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sessionRow: any = null;
     let sessionError: { message: string } | null = null;
     try {
       const res = await withTimeout(
