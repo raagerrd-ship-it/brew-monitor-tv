@@ -120,6 +120,9 @@ export function CustomBrewDialog({
   const [labelImageUrl, setLabelImageUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [recipe, setRecipe] = useState<RecipeData>(emptyRecipe());
+  // Övriga receptfält från bryggappen/Pi:n (jäst, mål, mätvärden) ska aldrig tappas vid sparning.
+  const [rawRecipe, setRawRecipe] = useState<Record<string, unknown>>({});
+
   const [uploadingLabel, setUploadingLabel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
