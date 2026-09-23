@@ -5,6 +5,20 @@ interface Props {
   onClose: () => void;
 }
 
+/** Humlens tillsats: "kok 60 min", "arom", "torrhumling 3 d" … */
+function hopAddition(i: { time?: string; use?: string }): string {
+  const use = (i.use || "").toLowerCase();
+  const label =
+    use === "boil" ? "kok"
+    : use === "aroma" ? "arom"
+    : use === "whirlpool" ? "whirlpool"
+    : use === "dry hop" || use === "torrhumling" ? "torrhumling"
+    : use;
+  if (i.time && use === "dry hop") return label ? `${label} ${i.time} d` : `${i.time} d`;
+  if (i.time) return label ? `${label} ${i.time} min` : `${i.time} min`;
+  return label;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-1">
@@ -47,7 +61,10 @@ export function RecipeView({ recipe, onClose }: Props) {
                 {r!.ingredients.map((i, idx) => (
                   <li key={idx} className="flex justify-between gap-2">
                     <span className="truncate">{i.name || "—"} <span className="text-muted-foreground/60">({i.type})</span></span>
-                    <span className="text-muted-foreground tabular-nums">{i.amount} {i.unit}</span>
+                    <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                      {i.amount} {i.unit}
+                      {i.type === "humle" && hopAddition(i) ? ` · ${hopAddition(i)}` : ""}
+                    </span>
                   </li>
                 ))}
               </ul>
