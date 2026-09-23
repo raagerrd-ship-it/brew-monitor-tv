@@ -242,6 +242,8 @@ export function CustomBrewDialog({
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
         setRecipe(toRecipeData(editBrew.recipe));
+        setRawRecipe((editBrew.recipe as Record<string, unknown>) ?? {});
+
         // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
@@ -276,6 +278,8 @@ export function CustomBrewDialog({
         setDescription(prefill?.description || "");
         setLinkedPillId(null);
         setRecipe(emptyRecipe());
+        setRawRecipe({});
+
         // pillCompensation removed
         // Default to now for new brews
         const now = new Date();
