@@ -116,11 +116,23 @@ Deno.serve(async (req) => {
     const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
 
     // Preferred source: shared_brewing_session (brew app is the single writer)
-    const { data: sessionRow, error: sessionError } = await externalSupabase
-      .from('shared_brewing_session')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    let sessionRow: Record<string, unknown> | null = null;
+    let sessionError: { message: string } | null = null;
+    try {
+      const res = await withTimeout(
+        externalSupabase
+          .from('shared_brewing_session')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        8000,
+        'session_read',
+      );
+      sessionRow = res.data as Record<string, unknown> | null;
+      sessionError = res.error;
+    } catch (e) {
+      sessionError = { message: String((e as Error)?.message ?? e) };
+    }
 
     if (sessionError) {
       console.warn('⚠️ shared_brewing_session read failed, falling back:', sessionError.message);
