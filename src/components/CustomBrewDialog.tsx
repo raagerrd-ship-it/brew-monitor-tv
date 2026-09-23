@@ -34,7 +34,7 @@ import { Loader2, X, ImageIcon } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
-import { RecipeEditor, emptyRecipe, type RecipeData } from "./RecipeEditor";
+import { RecipeEditor, emptyRecipe, toRecipeData, type RecipeData } from "./RecipeEditor";
 
 
 export interface CustomBrewData {
@@ -238,7 +238,7 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
-        setRecipe({ ...emptyRecipe(), ...((editBrew.recipe as Partial<RecipeData>) || {}) });
+        setRecipe(toRecipeData(editBrew.recipe));
         // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
