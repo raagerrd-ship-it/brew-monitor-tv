@@ -10,6 +10,10 @@ export interface RecipeIngredient {
   amount: string;
   unit: string;
   type: "malt" | "humle" | "jäst" | "övrigt";
+  /** Humle: koktid i minuter (om känd). */
+  time?: string;
+  /** Humle: användning, t.ex. boil/aroma/whirlpool/dry hop. */
+  use?: string;
 }
 
 export interface RecipeMashStep {
@@ -75,11 +79,27 @@ export function toRecipeData(raw: unknown): RecipeData {
         return {
           name: s(i?.name),
           amount: s(hasKg ? i.amount_kg : i?.amount_g ?? i?.amount_l ?? i?.amount),
-          unit: hasKg ? "kg" : i?.amount_g != null ? "g" : i?.amount_l != null ? "l" : s(i?.unit) || "kg",
+          unit: hasKg ? "kg" : "g" in (i ?? {}) && i?.amount_g != null ? "g" : i?.amount_l != null ? "l" : s(i?.unit) || "kg",
           type,
+          time: s(i?.time_min ?? i?.time),
+          use: s(i?.use),
         };
       })
     : base.ingredients;
+
+  // Torrhumle ligger i egen lista hos bryggappen — slå ihop med ingredienserna.
+  if (Array.isArray(r.dry_hops)) {
+    for (const d of r.dry_hops) {
+      ingredients.push({
+        name: s(d?.name),
+        amount: s(d?.amount_g ?? d?.amount),
+        unit: "g",
+        type: "humle",
+        time: s(d?.time_min ?? d?.days),
+        use: "dry hop",
+      });
+    }
+  }
 
   const mash_steps: RecipeMashStep[] = Array.isArray(r.mash_steps)
     ? r.mash_steps.map((m: any): RecipeMashStep => ({
