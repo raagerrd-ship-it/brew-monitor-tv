@@ -63,12 +63,27 @@ Deno.serve(async (req) => {
         m.includes('sendrequest') || m.includes('fetch failed');
     };
 
+    // Tidsgräns så ett hängande externt svar inte dödar arbetaren (ger 502)
+    const withTimeout = <T>(p: Promise<T> | PromiseLike<T>, ms: number, what: string): Promise<T> =>
+      Promise.race([
+        p as Promise<T>,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${what}`)), ms)),
+      ]);
+
     let authData, authError;
     for (let attempt = 0; attempt < 2; attempt++) {
-      ({ data: authData, error: authError } = await externalSupabase.auth.signInWithPassword({
-        email: externalEmail,
-        password: externalPassword,
-      }));
+      try {
+        ({ data: authData, error: authError } = await withTimeout(
+          externalSupabase.auth.signInWithPassword({
+            email: externalEmail,
+            password: externalPassword,
+          }),
+          8000,
+          'auth',
+        ));
+      } catch (e) {
+        authError = { message: String((e as Error)?.message ?? e) } as typeof authError;
+      }
       if (!authError && authData?.session) break;
       const retryable = isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status);
       if (!retryable || attempt === 1) break;
