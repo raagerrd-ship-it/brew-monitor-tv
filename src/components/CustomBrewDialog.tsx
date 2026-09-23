@@ -34,7 +34,7 @@ import { Loader2, X, ImageIcon } from "lucide-react";
 import { Textarea } from "./ui/textarea";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
-import { RecipeEditor, emptyRecipe, type RecipeData } from "./RecipeEditor";
+import { RecipeEditor, emptyRecipe, toRecipeData, type RecipeData } from "./RecipeEditor";
 
 
 export interface CustomBrewData {
@@ -120,6 +120,9 @@ export function CustomBrewDialog({
   const [labelImageUrl, setLabelImageUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [recipe, setRecipe] = useState<RecipeData>(emptyRecipe());
+  // Övriga receptfält från bryggappen/Pi:n (jäst, mål, mätvärden) ska aldrig tappas vid sparning.
+  const [rawRecipe, setRawRecipe] = useState<Record<string, unknown>>({});
+
   const [uploadingLabel, setUploadingLabel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -238,7 +241,9 @@ export function CustomBrewDialog({
         setLabelImageUrl(editBrew.label_image_url || null);
         setDescription(editBrew.description || "");
         setLinkedPillId(editBrew.linked_pill_id || null);
-        setRecipe({ ...emptyRecipe(), ...((editBrew.recipe as Partial<RecipeData>) || {}) });
+        setRecipe(toRecipeData(editBrew.recipe));
+        setRawRecipe((editBrew.recipe as Record<string, unknown>) ?? {});
+
         // pillCompensation removed
         // Format datetime for input (YYYY-MM-DDTHH:mm)
         if (editBrew.fermentation_start) {
@@ -273,6 +278,8 @@ export function CustomBrewDialog({
         setDescription(prefill?.description || "");
         setLinkedPillId(null);
         setRecipe(emptyRecipe());
+        setRawRecipe({});
+
         // pillCompensation removed
         // Default to now for new brews
         const now = new Date();
@@ -426,7 +433,7 @@ export function CustomBrewDialog({
           linked_pill_id: linkedPillId,
           linked_controller_id: resolvedControllerId,
           pill_compensation: true, // legacy field, kept for backward compat
-          recipe: recipe as unknown as never,
+          recipe: { ...rawRecipe, ...recipe } as unknown as never,
         };
 
         // If leaving fermentation and user selected an endpoint, trim snapshots
@@ -537,7 +544,7 @@ export function CustomBrewDialog({
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
             pill_compensation: true, // legacy field
-            recipe: recipe,
+            recipe: { ...rawRecipe, ...recipe },
           } as never]);
 
         if (insertError) throw insertError;
