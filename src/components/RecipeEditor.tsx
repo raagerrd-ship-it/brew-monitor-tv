@@ -54,6 +54,78 @@ export const emptyRecipe = (): RecipeData => ({
   notes: "",
 });
 
+const s = (v: unknown): string => (v == null || v === "" ? "" : String(v));
+
+/**
+ * Receptet från bryggappen/Pi:n har egna fältnamn (amount_kg, temp_c, stage …).
+ * Översätt till editorns form så inget fält ser tomt ut.
+ */
+export function toRecipeData(raw: unknown): RecipeData {
+  const r = (raw ?? {}) as Record<string, any>;
+  const base = emptyRecipe();
+
+  const ingredients: RecipeIngredient[] = Array.isArray(r.ingredients)
+    ? r.ingredients.map((i: any): RecipeIngredient => {
+        const type: RecipeIngredient["type"] =
+          i?.type === "fermentable" || i?.type === "malt" ? "malt"
+          : i?.type === "hop" || i?.type === "humle" ? "humle"
+          : i?.type === "yeast" || i?.type === "jäst" ? "jäst"
+          : "övrigt";
+        const hasKg = i?.amount_kg != null;
+        return {
+          name: s(i?.name),
+          amount: s(hasKg ? i.amount_kg : i?.amount_g ?? i?.amount_l ?? i?.amount),
+          unit: hasKg ? "kg" : i?.amount_g != null ? "g" : i?.amount_l != null ? "l" : s(i?.unit) || "kg",
+          type,
+        };
+      })
+    : base.ingredients;
+
+  const mash_steps: RecipeMashStep[] = Array.isArray(r.mash_steps)
+    ? r.mash_steps.map((m: any): RecipeMashStep => ({
+        temp: s(m?.temp_c ?? m?.temp),
+        minutes: s(m?.time_min ?? m?.minutes),
+        note: s(m?.note ?? m?.name),
+      }))
+    : base.mash_steps;
+
+  const boil_additions: RecipeBoilAddition[] = Array.isArray(r.boil_additions)
+    ? r.boil_additions.map((b: any): RecipeBoilAddition => ({
+        name: s(b?.name),
+        amount: s(b?.amount_g ?? b?.amount_kg ?? b?.amount),
+        unit: b?.amount_kg != null ? "kg" : s(b?.unit) || "g",
+        minutes: s(b?.time_min ?? b?.minutes),
+      }))
+    : base.boil_additions;
+
+  const water_adjustments: RecipeWaterAdjustment[] = Array.isArray(r.water_adjustments)
+    ? r.water_adjustments.map((w: any): RecipeWaterAdjustment => {
+        const stage = s(w?.stage ?? w?.target).toLowerCase();
+        return {
+          name: s(w?.name),
+          amount: s(w?.amount_g ?? w?.amount_ml ?? w?.amount),
+          unit: w?.amount_ml != null ? "ml" : s(w?.unit) || "g",
+          target: stage.startsWith("lak") ? "lakkärl"
+            : stage.startsWith("mäsk") ? "mäskkärl"
+            : stage.startsWith("kok") ? "kokkärl"
+            : "övrigt",
+        };
+      })
+    : base.water_adjustments;
+
+  return {
+    ingredients,
+    mash_steps,
+    boil_additions,
+    water_adjustments,
+    boil_minutes: s(r.boil_minutes),
+    mash_water_liters: s(r.mash_water_liters),
+    sparge_water_liters: s(r.sparge_water_liters),
+    notes: s(r.notes),
+  };
+}
+
+
 interface Props {
   value: RecipeData;
   onChange: (next: RecipeData) => void;
