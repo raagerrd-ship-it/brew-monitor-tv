@@ -433,7 +433,7 @@ export function CustomBrewDialog({
           linked_pill_id: linkedPillId,
           linked_controller_id: resolvedControllerId,
           pill_compensation: true, // legacy field, kept for backward compat
-          recipe: recipe as unknown as never,
+          recipe: { ...rawRecipe, ...recipe } as unknown as never,
         };
 
         // If leaving fermentation and user selected an endpoint, trim snapshots
@@ -544,7 +544,7 @@ export function CustomBrewDialog({
             linked_pill_id: linkedPillId,
             linked_controller_id: resolvedControllerId,
             pill_compensation: true, // legacy field
-            recipe: recipe,
+            recipe: { ...rawRecipe, ...recipe },
           } as never]);
 
         if (insertError) throw insertError;
