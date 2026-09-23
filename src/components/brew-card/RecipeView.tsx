@@ -1,4 +1,4 @@
-import type { RecipeData } from "@/components/RecipeEditor";
+import { toRecipeData, type RecipeData } from "@/components/RecipeEditor";
 
 interface Props {
   recipe: RecipeData | null | undefined;
@@ -15,7 +15,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function RecipeView({ recipe, onClose }: Props) {
-  const r = recipe;
+  // Receptet kan komma i bryggappens/Pi:ns format — översätt först.
+  const r = recipe ? toRecipeData(recipe) : recipe;
+
   const hasAny =
     r && (
       r.ingredients?.length ||
