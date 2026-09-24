@@ -11,7 +11,7 @@ import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { usePiRemoteControl } from "@/hooks/use-pi-remote-control";
 import { PiOverrideBox } from "./PiOverrideBox";
-import { StepPhasesList } from "./StepPhasesList";
+import { StepPhasesList, useStepPhases, formatCondition } from "./StepPhasesList";
 import { formatRemainingTime } from "./sessionStyles";
 
 
@@ -46,6 +46,11 @@ export function ActiveFermentationSession({
 
   // Pi:n ekar tillbaka vem som äger målet — "av" vinner över "manuellt".
   const piRemote = usePiRemoteControl(controllerId ?? '', !!controllerId);
+  const stepPhases = useStepPhases(brewId);
+  const activePhase = stepPhases?.find(p => p.status === 'active');
+  const piActivePhase = activePhase
+    ? activePhase.label + (activePhase.condition ? ` │ ${formatCondition(activePhase.condition)}` : '')
+    : null;
   const overrideSource: 'manual' | 'off' | null =
     piRemote.enabled === false ? 'off' : piRemote.targetSource === 'manual' ? 'manual' : null;
 
@@ -265,9 +270,10 @@ export function ActiveFermentationSession({
           attenuation={attenuation}
           controllerProfileTarget={controllerData?.profile_target_temp ?? null}
           piStepProgress={(session as { step_progress?: number | null }).step_progress ?? null}
+          piActivePhase={piActivePhase}
         />
         )}
-        <StepPhasesList brewId={brewId} />
+        <StepPhasesList phases={stepPhases} />
       </div>
     );
   }

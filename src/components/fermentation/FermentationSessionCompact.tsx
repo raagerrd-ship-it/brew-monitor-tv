@@ -49,6 +49,8 @@ interface FermentationSessionCompactProps {
   controllerProfileTarget?: number | null;
   /** Stegets framdrift som Pi:n rapporterar (0-1) — sanningskälla före lokal beräkning */
   piStepProgress?: number | null;
+  /** Pi:ns aktiva delfas, t.ex. "Vilar tills SG är stilla 2 dygn · 8 / 48 h" */
+  piActivePhase?: string | null;
 }
 
 export function FermentationSessionCompact({
@@ -78,6 +80,7 @@ export function FermentationSessionCompact({
   attenuation,
   controllerProfileTarget,
   piStepProgress,
+  piActivePhase,
 }: FermentationSessionCompactProps) {
 
   // Single source of truth: backend-computed profile target stored on controller
@@ -215,6 +218,8 @@ export function FermentationSessionCompact({
       case 'diacetyl_rest':
       case 'gradual_ramp': {
         const increase = step.temp_increase ?? 3;
+        // Pi:ns aktiva delfas vinner — appen gissar inte om den rampar eller vilar.
+        if (piActivePhase) return piActivePhase;
         if (gradualRampTriggered) {
           // Show stability countdown when ramping (backend requires gravity_stable_days + low activity to complete)
           const stableDays = step.gravity_stable_days ?? 2;

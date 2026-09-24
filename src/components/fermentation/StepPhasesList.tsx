@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { Check, Circle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-interface StepPhase {
+export interface StepPhase {
   label: string;
   status: "done" | "active" | "pending";
   detail?: string | null;
   condition?: { label: string; value: number | null; target: number | null; unit: string | null } | null;
 }
 
-// Visar exakt de delfaser Pi:n skriver i brew_status.step_phases — inget räknas fram här.
-export function StepPhasesList({ brewId }: { brewId?: string }) {
-  const [phases, setPhases] = useState<StepPhase[] | null>(null);
+const fmt = (v: number | null) => (v == null ? "okänt" : String(Math.round(v * 10) / 10));
+export const formatCondition = (c: NonNullable<StepPhase["condition"]>) =>
+  `${fmt(c.value)} / ${fmt(c.target)}${c.unit ? ` ${c.unit}` : ""}`;
 
+// Läser exakt de delfaser Pi:n skriver i brew_status.step_phases — inget räknas fram här.
+export function useStepPhases(brewId?: string) {
+  const [phases, setPhases] = useState<StepPhase[] | null>(null);
   useEffect(() => {
     if (!brewId) return;
     const load = async () => {
@@ -23,11 +26,11 @@ export function StepPhasesList({ brewId }: { brewId?: string }) {
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, [brewId]);
+  return phases;
+}
 
+export function StepPhasesList({ phases }: { phases: StepPhase[] | null }) {
   if (!phases?.length) return null;
-
-  const fmt = (v: number | null) => (v == null ? "okänt" : String(Math.round(v * 10) / 10));
-
   return (
     <ul className="space-y-0.5 mt-1.5 text-[11px]">
       {phases.map((p, i) => (
@@ -37,9 +40,7 @@ export function StepPhasesList({ brewId }: { brewId?: string }) {
               : <Circle className={`w-2 h-2 shrink-0 mx-0.5 ${p.status === "active" ? "fill-primary text-primary" : ""}`} />}
             <span className={p.status === "active" ? "font-semibold" : ""}>{p.label}</span>
             {p.status === "active" && p.condition && (
-              <span className="ml-auto tabular-nums text-primary">
-                {fmt(p.condition.value)} / {fmt(p.condition.target)}{p.condition.unit ? ` ${p.condition.unit}` : ""}
-              </span>
+              <span className="ml-auto tabular-nums text-primary">{formatCondition(p.condition)}</span>
             )}
           </div>
           {p.status === "active" && p.detail && <div className="pl-5 text-[10px] text-muted-foreground">{p.detail}</div>}
