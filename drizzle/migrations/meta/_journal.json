@@ -36,6 +36,13 @@
       "when": 1789992174653,
       "tag": "0004_pi_commands",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790261584530,
+      "tag": "0005_pi_live_state_anon_read",
+      "breakpoints": true
     }
   ]
 }
