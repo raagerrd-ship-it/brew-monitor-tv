@@ -43,6 +43,13 @@
       "when": 1790261584530,
       "tag": "0005_pi_live_state_anon_read",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790263061054,
+      "tag": "0006_brew_status_step_phases",
+      "breakpoints": true
     }
   ]
 }

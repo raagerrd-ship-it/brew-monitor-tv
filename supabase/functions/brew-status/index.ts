@@ -64,6 +64,8 @@ Deno.serve(async (req) => {
   if (has("warnings") && Array.isArray(body.warnings)) patch.warnings = body.warnings;
   // Pitchen som bryggaren kvitterade på panelen.
   if (has("pitch") && body.pitch != null) patch.pitch = body.pitch;
+  // Delfaser ordagrant från panelen. null = steget saknar delfaser; utelämnat = orört.
+  if (has("step_phases") && (body.step_phases === null || Array.isArray(body.step_phases))) patch.step_phases = body.step_phases;
 
   // Slutrapporten skrivs exakt en gång per bryggd.
   if (body.phase === "done" || has("steps_executed")) {

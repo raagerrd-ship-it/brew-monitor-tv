@@ -11,6 +11,7 @@ import { StepConditionsDisplay } from "./StepConditionsDisplay";
 import { useDeferredRender, useActiveFermentationSession } from "@/hooks";
 import { usePiRemoteControl } from "@/hooks/use-pi-remote-control";
 import { PiOverrideBox } from "./PiOverrideBox";
+import { StepPhasesList } from "./StepPhasesList";
 import { formatRemainingTime } from "./sessionStyles";
 
 
@@ -266,6 +267,7 @@ export function ActiveFermentationSession({
           piStepProgress={(session as { step_progress?: number | null }).step_progress ?? null}
         />
         )}
+        <StepPhasesList brewId={brewId} />
       </div>
     );
   }
