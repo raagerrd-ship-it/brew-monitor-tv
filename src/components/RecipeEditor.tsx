@@ -88,7 +88,9 @@ export function toRecipeData(raw: unknown): RecipeData {
     : base.ingredients;
 
   // Torrhumle ligger i egen lista hos bryggappen — slå ihop med ingredienserna.
-  if (Array.isArray(r.dry_hops)) {
+  // (Hoppa över om listan redan innehåller torrhumle, t.ex. efter ett sparat recept —
+  // annars dupliceras raderna vid varje öppna/spara-cykel.)
+  if (Array.isArray(r.dry_hops) && !ingredients.some((i) => i.use === "dry hop")) {
     for (const d of r.dry_hops) {
       ingredients.push({
         name: s(d?.name),
