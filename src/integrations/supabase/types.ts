@@ -330,6 +330,7 @@ export type Database = {
           step_ends_at: string | null
           step_index: number | null
           step_label: string | null
+          step_phases: Json | null
           step_started_at: string | null
           steps_executed: Json | null
           temp_current_c: number | null
@@ -376,6 +377,7 @@ export type Database = {
           step_ends_at?: string | null
           step_index?: number | null
           step_label?: string | null
+          step_phases?: Json | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null
@@ -422,6 +424,7 @@ export type Database = {
           step_ends_at?: string | null
           step_index?: number | null
           step_label?: string | null
+          step_phases?: Json | null
           step_started_at?: string | null
           steps_executed?: Json | null
           temp_current_c?: number | null

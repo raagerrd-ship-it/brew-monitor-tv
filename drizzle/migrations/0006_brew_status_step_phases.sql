@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_status ADD COLUMN IF NOT EXISTS step_phases jsonb;
