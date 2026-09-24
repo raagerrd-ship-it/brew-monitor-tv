@@ -17,6 +17,7 @@ interface StepExecutionDisplayProps {
   originalGravity?: number | null;
   activityScore?: number | null;
   attenuation?: number | null;
+  rampDone?: boolean; // Pi:ns delfas säger att rampen är klar
 }
 
 interface ExecutionItem {
@@ -42,6 +43,7 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   originalGravity,
   activityScore,
   attenuation,
+  rampDone,
 }: StepExecutionDisplayProps) {
   const items: ExecutionItem[] = [];
   const iconClass = "w-3 h-3 shrink-0";
@@ -63,7 +65,7 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
       ? Math.max(0, Math.min(1, (effectiveTarget - stepStartTemp) / (finalTarget - stepStartTemp)))
       : 0;
     // Snap to 1 when target is effectively reached (within 0.3°)
-    const tempProgress = (effectiveTarget != null && Math.abs(effectiveTarget - finalTarget) <= 0.3) ? 1 : rawTempProgress;
+    const tempProgress = rampDone || (effectiveTarget != null && Math.abs(effectiveTarget - finalTarget) <= 0.3) ? 1 : rawTempProgress;
     const tempDone = tempProgress >= 1;
     items.push({
       label: 'Temp.ramp',

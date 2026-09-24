@@ -47,6 +47,7 @@ export function ActiveFermentationSession({
   // Pi:n ekar tillbaka vem som äger målet — "av" vinner över "manuellt".
   const piRemote = usePiRemoteControl(controllerId ?? '', !!controllerId);
   const stepPhases = useStepPhases(brewId);
+  const rampDone = !!stepPhases?.some(p => p.status === 'done' && /höj|ramp/i.test(p.label));
   const activePhase = stepPhases?.find(p => p.status === 'active');
   const piActivePhase = activePhase
     ? activePhase.label + (activePhase.condition ? ` │ ${formatCondition(activePhase.condition)}` : '')
@@ -205,6 +206,7 @@ export function ActiveFermentationSession({
                   isRamping={isRamping}
                   rampProgress={rampProgress}
                   rampTriggeredAt={session.ramp_triggered_at}
+                  rampDone={rampDone}
                   currentSg={currentSg}
                   originalGravity={originalGravity}
                   activityScore={activityScore}
@@ -307,6 +309,7 @@ export function ActiveFermentationSession({
               isRamping={isRamping}
               rampProgress={rampProgress}
               rampTriggeredAt={session.ramp_triggered_at}
+                  rampDone={rampDone}
               currentSg={currentSg}
               originalGravity={originalGravity}
               activityScore={activityScore}
