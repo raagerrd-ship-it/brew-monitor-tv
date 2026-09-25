@@ -119,20 +119,27 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let sessionRow: any = null;
     let sessionError: { message: string } | null = null;
-    try {
-      const res = await withTimeout(
-        externalSupabase
-          .from('shared_brewing_session')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle(),
-        8000,
-        'session_read',
-      );
-      sessionRow = res.data as Record<string, unknown> | null;
-      sessionError = res.error;
-    } catch (e) {
-      sessionError = { message: String((e as Error)?.message ?? e) };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await withTimeout(
+          externalSupabase
+            .from('shared_brewing_session')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          8000,
+          'session_read',
+        );
+        sessionRow = res.data as Record<string, unknown> | null;
+        sessionError = res.error;
+      } catch (e) {
+        sessionError = { message: String((e as Error)?.message ?? e) };
+      }
+      if (!sessionError) break;
+      if (attempt === 0) {
+        console.warn('⚠️ shared_brewing_session read failed, retrying once:', sessionError.message);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     }
 
     if (sessionError) {
