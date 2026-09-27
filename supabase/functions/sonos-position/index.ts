@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
       effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
       existingRow.position_ms != null &&
       hasRealPosition &&
-      Math.abs(positionMillis - existingRow.position_ms) < 2000 &&
+      // Jämför kompenserat mot kompenserat — en långsam push får inte se ut som frusen position
+      Math.abs(compensatedPosition - existingRow.position_ms) < 2000 &&
       existingRow.playback_state === 'PLAYBACK_STATE_PLAYING'
     );
     if (positionFrozen) {
