@@ -123,6 +123,17 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
 
       const isRadio = nowPlayingRef?.current?.media_type === 'radio';
+      // Låten slut: rita nästa låts namn direkt (bakgrunden byttes redan 3 s innan)
+      const snap = nowPlayingRef?.current;
+      if (isPlaying && remaining <= 0 && !isRadio && snap?.next_track_name && snap.next_track_name !== snap.track_name) {
+        handleTrackChangeRef.current({
+          trackName: snap.next_track_name,
+          artistName: snap.next_artist_name,
+          playbackState: currentState,
+          positionMillis: 0,
+        });
+        return;
+      }
       if (remaining <= PREDICTIVE_THRESHOLD_MS && remaining > 0 && !predictiveScheduledRef.current && !isRadio) {
         predictiveScheduledRef.current = true;
 
