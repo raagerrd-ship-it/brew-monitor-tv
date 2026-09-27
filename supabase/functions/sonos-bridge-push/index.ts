@@ -295,7 +295,8 @@ Deno.serve(async (req) => {
 
     // If same track AND background already exists, just a position/state update — done
     const needsBg = needsCurrentArt;
-    if ((sameTrack || promoteNext) && !needsBg && !(promoteNext && uploadedNextArtUrl)) {
+    // Hoppa över Phase 2 bara om inget nytt laddades upp — annars måste nästa bakgrund genereras
+    if ((sameTrack || promoteNext) && !needsBg && !uploadedNextArtUrl) {
       return new Response(JSON.stringify({
         ok: true, phase: 1, same_track: sameTrack, promoted_next: promoteNext, early_switch: doEarly || alreadyEarly, duration_ms: phase1Ms,
         // ACK: cloud already has the art for this track — bridge can omit the base64 image
