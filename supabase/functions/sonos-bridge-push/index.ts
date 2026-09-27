@@ -181,6 +181,7 @@ Deno.serve(async (req) => {
       effectivePlaybackState === 'PLAYBACK_STATE_PLAYING' &&
       existingRow?.position_ms != null &&
       typeof positionMillis === 'number' &&
+      positionMillis >= 3000 && // låtstart: bryggan rapporterar 1 ms några gånger — inte paus
       Math.abs(positionMillis - existingRow.position_ms) < 2000 &&
       existingRow.playback_state === 'PLAYBACK_STATE_PLAYING'
     );
