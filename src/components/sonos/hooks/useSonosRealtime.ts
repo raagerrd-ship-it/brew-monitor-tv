@@ -158,7 +158,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         const hasVisibleBg = !!(prev.bg_image_url || bgSentRef.current);
         // Same track should only fill a missing bg, not swap in a second variant a few seconds later.
         const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
-        const bgActuallyChanged = bgChanged && !bgAlreadySent && !hasVisibleBg;
+        // 3 s-försprång: molnet har lagt nästa låts bakgrund som aktuell — byt direkt
+        const earlySwitch = bgChanged && !!prev.next_bg_image_url && stripQs(incoming.bg_image_url) === stripQs(prev.next_bg_image_url);
+        const bgActuallyChanged = bgChanged && !bgAlreadySent && (!hasVisibleBg || earlySwitch);
 
         if (nextBgNew) { const img = new Image(); img.src = incoming.next_bg_image_url!; }
 
