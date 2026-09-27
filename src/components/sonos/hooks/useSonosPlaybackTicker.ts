@@ -123,9 +123,9 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
 
       const isRadio = nowPlayingRef?.current?.media_type === 'radio';
-      // Låten slut: rita nästa låts namn direkt (bakgrunden byttes redan 3 s innan)
+      // 3 s kvar: byt namn och förladdad bakgrund samtidigt
       const snap = nowPlayingRef?.current;
-      if (isPlaying && remaining <= 0 && !isRadio && snap?.next_track_name && snap.next_track_name !== snap.track_name) {
+      if (isPlaying && remaining <= 3000 && !isRadio && !!snap?.next_bg_image_url && snap?.next_track_name && snap.next_track_name !== snap.track_name) {
         handleTrackChangeRef.current({
           trackName: snap.next_track_name,
           artistName: snap.next_artist_name,
