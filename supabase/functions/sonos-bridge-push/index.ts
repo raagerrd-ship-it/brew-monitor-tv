@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_album_art_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -198,7 +198,11 @@ Deno.serve(async (req) => {
     // The background file name starts with hash(trackName|artHash), so a new cover = new name
     const expectedBgHash = artHash ? simpleHash(`${trackName || ''}|${artHash}`) : null;
     const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
-    const needsCurrentArt = !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
+    // Låtbyte till kvitterad nästa-låt: främja lagrad nästa-bakgrund direkt (ingen ny uppladdning)
+    const promoteNext = !sameTrack && !!existingRow?.next_bg_image_url
+      && existingRow.next_track_name === decodedTrackName
+      && (!expectedBgHash || existingRow.next_bg_image_url.includes(expectedBgHash));
+    const needsCurrentArt = promoteNext ? false : !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
       || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
     // Radio has no reliable next track — never ask the bridge for that image
     const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
@@ -262,7 +266,11 @@ Deno.serve(async (req) => {
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
       // Clear bg on new track to prevent stale bg flash
-      ...(sameTrack ? {} : {
+      ...(sameTrack ? {} : promoteNext ? {
+        bg_image_url: existingRow.next_bg_image_url,
+        ...(existingRow.next_album_art_url && !bridgeArtUrl ? { album_art_url: existingRow.next_album_art_url } : {}),
+        next_bg_image_url: null,
+      } : {
         bg_image_url: null,
         next_bg_image_url: null,
       }),
@@ -282,9 +290,9 @@ Deno.serve(async (req) => {
 
     // If same track AND background already exists, just a position/state update — done
     const needsBg = needsCurrentArt;
-    if (sameTrack && !needsBg) {
+    if ((sameTrack || promoteNext) && !needsBg && !(promoteNext && uploadedNextArtUrl)) {
       return new Response(JSON.stringify({
-        ok: true, phase: 1, same_track: true, duration_ms: phase1Ms,
+        ok: true, phase: 1, same_track: sameTrack, promoted_next: promoteNext, duration_ms: phase1Ms,
         // ACK: cloud already has the art for this track — bridge can omit the base64 image
         need_album_art: false,
         need_next_album_art: needsNextArt && !uploadedNextArtUrl,
