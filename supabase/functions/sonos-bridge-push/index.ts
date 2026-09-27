@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
       // Raw image bytes (base64) uploaded by the bridge
       albumArtBase64,
       nextAlbumArtBase64,
+      earlySwitch,
       // Bridge self-registration fields
       groupId: bridgeGroupId,
       groupName: bridgeGroupName,
@@ -202,7 +203,10 @@ Deno.serve(async (req) => {
     const promoteNext = !sameTrack && !!existingRow?.next_bg_image_url
       && existingRow.next_track_name === decodedTrackName
       && (!expectedBgHash || existingRow.next_bg_image_url.includes(expectedBgHash));
-    const needsCurrentArt = promoteNext ? false : !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
+    // 3 s-försprång: bryggan flaggar earlySwitch när ≤3 s återstår → visa nästa bakgrund direkt
+    const alreadyEarly = sameTrack && !!existingRow?.next_bg_image_url && existingRow.bg_image_url === existingRow.next_bg_image_url;
+    const doEarly = sameTrack && earlySwitch === true && !!existingRow?.next_bg_image_url && !alreadyEarly;
+    const needsCurrentArt = (promoteNext || alreadyEarly || doEarly) ? false : !sameTrack || !existingRow?.bg_image_url || !existingRow?.album_art_url
       || (!!expectedBgHash && !existingRow.bg_image_url.includes(expectedBgHash));
     // Radio has no reliable next track — never ask the bridge for that image
     const isRadio = (mediaType ?? '').toLowerCase() === 'radio';
@@ -266,7 +270,7 @@ Deno.serve(async (req) => {
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
       // Clear bg on new track to prevent stale bg flash
-      ...(sameTrack ? {} : promoteNext ? {
+      ...(sameTrack ? (doEarly ? { bg_image_url: existingRow.next_bg_image_url } : {}) : promoteNext ? {
         bg_image_url: existingRow.next_bg_image_url,
         ...(existingRow.next_album_art_url && !bridgeArtUrl ? { album_art_url: existingRow.next_album_art_url } : {}),
         next_bg_image_url: null,
@@ -292,7 +296,7 @@ Deno.serve(async (req) => {
     const needsBg = needsCurrentArt;
     if ((sameTrack || promoteNext) && !needsBg && !(promoteNext && uploadedNextArtUrl)) {
       return new Response(JSON.stringify({
-        ok: true, phase: 1, same_track: sameTrack, promoted_next: promoteNext, duration_ms: phase1Ms,
+        ok: true, phase: 1, same_track: sameTrack, promoted_next: promoteNext, early_switch: doEarly || alreadyEarly, duration_ms: phase1Ms,
         // ACK: cloud already has the art for this track — bridge can omit the base64 image
         need_album_art: false,
         need_next_album_art: needsNextArt && !uploadedNextArtUrl,
