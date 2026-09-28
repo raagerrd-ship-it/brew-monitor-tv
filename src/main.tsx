@@ -1,6 +1,9 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { captureDeviceKey } from "./lib/device-key";
+
+captureDeviceKey();
 
 // In TV mode or iframe: unregister service workers to save CPU/memory on Chromecast
 const isIframe = window.self !== window.top;

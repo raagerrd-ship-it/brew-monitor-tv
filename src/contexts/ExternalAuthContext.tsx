@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { User, Session } from '@supabase/supabase-js';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { supabase } from '@/integrations/supabase/client';
+import { deviceHeaders } from '@/lib/device-key';
 
 interface ExternalAuthContextType {
   user: User | null;
@@ -35,7 +36,7 @@ export function ExternalAuthProvider({ children }: { children: React.ReactNode }
   const fetchSessionFromServer = useCallback(async () => {
     try {
       console.log('Fetching external auth from server...');
-      const { data, error } = await supabase.functions.invoke('external-auth');
+      const { data, error } = await supabase.functions.invoke('external-auth', { headers: deviceHeaders() });
       
       if (error) {
         console.error('Error calling external-auth:', error);

@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTvMode } from '@/contexts/TvModeContext';
 import type { BrewChartProps } from './types';
+import { deviceHeaders } from '@/lib/device-key';
 
 // Lazy load the heavy recharts-based BrewChart component.
 // Retries once on chunk-load failure (transient network), then forces a full
@@ -55,7 +56,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...deviceHeaders() },
         body: JSON.stringify({ brewId, compact, brewCount }),
         signal,
       });

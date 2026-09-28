@@ -1,9 +1,10 @@
+import { isDevice, isUser, isCron, unauthorized, AUTH_HEADERS } from "../_shared/auth.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, ' + AUTH_HEADERS,
 };
 
 // Chart dimensions
@@ -483,6 +484,7 @@ Deno.serve(async (req) => {
 
     // Handle delete action
     if (action === 'delete' && brewId) {
+      if (!(isDevice(req) || await isUser(req))) return unauthorized(corsHeaders);
       const { data: files } = await supabase.storage.from('chart-images').list('', { search: `chart_${brewId}` });
       if (files && files.length > 0) {
         const paths = files.map(f => f.name);

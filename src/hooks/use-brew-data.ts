@@ -746,10 +746,17 @@ export function useBrewData(): UseBrewDataReturn {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
     const lastLoad = { rapt: 0, brews: 0 };
     // Pi:n skriver en rad per tank i samma sekund – ladda om max var 5:e sekund
+    const trailing: Record<'rapt' | 'brews', NodeJS.Timeout | null> = { rapt: null, brews: null };
     const throttled = (key: 'rapt' | 'brews', fn: () => void) => {
       const now = Date.now();
       // Snapshots only move the chart — reload at most once a minute
-      if (now - lastLoad[key] < (key === 'brews' ? 60000 : 5000)) return;
+      const windowMs = key === 'brews' ? 60000 : 5000;
+      const wait = windowMs - (now - lastLoad[key]);
+      if (wait > 0) {
+        // Trailing call so events during the lock window aren't lost
+        if (!trailing[key]) trailing[key] = setTimeout(() => { trailing[key] = null; lastLoad[key] = Date.now(); fn(); }, wait);
+        return;
+      }
       lastLoad[key] = now;
       fn();
     };
@@ -801,6 +808,8 @@ export function useBrewData(): UseBrewDataReturn {
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
+      if (trailing.rapt) clearTimeout(trailing.rapt);
+      if (trailing.brews) clearTimeout(trailing.brews);
       supabase.removeChannel(channel);
     };
   }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, loadRaptData, loadBrews, isTvMode]);

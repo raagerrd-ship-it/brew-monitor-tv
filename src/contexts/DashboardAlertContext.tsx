@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { deviceHeaders } from '@/lib/device-key';
 
 export interface DashboardAlert {
   /** Unique key to prevent duplicate alerts */
@@ -43,6 +44,7 @@ export function DashboardAlertProvider({ children }: { children: ReactNode }) {
     if (newAlert.pushTitle && newAlert.pushBody && !sentPushIds.current.has(newAlert.id)) {
       sentPushIds.current.add(newAlert.id);
       supabase.functions.invoke('send-push-notification', {
+        headers: deviceHeaders(),
         body: {
           title: newAlert.pushTitle,
           body: newAlert.pushBody,

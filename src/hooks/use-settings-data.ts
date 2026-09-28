@@ -23,10 +23,6 @@ interface AvailableController {
   last_update: string | null;
 }
 
-interface ApiSettings {
-  rapt: { username: string; apiSecret: string; configured: boolean };
-}
-
 export function useSettingsData() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -47,7 +43,6 @@ export function useSettingsData() {
   const [lastFullSync, setLastFullSync] = useState<string | null>(null);
   const [lastQuickSync, setLastQuickSync] = useState<string | null>(null);
   const [quickSyncing, setQuickSyncing] = useState(false);
-  const [apiSettings, setApiSettings] = useState<ApiSettings | null>(null);
 
   // Cooler/followed controllers — derived from rapt_temp_controllers.is_glycol_cooler
   const [coolerControllerId, setCoolerControllerId] = useState<string>("");
@@ -125,16 +120,6 @@ export function useSettingsData() {
       }
     } catch (error) {
       console.error('Error loading settings:', error);
-    }
-  }, []);
-
-  const loadApiSettings = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('get-api-settings');
-      if (error) throw error;
-      setApiSettings(data);
-    } catch (error) {
-      console.error('Error loading API settings:', error);
     }
   }, []);
 
@@ -226,7 +211,6 @@ export function useSettingsData() {
   useEffect(() => {
     if (!user) return;
     loadSettings();
-    loadApiSettings();
     loadAvailableControllers();
     loadHeaderPills();
     loadDeviceCounts();
@@ -265,7 +249,7 @@ export function useSettingsData() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, loadSettings, loadApiSettings, loadAvailableControllers, loadHeaderPills, loadDeviceCounts, loadBrewCounts]);
+  }, [user, loadSettings, loadAvailableControllers, loadHeaderPills, loadDeviceCounts, loadBrewCounts]);
 
   // ─── Handlers ───
 
@@ -347,7 +331,6 @@ export function useSettingsData() {
     pillStaleThresholdMin, probeStaleThresholdMin,
     lastFullSync, lastQuickSync,
     quickSyncing,
-    apiSettings,
     settingsId,
     autoHideCompleted, autoHideConditioning, autoHideArchived, autoActivateFermenting,
     coolerControllerId, followedControllerIds,

@@ -1,9 +1,10 @@
+import { isDevice, isUser, isCron, unauthorized, AUTH_HEADERS } from "../_shared/auth.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, ' + AUTH_HEADERS,
 };
 
 const EXTERNAL_SUPABASE_URL = 'https://zmvkvpmwpyxdpbysomxl.supabase.co';
@@ -15,6 +16,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+
+  if (!(isDevice(req) || await isUser(req))) return unauthorized(corsHeaders);
   try {
     const email = Deno.env.get('EXTERNAL_SUPABASE_EMAIL');
     const password = Deno.env.get('EXTERNAL_SUPABASE_PASSWORD');
