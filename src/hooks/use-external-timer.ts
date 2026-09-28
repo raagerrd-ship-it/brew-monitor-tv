@@ -65,14 +65,12 @@ const initialState: ExternalTimerState = {
 };
 
 // Interval constants
-const FAST_SYNC_MS = 3_000;
 const FAST_POLL_MS = 5_000;
 const SLOW_POLL_MS = 60_000;
 
 export function useExternalTimer() {
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isActiveRef = useRef(false); // Track active state for interval switching
   const timerDataRef = useRef<{
@@ -297,47 +295,18 @@ export function useExternalTimer() {
     }
   }, [parseMilestone, parseNextConfig, calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
-  const triggerSync = useCallback(async () => {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-external-timer`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        }
-      );
-      clearTimeout(timeout);
-    } catch {
-      // Ignore — cron fallback will handle it
-    }
-  }, []);
-
   // Helper to set up sync/poll intervals based on active state
   const setupIntervals = useCallback((active: boolean) => {
     // Clear existing
-    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    syncIntervalRef.current = null;
-
-    // Only sync edge function when timer is active
-    if (active) {
-      syncIntervalRef.current = setInterval(() => triggerSync(), FAST_SYNC_MS);
-    }
 
     const pollMs = active ? FAST_POLL_MS : SLOW_POLL_MS;
     pollIntervalRef.current = setInterval(() => fetchFromCache(), pollMs);
-  }, [triggerSync, fetchFromCache]);
+  }, [fetchFromCache]);
 
   // Initial fetch, subscribe, and set up intervals
   useEffect(() => {
     fetchFromCache();
-    triggerSync();
 
     // Start with slow intervals; fetchFromCache will update isActiveRef
     setupIntervals(false);
@@ -351,11 +320,10 @@ export function useExternalTimer() {
       .subscribe();
 
     return () => {
-      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       supabase.removeChannel(channel);
     };
-  }, [fetchFromCache, triggerSync, setupIntervals]);
+  }, [fetchFromCache, setupIntervals]);
 
   // Switch intervals when active state changes
   useEffect(() => {
