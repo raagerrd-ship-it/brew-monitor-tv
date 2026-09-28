@@ -57,6 +57,13 @@
       "when": 1790583841134,
       "tag": "0007_idx_pi_learned_hist_controller_created",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790610604904,
+      "tag": "0008_daily_cleanup_cron_logs_and_telemetry_seen",
+      "breakpoints": true
     }
   ]
 }
