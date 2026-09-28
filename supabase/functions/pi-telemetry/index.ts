@@ -227,15 +227,11 @@ Deno.serve(async (req) => {
 
       // Steg kommer från Pi:n — ersätt profilens steg när de skickas med.
       if (!profErr && Array.isArray(p.steps)) {
-        await supabase
-          .from("fermentation_profile_steps")
-          .delete()
-          .eq("profile_id", profileUuid);
-        if (p.steps.length) {
+        {
+          // Atomärt: radera + skapa i en transaktion så UI aldrig ser en profil utan steg
           const now = new Date().toISOString();
           const { error: stepErr } = await supabase
-            .from("fermentation_profile_steps")
-            .insert(p.steps.map((s: any, i: number) => ({
+            .rpc("replace_profile_steps", { p_profile_id: profileUuid, p_steps: p.steps.map((s: any, i: number) => ({
               profile_id: profileUuid,
               step_order: s.step_order ?? i,
               step_type: STEP_TYPES.has(s.step_type) ? s.step_type : "hold",
@@ -255,7 +251,7 @@ Deno.serve(async (req) => {
               stability_window_minutes: s.stability_window_minutes ?? null,
               stability_max_deviation: s.stability_max_deviation ?? null,
               updated_at: now,
-            })));
+            })) });
           if (stepErr) console.error("profile steps mirror failed:", stepErr.message);
         }
       }
@@ -366,14 +362,23 @@ Deno.serve(async (req) => {
     if (error) console.error("metrics write failed:", error.message);
   }
 
+  // Pill-koppling slås upp en gång per paket
+  const pillIdCache = new Map<string, Promise<string | null>>();
+  function linkedPillId(fullId: string): Promise<string | null> {
+    if (!pillIdCache.has(fullId)) {
+      pillIdCache.set(fullId, supabase
+        .from("rapt_temp_controllers")
+        .select("linked_pill_id")
+        .eq("controller_id", fullId)
+        .maybeSingle()
+        .then(({ data }: any) => data?.linked_pill_id ?? null));
+    }
+    return pillIdCache.get(fullId)!;
+  }
+
   // ── Pill-data via Pi:n (ersätter ingest-pill-ble för Pi-styrda tankar) ──
   async function writePillAndBrew(fullId: string, d: any) {
-    const { data: ctrl } = await supabase
-      .from("rapt_temp_controllers")
-      .select("controller_id, linked_pill_id")
-      .eq("controller_id", fullId)
-      .maybeSingle();
-    const pillId = ctrl?.linked_pill_id;
+    const pillId = await linkedPillId(fullId);
     if (!pillId) return;
 
     const recordedAt = d.recorded_at || new Date().toISOString();
@@ -498,12 +503,7 @@ Deno.serve(async (req) => {
   // Uppdatera bara pillens egna värden — ingen brygghistorik från live.
   async function writePillFromLive(fullId: string, d: any) {
     if (d.pill_temp == null && d.pill_battery_pct == null && d.pill_gravity_sg == null) return;
-    const { data: ctrl } = await supabase
-      .from("rapt_temp_controllers")
-      .select("linked_pill_id")
-      .eq("controller_id", fullId)
-      .maybeSingle();
-    const pillId = ctrl?.linked_pill_id;
+    const pillId = await linkedPillId(fullId);
     if (!pillId) return;
 
     const ageS = d.pill_age_s != null ? Number(d.pill_age_s) : 0;
@@ -850,11 +850,7 @@ Deno.serve(async (req) => {
       // Samma koppling som gjorts på Pi:n speglas här: tank + pill sätts på
       // bryggen automatiskt så den dyker upp på dashboarden utan manuell koppling.
       if (data.profile?.brew_id) {
-        const { data: ctrlRow } = await supabase
-          .from("rapt_temp_controllers")
-          .select("linked_pill_id")
-          .eq("controller_id", fullId)
-          .maybeSingle();
+        const ctrlRow = { linked_pill_id: await linkedPillId(fullId) };
         const { data: brewRow } = await supabase
           .from("brew_readings")
           .select("status, linked_pill_id")
