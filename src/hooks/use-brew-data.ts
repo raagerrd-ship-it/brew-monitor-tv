@@ -8,6 +8,7 @@ import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { setRaptBar } from '@/lib/rapt-bar-store';
+import { tvDebug } from '@/lib/tv-debug-log';
 
 type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null };
 
