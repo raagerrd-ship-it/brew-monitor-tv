@@ -21,26 +21,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get all distinct brew_ids from snapshots
-    const allBrewIds: string[] = [];
-    let offset = 0;
-    const batchSize = 1000;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await supabase
-        .from("brew_data_snapshots")
-        .select("brew_id")
-        .range(offset, offset + batchSize - 1);
-      if (!data || data.length === 0) {
-        hasMore = false;
-      } else {
-        for (const row of data) {
-          if (!allBrewIds.includes(row.brew_id)) allBrewIds.push(row.brew_id);
-        }
-        offset += batchSize;
-        hasMore = data.length === batchSize;
-      }
-    }
+    // Thin per active brew (finished/archived brews get no new snapshots)
+    const { data: brews } = await supabase
+      .from("brew_readings")
+      .select("id")
+      .not("status", "in", "(Klar,Arkiverad)");
+    const allBrewIds: string[] = (brews ?? []).map((b: { id: string }) => b.id);
 
     console.log(`[ThinAll] Found ${allBrewIds.length} brews with snapshots`);
 

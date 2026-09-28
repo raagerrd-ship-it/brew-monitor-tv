@@ -103,8 +103,6 @@ export async function createBrewSnapshot(
       return false;
     }
 
-    // Fire-and-forget: thin if oversized
-    thinSnapshots(supabase, brewId).catch(() => {});
     return true;
   } catch (err) {
     console.error('Error in createBrewSnapshot:', err);

@@ -49,10 +49,25 @@ Deno.serve(async (req) => {
     const externalSupabaseUrl = 'https://zmvkvpmwpyxdpbysomxl.supabase.co';
     const externalSupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inptdmt2cG13cHl4ZHBieXNvbXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0OTQ2NTMsImV4cCI6MjA3OTA3MDY1M30.IC1xZyB_mphskudaRgMKNPQYvkwkNMsiXlsuYmlsiMY';
     
-    const externalSupabase = createClient(externalSupabaseUrl, externalSupabaseKey);
+    const externalSupabase = createClient(externalSupabaseUrl, externalSupabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    // Sign in to external Supabase (ett försök till vid övergående fel)
-    console.log('🔐 Signing in to external Supabase...');
+    // Local Supabase client (used by both paths below)
+    const localSupabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // Cheap early return: no active timer and checked < 60 s ago → skip external call
+    const { data: cached } = await localSupabase
+      .from('cached_external_timer')
+      .select('is_active, last_synced_at')
+      .order('last_synced_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cached && !cached.is_active && Date.now() - new Date(cached.last_synced_at).getTime() < 60_000) {
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'idle_recent' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const isTransientAuth = (msg: string, status?: number) => {
       const m = (msg || '').toLowerCase();
       return (typeof status === 'number' && status >= 500) ||
@@ -70,50 +85,78 @@ Deno.serve(async (req) => {
         new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${what}`)), ms)),
       ]);
 
-    let authData, authError;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // Reuse stored session: valid token as-is, otherwise refresh; password only as last resort
+    // deno-lint-ignore no-explicit-any
+    let authData: any = null;
+    // deno-lint-ignore no-explicit-any
+    let authError: any = null;
+    const { data: stored } = await localSupabase
+      .from('external_auth_session')
+      .select('access_token, refresh_token, expires_at')
+      .eq('id', 'default')
+      .maybeSingle();
+    if (stored) {
       try {
-        ({ data: authData, error: authError } = await withTimeout(
-          externalSupabase.auth.signInWithPassword({
-            email: externalEmail,
-            password: externalPassword,
-          }),
-          8000,
-          'auth',
-        ));
+        const stillValid = stored.expires_at && new Date(stored.expires_at).getTime() - Date.now() > 120_000;
+        const res = stillValid
+          ? await withTimeout(externalSupabase.auth.setSession({ access_token: stored.access_token, refresh_token: stored.refresh_token }), 8000, 'set_session')
+          : await withTimeout(externalSupabase.auth.refreshSession({ refresh_token: stored.refresh_token }), 8000, 'refresh');
+        if (!res.error && res.data?.session && res.data?.user) authData = res.data;
       } catch (e) {
-        authError = { message: String((e as Error)?.message ?? e) } as typeof authError;
+        console.warn('⚠️ Stored session unusable:', String((e as Error)?.message ?? e));
       }
-      if (!authError && authData?.session) break;
-      const retryable = isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status);
-      if (!retryable || attempt === 1) break;
-      console.warn('⚠️ Transient auth error, retrying once:', authError?.message);
-      await new Promise((r) => setTimeout(r, 2000));
     }
 
-    if (authError || !authData?.session) {
-      if (isTransientAuth(authError?.message ?? '', (authError as { status?: number } | null)?.status)) {
-        console.warn('⚠️ Transient auth error, skipping sync cycle:', authError?.message);
+    if (!authData) {
+      console.log('🔐 Signing in to external Supabase with password...');
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          ({ data: authData, error: authError } = await withTimeout(
+            externalSupabase.auth.signInWithPassword({ email: externalEmail, password: externalPassword }),
+            8000,
+            'auth',
+          ));
+        } catch (e) {
+          authError = { message: String((e as Error)?.message ?? e) };
+        }
+        if (!authError && authData?.session) break;
+        const retryable = isTransientAuth(authError?.message ?? '', authError?.status);
+        if (!retryable || attempt === 1) break;
+        console.warn('⚠️ Transient auth error, retrying once:', authError?.message);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      if (authError || !authData?.session) {
+        if (isTransientAuth(authError?.message ?? '', authError?.status)) {
+          console.warn('⚠️ Transient auth error, skipping sync cycle:', authError?.message);
+          return new Response(
+            JSON.stringify({ success: false, skipped: true, reason: 'transient_auth_error' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.error('❌ Auth error:', authError?.message);
         return new Response(
-          JSON.stringify({ success: false, skipped: true, reason: 'transient_auth_error' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Authentication failed', details: authError?.message }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      console.error('❌ Auth error:', authError?.message);
-      return new Response(
-        JSON.stringify({ error: 'Authentication failed', details: authError?.message }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    }
+
+    // Persist the (possibly refreshed) session for the next run
+    if (authData.session.access_token !== stored?.access_token) {
+      await localSupabase.from('external_auth_session').upsert({
+        id: 'default',
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+        expires_at: authData.session.expires_at ? new Date(authData.session.expires_at * 1000).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      });
     }
 
     const userId = authData.user.id;
     const accessToken = authData.session.access_token;
     console.log('✅ Authenticated as user:', userId);
 
-    // Local Supabase client (used by both paths below)
-    const localSupabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const localSupabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const localSupabase = createClient(localSupabaseUrl, localSupabaseKey);
 
     // Preferred source: shared_brewing_session (brew app is the single writer)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
