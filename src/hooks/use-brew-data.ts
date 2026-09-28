@@ -752,13 +752,16 @@ export function useBrewData(): UseBrewDataReturn {
 
     const dispatch = (table: string, payload: any) => {
       if (isTvMode) {
-        batchRef.pending.set(table, payload);
+        // Key per row: Pi writes all tanks in the same second — one event per table would drop the others
+        const rowKey = payload?.new?.id ?? payload?.old?.id ?? payload?.new?.controller_id ?? payload?.new?.pill_id ?? '';
+        batchRef.pending.set(`${table}|${rowKey}`, payload);
         if (!batchRef.timer) {
           batchRef.timer = setTimeout(() => {
             const entries = new Map(batchRef.pending);
             batchRef.pending.clear();
             batchRef.timer = null;
-            entries.forEach((p, t) => {
+            entries.forEach((p, key) => {
+              const t = key.split('|')[0];
               if (t === 'brew_readings') handleBrewUpdate(p);
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
@@ -776,6 +779,7 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
+    let hasSubscribed = false;
     const channel = supabase
       .channel(`data-updates-${Date.now()}`)
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
@@ -783,7 +787,13 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
-      .subscribe();
+      .subscribe((status) => {
+        // Catch up on events missed while the realtime connection was down
+        if (status === 'SUBSCRIBED') {
+          if (hasSubscribed) { loadRaptData(); loadBrews(); }
+          hasSubscribed = true;
+        }
+      });
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
