@@ -95,7 +95,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       .subscribe((status) => { if (status === 'SUBSCRIBED') refetch(); });
 
     // Fallback om realtime tappar bort sig — Pi:n hörs av var ~30 s.
-    const poll = window.setInterval(refetch, 15000);
+    const poll = window.setInterval(refetch, 60000);
 
     return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(channel); };
   }, [controllerId, active]);
