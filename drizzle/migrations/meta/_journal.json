@@ -71,6 +71,13 @@
       "when": 1790610911200,
       "tag": "0009_replace_profile_steps_atomic",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790612063845,
+      "tag": "0010_external_auth_session",
+      "breakpoints": true
     }
   ]
 }

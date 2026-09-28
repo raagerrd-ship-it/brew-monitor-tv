@@ -554,6 +554,30 @@ export type Database = {
         }
         Relationships: []
       }
+      external_auth_session: {
+        Row: {
+          access_token: string
+          expires_at: string | null
+          id: string
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          expires_at?: string | null
+          id?: string
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string | null
+          id?: string
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       external_user_settings: {
         Row: {
           created_at: string
