@@ -54,19 +54,21 @@ Deno.serve(async (req) => {
     // Local Supabase client (used by both paths below)
     const localSupabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Cheap early return: no active timer and checked < 60 s ago → skip external call
+    // Cheap early return: idle timer (inactive, or stuck at 0 s for > 5 min) checked < 20 s ago → skip external call
     const { data: cached } = await localSupabase
       .from('cached_external_timer')
-      .select('is_active, last_synced_at')
+      .select('is_active, last_synced_at, zero_since')
       .order('last_synced_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (cached && !cached.is_active && Date.now() - new Date(cached.last_synced_at).getTime() < 60_000) {
+    const stuckAtZero = !!cached?.zero_since && Date.now() - new Date(cached.zero_since).getTime() > 5 * 60_000;
+    if (cached && (!cached.is_active || stuckAtZero) && Date.now() - new Date(cached.last_synced_at).getTime() < 20_000) {
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: 'idle_recent' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const zeroSince = (remaining: number) => (remaining <= 0 ? cached?.zero_since ?? new Date().toISOString() : null);
 
     const isTransientAuth = (msg: string, status?: number) => {
       const m = (msg || '').toLowerCase();
@@ -229,6 +231,7 @@ Deno.serve(async (req) => {
         is_active: !!label,
         label,
         remaining_seconds: remainingSeconds,
+        zero_since: zeroSince(remainingSeconds),
         total_seconds: totalSeconds,
         is_paused: isPaused,
         paused_by_milestone: isPaused && pausesHere && !acked,
@@ -330,6 +333,7 @@ Deno.serve(async (req) => {
       is_active: timerData?.isActive || false,
       label: timerData?.label || null,
       remaining_seconds: timerData?.remainingSeconds || 0,
+      zero_since: zeroSince(timerData?.remainingSeconds || 0),
       total_seconds: timerData?.totalSeconds || 0,
       is_paused: timerData?.isPaused || false,
       paused_by_milestone: timerData?.pausedByMilestone || inferredPausedByMilestone || false,

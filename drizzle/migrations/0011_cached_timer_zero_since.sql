@@ -1,0 +1,1 @@
+ALTER TABLE public.cached_external_timer ADD COLUMN IF NOT EXISTS zero_since timestamptz;
