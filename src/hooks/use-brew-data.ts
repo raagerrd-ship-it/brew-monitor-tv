@@ -721,6 +721,22 @@ export function useBrewData(): UseBrewDataReturn {
     }
   }, [loadRaptData]);
 
+  // pi_live_state: patch Pi target into controllers in place; keep same array when nothing changed (memo(BrewCard) stays intact)
+  const handlePiLiveUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
+    const row = payload.new;
+    if (payload.eventType !== 'UPDATE' || !row?.controller_id) { loadRaptData(); return; }
+    if (row.target_temp == null) return;
+    setControllers(prev => {
+      let changed = false;
+      const next = prev.map(c => {
+        if (!c.controller_id?.startsWith(row.controller_id) || c.profile_target_temp === row.target_temp) return c;
+        changed = true;
+        return { ...c, profile_target_temp: row.target_temp };
+      });
+      return changed ? next : prev;
+    });
+  }, [loadRaptData]);
+
   // Consolidated realtime: 2 channels instead of 7
   // Channel 1: Data updates (need payload for in-place state updates)
   useEffect(() => {
@@ -746,7 +762,7 @@ export function useBrewData(): UseBrewDataReturn {
               if (t === 'brew_readings') handleBrewUpdate(p);
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
-              else if (t === 'pi_live_state') throttled('rapt', loadRaptData);
+              else if (t === 'pi_live_state') handlePiLiveUpdate(p);
               else if (t === 'brew_data_snapshots') throttled('brews', loadBrews);
             });
           }, 2000);
@@ -755,7 +771,7 @@ export function useBrewData(): UseBrewDataReturn {
         if (table === 'brew_readings') handleBrewUpdate(payload);
         else if (table === 'rapt_pills') handlePillUpdate(payload);
         else if (table === 'rapt_temp_controllers') handleControllerUpdate(payload);
-        else if (table === 'pi_live_state') throttled('rapt', loadRaptData);
+        else if (table === 'pi_live_state') handlePiLiveUpdate(payload);
         else if (table === 'brew_data_snapshots') throttled('brews', loadBrews);
       }
     };
