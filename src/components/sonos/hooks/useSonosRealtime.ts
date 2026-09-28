@@ -219,8 +219,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       })
       .subscribe((status) => { subscribed = status === 'SUBSCRIBED'; });
 
+    let lastPoll = 0;
     const pollDb = async () => {
-      if (subscribed) return; // realtime live — DB poll only as fallback
+      // Chromecast: realtime can die silently while status stays SUBSCRIBED — poll every 120 s anyway
+      if (subscribed && Date.now() - lastPoll < 120_000) return;
+      lastPoll = Date.now();
       try {
         const { data } = await supabase
           .from('sonos_now_playing')

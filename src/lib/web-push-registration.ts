@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { deviceHeaders } from "@/lib/device-key";
 
 let swRegistration: ServiceWorkerRegistration | null = null;
 let registrationPromise: Promise<ServiceWorkerRegistration> | null = null;
@@ -107,6 +108,7 @@ export async function autoRegisterWebPush(): Promise<void> {
 
     const subData = subscriptionJSON as unknown as Record<string, unknown>;
     await supabase.functions.invoke('register-push-subscription', {
+      headers: deviceHeaders(),
       body: {
         endpoint: subscriptionJSON.endpoint!,
         subscription: subData,
