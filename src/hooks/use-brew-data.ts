@@ -840,14 +840,18 @@ export function useBrewData(): UseBrewDataReturn {
       });
 
     // Vakthund: Chromecast kan behålla SUBSCRIBED fast socketen är död.
-    // Pi:n skriver pi_live_state ~var 30:e s per tank, så > 3 min utan händelse
+    // Pi:n skriver pi_live_state ~var 30:e s per tank, så tystnad över tröskeln
     // betyder att realtiden är död — ladda om allt och återskapa kanalen.
+    // Efter varje utlösning räknas tiden om från nu, och tröskeln backas upp
+    // (3 → 6 → 12 min, tak 15) vid upprepade utlösningar utan mellanliggande händelse.
     const watchdog = setInterval(() => {
-      if (Date.now() - lastRtEventAtRef.current <= 180_000) return;
-      tvDebug('realtime', 'Vakthund: ingen realtidshändelse på >3 min — återskapar data-kanalen');
+      if (Date.now() - lastRtEventAtRef.current <= watchdogIntervalMsRef.current) return;
+      tvDebug('realtime', `Vakthund: ingen realtidshändelse på >${Math.round(watchdogIntervalMsRef.current / 60_000)} min — återskapar data-kanalen`);
       dataChannelSubscribedRef.current = false;
       loadRaptData();
       loadBrews();
+      lastRtEventAtRef.current = Date.now();
+      watchdogIntervalMsRef.current = Math.min(watchdogIntervalMsRef.current * 2, 900_000);
       setWatchdogNonce(n => n + 1);
     }, 60_000);
 
