@@ -1,13 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
 import { resolveBackground, cleanupUnreferencedBackgrounds, uploadBackground } from "../_shared/sonos-storage.ts";
-import { simpleHash } from "../_shared/image-processing.ts";
+import { simpleHash, artFingerprint, base64ToBytes } from "../_shared/image-processing.ts";
 
-/** Cheap content fingerprint of a base64 image (radio keeps the same track name per song) */
-function artFingerprint(b64: unknown): string | null {
-  if (typeof b64 !== 'string' || b64.length === 0) return null;
-  return simpleHash(`${b64.length}-${b64.slice(0, 1024)}-${b64.slice(-1024)}`);
-}
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
 /** Decode common XML/HTML entities that UPnP metadata may contain */
 function decodeXmlEntities(s: string | null | undefined): string | null {
@@ -195,8 +191,11 @@ Deno.serve(async (req) => {
 
     // Bridge sends the image itself (base64) on every state push — only upload when we
     // actually need it (new track, or missing art/background), never on repeat pushes.
-    const artHash = artFingerprint(albumArtBase64);
-    const nextArtHash = artFingerprint(nextAlbumArtBase64);
+    // Avkoda base64 en gång — samma bytes används för uppladdning och bakgrund
+    const artBytes = base64ToBytes(albumArtBase64);
+    const nextArtBytes = base64ToBytes(nextAlbumArtBase64);
+    const artHash = artFingerprint(artBytes);
+    const nextArtHash = artFingerprint(nextArtBytes);
     // The background file name starts with hash(trackName|artHash), so a new cover = new name
     const expectedBgHash = artHash ? simpleHash(`${trackName || ''}|${artHash}`) : null;
     const expectedNextBgHash = nextArtHash && nextTrackName ? simpleHash(`${nextTrackName}|${nextArtHash}`) : null;
@@ -217,14 +216,12 @@ Deno.serve(async (req) => {
       || (!!expectedNextBgHash && !existingRow.next_bg_image_url.includes(expectedNextBgHash))
     );
 
-    let uploadedArtUrl: string | null = null;
-    let uploadedNextArtUrl: string | null = null;
-    if (needsCurrentArt && typeof albumArtBase64 === 'string' && albumArtBase64.length > 0) {
-      uploadedArtUrl = await uploadBackground(supabase, albumArtBase64, 'bridge-current.jpg');
-    }
-    if (needsNextArt && typeof nextAlbumArtBase64 === 'string' && nextAlbumArtBase64.length > 0) {
-      uploadedNextArtUrl = await uploadBackground(supabase, nextAlbumArtBase64, 'bridge-next.jpg');
-    }
+    const useArt = needsCurrentArt && !!artBytes;
+    const useNextArt = needsNextArt && !!nextArtBytes;
+    const [uploadedArtUrl, uploadedNextArtUrl] = await Promise.all([
+      useArt ? uploadBackground(supabase, artBytes!, 'bridge-current.jpg') : Promise.resolve(null),
+      useNextArt ? uploadBackground(supabase, nextArtBytes!, 'bridge-next.jpg') : Promise.resolve(null),
+    ]);
 
     const bridgeArtUrl = uploadedArtUrl ?? (isStorageUrl(albumArtUri) ? bustCache(albumArtUri) : null);
     const bridgeNextArtUrl = uploadedNextArtUrl ?? (isStorageUrl(nextAlbumArtUri) ? bustCache(nextAlbumArtUri) : null);
@@ -314,6 +311,7 @@ Deno.serve(async (req) => {
 
     // --- Phase 2: Generate background from the bridge-provided image ---
     const currentArtUrl = bridgeArtUrl;
+    const phase2Start = Date.now();
 
     const imageUpdate: Record<string, any> = {};
 
@@ -322,13 +320,13 @@ Deno.serve(async (req) => {
       currentArtUrl
         ? resolveBackground(
             // Cache key follows the image itself — radio keeps one track name across many covers
-            supabase, currentArtUrl, `${trackName || ''}|${artHash ?? currentArtUrl}`, bgSettings, viewportW, viewportH, false, trackName
+            supabase, (uploadedArtUrl && artBytes) || currentArtUrl, `${trackName || ''}|${artHash ?? currentArtUrl}`, bgSettings, viewportW, viewportH, false, trackName
           )
         : Promise.resolve(null),
       // Next track background (skip for radio — next track metadata is unreliable)
       wantsNextArt && bridgeNextArtUrl
         ? resolveBackground(
-            supabase, bridgeNextArtUrl, `${nextTrackName}|${nextArtHash ?? bridgeNextArtUrl}`,
+            supabase, (uploadedNextArtUrl && nextArtBytes) || bridgeNextArtUrl, `${nextTrackName}|${nextArtHash ?? bridgeNextArtUrl}`,
             bgSettings, viewportW, viewportH, false, nextTrackName
           ).catch((e) => { console.error(`[BridgePush] Next track images error:`, e); return null; })
         : Promise.resolve(null),
@@ -346,21 +344,20 @@ Deno.serve(async (req) => {
 
     // Phase 2 write
     if (rowId && Object.keys(imageUpdate).length > 0) {
-      await supabase.from('sonos_now_playing').update(imageUpdate).eq('id', rowId);
-
-      // Cleanup old backgrounds
       const { data: row } = await supabase.from('sonos_now_playing')
-        .select('bg_image_url, next_bg_image_url')
-        .eq('id', rowId).single();
+        .update(imageUpdate).eq('id', rowId)
+        .select('bg_image_url, next_bg_image_url').single();
+
+      // Städa gamla bakgrunder efter svaret — fördröjer inte bryggan
       if (row) {
-        cleanupUnreferencedBackgrounds(supabase, [
+        EdgeRuntime.waitUntil(cleanupUnreferencedBackgrounds(supabase, [
           row.bg_image_url, row.next_bg_image_url,
-        ]).catch(() => {});
+        ]).catch(() => {}));
       }
     }
 
     const totalMs = Date.now() - startTime;
-    console.log(`[BridgePush] Phase 2 done in ${totalMs}ms — bg: ${!!imageUpdate.bg_image_url}`);
+    console.log(`[BridgePush] Phase 2 done in ${totalMs}ms (art branch ${totalMs - phase2Start + startTime}ms) — bg: ${!!imageUpdate.bg_image_url}`);
 
     return new Response(JSON.stringify({
       ok: true,
