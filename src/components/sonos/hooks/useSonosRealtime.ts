@@ -238,10 +238,22 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     };
     const pollInterval = setInterval(pollDb, 30_000);
 
+    // Återhämtning efter vila/nätavbrott
+    const resume = () => {
+      if (document.visibilityState !== 'visible') return;
+      lastPoll = 0;
+      subscribed = false;
+      pollDb();
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+
     return () => {
       handlerRef.current = null;
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
     };
   }, [isConnected, showWidget]);
 }

@@ -102,14 +102,26 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       } catch { /* ignore */ }
     };
 
+    // Position från ankare + väggklocka — Chromecast stryper timrar, så tickräkning driver
+    let anchorPos = 0;
+    let anchorTs = 0;
+    let lastWritten: number | null = null;
+
     const ticker = window.setInterval(() => {
       const prev = localProgressRef.current;
       if (prev === null) return;
 
       const currentState = nowPlayingRef?.current?.playback_state ?? nowPlaying.playback_state;
       const isPlaying = currentState === 'PLAYBACK_STATE_PLAYING';
-      const next = isPlaying ? Math.min(prev + 1000, duration) : prev;
+      const now = Date.now();
+      // Nytt ankare när positionen satts utifrån (push/poll) eller vid paus
+      if (prev !== lastWritten || !isPlaying) {
+        anchorPos = prev;
+        anchorTs = isPlaying ? now - 1000 : now;
+      }
+      const next = isPlaying ? Math.min(anchorPos + (now - anchorTs), duration) : prev;
       localProgressRef.current = next;
+      lastWritten = next;
       updateProgressDOM(progressBarRef, debugTimeRef, next, duration);
 
       const remaining = duration - next;

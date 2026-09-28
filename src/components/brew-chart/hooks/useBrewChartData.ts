@@ -59,6 +59,9 @@ export function useBrewChartData({
   const firstDataDate = dataLength > 0 ? data[0].date : "";
   const lastDataDate = dataLength > 0 ? data[dataLength - 1].date : "";
 
+  const fullKey = useRef<string>("");
+  const lastRecordedAt = useRef<string | null>(null);
+
   useEffect(() => {
     if (!brewId) {
       setSnapshotRows((prev) => (prev.length > 0 ? [] : prev));
@@ -70,24 +73,33 @@ export function useBrewChartData({
 
     const fetchData = async () => {
       lastFetchKey.current = fetchKey;
-      setIsLoading(true);
+      // Full hämtning bara första gången eller vid byte av bryggning/tidsintervall
+      const key = `${brewId}-${timeRange}`;
+      const incremental = fullKey.current === key && lastRecordedAt.current != null;
+      if (!incremental) setIsLoading(true);
       try {
         // Thinning policy caps snapshots at ~500 per brew, no pagination needed
-        const { data: batch, error } = await supabase
+        let q = supabase
           .from("brew_data_snapshots")
           .select("recorded_at, sg, pill_temp, controller_temp, profile_target_temp, actual_temp")
-          .eq("brew_id", brewId)
-          .order("recorded_at", { ascending: true });
+          .eq("brew_id", brewId);
+        if (incremental) q = q.gt("recorded_at", lastRecordedAt.current!);
+        const { data: batch, error } = await q.order("recorded_at", { ascending: true });
 
         if (error) {
           console.error("[useBrewChartData] Failed to fetch snapshots:", error);
+          return;
         }
 
         const rows = (batch as SnapshotRow[]) ?? [];
-        // Skip state update when nothing new arrived (avoids full Recharts recompute)
-        setSnapshotRows((prev) =>
-          prev.length === rows.length && prev[prev.length - 1]?.recorded_at === rows[rows.length - 1]?.recorded_at ? prev : rows
-        );
+        if (incremental) {
+          if (rows.length === 0) return;
+          setSnapshotRows((prev) => [...prev, ...rows]);
+        } else {
+          fullKey.current = key;
+          setSnapshotRows(rows);
+        }
+        if (rows.length > 0) lastRecordedAt.current = rows[rows.length - 1].recorded_at;
       } finally {
         setIsLoading(false);
       }
@@ -102,7 +114,7 @@ export function useBrewChartData({
       }, 300000);
       return () => clearInterval(intervalId);
     }
-  }, [brewId, firstDataDate, lastDataDate, isTvMode]);
+  }, [brewId, firstDataDate, lastDataDate, isTvMode, timeRange]);
 
   const chartData = useMemo(() => {
     let basePoints;
