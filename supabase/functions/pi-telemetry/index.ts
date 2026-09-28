@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createBrewSnapshot } from "../_shared/brew-snapshots.ts";
 
@@ -26,6 +26,8 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const { kind, controller_id, data } = body;
+  const t0 = Date.now();
+  const timed = (r: Response) => { console.log(`[timing] ${kind} ${controller_id} ${Date.now() - t0}ms`); return r; };
 
   // Levererad on-tid är sanningen; duty_pct/duty_mean är bara begärt och får
   // aldrig loggas som levererad kylning.
@@ -216,17 +218,23 @@ Deno.serve(async (req) => {
     let profileUuid: string | null = null;
     if (p.profile_id) {
       profileUuid = await toUuid(String(p.profile_id));
-      const { error: profErr } = await supabase
+      const { data: profRow, error: profErr } = await supabase
         .from("fermentation_profiles")
         .upsert({
           id: profileUuid,
           name: p.profile_name ?? String(p.profile_id),
           description: "Speglad från Pi",
-        }, { onConflict: "id" });
+        }, { onConflict: "id" })
+        .select("steps_hash")
+        .single();
       if (profErr) console.error("profile mirror failed:", profErr.message);
 
-      // Steg kommer från Pi:n — ersätt profilens steg när de skickas med.
-      if (!profErr && Array.isArray(p.steps)) {
+      // Steg kommer från Pi:n — ersätt profilens steg bara när de ändrats.
+      const stepsHash = Array.isArray(p.steps)
+        ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(JSON.stringify(p.steps)))))
+            .map((x) => x.toString(16).padStart(2, "0")).join("")
+        : null;
+      if (!profErr && Array.isArray(p.steps) && profRow?.steps_hash !== stepsHash) {
         {
           // Atomärt: radera + skapa i en transaktion så UI aldrig ser en profil utan steg
           const now = new Date().toISOString();
@@ -253,6 +261,7 @@ Deno.serve(async (req) => {
               updated_at: now,
             })) });
           if (stepErr) console.error("profile steps mirror failed:", stepErr.message);
+          else await supabase.from("fermentation_profiles").update({ steps_hash: stepsHash }).eq("id", profileUuid);
         }
       }
     }
@@ -351,14 +360,9 @@ Deno.serve(async (req) => {
       ready_to_crash: Boolean(m.ready_to_crash),
       updated_at: new Date().toISOString(),
     };
-    const { data: existing } = await supabase
+    const { error } = await supabase
       .from("brew_fermentation_metrics")
-      .select("id")
-      .eq("brew_id", brewId)
-      .maybeSingle();
-    const { error } = existing
-      ? await supabase.from("brew_fermentation_metrics").update(row).eq("id", existing.id)
-      : await supabase.from("brew_fermentation_metrics").insert(row);
+      .upsert(row, { onConflict: "brew_id" });
     if (error) console.error("metrics write failed:", error.message);
   }
 
@@ -377,9 +381,9 @@ Deno.serve(async (req) => {
   }
 
   // ── Pill-data via Pi:n (ersätter ingest-pill-ble för Pi-styrda tankar) ──
-  async function writePillAndBrew(fullId: string, d: any) {
+  async function writePillAndBrew(fullId: string, d: any): Promise<any | null> {
     const pillId = await linkedPillId(fullId);
-    if (!pillId) return;
+    if (!pillId) return null;
 
     const recordedAt = d.recorded_at || new Date().toISOString();
     const hasPillData =
@@ -400,12 +404,12 @@ Deno.serve(async (req) => {
 
     const { data: brew } = await supabase
       .from("brew_readings")
-      .select("id, original_gravity, fermentation_start")
+      .select("id, original_gravity, fermentation_start, status, linked_pill_id")
       .eq("linked_pill_id", pillId)
       .in("status", ["fermenting", "active", "Jäsning"])
       .maybeSingle();
-    if (!brew) return;
-    if (brew.fermentation_start && new Date(recordedAt) < new Date(brew.fermentation_start)) return;
+    if (!brew) return null;
+    if (brew.fermentation_start && new Date(recordedAt) < new Date(brew.fermentation_start)) return brew;
 
     // Pi:n skickar SG redan korrigerad till 20 C, plus raavlasningen och
     // residualfaktorn. Molnet lagrar bada — korrigerar aldrig sjalv.
@@ -497,6 +501,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", brew.id);
     }
+    return brew;
   }
 
   // Live-paketen bär numera också pillfält (även för avstängda tankar).
@@ -546,16 +551,11 @@ Deno.serve(async (req) => {
 
     // volume_l från kopplad brygg-recept (mäsk + lakvatten) när det finns.
     let volume_l: number | null = null;
-    const { data: ctrl } = await supabase
-      .from("rapt_temp_controllers")
-      .select("controller_id")
-      .eq("controller_id", sp.controller_id)
-      .maybeSingle();
-    if (ctrl) {
+    {
       const { data: brew } = await supabase
         .from("brew_readings")
         .select("recipe")
-        .eq("linked_controller_id", ctrl.controller_id)
+        .eq("linked_controller_id", sp.controller_id)
         .in("status", ["fermenting", "active", "Jäsning"])
         .maybeSingle();
       const r: any = brew?.recipe;
@@ -753,20 +753,21 @@ Deno.serve(async (req) => {
     }
 
     const liveFullId = await writeBackToController(data);
-    if (liveFullId) await writePillFromLive(liveFullId, data);
 
-    // Live-paketen bär också profile: null när sessionen är slut — TV:n ska
-    // inte behöva vänta på nästa rollup.
-    await writeProfileState(data, liveFullId);
-    await closeEndedSessions(data);
-    await writeEvents(data);
-
+    // Oberoende steg parallellt. Live-paketen bär också profile: null när
+    // sessionen är slut — TV:n ska inte behöva vänta på nästa rollup.
+    // Sessionsstängningen körs efter profilstate (samma rader).
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
-    const setpointResponse = await getSlimSetpointResponse();
+    const [, , , setpointResponse] = await Promise.all([
+      liveFullId ? writePillFromLive(liveFullId, data) : null,
+      writeProfileState(data, liveFullId).then(() => closeEndedSessions(data)),
+      writeEvents(data),
+      getSlimSetpointResponse(),
+    ]);
 
-    return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
+    return timed(new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    }));
 
   } else if (kind === "rollup") {
     // ── Full sync: write history row to temp_controller_history ──
@@ -831,34 +832,39 @@ Deno.serve(async (req) => {
     const fullId = await writeBackToController(data);
     // Profilstate speglas oavsett regulating: en avstängd tank ska också
     // kunna rensa sitt sista steg.
-    await writeProfileState(data, fullId);
-    await closeEndedSessions(data);
-    await writeEvents(data);
-    // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
-    // tanken just nu inte reglerar.
-    if (data.profile?.brew_id) {
-      await supabase
-        .from("brew_readings")
-        .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
-        .eq("id", data.profile.brew_id)
-        .not("pi_pending_at", "is", null);
-    }
+    await Promise.all([
+      writeProfileState(data, fullId).then(() => closeEndedSessions(data)),
+      writeEvents(data),
+      // Pi:n rapporterar bryggden → den är hämtad och ska ut ur kön, även om
+      // tanken just nu inte reglerar.
+      data.profile?.brew_id
+        ? supabase
+          .from("brew_readings")
+          .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
+          .eq("id", data.profile.brew_id)
+          .not("pi_pending_at", "is", null)
+        : null,
+    ]);
     if (fullId && isRegulating(data)) {
-      await writePillAndBrew(fullId, data);
-      await writeMetrics(data.profile?.brew_id ?? null, data);
+      const [pillBrew] = await Promise.all([
+        writePillAndBrew(fullId, data),
+        writeMetrics(data.profile?.brew_id ?? null, data),
+      ]);
       // Kvittens som betyder något: Pi:n reglerar ölet → ut ur kön.
       // Samma koppling som gjorts på Pi:n speglas här: tank + pill sätts på
       // bryggen automatiskt så den dyker upp på dashboarden utan manuell koppling.
       if (data.profile?.brew_id) {
         const ctrlRow = { linked_pill_id: await linkedPillId(fullId) };
-        const { data: brewRow } = await supabase
-          .from("brew_readings")
-          .select("status, linked_pill_id")
-          .eq("id", data.profile.brew_id)
-          .maybeSingle();
+        // Återanvänd raden writePillAndBrew redan läst när det är samma bryggd
+        const brewRow = pillBrew?.id === data.profile.brew_id
+          ? pillBrew
+          : (await supabase
+            .from("brew_readings")
+            .select("status, linked_pill_id")
+            .eq("id", data.profile.brew_id)
+            .maybeSingle()).data;
         if (brewRow) {
           const upd: Record<string, any> = {
-            pi_pending_at: null,
             linked_controller_id: fullId,
             updated_at: new Date().toISOString(),
           };
@@ -901,9 +907,9 @@ Deno.serve(async (req) => {
 
     const setpointResponse = await getSetpointResponse(data.setpoint_version);
 
-    return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
+    return timed(new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    }));
 
   } else if (kind === "glycol") {
     // ── Glycol cooler telemetry ──

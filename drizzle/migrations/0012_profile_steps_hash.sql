@@ -1,0 +1,1 @@
+ALTER TABLE public.fermentation_profiles ADD COLUMN IF NOT EXISTS steps_hash text;

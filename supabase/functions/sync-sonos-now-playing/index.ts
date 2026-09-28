@@ -1,6 +1,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { BgSettings } from "../_shared/image-processing.ts";
+import { artFingerprint, fetchImageBytes } from "../_shared/image-processing.ts";
 import { resolveBackground, cleanupUnreferencedBackgrounds, storageObjectExistsByPublicUrl } from "../_shared/sonos-storage.ts";
 
 const corsHeaders = {
@@ -122,14 +123,19 @@ Deno.serve(async (req) => {
 
     const artUrl = existingRow.album_art_url;
     const trackName = existingRow.track_name || '';
+    // Samma cache-nyckel som sonos-bridge-push: trackName|hash(omslag)
+    const bgKey = async () => {
+      const bytes = await fetchImageBytes(artUrl);
+      return { bytes, key: `${trackName}|${artFingerprint(bytes) ?? artUrl}` };
+    };
 
     // --- bg_only mode: only regenerate background for existing track ---
     if (bgOnly) {
-      const result = await resolveBackground(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, true, trackName);
+      const { bytes, key } = await bgKey();
+      const result = await resolveBackground(supabase, bytes, key, bgSettings, viewportW, viewportH, true, trackName);
       if (result.bgUrl) {
         const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl, bg_cached: result.cached, bg_generation_ms: result.generationMs };
-        await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id);
-        const { data: row } = await supabase.from('sonos_now_playing').select('bg_image_url, next_bg_image_url').eq('id', existingRow.id).single();
+        const { data: row } = await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id).select('bg_image_url, next_bg_image_url').single();
         if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.next_bg_image_url]).catch(() => {});
       }
       const duration = Date.now() - startTime;
@@ -149,7 +155,8 @@ Deno.serve(async (req) => {
     }
 
     if (!bgImageUrl) {
-      const result = await resolveBackground(supabase, artUrl, trackName, bgSettings, viewportW, viewportH, false, trackName);
+      const { bytes, key } = await bgKey();
+      const result = await resolveBackground(supabase, bytes, key, bgSettings, viewportW, viewportH, false, trackName);
       if (result.bgUrl) bgImageUrl = result.bgUrl;
 
       if (result.bgUrl) {

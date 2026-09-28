@@ -1,14 +1,13 @@
-import { BgSettings, simpleHash, fetchAndDecodeJpeg, processBackground } from "./image-processing.ts";
+import { BgSettings, simpleHash, fetchImageBytes, decodeJpegBytes, processBackground } from "./image-processing.ts";
 
-// Upload base64 image to storage and return public URL
+// Upload image bytes to storage and return public URL
 export async function uploadBackground(
   supabase: any,
-  base64DataUrl: string,
+  bytes: Uint8Array,
   fileName: string,
 ): Promise<string | null> {
   try {
-    const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
-    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const uploadedAt = Date.now();
 
     const { error } = await supabase.storage
       .from('sonos-backgrounds')
@@ -28,13 +27,8 @@ export async function uploadBackground(
 
     if (!urlData?.publicUrl) return null;
 
-    // Get file metadata for stable cache-buster (consistent with backgroundExists)
-    const { data: files } = await supabase.storage
-      .from('sonos-backgrounds')
-      .list('', { search: fileName, limit: 1 });
-    const file = files?.find((f: any) => f.name === fileName);
-    const fileTs = file ? new Date(file.updated_at || file.created_at).getTime() : Date.now();
-    return `${urlData.publicUrl}?v=${fileTs}`;
+    // Cache-buster = tiden vi själva laddade upp (ingen list-rundtur)
+    return `${urlData.publicUrl}?v=${uploadedAt}`;
   } catch (error) {
     console.error('[SonosSync] Upload failed:', error);
     return null;
@@ -109,7 +103,7 @@ export async function cleanupUnreferencedBackgrounds(supabase: any, referencedUr
 // Resolve background image with cache support
 export async function resolveBackground(
   supabase: any,
-  artUrl: string | null,
+  art: string | Uint8Array | null,
   trackId: string,
   settings: BgSettings,
   targetW: number,
@@ -117,10 +111,10 @@ export async function resolveBackground(
   _forceRegenerate?: boolean,
   trackName?: string | null,
 ): Promise<{ bgUrl: string | null, cached: boolean, generationMs: number }> {
-  if (!artUrl) return { bgUrl: null, cached: false, generationMs: 0 };
+  if (!art) return { bgUrl: null, cached: false, generationMs: 0 };
 
   const t0 = Date.now();
-  const trackHash = simpleHash(trackId || artUrl);
+  const trackHash = simpleHash(trackId);
   const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
   const namePart = trackName
     ? '-' + trackName.toLowerCase()
@@ -146,13 +140,15 @@ export async function resolveBackground(
   }
 
   // Cache miss — fetch, process, upload
-  const decoded = await fetchAndDecodeJpeg(artUrl);
+  // Bytes från bryggan används direkt — ingen nedladdning av filen vi just laddat upp
+  const bytes = typeof art === 'string' ? await fetchImageBytes(art) : art;
+  const decoded = bytes ? await decodeJpegBytes(bytes) : null;
   if (!decoded) return { bgUrl: null, cached: false, generationMs: Date.now() - t0 };
 
   console.log(`[SonosSync] Generating BG: ${bgFileName}`);
-  const bgBase64 = processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
+  const bgBytes = await processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
 
-  const bgUrl = await uploadBackground(supabase, bgBase64, bgFileName);
+  const bgUrl = await uploadBackground(supabase, bgBytes, bgFileName);
   const elapsed = Date.now() - t0;
   console.log(`[SonosSync] Generated BG in ${elapsed}ms: ${bgFileName}`);
 
