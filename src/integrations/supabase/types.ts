@@ -468,6 +468,7 @@ export type Database = {
           updated_at: string
           wizard_started_at: string | null
           wizard_step: string | null
+          zero_since: string | null
         }
         Insert: {
           beer_style?: string | null
@@ -493,6 +494,7 @@ export type Database = {
           updated_at?: string
           wizard_started_at?: string | null
           wizard_step?: string | null
+          zero_since?: string | null
         }
         Update: {
           beer_style?: string | null
@@ -518,6 +520,7 @@ export type Database = {
           updated_at?: string
           wizard_started_at?: string | null
           wizard_step?: string | null
+          zero_since?: string | null
         }
         Relationships: []
       }
