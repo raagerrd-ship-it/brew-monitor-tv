@@ -26,6 +26,8 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
   const { kind, controller_id, data } = body;
+  const t0 = Date.now();
+  const timed = (r: Response) => { console.log(`[timing] ${kind} ${controller_id} ${Date.now() - t0}ms`); return r; };
 
   // Levererad on-tid är sanningen; duty_pct/duty_mean är bara begärt och får
   // aldrig loggas som levererad kylning.
@@ -764,9 +766,9 @@ Deno.serve(async (req) => {
     // 30 s-pollen är slimmad: bara det Pi:n behöver för att reglera vidare.
     const setpointResponse = await getSlimSetpointResponse();
 
-    return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
+    return timed(new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    }));
 
   } else if (kind === "rollup") {
     // ── Full sync: write history row to temp_controller_history ──
@@ -901,9 +903,9 @@ Deno.serve(async (req) => {
 
     const setpointResponse = await getSetpointResponse(data.setpoint_version);
 
-    return new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
+    return timed(new Response(JSON.stringify({ ok: true, setpoint: setpointResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    }));
 
   } else if (kind === "glycol") {
     // ── Glycol cooler telemetry ──
