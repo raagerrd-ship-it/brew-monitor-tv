@@ -783,12 +783,16 @@ export function useBrewData(): UseBrewDataReturn {
   // Channel 1: Data updates (need payload for in-place state updates)
   const [watchdogNonce, setWatchdogNonce] = useState(0);
   const lastRtEventAtRef = useRef(Date.now());
+  // Vakthundens nuvarande tröskel: backar 3 → 6 → 12 min (tak 15 min) vid utlösningar
+  // i rad utan mellanliggande händelse; nollställs till 3 min när en händelse kommer.
+  const watchdogIntervalMsRef = useRef(180_000);
 
   useEffect(() => {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
 
     const dispatch = (table: string, payload: any) => {
       lastRtEventAtRef.current = Date.now();
+      watchdogIntervalMsRef.current = 180_000;
       if (isTvMode) {
         // Key per row: Pi writes all tanks in the same second — one event per table would drop the others
         const rowKey = payload?.new?.id ?? payload?.old?.id ?? payload?.new?.controller_id ?? payload?.new?.pill_id ?? '';
@@ -836,14 +840,18 @@ export function useBrewData(): UseBrewDataReturn {
       });
 
     // Vakthund: Chromecast kan behålla SUBSCRIBED fast socketen är död.
-    // Pi:n skriver pi_live_state ~var 30:e s per tank, så > 3 min utan händelse
+    // Pi:n skriver pi_live_state ~var 30:e s per tank, så tystnad över tröskeln
     // betyder att realtiden är död — ladda om allt och återskapa kanalen.
+    // Efter varje utlösning räknas tiden om från nu, och tröskeln backas upp
+    // (3 → 6 → 12 min, tak 15) vid upprepade utlösningar utan mellanliggande händelse.
     const watchdog = setInterval(() => {
-      if (Date.now() - lastRtEventAtRef.current <= 180_000) return;
-      tvDebug('realtime', 'Vakthund: ingen realtidshändelse på >3 min — återskapar data-kanalen');
+      if (Date.now() - lastRtEventAtRef.current <= watchdogIntervalMsRef.current) return;
+      tvDebug('realtime', `Vakthund: ingen realtidshändelse på >${Math.round(watchdogIntervalMsRef.current / 60_000)} min — återskapar data-kanalen`);
       dataChannelSubscribedRef.current = false;
       loadRaptData();
       loadBrews();
+      lastRtEventAtRef.current = Date.now();
+      watchdogIntervalMsRef.current = Math.min(watchdogIntervalMsRef.current * 2, 900_000);
       setWatchdogNonce(n => n + 1);
     }, 60_000);
 
