@@ -1,11 +1,10 @@
-import { useMemo, memo, useState, useRef, useEffect, useCallback } from "react";
+import { useMemo, memo, useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useChartSettings } from "@/hooks/use-chart-settings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
-import { BrewEventDialog } from "../BrewEventDialog";
 import { ActiveFermentationSession } from "../fermentation";
 import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +13,6 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { BatchReportButton } from "../BatchReportButton";
 import { findDevicesForBrew } from "@/lib/brew-utils";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { BrewCardProps } from "./types";
@@ -25,8 +23,11 @@ import { TempStat } from "./TempStat";
 import { AttenuationStat } from "./AttenuationStat";
 
 
-import { SyncedDataDialog } from "./SyncedDataDialog";
-import { PrintLabelDialog } from "../PrintLabelDialog";
+// Interactive-only dialogs: loaded on demand (keeps jspdf/qrcode/printer driver out of the TV bundle)
+const BrewEventDialog = lazy(() => import("../BrewEventDialog").then(m => ({ default: m.BrewEventDialog })));
+const BatchReportButton = lazy(() => import("../BatchReportButton").then(m => ({ default: m.BatchReportButton })));
+const SyncedDataDialog = lazy(() => import("./SyncedDataDialog").then(m => ({ default: m.SyncedDataDialog })));
+const PrintLabelDialog = lazy(() => import("../PrintLabelDialog").then(m => ({ default: m.PrintLabelDialog })));
 import { RecipeView } from "./RecipeView";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
@@ -229,7 +230,7 @@ function BrewCardComponent({
                       <Share2 className="h-3.5 w-3.5" />
                       Dela
                     </button>
-                    <BrewEventDialog
+                    <Suspense fallback={null}><BrewEventDialog
                       brewId={brew.id}
                       brewName={brew.name}
                       events={brew.events}
@@ -243,7 +244,7 @@ function BrewCardComponent({
                           Händelser
                         </button>
                       }
-                    />
+                    /></Suspense>
                     {isAuthenticated && !isBrewInactive(brew.status) && (
                       <button
                         disabled={rackedSending || rackedSent}
@@ -285,7 +286,7 @@ function BrewCardComponent({
                     </button>
                     {isCompletedOrConditioning && (
                       <div onClick={() => setMenuOpen(false)}>
-                        <BatchReportButton
+                        <Suspense fallback={null}><BatchReportButton
                           brewId={brew.id}
                           brewName={brew.name}
                           style={brew.style}
@@ -297,7 +298,7 @@ function BrewCardComponent({
                           fermentationStart={brew.sgData?.[0]?.date ?? null}
                           status={brew.status}
                           controllerId={devices.controller?.controller_id ?? null}
-                        />
+                        /></Suspense>
                       </div>
                     )}
                     {isCompletedOrConditioning && (
@@ -456,22 +457,24 @@ function BrewCardComponent({
       )}
       
       {/* Synced Data Dialog for custom brews */}
-      {brew.batch_id.startsWith('custom_') && (
-        <SyncedDataDialog
+      {brew.batch_id.startsWith('custom_') && syncedDataOpen && (
+        <Suspense fallback={null}><SyncedDataDialog
           open={syncedDataOpen}
           onOpenChange={setSyncedDataOpen}
           brewName={brew.name}
           brewId={brew.id}
           controllerId={devices.controller?.controller_id ?? null}
-        />
+        /></Suspense>
       )}
       
       {/* Print Label Dialog */}
-      <PrintLabelDialog
-        open={printLabelOpen}
-        onOpenChange={setPrintLabelOpen}
-        brew={brew}
-      />
+      {printLabelOpen && (
+        <Suspense fallback={null}><PrintLabelDialog
+          open={printLabelOpen}
+          onOpenChange={setPrintLabelOpen}
+          brew={brew}
+        /></Suspense>
+      )}
 
     </Card>
   );

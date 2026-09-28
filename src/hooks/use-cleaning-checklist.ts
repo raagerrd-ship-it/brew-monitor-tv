@@ -41,7 +41,7 @@ const start = () => {
     )
     .subscribe();
 
-  setInterval(load, 30000);
+  setInterval(load, 60000);
 };
 
 export function useCleaningChecklist() {
