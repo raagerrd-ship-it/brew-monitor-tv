@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_pi_learned_hist_controller_created ON public.pi_learned_params_history (controller_id, created_at DESC);
