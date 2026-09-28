@@ -7,3 +7,11 @@
 - [x] 7 Stabil album-art-callback-context
 - [ ] 9 En sync_settings-källa — ej klar: sync_settings har fortfarande tre kanaler
 - [x] 10 Lazy-laddning av routes och utskrift/PDF-dialoger
+
+## Klientoptimering (dataflöde/TV)
+- [ ] 1 Ny mätpunkt läggs till utan loadBrews; inkrementell diagramhämtning; smalare sessionsfråga
+- [ ] 2 Sonos-position från ankartid
+- [ ] 3 Delad controllers/pills/pi_live_state-källa
+- [ ] 4 Delad sync_settings-källa
+- [ ] 5 Återhämtning vid visibilitychange/online
+- [ ] 6 Död kod bort, testpaket till devDependencies
