@@ -42,6 +42,12 @@ export function BrewingDashboard() {
   const { visibleBgUrl } = useAlbumArt();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   const { showSplash } = useSplashScreen(loading);
+  const [splashGone, setSplashGone] = useState(false);
+  useEffect(() => {
+    if (showSplash) return;
+    const t = setTimeout(() => setSplashGone(true), 600);
+    return () => clearTimeout(t);
+  }, [showSplash]);
   useTvRefresh(isTvMode);
 
   // Footer height from self-contained footer components via context

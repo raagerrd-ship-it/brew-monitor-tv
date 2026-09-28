@@ -27,6 +27,10 @@ if ((isIframe || isTvParam || isChromecast) && 'serviceWorker' in navigator) {
 // Service Worker updates should NOT hard-reload the app automatically.
 // Forced reloads can reset layout state on mobile and feel like random refresh loops.
 if ('serviceWorker' in navigator && !isIframe && !isTvParam && !isChromecast) {
+  // Manual registration (injectRegister: null) so TV/Chromecast never registers the SW
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     console.log('[SW] New service worker activated (manual refresh required).');
   });
