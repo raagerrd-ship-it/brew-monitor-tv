@@ -1,4 +1,12 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useRef } from 'react';
+
+type AlbumArtChange = (url: string | null, trackName?: string) => void;
+const AlbumArtSetterContext = createContext<AlbumArtChange>(() => {});
+
+/** Stable setter only — consumers don't re-render on background swaps */
+export function useAlbumArtSetter() {
+  return useContext(AlbumArtSetterContext);
+}
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface AlbumArtContextType {
@@ -53,8 +61,10 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AlbumArtContext.Provider value={{ visibleBgUrl, handleAlbumArtChange }}>
-      {children}
-    </AlbumArtContext.Provider>
+    <AlbumArtSetterContext.Provider value={handleAlbumArtChange}>
+      <AlbumArtContext.Provider value={{ visibleBgUrl, handleAlbumArtChange }}>
+        {children}
+      </AlbumArtContext.Provider>
+    </AlbumArtSetterContext.Provider>
   );
 }

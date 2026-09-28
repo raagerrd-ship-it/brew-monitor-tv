@@ -4,7 +4,7 @@ import {
   useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
   useSonosClientPolling, useSonosVisibility, useSonosRealtime,
 } from "./hooks";
-import { useAlbumArt } from "@/contexts/AlbumArtContext";
+import { useAlbumArtSetter } from "@/contexts/AlbumArtContext";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
@@ -48,7 +48,7 @@ export const SonosWidget = memo(function SonosWidget({
   variant = "floating",
   onVisibilityChange,
 }: SonosWidgetProps) {
-  const { handleAlbumArtChange: onAlbumArtChange } = useAlbumArt();
+  const onAlbumArtChange = useAlbumArtSetter();
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [displayedArtUrl, setDisplayedArtUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);

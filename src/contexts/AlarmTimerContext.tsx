@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo, ReactNode } from 'react';
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { AlarmTimerFooterBar } from '@/components/AlarmTimerFooterBar';
@@ -22,7 +22,6 @@ export interface AlarmTimerEntry {
 
 interface AlarmTimerContextType {
   entry: AlarmTimerEntry | null;
-  remainingMs: number;
   startTimer: (minutes: number, alertText: string, alertDurationSec?: number, label?: string) => void;
   setAlarm: (targetTime: string, alertText: string, alertDurationSec?: number, label?: string) => void;
   cancel: () => void;
@@ -30,7 +29,6 @@ interface AlarmTimerContextType {
 
 const AlarmTimerContext = createContext<AlarmTimerContextType>({
   entry: null,
-  remainingMs: 0,
   startTimer: () => {},
   setAlarm: () => {},
   cancel: () => {},
@@ -93,7 +91,6 @@ async function clearTimerInDb() {
 
 export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   const [entry, setEntry] = useState<AlarmTimerEntry | null>(null);
-  const [remainingMs, setRemainingMs] = useState(0);
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
   const { showAlert, dismissAlert } = useDashboardAlert();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -178,8 +175,7 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
 
           if (!row.is_active) {
             setEntry(null);
-            setRemainingMs(0);
-            return;
+                return;
           }
 
           const e = rowToEntry(row);
@@ -203,7 +199,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
     const tick = () => {
       const left = entry.endsAt - Date.now();
       if (left <= 0) {
-        setRemainingMs(0);
         setEntry(prev => prev ? { ...prev, fired: true } : null);
         // Conditional update — only one client wins the race
         if (firedLocallyRef.current !== entry.id) {
@@ -216,8 +211,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
             .eq('is_active', true)
             .then(() => {});
         }
-      } else {
-        setRemainingMs(left);
       }
     };
     tick();
@@ -287,8 +280,10 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
   // Cleanup footer on unmount
   useEffect(() => () => clearFooterSlot(), [clearFooterSlot]);
 
+  const value = useMemo(() => ({ entry, startTimer, setAlarm, cancel }), [entry, startTimer, setAlarm, cancel]);
+
   return (
-    <AlarmTimerContext.Provider value={{ entry, remainingMs, startTimer, setAlarm, cancel }}>
+    <AlarmTimerContext.Provider value={value}>
       {children}
     </AlarmTimerContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { useEffect, ReactNode } from "react";
+import { useEffect, ReactNode, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,12 +14,12 @@ import { AspectRatioLayout } from "@/components/AspectRatioLayout";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
-import Settings from "./pages/Settings";
-import Install from "./pages/Install";
-import Login from "./pages/Login";
-import NotFound from "./pages/NotFound";
-import Brew from "./pages/Brew";
-import PrinterDebug from "./pages/PrinterDebug";
+const Settings = lazy(() => import("./pages/Settings"));
+const Install = lazy(() => import("./pages/Install"));
+const Login = lazy(() => import("./pages/Login"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Brew = lazy(() => import("./pages/Brew"));
+const PrinterDebug = lazy(() => import("./pages/PrinterDebug"));
 
 
 const queryClient = new QueryClient();
@@ -72,6 +72,7 @@ function AppContent() {
         <DashboardAlertProvider>
           <AlbumArtProvider>
             <AlarmTimerProvider>
+            <Suspense fallback={null}>
             <Routes>
               {/* Brew page without aspect ratio lock */}
               <Route path="/brew/:id" element={<Brew />} />
@@ -88,6 +89,7 @@ function AppContent() {
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
+            </Suspense>
             </AlarmTimerProvider>
           </AlbumArtProvider>
         </DashboardAlertProvider>
