@@ -7,6 +7,9 @@ import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData 
 import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
 import { useTvMode } from '@/contexts/TvModeContext';
+import { setRaptBar } from '@/lib/rapt-bar-store';
+
+type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null };
 
 interface UseBrewDataReturn {
   brews: BrewData[];
@@ -61,6 +64,7 @@ export function useBrewData(): UseBrewDataReturn {
   const [updatedFields, setUpdatedFields] = useState<Record<string, Record<string, boolean>>>({});
   const [brewEvents, setBrewEvents] = useState<Record<string, BrewEvent[]>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [piLive, setPiLive] = useState<PiLiveRow[]>([]);
   const { toast } = useToast();
   const { isTvMode } = useTvMode();
 
@@ -794,7 +798,7 @@ export function useBrewData(): UseBrewDataReturn {
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
               else if (t === 'pi_live_state') handlePiLiveUpdate(p);
-              else if (t === 'brew_data_snapshots') throttled('brews', loadBrews);
+              else if (t === 'brew_data_snapshots') handleSnapshotInsert(p);
             });
           }, 2000);
         }
@@ -803,7 +807,7 @@ export function useBrewData(): UseBrewDataReturn {
         else if (table === 'rapt_pills') handlePillUpdate(payload);
         else if (table === 'rapt_temp_controllers') handleControllerUpdate(payload);
         else if (table === 'pi_live_state') handlePiLiveUpdate(payload);
-        else if (table === 'brew_data_snapshots') throttled('brews', loadBrews);
+        else if (table === 'brew_data_snapshots') handleSnapshotInsert(payload);
       }
     };
 
@@ -825,11 +829,38 @@ export function useBrewData(): UseBrewDataReturn {
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
-      if (trailing.rapt) clearTimeout(trailing.rapt);
-      if (trailing.brews) clearTimeout(trailing.brews);
       supabase.removeChannel(channel);
     };
-  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, loadRaptData, loadBrews, isTvMode]);
+  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, handleSnapshotInsert, loadRaptData, loadBrews, isTvMode]);
+
+  // Återhämtning efter vila/nätavbrott: samma omladdning som vid återanslutning
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadRaptData();
+      loadBrews();
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+    return () => {
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+    };
+  }, [loadRaptData, loadBrews]);
+
+  // Mata headerns delade källa (controllers/pills/pi_live_state)
+  useEffect(() => {
+    const piDisabled: Record<string, boolean> = {};
+    const piManual: Record<string, boolean> = {};
+    for (const c of controllers as any[]) {
+      if (c.actuation !== 'pi') continue;
+      const ls = piLive.find(l => c.controller_id === l.controller_id || c.controller_id.startsWith(l.controller_id));
+      if (ls) { piDisabled[c.controller_id] = ls.enabled === false; piManual[c.controller_id] = ls.target_source === 'manual'; }
+    }
+    const activeSessions: Record<string, boolean> = {};
+    for (const b of brews) if (b.fermentationSession?.controller_id) activeSessions[b.fermentationSession.controller_id] = true;
+    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions });
+  }, [controllers, pills, piLive, brews]);
 
   // Channel 2: Config/session changes (just trigger reload, no payload needed)
   useEffect(() => {
@@ -907,6 +938,7 @@ export function useBrewData(): UseBrewDataReturn {
             console.log('[TV] RAPT data change detected via polling, updating...');
             setPills(raptData.pills);
             setControllers(raptData.controllers);
+            setPiLive(raptData.piLive);
             setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
           }
           lastRaptHash.current = hash;
