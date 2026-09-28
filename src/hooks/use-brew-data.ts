@@ -789,7 +789,7 @@ export function useBrewData(): UseBrewDataReturn {
       if (batchRef.timer) clearTimeout(batchRef.timer);
       supabase.removeChannel(channel);
     };
-  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, loadRaptData, loadBrews, isTvMode]);
+  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, loadRaptData, loadBrews, isTvMode]);
 
   // Channel 2: Config/session changes (just trigger reload, no payload needed)
   useEffect(() => {
