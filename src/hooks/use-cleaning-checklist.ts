@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribeSyncSettings } from '@/lib/sync-settings-store';
 
 export type CleaningChecklistView = 'brewhouse' | 'vessels' | null;
 
@@ -21,27 +22,7 @@ let started = false;
 const start = () => {
   if (started) return;
   started = true;
-
-  const load = async () => {
-    const { data } = await supabase
-      .from('sync_settings')
-      .select('cleaning_checklist')
-      .limit(1)
-      .maybeSingle();
-    setView((data?.cleaning_checklist as CleaningChecklistView) ?? null);
-  };
-  load();
-
-  supabase
-    .channel('cleaning-checklist-sync')
-    .on(
-      'postgres_changes' as any,
-      { event: 'UPDATE', schema: 'public', table: 'sync_settings' },
-      (payload: any) => setView((payload.new?.cleaning_checklist as CleaningChecklistView) ?? null)
-    )
-    .subscribe();
-
-  setInterval(load, 60000);
+  subscribeSyncSettings((row) => setView((row.cleaning_checklist as CleaningChecklistView) ?? null));
 };
 
 export function useCleaningChecklist() {

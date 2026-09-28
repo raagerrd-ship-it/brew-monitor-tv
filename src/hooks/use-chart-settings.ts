@@ -36,42 +36,13 @@ function init() {
   if (initialized) return;
   initialized = true;
 
-  supabase
-    .from('sync_settings')
-    .select('id, chart_smooth_lines, chart_time_range')
-    .limit(1)
-    .maybeSingle()
-    .then(({ data }) => {
-      if (data) {
-        settingsId = data.id;
-        setState({
-          smoothLines: data.chart_smooth_lines ?? true,
-          timeRange: (data.chart_time_range as '12h' | 'full') ?? 'full',
-        });
-      }
-    });
-}
-
-function setupChannel() {
-  if (channelSetup) return;
-  channelSetup = true;
-
-  // Guard against HMR / StrictMode: remove any lingering channel with the
-  // same name before subscribing. Attaching .on() after a prior .subscribe()
-  // on the same channel throws "cannot add postgres_changes callbacks".
-  const existing = supabase.getChannels().find(c => c.topic === 'realtime:chart-settings-sync');
-  if (existing) supabase.removeChannel(existing);
-
-  supabase
-    .channel('chart-settings-sync')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload: any) => {
-      const d = payload.new;
-      const partial: Partial<ChartSettingsState> = {};
-      if (d?.chart_smooth_lines != null) partial.smoothLines = d.chart_smooth_lines;
-      if (d?.chart_time_range) partial.timeRange = d.chart_time_range as '12h' | 'full';
-      if (Object.keys(partial).length > 0) setState(partial);
-    })
-    .subscribe();
+  subscribeSyncSettings((d) => {
+    settingsId = d.id ?? settingsId;
+    const partial: Partial<ChartSettingsState> = {};
+    if (d.chart_smooth_lines != null && d.chart_smooth_lines !== state.smoothLines) partial.smoothLines = d.chart_smooth_lines;
+    if (d.chart_time_range && d.chart_time_range !== state.timeRange) partial.timeRange = d.chart_time_range as '12h' | 'full';
+    if (Object.keys(partial).length > 0) setState(partial);
+  });
 }
 
 function getSnapshot(): ChartSettingsState {
@@ -80,7 +51,6 @@ function getSnapshot(): ChartSettingsState {
 
 function subscribe(listener: () => void): () => void {
   init();
-  setupChannel();
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
