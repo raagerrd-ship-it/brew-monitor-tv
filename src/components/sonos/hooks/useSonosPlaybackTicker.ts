@@ -123,9 +123,9 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
       }
 
       const isRadio = nowPlayingRef?.current?.media_type === 'radio';
-      // 3 s kvar: byt namn och förladdad bakgrund samtidigt
+      // 2 s kvar: byt namn och förladdad bakgrund samtidigt
       const snap = nowPlayingRef?.current;
-      if (isPlaying && remaining <= 3000 && !isRadio && !!snap?.next_bg_image_url && snap?.next_track_name && snap.next_track_name !== snap.track_name) {
+      if (isPlaying && remaining <= 2000 && !isRadio && !!snap?.next_bg_image_url && snap?.next_track_name && snap.next_track_name !== snap.track_name) {
         // Blockera att molnets sista pushar för gamla låten byter tillbaka
         if (snap.track_name) swappedFromRef.current = { trackName: snap.track_name, ts: Date.now() };
         handleTrackChangeRef.current({
