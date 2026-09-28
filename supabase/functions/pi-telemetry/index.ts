@@ -3,9 +3,6 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createBrewSnapshot } from "../_shared/brew-snapshots.ts";
 
 const SECRET = Deno.env.get("PI_BLE_INGEST_SECRET")!;
-// Senast skrivna pid_current_mode per tank (lever så länge isolatet är varmt).
-// Skrivs om vid ändring, och minst var 5:e min så snapshotens 15-min-färskhet håller.
-const lastModeWrite = new Map<string, { v: number; at: number }>();
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -132,18 +129,15 @@ Deno.serve(async (req) => {
     const fullId = rows?.[0]?.controller_id;
     if (fullId && isRegulating(d)) {
       const now = new Date().toISOString();
-      const modeValue = d.mode === "cooling" ? 2 : d.mode === "heating" ? 1 : 0;
-      const prevMode = lastModeWrite.get(fullId);
-      const rows2: any[] = [];
-      if (!prevMode || prevMode.v !== modeValue || Date.now() - prevMode.at > 5 * 60 * 1000) {
-        rows2.push({
+      const rows2: any[] = [
+        {
           controller_id: fullId,
           parameter_name: "pid_current_mode",
-          learned_value: modeValue,
+          learned_value: d.mode === "cooling" ? 2 : d.mode === "heating" ? 1 : 0,
           sample_count: 1,
           last_updated_at: now,
-        });
-      }
+        },
+      ];
       // Duty skrivs bara när hela PWM-fönstrets summa finns (rollup).
       // Live-paketen läser relästatus mitt i fönstret och skulle annars
       // pendla mellan värdet och 0 % i UI:t var 30:e sekund.
@@ -156,10 +150,7 @@ Deno.serve(async (req) => {
           last_updated_at: now,
         });
       }
-      if (rows2.length) {
-        const { error: lErr } = await supabase.from("fermentation_learnings").upsert(rows2, { onConflict: "controller_id,parameter_name" });
-        if (!lErr && rows2[0].parameter_name === "pid_current_mode") lastModeWrite.set(fullId, { v: modeValue, at: Date.now() });
-      }
+      await supabase.from("fermentation_learnings").upsert(rows2, { onConflict: "controller_id,parameter_name" });
     }
     return fullId ?? null;
   }
