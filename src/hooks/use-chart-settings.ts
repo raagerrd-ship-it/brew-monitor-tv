@@ -1,5 +1,6 @@
 import { useSyncExternalStore, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribeSyncSettings } from '@/lib/sync-settings-store';
 
 interface ChartSettingsState {
   smoothLines: boolean;
@@ -10,7 +11,6 @@ let state: ChartSettingsState = { smoothLines: true, timeRange: 'full' };
 let listeners = new Set<() => void>();
 let initialized = false;
 let settingsId: string | null = null;
-let channelSetup = false;
 
 function notify() {
   listeners.forEach(l => l());
