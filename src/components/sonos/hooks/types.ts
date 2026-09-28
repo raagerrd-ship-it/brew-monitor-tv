@@ -133,7 +133,7 @@ export function updateProgressDOM(
 ): void {
   if (!duration) return;
   const pct = Math.min((position / duration) * 100, 100);
-  if (progressBarRef.current) progressBarRef.current.style.width = `${pct}%`;
+  if (progressBarRef.current) progressBarRef.current.style.transform = `scaleX(${pct / 100})`;
   if (debugTimeRef.current) {
     const remaining = Math.max(0, Math.round((duration - position) / 1000));
     const mins = Math.floor(remaining / 60);

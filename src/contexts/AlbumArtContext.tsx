@@ -1,8 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useRef } from 'react';
 import { tvDebug } from '@/lib/tv-debug-log';
 
-let bgSwapCounter = 0;
-
 interface AlbumArtContextType {
   visibleBgUrl: string | null;
   handleAlbumArtChange: (url: string | null, trackName?: string) => void;
@@ -33,24 +31,25 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
     const baseUrl = url.split('?')[0];
     if (baseUrl === visibleBgBaseRef.current) return;
     if (url === preloadingUrlRef.current) return;
-    const flowId = `bg-swap-${++bgSwapCounter}`;
     preloadingUrlRef.current = url;
     const img = new Image();
-    img.onload = () => {
+    img.decoding = 'async';
+    const apply = () => {
       if (preloadingUrlRef.current !== url) {
-        tvDebug('bg', `⏭️ Bakgrund laddad för ${label} men redan rensad/bytt — ignorerar`, flowId);
+        tvDebug('bg', `⏭️ Bakgrund laddad för ${label} men redan rensad/bytt — ignorerar`);
         return;
       }
       visibleBgBaseRef.current = baseUrl;
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
-      tvDebug('bg', `✅ Bakgrund laddad för ${label} — bytt`, flowId);
+      tvDebug('bg', `✅ Bakgrund laddad för ${label} — bytt`);
     };
-    img.onerror = () => {
+    const fail = () => {
       preloadingUrlRef.current = null;
-      tvDebug('bg', `❌ Bakgrund misslyckades för ${label}`, flowId);
+      tvDebug('bg', `❌ Bakgrund misslyckades för ${label}`);
     };
     img.src = url;
+    img.decode().then(apply, fail);
   }, []);
 
   return (

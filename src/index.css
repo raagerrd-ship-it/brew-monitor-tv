@@ -279,3 +279,17 @@ All colors MUST be HSL.
     }
   }
 }
+
+/* TV: no backdrop blur or box-shadow pulses (Chromecast repaint cost) */
+.tv *, .tv *::before, .tv *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.tv [class*="glow-pulse"] {
+  animation: none !important;
+}
+
+@keyframes bg-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
