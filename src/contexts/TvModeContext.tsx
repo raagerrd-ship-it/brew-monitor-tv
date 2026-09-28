@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useMemo } from "react";
+import { createContext, useContext, ReactNode, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 
 interface TvModeContextType {
@@ -93,6 +93,10 @@ export function TvModeProvider({ children }: { children: ReactNode }) {
     
     return { isTvMode: false, detectionReason: null };
   }, [searchParams]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('tv', isTvMode);
+  }, [isTvMode]);
 
   return (
     <TvModeContext.Provider value={{ isTvMode, detectionReason }}>
