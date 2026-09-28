@@ -781,10 +781,14 @@ export function useBrewData(): UseBrewDataReturn {
 
   // Consolidated realtime: 2 channels instead of 7
   // Channel 1: Data updates (need payload for in-place state updates)
+  const [watchdogNonce, setWatchdogNonce] = useState(0);
+  const lastRtEventAtRef = useRef(Date.now());
+
   useEffect(() => {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
 
     const dispatch = (table: string, payload: any) => {
+      lastRtEventAtRef.current = Date.now();
       if (isTvMode) {
         // Key per row: Pi writes all tanks in the same second — one event per table would drop the others
         const rowKey = payload?.new?.id ?? payload?.old?.id ?? payload?.new?.controller_id ?? payload?.new?.pill_id ?? '';
@@ -813,6 +817,7 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
+    lastRtEventAtRef.current = Date.now();
     let hasSubscribed = false;
     const channel = supabase
       .channel(`data-updates-${Date.now()}`)
@@ -830,12 +835,25 @@ export function useBrewData(): UseBrewDataReturn {
         }
       });
 
+    // Vakthund: Chromecast kan behålla SUBSCRIBED fast socketen är död.
+    // Pi:n skriver pi_live_state ~var 30:e s per tank, så > 3 min utan händelse
+    // betyder att realtiden är död — ladda om allt och återskapa kanalen.
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastRtEventAtRef.current <= 180_000) return;
+      tvDebug('realtime', 'Vakthund: ingen realtidshändelse på >3 min — återskapar data-kanalen');
+      dataChannelSubscribedRef.current = false;
+      loadRaptData();
+      loadBrews();
+      setWatchdogNonce(n => n + 1);
+    }, 60_000);
+
     return () => {
       dataChannelSubscribedRef.current = false;
+      clearInterval(watchdog);
       if (batchRef.timer) clearTimeout(batchRef.timer);
       supabase.removeChannel(channel);
     };
-  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, handleSnapshotInsert, loadRaptData, loadBrews, isTvMode]);
+  }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, handleSnapshotInsert, loadRaptData, loadBrews, isTvMode, watchdogNonce]);
 
   // Återhämtning efter vila/nätavbrott: samma omladdning som vid återanslutning
   useEffect(() => {
