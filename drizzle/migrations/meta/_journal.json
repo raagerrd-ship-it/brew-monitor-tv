@@ -64,6 +64,13 @@
       "when": 1790610604904,
       "tag": "0008_daily_cleanup_cron_logs_and_telemetry_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790610911200,
+      "tag": "0009_replace_profile_steps_atomic",
+      "breakpoints": true
     }
   ]
 }
