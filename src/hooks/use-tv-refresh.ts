@@ -56,7 +56,7 @@ export function useTvRefresh(isTvMode: boolean) {
       } catch {
         // Ignore polling errors
       }
-    }, 30000);
+    }, 60000);
 
     return () => {
       supabase.removeChannel(channel);

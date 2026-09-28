@@ -408,9 +408,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
       setProbeStaleMin(Number((data as any).probe_stale_threshold_min ?? 31));
     };
     check();
-    const interval = setInterval(check, 60000);
+    const interval = setInterval(check, 300000);
     return () => clearInterval(interval);
-  }, [controllers]);
+  }, []);
 
   // Tick every 30s to keep duration updated
   useEffect(() => {

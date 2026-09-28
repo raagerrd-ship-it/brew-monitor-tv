@@ -211,14 +211,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       }
     };
 
+    let subscribed = false;
     const channel = supabase
       .channel('sonos-widget-realtime')
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (payload: any) => {
         handlerRef.current?.(payload);
       })
-      .subscribe();
+      .subscribe((status) => { subscribed = status === 'SUBSCRIBED'; });
 
     const pollDb = async () => {
+      if (subscribed) return; // realtime live — DB poll only as fallback
       try {
         const { data } = await supabase
           .from('sonos_now_playing')
