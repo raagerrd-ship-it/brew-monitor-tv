@@ -242,7 +242,6 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     const resume = () => {
       if (document.visibilityState !== 'visible') return;
       lastPoll = 0;
-      subscribed = false;
       pollDb();
     };
     document.addEventListener('visibilitychange', resume);
