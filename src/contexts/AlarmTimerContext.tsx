@@ -98,7 +98,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
 
   const cancel = useCallback(async () => {
     setEntry(null);
-    setRemainingMs(0);
     firedLocallyRef.current = null;
     await clearTimerInDb();
   }, []);
@@ -156,7 +155,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
         const e = rowToEntry(data);
         if (e && !e.fired) {
           setEntry(e);
-          setRemainingMs(Math.max(0, e.endsAt - Date.now()));
         }
       }
     })();
@@ -181,7 +179,6 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
           const e = rowToEntry(row);
           if (e) {
             setEntry(e);
-            setRemainingMs(Math.max(0, e.endsAt - Date.now()));
           }
         }
       )
