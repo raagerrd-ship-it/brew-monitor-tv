@@ -26,12 +26,6 @@ verify_jwt = false
 verify_jwt = false
 
 
-[functions.compute-fermentation-metrics]
-verify_jwt = false
-
-[functions.system-health-check]
-verify_jwt = false
-
 [functions.cleanup-temp-history]
 verify_jwt = false
 
