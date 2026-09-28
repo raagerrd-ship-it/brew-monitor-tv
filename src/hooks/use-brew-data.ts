@@ -70,6 +70,7 @@ export function useBrewData(): UseBrewDataReturn {
 
   // Ref for realtime comparison
   const brewsRef = useRef<BrewData[]>([]);
+  const dataChannelSubscribedRef = useRef(false);
   const controllersRef = useRef<TempController[]>([]);
   
   
@@ -820,6 +821,7 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
       .subscribe((status) => {
+        dataChannelSubscribedRef.current = status === 'SUBSCRIBED';
         // Catch up on events missed while the realtime connection was down
         if (status === 'SUBSCRIBED') {
           if (hasSubscribed) { loadRaptData(); loadBrews(); }
@@ -828,6 +830,7 @@ export function useBrewData(): UseBrewDataReturn {
       });
 
     return () => {
+      dataChannelSubscribedRef.current = false;
       if (batchRef.timer) clearTimeout(batchRef.timer);
       supabase.removeChannel(channel);
     };
@@ -948,24 +951,31 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
-    // Poll brew_readings — realtime can silently drop on Chromecast,
-    // so poll periodically to ensure brew card data stays fresh
-    const lastBrewHash = { current: '' };
+    // Reservpoll: mätpunkter som delta; full loadBrews bara om kanalen inte är SUBSCRIBED eller var 15:e min
+    let lastFullLoad = Date.now();
     const checkBrewData = async () => {
       try {
+        if (!dataChannelSubscribedRef.current || Date.now() - lastFullLoad >= 900_000) {
+          lastFullLoad = Date.now();
+          await loadBrews();
+          return;
+        }
+        const lastByBrew = new Map<string, string>();
+        for (const b of brewsRef.current) {
+          const last = b.sgData[b.sgData.length - 1]?.date;
+          if (last) lastByBrew.set(b.id, last);
+        }
+        if (lastByBrew.size === 0) return;
+        const since = [...lastByBrew.values()].reduce((a, b) => (a < b ? a : b));
         const { data } = await supabase
-          .from('brew_readings')
-          .select('batch_id, current_sg, current_temp, abv, attenuation, battery, last_update, status')
-          .order('updated_at', { ascending: false })
-          .limit(10);
-
-        const hash = JSON.stringify(data || []);
-        if (hash !== lastBrewHash.current) {
-          if (lastBrewHash.current !== '') {
-            console.log('[TV] Brew data change detected via polling, reloading...');
-            loadBrews();
-          }
-          lastBrewHash.current = hash;
+          .from('brew_data_snapshots')
+          .select('brew_id, recorded_at, sg, pill_temp, duty_pct, cooling_enabled')
+          .in('brew_id', [...lastByBrew.keys()])
+          .gt('recorded_at', since)
+          .order('recorded_at', { ascending: true });
+        for (const s of data || []) {
+          const last = lastByBrew.get(s.brew_id);
+          if (last && new Date(s.recorded_at) > new Date(last)) handleSnapshotInsert({ new: s });
         }
       } catch (e) {
         console.error('[TV] Brew poll error:', e);
@@ -975,7 +985,6 @@ export function useBrewData(): UseBrewDataReturn {
     // Initial hash capture
     checkSessions();
     checkRaptData();
-    checkBrewData();
 
     const sessionInterval = setInterval(checkSessions, 300_000); // 5 minutes
     const raptInterval = setInterval(checkRaptData, 120_000); // 2 minutes
@@ -985,7 +994,7 @@ export function useBrewData(): UseBrewDataReturn {
       clearInterval(raptInterval);
       clearInterval(brewInterval);
     };
-  }, [isTvMode, loadBrews, loadRaptDataInternal]);
+  }, [isTvMode, loadBrews, loadRaptDataInternal, handleSnapshotInsert]);
 
   return {
     brews,
