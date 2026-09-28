@@ -35,8 +35,17 @@ export function ExternalAuthProvider({ children }: { children: React.ReactNode }
   // Fetch session from edge function (uses stored credentials)
   const fetchSessionFromServer = useCallback(async () => {
     try {
+      const headers = deviceHeaders();
+      if (!headers['x-device-key']) {
+        const { data: { session: own } } = await supabase.auth.getSession();
+        if (!own) {
+          // Neither device key nor login: the function would reply 401
+          setIsLoading(false);
+          return;
+        }
+      }
       console.log('Fetching external auth from server...');
-      const { data, error } = await supabase.functions.invoke('external-auth', { headers: deviceHeaders() });
+      const { data, error } = await supabase.functions.invoke('external-auth', { headers });
       
       if (error) {
         console.error('Error calling external-auth:', error);
