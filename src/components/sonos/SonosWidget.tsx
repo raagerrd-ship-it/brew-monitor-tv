@@ -27,7 +27,7 @@ function MarqueeText({ children, className, innerClassName }: { children: React.
         ref={innerRef}
         className={innerClassName ?? "whitespace-nowrap inline-block"}
         style={overflow > 0 ? {
-          animation: `marquee-scroll ${8 + overflow * 0.05}s linear 3s 2`,
+          animation: `marquee-scroll ${8 + overflow * 0.05}s linear 3s infinite`,
           '--marquee-offset': `-${overflow}px`,
         } as React.CSSProperties : undefined}
       >
