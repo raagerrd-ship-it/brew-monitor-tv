@@ -80,12 +80,14 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       .channel(`pi-remote-${controllerId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'pi_live_state',
+        filter: `controller_id=in.(${shortId},${controllerId})`,
       }, (payload) => {
         const rowId = String((payload.new as any)?.controller_id ?? '');
         if (rowId.slice(0, 8) === shortId) apply(payload.new);
       })
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'pi_setpoint',
+        filter: `controller_id=eq.${controllerId}`,
       }, (payload) => {
         const rowId = String((payload.new as any)?.controller_id ?? '');
         if (rowId === controllerId) applySetpoint(payload.new);

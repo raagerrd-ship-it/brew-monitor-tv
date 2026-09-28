@@ -184,7 +184,21 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Återhämtning efter vila/nätavbrott
+    const resume = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const { data } = await supabase.from('shared_timer').select('*').limit(1).maybeSingle();
+      const e = data && data.is_active ? rowToEntry(data) : null;
+      setEntry(e && !e.fired ? e : null);
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+
+    return () => {
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+    };
   }, []);
 
   // Tick every second

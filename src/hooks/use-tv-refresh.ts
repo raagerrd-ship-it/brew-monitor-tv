@@ -1,20 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { subscribeSyncSettings } from '@/lib/sync-settings-store';
 
 /**
- * In TV mode, listens for remote force-refresh signals via
- * realtime subscription + polling fallback every 30s.
+ * In TV mode, listens for remote force-refresh signals via the shared
+ * sync_settings source (realtime + 60 s poll).
  */
 export function useTvRefresh(isTvMode: boolean) {
-  const lastKnownRefreshAt = useRef<string | null>(null);
+  const lastKnownRefreshAt = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     if (!isTvMode) return;
-
-    // Initialize with current value from DB
-    supabase.from('sync_settings').select('force_tv_refresh_at').limit(1).maybeSingle().then(({ data }) => {
-      lastKnownRefreshAt.current = data?.force_tv_refresh_at ?? null;
-    });
 
     const triggerRefresh = (newVal: string) => {
       console.log('[TV] Remote refresh triggered');
@@ -30,37 +25,11 @@ export function useTvRefresh(isTvMode: boolean) {
       }, 500);
     };
 
-    // Realtime subscription for sync_settings changes
-    const channel = supabase
-      .channel('tv-sync-settings')
-      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_settings' }, (payload: any) => {
-        const newVal = payload.new?.force_tv_refresh_at;
-        if (newVal && newVal !== lastKnownRefreshAt.current) {
-          triggerRefresh(newVal);
-        }
-      })
-      .subscribe();
-
-    // Polling fallback every 30s
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data } = await supabase
-          .from('sync_settings')
-          .select('force_tv_refresh_at')
-          .limit(1)
-          .maybeSingle();
-        const newVal = data?.force_tv_refresh_at;
-        if (newVal && newVal !== lastKnownRefreshAt.current) {
-          triggerRefresh(newVal);
-        }
-      } catch {
-        // Ignore polling errors
-      }
-    }, 60000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
+    return subscribeSyncSettings((row) => {
+      const newVal = row.force_tv_refresh_at ?? null;
+      // Första värdet är baslinjen
+      if (lastKnownRefreshAt.current === undefined) { lastKnownRefreshAt.current = newVal; return; }
+      if (newVal && newVal !== lastKnownRefreshAt.current) triggerRefresh(newVal);
+    });
   }, [isTvMode]);
 }

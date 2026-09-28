@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { TempController, PillData } from '@/types/brew';
+import { getRaptBar, setRaptBar, useRaptBarStore } from '@/lib/rapt-bar-store';
 
 interface RaptBarData {
   controllers: TempController[];
@@ -11,154 +12,49 @@ interface RaptBarData {
   loading: boolean;
 }
 
-export function useRaptBarData(): RaptBarData {
-  const [controllers, setControllers] = useState<TempController[]>([]);
-  const [pills, setPills] = useState<PillData[]>([]);
-  const [piDisabled, setPiDisabled] = useState<Record<string, boolean>>({});
-  const [piManual, setPiManual] = useState<Record<string, boolean>>({});
-  const [activeSessions, setActiveSessions] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
-  const controllerIdsRef = useRef<string[]>([]);
-  const pillIdsRef = useRef<string[]>([]);
+// Engångsladdning när ingen use-brew-data fyller den delade källan (t.ex. Inställningar).
+async function loadOnce() {
+  try {
+    const [selectedControllersRes, selectedPillsRes] = await Promise.all([
+      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
+      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true).order('display_order'),
+    ]);
+    const controllerIds = selectedControllersRes.data?.map(s => s.controller_id) || [];
+    const pillIds = selectedPillsRes.data?.map(s => s.pill_id) || [];
 
-  const loadData = useCallback(async () => {
-    try {
-      const [selectedControllersRes, selectedPillsRes] = await Promise.all([
-        supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
-        supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true).order('display_order'),
-      ]);
+    const [controllersRes, pillsRes, sessionsRes, liveRes] = await Promise.all([
+      controllerIds.length > 0
+        ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', controllerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      pillIds.length > 0
+        ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
+      supabase.from('pi_live_state').select('controller_id, enabled, target_source'),
+    ]);
+    if (getRaptBar().loaded) return;
 
-      const controllerIds = selectedControllersRes.data?.map(s => s.controller_id) || [];
-      const pillIds = selectedPillsRes.data?.map(s => s.pill_id) || [];
-      controllerIdsRef.current = controllerIds;
-      pillIdsRef.current = pillIds;
-
-      const [controllersRes, pillsRes] = await Promise.all([
-        controllerIds.length > 0
-          ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', controllerIds)
-          : Promise.resolve({ data: [] as any[] }),
-        pillIds.length > 0
-          ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-
-      const sortedControllers = (controllersRes.data || []).sort((a: any, b: any) =>
-        controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)
-      ) as TempController[];
-
-      const sortedPills = (pillsRes.data || []).sort((a: any, b: any) =>
-        pillIds.indexOf(a.pill_id) - pillIds.indexOf(b.pill_id)
-      ) as PillData[];
-
-      setControllers(sortedControllers);
-      setPills(sortedPills);
-
-      // Aktiva jässessioner — styr om måltemperaturen ska visas i headern.
-      const { data: sessions } = await supabase
-        .from('fermentation_sessions')
-        .select('controller_id')
-        .in('status', ['running', 'paused']);
-      const sessMap: Record<string, boolean> = {};
-      for (const s of sessions || []) if (s.controller_id) sessMap[s.controller_id] = true;
-      setActiveSessions(sessMap);
-
-      const piIds = sortedControllers
-        .filter((c: any) => c.actuation === 'pi')
-        .map((c) => c.controller_id);
-      if (piIds.length > 0) {
-        // pi_live_state är Pi:ns egen sanning; matcha på kort id (första segmentet).
-        const { data: liveStates } = await supabase
-          .from('pi_live_state')
-          .select('controller_id, enabled, target_source');
-        const map: Record<string, boolean> = {};
-        const manualMap: Record<string, boolean> = {};
-        for (const ls of liveStates || []) {
-          const full = piIds.find((id) => id === ls.controller_id || id.startsWith(ls.controller_id));
-          if (full) {
-            map[full] = ls.enabled === false;
-            manualMap[full] = ls.target_source === 'manual';
-          }
-        }
-        setPiDisabled(map);
-        setPiManual(manualMap);
-      } else {
-        setPiDisabled({});
-        setPiManual({});
-      }
-    } catch (error) {
-      console.error('Error loading RAPT bar data:', error);
-    } finally {
-      setLoading(false);
+    const controllers = (controllersRes.data || []).sort((a: any, b: any) =>
+      controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)) as TempController[];
+    const pills = (pillsRes.data || []).sort((a: any, b: any) =>
+      pillIds.indexOf(a.pill_id) - pillIds.indexOf(b.pill_id)) as PillData[];
+    const activeSessions: Record<string, boolean> = {};
+    for (const s of sessionsRes.data || []) if (s.controller_id) activeSessions[s.controller_id] = true;
+    const piDisabled: Record<string, boolean> = {};
+    const piManual: Record<string, boolean> = {};
+    for (const c of controllers as any[]) {
+      if (c.actuation !== 'pi') continue;
+      const ls = (liveRes.data || []).find((l: any) => c.controller_id === l.controller_id || c.controller_id.startsWith(l.controller_id));
+      if (ls) { piDisabled[c.controller_id] = ls.enabled === false; piManual[c.controller_id] = ls.target_source === 'manual'; }
     }
-  }, []);
+    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions });
+  } catch (error) {
+    console.error('Error loading RAPT bar data:', error);
+  }
+}
 
-  useEffect(() => {
-    loadData();
-
-    // Realtime: controller updates
-    const channel = supabase
-      .channel('rapt-bar-data')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (payload) => {
-        if (payload.eventType === 'UPDATE' && payload.new) {
-          const updated = payload.new as any;
-          setControllers(prev => {
-            const idx = prev.findIndex(c => c.controller_id === updated.controller_id);
-            if (idx === -1) return prev;
-            const next = [...prev];
-            next[idx] = { ...next[idx], ...updated } as TempController;
-            return next;
-          });
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rapt_pills' }, (payload) => {
-        if (payload.eventType === 'UPDATE' && payload.new) {
-          const updated = payload.new as any;
-          setPills(prev => {
-            const idx = prev.findIndex(p => p.pill_id === updated.pill_id);
-            if (idx === -1) return prev;
-            const next = [...prev];
-            next[idx] = { ...next[idx], ...updated } as PillData;
-            return next;
-          });
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => {
-        loadData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => {
-        loadData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => {
-        loadData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pi_live_state' }, (payload) => {
-        const updated = payload.new as any;
-        if (!updated?.controller_id) return;
-        const matchKey = (prev: Record<string, boolean>) =>
-          Object.keys(prev).find((id) => id === updated.controller_id || id.startsWith(updated.controller_id));
-        setPiDisabled(prev => {
-          const full = matchKey(prev);
-          if (!full) return prev;
-          return { ...prev, [full]: updated.enabled === false };
-        });
-        if (updated.target_source !== undefined) {
-          setPiManual(prev => {
-            const full = matchKey(prev);
-            if (!full) return prev;
-            return { ...prev, [full]: updated.target_source === 'manual' };
-          });
-        }
-      })
-      .subscribe();
-
-    // Polling fallback every 2 min — Realtime is unreliable on Chromecast/TV
-    const pollInterval = setInterval(() => { loadData(); }, 120_000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
-  }, [loadData]);
-
-  return { controllers, pills, piDisabled, piManual, activeSessions, loading };
+export function useRaptBarData(): RaptBarData {
+  const s = useRaptBarStore();
+  useEffect(() => { if (!getRaptBar().loaded) loadOnce(); }, []);
+  return { controllers: s.controllers, pills: s.pills, piDisabled: s.piDisabled, piManual: s.piManual, activeSessions: s.activeSessions, loading: !s.loaded };
 }
