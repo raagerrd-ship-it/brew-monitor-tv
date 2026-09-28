@@ -176,9 +176,9 @@ export function useBrewData(): UseBrewDataReturn {
         .order('event_date'),
       supabase
         .from('fermentation_sessions')
-        .select('*')
+        .select('id, brew_id, profile_id, controller_id, status, current_step_index, step_started_at, started_at, step_start_temp, ramp_triggered_at, step_progress')
         .in('brew_id', activeBrewIds)
-        .in('status', ['running', 'paused', 'completed']),
+        .in('status', ['running', 'paused']),
       supabase
         .from('brew_fermentation_metrics')
         .select('*')
@@ -481,7 +481,7 @@ export function useBrewData(): UseBrewDataReturn {
   }, []);
 
   // Internal function to load RAPT data (returns data instead of setting state)
-  const loadRaptDataInternal = useCallback(async (): Promise<{ pills: PillData[], controllers: TempController[] }> => {
+  const loadRaptDataInternal = useCallback(async (): Promise<{ pills: PillData[], controllers: TempController[], piLive: PiLiveRow[] }> => {
     // Direct parallel queries instead of edge function
     const [selectedControllersRes, selectedPillsRes] = await Promise.all([
       supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
@@ -498,11 +498,11 @@ export function useBrewData(): UseBrewDataReturn {
       pillIds.length > 0
         ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds) 
         : Promise.resolve({ data: [] }),
-      supabase.from('pi_live_state').select('controller_id, target_temp'),
+      supabase.from('pi_live_state').select('controller_id, target_temp, enabled, target_source'),
     ]);
     
     // SSOT: Pi:ns aktuella måltemp (pi_live_state) gäller för Pi-styrda tankar
-    const piTargets = (piStateRes.data || []) as { controller_id: string; target_temp: number | null }[];
+    const piTargets = (piStateRes.data || []) as PiLiveRow[];
 
     // Sort by display_order
     const sortedControllers = (controllersRes.data || [])
@@ -516,7 +516,7 @@ export function useBrewData(): UseBrewDataReturn {
       pillIds.indexOf(a.pill_id) - pillIds.indexOf(b.pill_id)
     ) as PillData[];
     
-    return { pills: sortedPills, controllers: sortedControllers };
+    return { pills: sortedPills, controllers: sortedControllers, piLive: piTargets };
   }, []);
 
   // Load all data in parallel and sort brews BEFORE setting state
@@ -537,6 +537,7 @@ export function useBrewData(): UseBrewDataReturn {
       setBrews(sortedBrews);
       setPills(raptData.pills);
       setControllers(raptData.controllers);
+      setPiLive(raptData.piLive);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -579,6 +580,7 @@ export function useBrewData(): UseBrewDataReturn {
       const raptData = await loadRaptDataInternal();
       setPills(raptData.pills);
       setControllers(raptData.controllers);
+      setPiLive(raptData.piLive);
       
       // Re-sort brews with new controllers
       setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
@@ -728,6 +730,12 @@ export function useBrewData(): UseBrewDataReturn {
   const handlePiLiveUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
     const row = payload.new;
     if (payload.eventType !== 'UPDATE' || !row?.controller_id) { loadRaptData(); return; }
+    setPiLive(prev => {
+      const old = prev.find(p => p.controller_id === row.controller_id);
+      if (old && old.enabled === row.enabled && old.target_source === row.target_source && old.target_temp === row.target_temp) return prev;
+      const nextRow = { controller_id: row.controller_id, target_temp: row.target_temp ?? null, enabled: row.enabled ?? null, target_source: row.target_source ?? null };
+      return old ? prev.map(p => p.controller_id === row.controller_id ? nextRow : p) : [...prev, nextRow];
+    });
     if (row.target_temp == null) return;
     setControllers(prev => {
       let changed = false;
@@ -740,26 +748,35 @@ export function useBrewData(): UseBrewDataReturn {
     });
   }, [loadRaptData]);
 
+  // Ny mätpunkt: lägg till i rätt bryggas sgData och uppdatera duty på plats — ingen omladdning
+  const handleSnapshotInsert = useCallback((payload: { new: Record<string, any> | null }) => {
+    const s = payload.new;
+    if (!s?.brew_id) return;
+    setBrews(prev => {
+      let changed = false;
+      const next = prev.map(brew => {
+        if (brew.id !== s.brew_id) return brew;
+        changed = true;
+        const sgData = s.sg != null
+          ? [...brew.sgData, { date: s.recorded_at, value: s.sg, temp: s.pill_temp ?? 0 }]
+          : brew.sgData;
+        const hasDuty = s.duty_pct != null && brew.linked_controller_id;
+        return {
+          ...brew,
+          sgData,
+          fermentationRate: brew.status === 'Conditioning' || brew.status === 'Completed' ? 0 : calculateFermentationRate(sgData),
+          fermentationTrend: calculateFermentationTrend(sgData),
+          ...(hasDuty ? { dutyPct: Math.round(s.duty_pct), dutyMode: s.cooling_enabled ? 'cooling' as const : 'heating' as const } : {}),
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
   // Consolidated realtime: 2 channels instead of 7
   // Channel 1: Data updates (need payload for in-place state updates)
   useEffect(() => {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
-    const lastLoad = { rapt: 0, brews: 0 };
-    // Pi:n skriver en rad per tank i samma sekund – ladda om max var 5:e sekund
-    const trailing: Record<'rapt' | 'brews', NodeJS.Timeout | null> = { rapt: null, brews: null };
-    const throttled = (key: 'rapt' | 'brews', fn: () => void) => {
-      const now = Date.now();
-      // Snapshots only move the chart — reload at most once a minute
-      const windowMs = key === 'brews' ? 60000 : 5000;
-      const wait = windowMs - (now - lastLoad[key]);
-      if (wait > 0) {
-        // Trailing call so events during the lock window aren't lost
-        if (!trailing[key]) trailing[key] = setTimeout(() => { trailing[key] = null; lastLoad[key] = Date.now(); fn(); }, wait);
-        return;
-      }
-      lastLoad[key] = now;
-      fn();
-    };
 
     const dispatch = (table: string, payload: any) => {
       if (isTvMode) {
