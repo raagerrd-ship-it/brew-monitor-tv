@@ -85,6 +85,13 @@
       "when": 1790612324292,
       "tag": "0011_cached_timer_zero_since",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790613780453,
+      "tag": "0012_profile_steps_hash",
+      "breakpoints": true
     }
   ]
 }
