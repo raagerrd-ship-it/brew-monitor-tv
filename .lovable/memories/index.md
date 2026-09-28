@@ -6,8 +6,6 @@
 - Appen skriver aldrig setpoints/`profile_target_temp`; Pi-kommandon går endast via `pi-control`.
 - `drizzle/` innehåller Pi-kontraktet — ta aldrig bort.
 - `actual_temp` is the Single Source of Truth (SSOT), set per controller via `dual_sensor_enabled` + `preferred_sensor` (avg / probe / pill). Never recompute elsewhere. Temps use 2 decimals, else 1.
-- RAPT Hardware bounds: Max -10°C lower limit. No `SetHeatingEnabled` via API. Match devices strictly by `paired_device_id`.
-- Hardware suppressions: +2°C above probe to suppress cooling, -2°C below probe to suppress heating during PWM off phases.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - Never regenerate `pi/brew-ble/ble_scanner.py` from scratch — Kegland 0x4152 PT-V2 decoder is field-verified; only surgical edits.
 - UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
