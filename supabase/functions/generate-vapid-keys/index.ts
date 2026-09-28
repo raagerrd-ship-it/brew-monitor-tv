@@ -1,9 +1,10 @@
+import { isDevice, isUser, isCron, unauthorized, AUTH_HEADERS } from "../_shared/auth.ts";
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, ' + AUTH_HEADERS,
 };
 
 Deno.serve(async (req) => {
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
     );
 
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
-    const action = body.action || 'generate';
+    const action = body.action;
 
     // GET current VAPID public key from DB
     if (action === 'get_current') {
@@ -41,6 +42,11 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (action !== 'generate') {
+      return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (!(await isUser(req))) return unauthorized(corsHeaders);
 
     // Generate new VAPID keys and save to DB
     const vapidKeys = await webpush.generateVapidKeys({ extractable: true });

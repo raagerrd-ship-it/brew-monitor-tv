@@ -1,13 +1,16 @@
+import { isDevice, isUser, isCron, unauthorized, AUTH_HEADERS } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " + AUTH_HEADERS,
 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+
+  if (!(isDevice(req) || await isUser(req))) return unauthorized(corsHeaders);
   try {
     const body = await req.json();
     const { endpoint, subscription, device_info, action } = body ?? {};
