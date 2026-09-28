@@ -186,8 +186,8 @@ export function BrewingDashboard() {
   const mobileContainerHeight = mobileViewportHeight > 0 ? `${mobileViewportHeight}px` : '100dvh';
 
   return <>
-    {/* Splash overlay */}
-    <div
+    {/* Splash overlay — unmounted after fade to free the decoded logo */}
+    {!splashGone && <div
       className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4 pointer-events-none"
       style={{
         opacity: showSplash ? 1 : 0,
@@ -197,7 +197,7 @@ export function BrewingDashboard() {
     >
       <img src={dbLogo} alt="Bryggövervakare" className="max-h-[60vh] w-auto object-contain invert" />
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-    </div>
+    </div>}
 
     <div className={`w-full relative flex flex-col overflow-hidden`} style={{
       height: isMobile ? mobileContainerHeight : getContainerHeight(),

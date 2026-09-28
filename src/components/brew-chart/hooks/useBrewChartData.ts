@@ -8,6 +8,7 @@ import {
   generateDayTicks,
   calculateMovingAverage,
   getOptimalWindowSize,
+  downsampleForTvMode,
 } from "../utils";
 
 interface SGDataPoint {
@@ -82,7 +83,11 @@ export function useBrewChartData({
           console.error("[useBrewChartData] Failed to fetch snapshots:", error);
         }
 
-        setSnapshotRows((batch as SnapshotRow[]) ?? []);
+        const rows = (batch as SnapshotRow[]) ?? [];
+        // Skip state update when nothing new arrived (avoids full Recharts recompute)
+        setSnapshotRows((prev) =>
+          prev.length === rows.length && prev[prev.length - 1]?.recorded_at === rows[rows.length - 1]?.recorded_at ? prev : rows
+        );
       } finally {
         setIsLoading(false);
       }
@@ -166,8 +171,9 @@ export function useBrewChartData({
     // Apply smoothing for visual presentation (raw values preserved for tooltips)
     const windowSize = getOptimalWindowSize(basePoints.length);
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
-    return addTimestamps(smoothed);
-  }, [data, snapshotRows, smoothLines, timeRange]);
+    const withTs = addTimestamps(smoothed);
+    return isTvMode ? downsampleForTvMode(withTs, 150) : withTs;
+  }, [data, snapshotRows, smoothLines, timeRange, isTvMode]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
