@@ -7,7 +7,7 @@
 
 export interface TvDebugEntry {
   ts: number;
-  category: 'sonos' | 'bg';
+  category: 'sonos' | 'bg' | 'realtime';
   message: string;
   /** ms since flow started (same flowId), null if first event in flow */
   elapsed: number | null;
