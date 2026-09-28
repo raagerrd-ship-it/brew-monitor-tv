@@ -172,14 +172,17 @@ export function useBrewData(): UseBrewDataReturn {
       supabase
         .from('brew_events')
         .select('*')
+        .in('brew_id', activeBrewIds)
         .order('event_date'),
       supabase
         .from('fermentation_sessions')
         .select('*')
+        .in('brew_id', activeBrewIds)
         .in('status', ['running', 'paused', 'completed']),
       supabase
         .from('brew_fermentation_metrics')
-        .select('*'),
+        .select('*')
+        .in('brew_id', activeBrewIds),
     ]);
 
     if (brewReadingsRes.error) throw brewReadingsRes.error;
@@ -745,20 +748,24 @@ export function useBrewData(): UseBrewDataReturn {
     // Pi:n skriver en rad per tank i samma sekund – ladda om max var 5:e sekund
     const throttled = (key: 'rapt' | 'brews', fn: () => void) => {
       const now = Date.now();
-      if (now - lastLoad[key] < 5000) return;
+      // Snapshots only move the chart — reload at most once a minute
+      if (now - lastLoad[key] < (key === 'brews' ? 60000 : 5000)) return;
       lastLoad[key] = now;
       fn();
     };
 
     const dispatch = (table: string, payload: any) => {
       if (isTvMode) {
-        batchRef.pending.set(table, payload);
+        // Key per row: Pi writes all tanks in the same second — one event per table would drop the others
+        const rowKey = payload?.new?.id ?? payload?.old?.id ?? payload?.new?.controller_id ?? payload?.new?.pill_id ?? '';
+        batchRef.pending.set(`${table}|${rowKey}`, payload);
         if (!batchRef.timer) {
           batchRef.timer = setTimeout(() => {
             const entries = new Map(batchRef.pending);
             batchRef.pending.clear();
             batchRef.timer = null;
-            entries.forEach((p, t) => {
+            entries.forEach((p, key) => {
+              const t = key.split('|')[0];
               if (t === 'brew_readings') handleBrewUpdate(p);
               else if (t === 'rapt_pills') handlePillUpdate(p);
               else if (t === 'rapt_temp_controllers') handleControllerUpdate(p);
@@ -776,6 +783,7 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
+    let hasSubscribed = false;
     const channel = supabase
       .channel(`data-updates-${Date.now()}`)
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
@@ -783,7 +791,13 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
-      .subscribe();
+      .subscribe((status) => {
+        // Catch up on events missed while the realtime connection was down
+        if (status === 'SUBSCRIBED') {
+          if (hasSubscribed) { loadRaptData(); loadBrews(); }
+          hasSubscribed = true;
+        }
+      });
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
