@@ -783,12 +783,16 @@ export function useBrewData(): UseBrewDataReturn {
   // Channel 1: Data updates (need payload for in-place state updates)
   const [watchdogNonce, setWatchdogNonce] = useState(0);
   const lastRtEventAtRef = useRef(Date.now());
+  // Vakthundens nuvarande tröskel: backar 3 → 6 → 12 min (tak 15 min) vid utlösningar
+  // i rad utan mellanliggande händelse; nollställs till 3 min när en händelse kommer.
+  const watchdogIntervalMsRef = useRef(180_000);
 
   useEffect(() => {
     const batchRef = { pending: new Map<string, any>(), timer: null as NodeJS.Timeout | null };
 
     const dispatch = (table: string, payload: any) => {
       lastRtEventAtRef.current = Date.now();
+      watchdogIntervalMsRef.current = 180_000;
       if (isTvMode) {
         // Key per row: Pi writes all tanks in the same second — one event per table would drop the others
         const rowKey = payload?.new?.id ?? payload?.old?.id ?? payload?.new?.controller_id ?? payload?.new?.pill_id ?? '';
