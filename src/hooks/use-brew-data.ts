@@ -172,14 +172,17 @@ export function useBrewData(): UseBrewDataReturn {
       supabase
         .from('brew_events')
         .select('*')
+        .in('brew_id', activeBrewIds)
         .order('event_date'),
       supabase
         .from('fermentation_sessions')
         .select('*')
+        .in('brew_id', activeBrewIds)
         .in('status', ['running', 'paused', 'completed']),
       supabase
         .from('brew_fermentation_metrics')
-        .select('*'),
+        .select('*')
+        .in('brew_id', activeBrewIds),
     ]);
 
     if (brewReadingsRes.error) throw brewReadingsRes.error;
@@ -745,7 +748,8 @@ export function useBrewData(): UseBrewDataReturn {
     // Pi:n skriver en rad per tank i samma sekund – ladda om max var 5:e sekund
     const throttled = (key: 'rapt' | 'brews', fn: () => void) => {
       const now = Date.now();
-      if (now - lastLoad[key] < 5000) return;
+      // Snapshots only move the chart — reload at most once a minute
+      if (now - lastLoad[key] < (key === 'brews' ? 60000 : 5000)) return;
       lastLoad[key] = now;
       fn();
     };
