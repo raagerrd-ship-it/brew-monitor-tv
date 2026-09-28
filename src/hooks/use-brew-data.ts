@@ -808,6 +808,8 @@ export function useBrewData(): UseBrewDataReturn {
 
     return () => {
       if (batchRef.timer) clearTimeout(batchRef.timer);
+      if (trailing.rapt) clearTimeout(trailing.rapt);
+      if (trailing.brews) clearTimeout(trailing.brews);
       supabase.removeChannel(channel);
     };
   }, [handleBrewUpdate, handlePillUpdate, handleControllerUpdate, handlePiLiveUpdate, loadRaptData, loadBrews, isTvMode]);
