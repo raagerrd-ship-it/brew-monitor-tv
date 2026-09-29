@@ -26,11 +26,3 @@ export interface StatCardProps {
   brew: BrewData;
   updatedFields: Record<string, Record<string, boolean>>;
 }
-
-export interface TempCardProps extends StatCardProps {
-  devices: DeviceMatch;
-}
-
-export interface BatteryCardProps extends StatCardProps {
-  devices: DeviceMatch;
-}

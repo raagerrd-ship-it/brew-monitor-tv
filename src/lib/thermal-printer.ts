@@ -77,10 +77,6 @@ export function getLastDeviceName(): string | null {
   return defaultStorage.getLastName();
 }
 
-export function setTargetPrinterName(name: string): void {
-  try { localStorage.setItem('phomemo-last-device-name', name); } catch { /* ignore */ }
-}
-
 export function clearLastDevice(): void {
   defaultStorage.clear();
 }

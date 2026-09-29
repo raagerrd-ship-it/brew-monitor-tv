@@ -1,6 +1,6 @@
-import { toast } from "@/hooks";
+import { toast } from "@/hooks/use-toast";
 import { BrewManagement } from "@/components/BrewManagement";
-import { CombinedControllerChart } from "@/components/controller-chart";
+import { CombinedControllerChart } from "@/components/controller-chart/CombinedControllerChart";
 
 import { DeviceOverviewPanel } from "@/components/DeviceOverviewPanel";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
@@ -17,7 +17,9 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw, LogOut, ChevronDown, Thermometer, Cpu, Beer, AlertCircle, Timer, Check, Tv, Snowflake, Music, History, Printer, Share2 } from "lucide-react";
-import { useIsMobile, useExternalUserSettings, useSettingsData } from "@/hooks";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useExternalUserSettings } from "@/hooks/use-external-user-settings";
+import { useSettingsData } from "@/hooks/use-settings-data";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 

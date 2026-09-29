@@ -278,18 +278,6 @@ export async function processBackground(
   return encodeJpegBytes(pixels, targetW, targetH, 85);
 }
 
-// Generate a widget thumbnail (280x130 center-cropped)
-export async function processWidgetThumbnail(
-  srcData: Uint8Array, srcW: number, srcH: number,
-): Promise<Uint8Array> {
-  const WIDGET_W = 280;
-  const WIDGET_H = 130;
-  const targetAspect = WIDGET_W / WIDGET_H;
-  const cropped = cropToAspectRatio(srcData, srcW, srcH, targetAspect);
-  const pixels = resizeBilinear(cropped.data, cropped.width, cropped.height, WIDGET_W, WIDGET_H);
-  return encodeJpegBytes(pixels, WIDGET_W, WIDGET_H, 80);
-}
-
 // Simple hash for track identification in filenames
 export function simpleHash(str: string): string {
   let hash = 0;

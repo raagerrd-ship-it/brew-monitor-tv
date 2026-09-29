@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Beer } from "lucide-react";
-import { useIsMobile } from "@/hooks";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function LogoComponent() {
   const isMobile = useIsMobile();

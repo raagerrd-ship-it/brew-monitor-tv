@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { RaptControllerDialog } from "./RaptControllerDialog";
-import { BrewCard } from "./brew-card";
+import { BrewCard } from "./brew-card/BrewCard";
 import { BrewCardSkeleton } from "./brew-card/BrewCardSkeleton";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 
@@ -10,7 +10,10 @@ import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
-import { useBrewData, useSplashScreen, useBrewCarousel, useTvRefresh } from "@/hooks";
+import { useBrewData } from "@/hooks/use-brew-data";
+import { useSplashScreen } from "@/hooks/use-splash-screen";
+import { useBrewCarousel } from "@/hooks/use-brew-carousel";
+import { useTvRefresh } from "@/hooks/use-tv-refresh";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";

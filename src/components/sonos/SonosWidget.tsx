@@ -1,9 +1,11 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect } from "react";
 import { NowPlaying, stripQuery, pushToBgBuffer } from "./hooks/types";
-import {
-  useSonosInit, useSonosTrackChange, useSonosPlaybackTicker,
-  useSonosClientPolling, useSonosVisibility, useSonosRealtime,
-} from "./hooks";
+import { useSonosInit } from "./hooks/useSonosInit";
+import { useSonosTrackChange } from "./hooks/useSonosTrackChange";
+import { useSonosPlaybackTicker } from "./hooks/useSonosPlaybackTicker";
+import { useSonosClientPolling } from "./hooks/useSonosClientPolling";
+import { useSonosVisibility } from "./hooks/useSonosVisibility";
+import { useSonosRealtime } from "./hooks/useSonosRealtime";
 import { useAlbumArtSetter } from "@/contexts/AlbumArtContext";
 
 

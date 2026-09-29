@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useTvMode } from "@/contexts/TvModeContext";
 
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
-import { ActiveFermentationSession } from "../fermentation";
+import { ActiveFermentationSession } from "../fermentation/ActiveFermentationSession";
 import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";

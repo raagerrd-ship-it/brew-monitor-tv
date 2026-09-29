@@ -19,9 +19,6 @@ export interface NowPlaying {
   next_bg_generation_ms?: number | null;
 }
 
-
-export type ArtStatus = 'displayed' | 'detecting' | 'loading';
-
 /** Monotonic seq gate: check if incoming seq is stale */
 export function isSeqStale(acceptedSeq: number, incomingSeq: number | undefined): boolean {
   if (typeof incomingSeq !== 'number') return false; // no seq → allow (legacy)
@@ -71,31 +68,6 @@ export async function triggerServerSync(): Promise<void> {
       signal: controller.signal,
     });
   } catch { /* ignore */ } finally { clearTimeout(timeout); }
-}
-
-export async function fetchPlaybackStatus(): Promise<{
-  bgImageUrl?: string; albumArtUrl?: string;
-  trackName?: string; artistName?: string; albumName?: string;
-  playbackState?: string; positionMillis?: number; durationMillis?: number;
-} | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PLAYBACK_POLL_TIMEOUT);
-  try {
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sonos-playback-status`,
-      {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      }
-    );
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.ok ? data : null;
-  } catch { return null; } finally { clearTimeout(timeout); }
 }
 
 /**

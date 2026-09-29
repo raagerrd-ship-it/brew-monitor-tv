@@ -153,25 +153,6 @@ export async function computeAllMetrics(
     })
   })
 
-  // Get delta history for linked controllers
-  const controllerIds = brews.filter(b => b.linked_controller_id).map(b => b.linked_controller_id!)
-  const deltaMap = new Map<string, { delta: number; recorded_at: string }[]>()
-  if (controllerIds.length > 0) {
-    const scaledLimit = Math.min(200 * controllerIds.length, 1000)
-    const { data: deltas } = await supabase
-      .from('temp_delta_history')
-      .select('controller_id, delta, recorded_at')
-      .in('controller_id', controllerIds)
-      .order('recorded_at', { ascending: false })
-      .limit(scaledLimit)
-
-    ;(deltas || []).forEach((d: any) => {
-      const list = deltaMap.get(d.controller_id) || []
-      list.push({ delta: parseFloat(String(d.delta)), recorded_at: d.recorded_at })
-      deltaMap.set(d.controller_id, list)
-    })
-  }
-
   // Check running fermentation sessions (skip if injected)
   let sessionsData: any[]
   if (opts?.sessions) {
@@ -206,7 +187,7 @@ export async function computeAllMetrics(
 
     const { phase, sgRatePerHour } = determineFermentationPhase(sgData, fermentationStartMs)
 
-    const deltas = brew.linked_controller_id ? (deltaMap.get(brew.linked_controller_id) || []) : []
+    const deltas = [] as { delta: number; recorded_at: string }[] // temp_delta_history removed (was always empty)
     const existing = existingPeakMap.get(brew.id) || { peakDelta: 0, peakSgRate: 0 }
     const currentMaxDelta = deltas.length > 0 ? Math.max(...deltas.map(d => Math.abs(d.delta))) : 0
     const peakDelta = Math.max(existing.peakDelta, currentMaxDelta)

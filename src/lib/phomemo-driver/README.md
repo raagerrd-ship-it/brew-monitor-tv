@@ -12,7 +12,7 @@ import {
   printBitmap,
   disconnectPrinter,
   DEFAULT_PRINT_SETTINGS,
-} from '@/lib/phomemo-driver';
+} from '@/lib/phomemo-driver/connection';
 
 // 1. Connect (opens browser BLE picker)
 const conn = await connectPrinter();
