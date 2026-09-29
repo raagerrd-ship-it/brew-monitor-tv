@@ -13,7 +13,8 @@ interface RaptBarData {
 }
 
 // Engångsladdning när ingen use-brew-data fyller den delade källan (t.ex. Inställningar).
-async function loadOnce() {
+async function loadOnce(initial: boolean) {
+  const startedAt = Date.now();
   try {
     const [selectedControllersRes, selectedPillsRes] = await Promise.all([
       supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
@@ -32,7 +33,7 @@ async function loadOnce() {
       supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
       supabase.from('pi_live_state').select('controller_id, enabled, target_source'),
     ]);
-    if (getRaptBar().loaded) return;
+    if (initial ? getRaptBar().loaded : getRaptBar().updatedAt > startedAt) return;
 
     const controllers = (controllersRes.data || []).sort((a: any, b: any) =>
       controllerIds.indexOf(a.controller_id) - controllerIds.indexOf(b.controller_id)) as TempController[];
@@ -55,6 +56,11 @@ async function loadOnce() {
 
 export function useRaptBarData(): RaptBarData {
   const s = useRaptBarStore();
-  useEffect(() => { if (!getRaptBar().loaded) loadOnce(); }, []);
+  useEffect(() => {
+    if (!getRaptBar().loaded) loadOnce(true);
+    // Utan use-brew-data (t.ex. Inställningar) blir källan inaktuell — hämta om var 60:e s.
+    const id = setInterval(() => { if (Date.now() - getRaptBar().updatedAt >= 60_000) loadOnce(false); }, 60_000);
+    return () => clearInterval(id);
+  }, []);
   return { controllers: s.controllers, pills: s.pills, piDisabled: s.piDisabled, piManual: s.piManual, activeSessions: s.activeSessions, loading: !s.loaded };
 }
