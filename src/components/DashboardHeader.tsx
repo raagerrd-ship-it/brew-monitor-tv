@@ -2,7 +2,7 @@ import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
 import { SonosWidget } from "./sonos/SonosWidget";
-import { memo, useState, useEffect, useMemo, useCallback } from "react";
+import { memo, useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, RotateCcw, Droplets } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -112,7 +112,7 @@ export function DashboardHeader({
 
   useEffect(() => {
     if (sonosVisible || !slotOpen) return;
-    const timer = setTimeout(() => setSlotOpen(false), 350);
+    const timer = setTimeout(() => setSlotOpen(false), 250);
     return () => clearTimeout(timer);
   }, [sonosVisible, slotOpen]);
 
@@ -264,9 +264,9 @@ export function DashboardHeader({
               <div
                 className="flex min-w-0 flex-1 items-stretch"
                 style={{
-                  transform: sonosVisible ? 'translateX(0)' : 'translateX(24px)',
+                  transform: sonosVisible ? 'translateX(0)' : 'translateX(40px)',
                   opacity: sonosVisible ? 1 : 0,
-                  transition: 'transform 350ms ease-out, opacity 350ms ease-out',
+                  transition: `transform ${sonosVisible ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${sonosVisible ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
                 }}
               >
                 <SonosWidget isMobile={false} variant="header" onVisibilityChange={handleSonosVisibility} />
@@ -394,6 +394,29 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
   const [pillStaleMin, setPillStaleMin] = useState(5);
   const [probeStaleMin, setProbeStaleMin] = useState(31);
+  const tileRefs = useRef(new Map<string, HTMLDivElement>());
+  const tileLefts = useRef(new Map<string, number>());
+  const previousCompact = useRef(compact);
+
+  useLayoutEffect(() => {
+    if (!isTvMode || isMobile) return;
+    const changed = previousCompact.current !== compact;
+    const nextLefts = new Map<string, number>();
+    tileRefs.current.forEach((el, id) => {
+      const left = el.getBoundingClientRect().left;
+      nextLefts.set(id, left);
+      const oldLeft = tileLefts.current.get(id);
+      if (changed && oldLeft !== undefined && Math.abs(oldLeft - left) > 0.5) {
+        el.getAnimations().forEach((animation) => animation.cancel());
+        el.animate(
+          [{ transform: `translateX(${oldLeft - left}px)` }, { transform: 'none' }],
+          { duration: 400, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+        );
+      }
+    });
+    tileLefts.current = nextLefts;
+    previousCompact.current = compact;
+  }, [compact, controllers, isTvMode, isMobile]);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -494,6 +517,10 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                     return (
                   <div
                     key={controller.id}
+                    ref={isTvMode && !isMobile ? (el) => {
+                      if (el) tileRefs.current.set(controller.id, el);
+                      else tileRefs.current.delete(controller.id);
+                    } : undefined}
                     className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/40 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
                     style={{
                       flex: isMobile ? undefined : '1 1 0%',
@@ -503,8 +530,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       minWidth: isMobile
                         ? undefined
                         : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
-                      height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '60px'),
-                      padding: isMobile ? (compact ? '3px 10px 7px' : '4px 12px 8px') : (compact ? '4px 14px 8px' : '5px 18px 9px'),
+                       height: isMobile ? (compact ? '48px' : '54px') : (isTvMode ? '60px' : (compact ? '52px' : '60px')),
+                       padding: isMobile ? (compact ? '3px 10px 7px' : '4px 12px 8px') : (isTvMode ? '5px 18px 9px' : (compact ? '4px 14px 8px' : '5px 18px 9px')),
                        transition: 'background-color 200ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}

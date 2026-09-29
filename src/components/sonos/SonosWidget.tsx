@@ -173,7 +173,7 @@ export const SonosWidget = memo(function SonosWidget({
       setKeepHeaderContent(true);
       return;
     }
-    const timer = setTimeout(() => setKeepHeaderContent(false), 350);
+    const timer = setTimeout(() => setKeepHeaderContent(false), 250);
     return () => clearTimeout(timer);
   }, [isHeader, isHidden]);
 
