@@ -209,10 +209,9 @@ export const TimerFooter = memo(function TimerFooter() {
       return () => cancelAnimationFrame(frameRef.current);
     }
     setEntered(false);
-    if (!rendered) return;
     const timeout = setTimeout(() => setRendered(false), 250);
     return () => clearTimeout(timeout);
-  }, [isVisible, rendered]);
+  }, [isVisible]);
 
   // Register footer height so dashboard can adjust layout
   useEffect(() => {
