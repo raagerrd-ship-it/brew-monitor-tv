@@ -14,25 +14,30 @@ import type {
   PrintSettings,
   PrintProgress as DriverProgress,
   ProgressPhase,
-} from './phomemo-driver';
+} from './phomemo-driver/types';
 
 import {
   PRINTER_VERSION,
   SETTINGS_VERSION,
   DEFAULT_PRINT_SETTINGS,
   PRINT_WIDTH_PX,
+} from './phomemo-driver/constants';
+import {
   isBluetoothSupported,
   connectPrinter as driverConnect,
   reconnectLastPrinter as driverReconnect,
   disconnectPrinter,
-  defaultStorage,
-  migrateSettingsIfNeeded as driverMigrate,
+} from './phomemo-driver/connection';
+import { defaultStorage, migrateSettingsIfNeeded as driverMigrate } from './phomemo-driver/storage';
+import {
   sendRasterJob as driverSendRasterJob,
   printBitmap as driverPrintBitmap,
   printBitmapBypassProcessing as driverPrintBitmapBypass,
+} from './phomemo-driver/protocol';
+import {
   printDebugTestPattern as driverPrintDebug,
   printTestPage as driverPrintTestPage,
-} from './phomemo-driver';
+} from './phomemo-driver/debug-pattern';
 
 // ── Re-export types & constants unchanged ───────────────────────
 

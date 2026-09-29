@@ -127,6 +127,13 @@
       "when": 1790690930330,
       "tag": "0017_pi_telemetry_seen_single_row",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790691504881,
+      "tag": "0018_deprecate_unused_tables",
+      "breakpoints": true
     }
   ]
 }
