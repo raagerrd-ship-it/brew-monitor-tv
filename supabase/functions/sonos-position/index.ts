@@ -95,9 +95,17 @@ Deno.serve(async (req) => {
       updatePayload.duration_ms = durationMillis;
     }
 
-    await supabase.from('sonos_now_playing')
-      .update(updatePayload)
-      .eq('id', existingRow.id);
+    // Hoppa över skrivningen när inget ändrats (t.ex. pausat läge med samma position).
+    const unchanged =
+      existingRow.position_ms === compensatedPosition &&
+      existingRow.playback_state === effectivePlaybackState &&
+      (existingRow.position_stale_count ?? 0) === newStaleCount &&
+      updatePayload.duration_ms === undefined;
+    if (!unchanged) {
+      await supabase.from('sonos_now_playing')
+        .update(updatePayload)
+        .eq('id', existingRow.id);
+    }
 
     const duration = Date.now() - startTime;
     return new Response(JSON.stringify({
