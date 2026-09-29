@@ -1956,6 +1956,7 @@ export type Database = {
           target_temp: number
         }[]
       }
+      prune_temp_controller_history: { Args: never; Returns: number }
       replace_profile_steps: {
         Args: { p_profile_id: string; p_steps: Json }
         Returns: undefined
