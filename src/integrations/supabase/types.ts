@@ -14,45 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ai_audit_log: {
-        Row: {
-          actions_taken: Json
-          analysis: string
-          anomalies_detected: Json
-          created_at: string
-          duration_ms: number
-          id: string
-          model: string
-          parameters_changed: Json
-          prompt_summary: string | null
-          recommendations: Json
-        }
-        Insert: {
-          actions_taken?: Json
-          analysis: string
-          anomalies_detected?: Json
-          created_at?: string
-          duration_ms?: number
-          id?: string
-          model?: string
-          parameters_changed?: Json
-          prompt_summary?: string | null
-          recommendations?: Json
-        }
-        Update: {
-          actions_taken?: Json
-          analysis?: string
-          anomalies_detected?: Json
-          created_at?: string
-          duration_ms?: number
-          id?: string
-          model?: string
-          parameters_changed?: Json
-          prompt_summary?: string | null
-          recommendations?: Json
-        }
-        Relationships: []
-      }
       brew_data_snapshots: {
         Row: {
           actual_temp: number | null
@@ -1163,39 +1124,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pill_sg_calibration: {
-        Row: {
-          anchor_recorded_at: string | null
-          anchor_sg: number | null
-          anchor_temp: number | null
-          created_at: string
-          id: string
-          pill_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          anchor_recorded_at?: string | null
-          anchor_sg?: number | null
-          anchor_temp?: number | null
-          created_at?: string
-          id?: string
-          pill_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          anchor_recorded_at?: string | null
-          anchor_sg?: number | null
-          anchor_temp?: number | null
-          created_at?: string
-          id?: string
-          pill_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           created_at: string
@@ -1241,30 +1169,6 @@ export type Database = {
           id?: string
           last_used_at?: string
           subscription?: Json
-        }
-        Relationships: []
-      }
-      rapt_outage_log: {
-        Row: {
-          created_at: string
-          duration_seconds: number
-          id: string
-          outage_end: string
-          outage_start: string
-        }
-        Insert: {
-          created_at?: string
-          duration_seconds: number
-          id?: string
-          outage_end: string
-          outage_start: string
-        }
-        Update: {
-          created_at?: string
-          duration_seconds?: number
-          id?: string
-          outage_end?: string
-          outage_start?: string
         }
         Relationships: []
       }
@@ -1709,36 +1613,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sonos_tokens: {
-        Row: {
-          access_token: string
-          created_at: string
-          expires_at: string
-          household_id: string | null
-          id: string
-          refresh_token: string
-          updated_at: string
-        }
-        Insert: {
-          access_token: string
-          created_at?: string
-          expires_at: string
-          household_id?: string | null
-          id?: string
-          refresh_token: string
-          updated_at?: string
-        }
-        Update: {
-          access_token?: string
-          created_at?: string
-          expires_at?: string
-          household_id?: string | null
-          id?: string
-          refresh_token?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       sync_settings: {
         Row: {
           auto_activate_fermenting: boolean | null
@@ -1847,63 +1721,6 @@ export type Database = {
           profile_target_temp?: number | null
           recorded_at?: string
           target_temp?: number
-        }
-        Relationships: []
-      }
-      temp_delta_alerts: {
-        Row: {
-          acknowledged: boolean
-          alert_type: string
-          controller_id: string
-          created_at: string
-          delta: number
-          id: string
-        }
-        Insert: {
-          acknowledged?: boolean
-          alert_type?: string
-          controller_id: string
-          created_at?: string
-          delta: number
-          id?: string
-        }
-        Update: {
-          acknowledged?: boolean
-          alert_type?: string
-          controller_id?: string
-          created_at?: string
-          delta?: number
-          id?: string
-        }
-        Relationships: []
-      }
-      temp_delta_history: {
-        Row: {
-          controller_id: string
-          controller_temp: number
-          created_at: string
-          delta: number
-          id: string
-          pill_temp: number
-          recorded_at: string
-        }
-        Insert: {
-          controller_id: string
-          controller_temp: number
-          created_at?: string
-          delta: number
-          id?: string
-          pill_temp: number
-          recorded_at?: string
-        }
-        Update: {
-          controller_id?: string
-          controller_temp?: number
-          created_at?: string
-          delta?: number
-          id?: string
-          pill_temp?: number
-          recorded_at?: string
         }
         Relationships: []
       }
