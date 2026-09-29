@@ -173,7 +173,7 @@ export function ActiveFermentationSession({
           {/* Collapse button */}
           <button
             onClick={() => { setExpanded(false); onExpandChange?.(false); }}
-            className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
+            className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground  py-0.5"
           >
             <ChevronUp className="w-3 h-3" />
             <span>Dölj</span>

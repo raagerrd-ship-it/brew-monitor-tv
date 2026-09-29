@@ -239,7 +239,7 @@ function CleaningChecklistOverlayComponent() {
           </div>
           <button
             onClick={() => setChecklist(null)}
-            className="flex-shrink-0 rounded-lg border border-white/15 p-2 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+            className="flex-shrink-0 rounded-lg border border-white/15 p-2 text-muted-foreground  hover:bg-white/10 hover:text-foreground"
             aria-label="Stäng checklista"
           >
             <X className="h-5 w-5" />

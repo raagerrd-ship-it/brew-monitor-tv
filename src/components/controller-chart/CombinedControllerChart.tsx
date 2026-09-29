@@ -145,7 +145,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              className={`px-2 py-0.5 text-xs rounded  ${
                 timeRange === range
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -194,7 +194,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                       toggleSeries(`${ctrl.id}_cooling`);
                       setExpanded(prev => new Set(prev).add(ctrl.id));
                     }}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-[10px] text-muted-foreground hover:text-foreground "
                   >
                     visa
                   </button>

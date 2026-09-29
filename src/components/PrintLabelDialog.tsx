@@ -85,7 +85,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew, defaultType = 'tank
           {/* Tab selection */}
           <div className="flex gap-1 rounded-lg bg-muted p-1">
             <button
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium  ${
                 labelType === 'tank' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
               onClick={() => setLabelType('tank')}
@@ -93,7 +93,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew, defaultType = 'tank
               🧪 Jästank
             </button>
             <button
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium  ${
                 labelType === 'keg' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
               onClick={() => setLabelType('keg')}
@@ -120,7 +120,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew, defaultType = 'tank
                   <button
                     key={n}
                     onClick={() => setCopies(n)}
-                    className={`h-8 w-8 rounded-md text-sm font-medium transition-colors ${
+                    className={`h-8 w-8 rounded-md text-sm font-medium  ${
                       copies === n
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -188,7 +188,7 @@ export function PrintLabelDialog({ open, onOpenChange, brew, defaultType = 'tank
             {hasBle && (
               <button
                 onClick={() => setDebugOpen(true)}
-                className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+                className="text-[10px] text-muted-foreground/20 hover:text-muted-foreground/60 "
                 title="Visa BLE-debug"
               >
                 <Bug className="h-3 w-3 inline" />

@@ -164,7 +164,7 @@ function BrewCardComponent({
             {/* Title row */}
             <div className="flex items-center gap-2">
               <h2 
-                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary transition-colors"
+                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary "
                 style={{ 
                   fontSize: '18px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
@@ -209,21 +209,21 @@ function BrewCardComponent({
                       </div>
                     )}
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setSmoothLines(!smoothLines); }}
                     >
                       <TrendingUp className={`h-3.5 w-3.5 ${smoothLines ? 'text-primary' : 'text-muted-foreground'}`} />
                       {smoothLines ? 'Raka linjer' : 'Mjuka linjer'}
                     </button>
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setTimeRange(timeRange === 'full' ? '12h' : 'full'); }}
                     >
                       <Clock className={`h-3.5 w-3.5 ${timeRange === '12h' ? 'text-primary' : 'text-muted-foreground'}`} />
                       {timeRange === '12h' ? 'Visa allt' : 'Senaste 12h'}
                     </button>
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
                     >
                       <Share2 className="h-3.5 w-3.5" />
@@ -236,7 +236,7 @@ function BrewCardComponent({
                       onEventsChange={onEventsChange}
                       trigger={
                         <button
-                          className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                          className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                           onClick={() => setMenuOpen(false)}
                         >
                           <Plus className="h-3.5 w-3.5" />
@@ -247,7 +247,7 @@ function BrewCardComponent({
                     {isAuthenticated && !isBrewInactive(brew.status) && (
                       <button
                         disabled={rackedSending || rackedSent}
-                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left disabled:opacity-50"
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left disabled:opacity-50"
                         onClick={async () => {
                           setRackedSending(true);
                           const { error } = await supabase.from("pi_commands").insert({
@@ -277,7 +277,7 @@ function BrewCardComponent({
                       </button>
                     )}
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setPrintLabelOpen(true); setMenuOpen(false); }}
                     >
                       <Printer className="h-3.5 w-3.5" />
@@ -304,7 +304,7 @@ function BrewCardComponent({
                       <Popover open={fermEndOpen} onOpenChange={setFermEndOpen}>
                         <PopoverTrigger asChild>
                           <button
-                            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                           >
                             <CalendarDays className="h-3.5 w-3.5" />
                             {brew.fermentationEnd

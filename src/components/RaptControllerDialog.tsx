@@ -135,7 +135,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                   <button
                     type="button"
                     onClick={() => updatePidVersion('v5')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    className={`px-3 py-1 text-xs font-medium rounded-md  ${
                       pidVersion === 'v5' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -144,7 +144,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                   <button
                     type="button"
                     onClick={() => updatePidVersion('claude')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    className={`px-3 py-1 text-xs font-medium rounded-md  ${
                       pidVersion === 'claude' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >

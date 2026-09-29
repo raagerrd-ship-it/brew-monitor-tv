@@ -160,7 +160,7 @@ export function PiRemoteControl({
                 type="button"
                 onClick={() => setDraftMode(m.key === activeMode ? null : m.key)}
                 disabled={remote.sending}
-                className="relative flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+                className="relative flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold  disabled:opacity-50"
                 style={selected
                   ? { background: `hsl(${m.hue} / 0.18)`, color: `hsl(${m.hue})`, boxShadow: `inset 0 0 0 1px hsl(${m.hue} / 0.45)` }
                   : { color: 'hsl(var(--muted-foreground))' }}

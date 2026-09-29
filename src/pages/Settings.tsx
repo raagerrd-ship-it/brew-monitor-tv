@@ -192,7 +192,7 @@ export default function Settings() {
                             </div>
                             <Switch checked={timerTvModeOnly} disabled={settingsLoading} onCheckedChange={setTimerTvModeOnly} />
                           </div>
-                          <button className="text-[11px] text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+                          <button className="text-[11px] text-muted-foreground hover:text-destructive  flex items-center gap-1"
                             onClick={() => { if (confirm('Vill du koppla från timer-kontot?')) externalSignOut(); }}>
                             <LogOut className="h-3 w-3" /> Koppla från
                           </button>
@@ -392,7 +392,7 @@ export default function Settings() {
             {/* Logga ut */}
             <div className="pt-4 pb-2 flex justify-center">
               <button onClick={settings.handleLogout}
-                className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1.5">
+                className="text-xs text-muted-foreground hover:text-destructive  flex items-center gap-1.5">
                 <LogOut className="h-3.5 w-3.5" /> Logga ut
               </button>
             </div>
