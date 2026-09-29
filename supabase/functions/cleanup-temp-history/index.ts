@@ -9,9 +9,8 @@ const corsHeaders = {
 
 /**
  * Retention cleanup — runs daily via cron.
- * 7d:  temp_controller_history, temp_delta_history
- * 30d: ai_audit_log, rapt_outage_log,
- *      fermentation_step_log (only completed sessions)
+ * 7d:  temp_controller_history
+ * 30d: fermentation_step_log (only completed sessions)
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -31,51 +30,9 @@ Deno.serve(async (req) => {
 
     // Delete in batches to avoid timeouts on large tables
     let totalControllerDeleted = 0;
-    let totalDeltaDeleted = 0;
 
     // temp_controller_history: pruned hourly in SQL (prune_temp_controller_history)
 
-
-    // temp_delta_history
-    while (true) {
-      const { data } = await supabase
-        .from("temp_delta_history")
-        .select("id")
-        .lt("recorded_at", cutoff7d)
-        .limit(1000);
-      if (!data || data.length === 0) break;
-      const ids = data.map((r: any) => r.id);
-      await supabase.from("temp_delta_history").delete().in("id", ids);
-      totalDeltaDeleted += ids.length;
-    }
-
-    // ai_audit_log (keep 30 days)
-    let totalAiAuditDeleted = 0;
-    while (true) {
-      const { data } = await supabase
-        .from("ai_audit_log")
-        .select("id")
-        .lt("created_at", cutoff30d)
-        .limit(1000);
-      if (!data || data.length === 0) break;
-      const ids = data.map((r: any) => r.id);
-      await supabase.from("ai_audit_log").delete().in("id", ids);
-      totalAiAuditDeleted += ids.length;
-    }
-
-    // rapt_outage_log (keep 30 days)
-    let totalOutageDeleted = 0;
-    while (true) {
-      const { data } = await supabase
-        .from("rapt_outage_log")
-        .select("id")
-        .lt("created_at", cutoff30d)
-        .limit(1000);
-      if (!data || data.length === 0) break;
-      const ids = data.map((r: any) => r.id);
-      await supabase.from("rapt_outage_log").delete().in("id", ids);
-      totalOutageDeleted += ids.length;
-    }
 
     // fermentation_step_log (keep 30 days, only for completed sessions)
     let totalStepLogDeleted = 0;
@@ -100,15 +57,13 @@ Deno.serve(async (req) => {
       totalStepLogDeleted += toDelete.length;
     }
 
-    const msg = `Deleted: ${totalControllerDeleted} controller history (>7d), ${totalDeltaDeleted} delta history (>7d), ${totalAiAuditDeleted} ai audit (>30d), ${totalOutageDeleted} outage logs (>30d), ${totalStepLogDeleted} step logs (>30d completed)`;
+    const msg = `Deleted: ${totalControllerDeleted} controller history (>7d), ${totalStepLogDeleted} step logs (>30d completed)`;
     console.log(`[CleanupTempHistory] ${msg}`);
 
     return new Response(
       JSON.stringify({
         success: true, message: msg,
-        controllerDeleted: totalControllerDeleted, deltaDeleted: totalDeltaDeleted,
-        aiAuditDeleted: totalAiAuditDeleted,
-        outageDeleted: totalOutageDeleted, stepLogDeleted: totalStepLogDeleted,
+        controllerDeleted: totalControllerDeleted, stepLogDeleted: totalStepLogDeleted,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
