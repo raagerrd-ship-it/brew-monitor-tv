@@ -18,4 +18,4 @@
 
 - [x] Databasoptimering: mät användning, frågor, index; åtgärda största kostnaderna
 
-- [ ] Sidhuvud TV: FLIP-förflyttning av tankrutor och separat Sonos-övergång; verifiera layout och bygge.
+- [x] Sidhuvud TV: FLIP-förflyttning av tankrutor och separat Sonos-övergång; verifiera layout och bygge.
