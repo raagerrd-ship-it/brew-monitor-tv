@@ -146,7 +146,7 @@ function BrewCardComponent({
           {/* Label image thumbnail */}
           {brew.label_image_url && (
             <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse cursor-pointer hover:ring-2 hover:ring-primary/50"
               style={{ width: '52px', height: '52px' }}
               onClick={() => setLabelExpanded(v => !v)}
             >
@@ -179,14 +179,14 @@ function BrewCardComponent({
               <div className="flex-shrink-0 relative" ref={menuRef}>
                 <button
                   onClick={showInteractiveElements ? () => setMenuOpen(!menuOpen) : undefined}
-                  className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap backdrop-blur-md inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
+                  className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
                   style={{ 
                     fontSize: '10px',
                     background: isCompletedOrConditioning 
-                      ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                      ? "linear-gradient(135deg, hsl(var(--primary) / 0.36) 0%, hsl(var(--primary) / 0.22) 100%)" 
                       : isBrewing
-                      ? "linear-gradient(135deg, hsl(30 90% 50% / 0.25) 0%, hsl(30 90% 50% / 0.1) 100%)"
-                      : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
+                      ? "linear-gradient(135deg, hsl(30 90% 50% / 0.36) 0%, hsl(30 90% 50% / 0.22) 100%)"
+                      : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.36) 0%, hsl(var(--ferment-green) / 0.22) 100%)",
                     color: isCompletedOrConditioning ? "hsl(var(--primary))" : isBrewing ? "hsl(30 90% 55%)" : "hsl(var(--ferment-green))",
                     border: isCompletedOrConditioning
                       ? "1px solid hsl(var(--primary) / 0.3)" 
@@ -202,7 +202,6 @@ function BrewCardComponent({
                 {menuOpen && showInteractiveElements && (
                   <div
                     className="absolute right-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
-                    style={{ backdropFilter: 'blur(12px)' }}
                   >
                     {brew.batch_id.startsWith('custom_') && (
                       <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-muted-foreground w-full">

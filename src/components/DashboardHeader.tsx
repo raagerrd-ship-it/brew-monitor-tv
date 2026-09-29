@@ -154,15 +154,15 @@ export function DashboardHeader({
   return (
     <>
       <div
-        className={`z-20 ${isTvMode ? '' : 'transition-all duration-500'} ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-visible'}`}
+        className={`z-20 ${isMobile ? 'flex flex-col py-2 px-2 gap-2 fixed top-0 left-0 right-0 overflow-visible' : 'flex-shrink-0 flex items-stretch relative overflow-visible'}`}
         style={{
           height: isMobile ? 'auto' : `${HEADER_HEIGHT_DESKTOP}px`,
-          background: isMobile ? 'hsl(var(--background) / 0.12)' : undefined,
+          background: isMobile ? 'hsl(var(--background) / 0.24)' : undefined,
           borderBottom: isMobile ? '1px solid hsl(var(--border) / 0.35)' : undefined,
-          backdropFilter: isMobile ? undefined : undefined,
+          boxShadow: isMobile ? '0 4px 18px hsl(var(--background) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.08)' : undefined,
         }}
       >
-        {/* Soft backdrop: blur + tint fade out below the header instead of a hard edge */}
+        {/* Soft tint fade out below the header instead of a hard edge */}
         {!isMobile && (
           <div
             aria-hidden
@@ -171,8 +171,8 @@ export function DashboardHeader({
               top: 0,
               zIndex: -1,
               height: `${HEADER_HEIGHT_DESKTOP + 28}px`,
-              background: 'hsl(var(--background) / 0.10)',
-              backdropFilter: 'blur(18px)',
+              background: 'hsl(var(--background) / 0.22)',
+              boxShadow: '0 4px 18px hsl(var(--background) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
               WebkitMaskImage: `linear-gradient(to bottom, black 0%, black ${HEADER_HEIGHT_DESKTOP - 12}px, transparent 100%)`,
               maskImage: `linear-gradient(to bottom, black 0%, black ${HEADER_HEIGHT_DESKTOP - 12}px, transparent 100%)`,
             }}
@@ -641,7 +641,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           return (
                             <div
                               key={i}
-                              className="flex-1 h-full transition-all duration-500"
+                              className="flex-1 h-full"
                               style={{
                                 background: filled ? batteryColor : `${accent}26`,
                                 boxShadow: filled ? `0 0 8px ${batteryColor}80` : 'none',

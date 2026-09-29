@@ -211,7 +211,7 @@ function CleaningChecklistOverlayComponent() {
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center p-2"
-      style={{ background: 'hsl(222 30% 3% / 0.88)', backdropFilter: 'blur(16px)' }}
+      style={{ background: 'hsl(222 30% 3% / 0.96)' }}
     >
       <div
         className="relative flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10"

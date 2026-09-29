@@ -41,12 +41,12 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, on
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-20 backdrop-blur-xl flex items-center px-4 gap-3"
+      className="absolute bottom-0 left-0 right-0 z-20 flex items-center px-4 gap-3"
       style={{
         height: '48px',
-        background: 'linear-gradient(145deg, hsl(38 80% 15% / 0.6) 0%, hsl(222 20% 12% / 0.8) 100%)',
+        background: 'linear-gradient(145deg, hsl(38 80% 15% / 0.72) 0%, hsl(222 20% 12% / 0.92) 100%)',
         borderTop: '1px solid hsl(38 60% 30% / 0.2)',
-        boxShadow: '0 -4px 16px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+        boxShadow: '0 -4px 16px hsl(222 30% 3% / 0.4), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
       }}
     >
       {/* Left: countdown */}
@@ -63,9 +63,11 @@ export const AlarmTimerFooterBar = memo(function AlarmTimerFooterBar({ entry, on
         boxShadow: 'inset 0 1px 3px hsl(0 0% 0% / 0.5)',
       }}>
         <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+          className="absolute inset-0 rounded-full"
           style={{
-            width: `${progress}%`,
+            transform: `scaleX(${progress / 100})`,
+            transformOrigin: 'left',
+            transition: 'transform 500ms ease',
             background: 'linear-gradient(90deg, hsl(38 80% 45%), hsl(45 95% 55%))',
             boxShadow: '0 0 8px hsl(38 90% 55% / 0.5)',
           }}

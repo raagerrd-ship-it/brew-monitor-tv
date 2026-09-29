@@ -106,7 +106,7 @@ export function PiRemoteControl({
         : 'Profilen kör lokalt på Pi:n';
 
   return (
-    <div className="rounded-xl border border-border/30 bg-muted/20 backdrop-blur-sm overflow-hidden">
+    <div className="rounded-xl border border-border/30 bg-muted/35 shadow-glass overflow-hidden">
       <style>{`
         @keyframes pi-pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
       `}</style>
