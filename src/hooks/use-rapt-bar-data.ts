@@ -15,7 +15,24 @@ interface RaptBarData {
 // Engångsladdning när ingen use-brew-data fyller den delade källan (t.ex. Inställningar).
 async function loadOnce(initial: boolean) {
   const startedAt = Date.now();
-...
+  try {
+    const [selectedControllersRes, selectedPillsRes] = await Promise.all([
+      supabase.from('selected_rapt_temp_controllers').select('controller_id').eq('is_visible', true).order('display_order'),
+      supabase.from('selected_rapt_pills').select('pill_id').eq('is_visible', true).order('display_order'),
+    ]);
+    const controllerIds = selectedControllersRes.data?.map(s => s.controller_id) || [];
+    const pillIds = selectedPillsRes.data?.map(s => s.pill_id) || [];
+
+    const [controllersRes, pillsRes, sessionsRes, liveRes] = await Promise.all([
+      controllerIds.length > 0
+        ? supabase.from('rapt_temp_controllers').select('*').in('controller_id', controllerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      pillIds.length > 0
+        ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
+      supabase.from('pi_live_state').select('controller_id, enabled, target_source'),
+    ]);
     if (initial ? getRaptBar().loaded : getRaptBar().updatedAt > startedAt) return;
 
     const controllers = (controllersRes.data || []).sort((a: any, b: any) =>
