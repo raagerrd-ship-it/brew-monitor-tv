@@ -33,18 +33,8 @@ Deno.serve(async (req) => {
     let totalControllerDeleted = 0;
     let totalDeltaDeleted = 0;
 
-    // temp_controller_history
-    while (true) {
-      const { data } = await supabase
-        .from("temp_controller_history")
-        .select("id")
-        .lt("recorded_at", cutoff7d)
-        .limit(1000);
-      if (!data || data.length === 0) break;
-      const ids = data.map((r: any) => r.id);
-      await supabase.from("temp_controller_history").delete().in("id", ids);
-      totalControllerDeleted += ids.length;
-    }
+    // temp_controller_history: pruned hourly in SQL (prune_temp_controller_history)
+
 
     // temp_delta_history
     while (true) {
