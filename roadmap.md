@@ -16,4 +16,4 @@
 - [x] 5 Återhämtning vid visibilitychange/online
 - [x] 6 Död kod bort, testpaket till devDependencies
 
-- [ ] Databasoptimering: mät användning, frågor, index; åtgärda största kostnaderna
+- [x] Databasoptimering: mät användning, frågor, index; åtgärda största kostnaderna

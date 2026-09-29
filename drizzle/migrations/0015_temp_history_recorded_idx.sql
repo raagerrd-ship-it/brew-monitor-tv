@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_temp_history_recorded_at ON public.temp_controller_history (recorded_at);
