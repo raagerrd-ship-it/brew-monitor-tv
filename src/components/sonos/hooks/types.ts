@@ -19,7 +19,6 @@ export interface NowPlaying {
   next_bg_generation_ms?: number | null;
 }
 
-
 /** Monotonic seq gate: check if incoming seq is stale */
 export function isSeqStale(acceptedSeq: number, incomingSeq: number | undefined): boolean {
   if (typeof incomingSeq !== 'number') return false; // no seq → allow (legacy)
@@ -71,6 +70,7 @@ export async function triggerServerSync(): Promise<void> {
   } catch { /* ignore */ } finally { clearTimeout(timeout); }
 }
 
+/**
  * Fetch processed image URLs directly from the DB (sonos_now_playing row).
  * Used after triggerServerSync to get bg/widget images without waiting for realtime.
  */

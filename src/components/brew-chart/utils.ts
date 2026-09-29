@@ -6,12 +6,6 @@ import {
   EventDisplay
 } from "./types";
 
-      avgTemp,
-      tempSpan
-    };
-  });
-}
-
 /**
  * Calculate moving average for smoother chart lines
  * TRULY OPTIMIZED: Uses proper sliding window with O(n) complexity
