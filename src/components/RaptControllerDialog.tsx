@@ -12,7 +12,7 @@ import { ControllerTempChart } from './controller-chart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
 import { PiRemoteControl } from './PiRemoteControl';
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';
-import { useControllerDialog } from '@/hooks';
+import { useControllerDialog } from '@/hooks/use-controller-dialog';
 import { getDisplayTarget } from '@/lib/temp-display';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
