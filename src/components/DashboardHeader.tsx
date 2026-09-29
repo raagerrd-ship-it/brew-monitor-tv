@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
 
-import { useIsMobile } from "@/hooks";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";

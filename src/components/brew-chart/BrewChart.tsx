@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { BrewChartProps } from "./types";
 import { getEventDisplay, getEventsPerDay, formatXAxisTick, formatTooltipLabel } from "./utils";
-import { useStaggeredRender } from "@/hooks";
+import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBrewChartData } from "./hooks/useBrewChartData";
 import {

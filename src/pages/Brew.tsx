@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { BrewCard } from "@/components/brew-card/BrewCard";
 import dbLogo from "@/assets/db-logo.png";
-import { useBrewPage } from "@/hooks";
+import { useBrewPage } from "@/hooks/use-brew-page";
 
 // Update document title and favicon when brew is loaded
 const useDocumentTitleAndIcon = (title: string | null) => {

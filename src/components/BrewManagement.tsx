@@ -9,7 +9,7 @@ import type { CustomBrewData } from "./CustomBrewDialog";
 import { PrintLabelDialog } from "./PrintLabelDialog";
 import { YeastDialog } from "./YeastDialog";
 import type { BrewData } from "@/types/brew";
-import { useBrewManagement } from "@/hooks";
+import { useBrewManagement } from "@/hooks/use-brew-management";
 
 /** Minimal BrewData shape needed to render a keg label */
 function toLabelBrew(brew: CustomBrewData): BrewData {
