@@ -102,8 +102,19 @@ export function DashboardHeader({
   // RAPT bar data — self-contained
   const { controllers, pills, piDisabled, piManual, activeSessions } = useRaptBarData();
 
-  // Sonos visibility drives header layout: chips grow when Sonos is hidden.
-  const [sonosVisible, setSonosVisible] = useState(true);
+  // Keep the slot open until the content has finished fading out.
+  const [sonosVisible, setSonosVisible] = useState(false);
+  const [slotOpen, setSlotOpen] = useState(false);
+  const handleSonosVisibility = useCallback((visible: boolean) => {
+    if (visible) setSlotOpen(true);
+    setSonosVisible(visible);
+  }, []);
+
+  useEffect(() => {
+    if (sonosVisible || !slotOpen) return;
+    const timer = setTimeout(() => setSlotOpen(false), 350);
+    return () => clearTimeout(timer);
+  }, [sonosVisible, slotOpen]);
 
   // Alarm/Timer dialog state
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
@@ -230,7 +241,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={sonosVisible} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={slotOpen} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -238,21 +249,28 @@ export function DashboardHeader({
           <>
             <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={sonosVisible} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={slotOpen} />
               )}
             </div>
 
             <div
-              className={`flex items-stretch justify-center min-w-0 overflow-hidden border-l border-border/40 bg-muted/10 ${isTvMode && sonosVisible ? 'flex-1' : ''}`}
+              className={`flex items-stretch justify-center min-w-0 overflow-hidden border-l border-border/40 bg-muted/10 ${isTvMode && slotOpen ? 'flex-1' : ''}`}
               style={{
                 cursor: isTvMode ? 'default' : 'pointer',
-                maxWidth: isTvMode ? (sonosVisible ? '300px' : '0px') : (sonosVisible ? '180px' : '0px'),
-                opacity: sonosVisible ? 1 : 0,
-                transition: 'max-width 400ms ease, opacity 300ms ease, flex 400ms ease',
+                maxWidth: isTvMode ? (slotOpen ? '300px' : '0px') : (slotOpen ? '180px' : '0px'),
               }}
               onClick={isTvMode ? undefined : () => navigate('/')}
             >
-              <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
+              <div
+                className="flex min-w-0 flex-1 items-stretch"
+                style={{
+                  transform: sonosVisible ? 'translateX(0)' : 'translateX(24px)',
+                  opacity: sonosVisible ? 1 : 0,
+                  transition: 'transform 350ms ease-out, opacity 350ms ease-out',
+                }}
+              >
+                <SonosWidget isMobile={false} variant="header" onVisibilityChange={handleSonosVisibility} />
+              </div>
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0 self-stretch border-l border-border/40 px-4">
@@ -487,7 +505,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
                       height: isMobile ? (compact ? '48px' : '54px') : (compact ? '52px' : '60px'),
                       padding: isMobile ? (compact ? '3px 10px 7px' : '4px 12px 8px') : (compact ? '4px 14px 8px' : '5px 18px 9px'),
-                      transition: 'flex 400ms ease, width 400ms ease, height 400ms ease, padding 400ms ease, background-color 200ms ease',
+                       transition: 'background-color 200ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                     title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}
