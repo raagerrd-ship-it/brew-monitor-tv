@@ -1,6 +1,6 @@
-import { memo, useRef, useEffect } from 'react';
+import { memo, useRef, useEffect, useState } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
-import { TimerMilestone } from '@/hooks/use-external-timer';
+import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
 import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
@@ -164,11 +164,16 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
 export const TimerFooter = memo(function TimerFooter() {
-  const timer = useExternalTimer();
+  const liveTimer = useExternalTimer();
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
   const { showAlert, dismissAlert } = useDashboardAlert();
+  const lastActiveTimer = useRef<ExternalTimerState | null>(null);
+  if (liveTimer.isActive) lastActiveTimer.current = liveTimer;
+  const timer = liveTimer.isActive ? liveTimer : lastActiveTimer.current ?? liveTimer;
+  const [rendered, setRendered] = useState(false);
+  const [entered, setEntered] = useState(false);
   
   // Track triggered milestones for attention notification
   const lastTriggeredRef = useRef<Set<string>>(new Set());
@@ -190,17 +195,33 @@ export const TimerFooter = memo(function TimerFooter() {
 
   // Check if we should show based on TV mode setting
   const shouldShow = timerTvModeOnly ? isTvMode : true;
-  const isVisible = shouldShow && timer.isActive;
+  const isVisible = shouldShow && liveTimer.isActive;
+
+  useEffect(() => {
+    if (isVisible) {
+      setRendered(true);
+      const frameRef = { current: 0 };
+      const frame = requestAnimationFrame(() => {
+        const nextFrame = requestAnimationFrame(() => setEntered(true));
+        frameRef.current = nextFrame;
+      });
+      frameRef.current = frame;
+      return () => cancelAnimationFrame(frameRef.current);
+    }
+    setEntered(false);
+    const timeout = setTimeout(() => setRendered(false), 250);
+    return () => clearTimeout(timeout);
+  }, [isVisible]);
 
   // Register footer height so dashboard can adjust layout
   useEffect(() => {
-    if (isVisible) {
+    if (rendered) {
       setFooterSlot(null, TIMER_FOOTER_HEIGHT); // null content = self-rendering
     } else {
       clearFooterSlot();
     }
     return () => clearFooterSlot();
-  }, [isVisible, setFooterSlot, clearFooterSlot]);
+  }, [rendered, setFooterSlot, clearFooterSlot]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
@@ -284,7 +305,7 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [isMash, timer.pausedByMilestone, timer.isPaused, timer.milestones, timer.remainingSeconds, dismissAlert]);
 
-  if (!isVisible) {
+  if (!rendered) {
     return null;
   }
 
@@ -295,9 +316,12 @@ export const TimerFooter = memo(function TimerFooter() {
     <>
       {/* Main footer - 3 column grid layout for TV */}
       <div 
-        className="absolute bottom-0 left-0 right-0 z-20"
+        className="absolute bottom-0 left-0 right-0 z-20 motion-reduce:!transition-none"
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
+          transform: entered ? 'translateY(0)' : 'translateY(100%)',
+          opacity: entered ? 1 : 0,
+          transition: `transform ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
           background: isMash
              ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.82) 0%, hsl(222 20% 12% / 0.95) 100%)'
             : isWhirlpool
