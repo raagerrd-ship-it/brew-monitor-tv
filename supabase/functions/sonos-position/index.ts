@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Find the latest row to update (singleton-ish — bridge owns one active row)
     const { data: existingRow } = await supabase
       .from('sonos_now_playing')
-      .select('id, position_ms, playback_state, position_stale_count, track_name')
+      .select('id, position_ms, playback_state, position_stale_count, track_name, duration_ms')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -95,9 +95,17 @@ Deno.serve(async (req) => {
       updatePayload.duration_ms = durationMillis;
     }
 
-    await supabase.from('sonos_now_playing')
-      .update(updatePayload)
-      .eq('id', existingRow.id);
+    // Hoppa över skrivningen när inget ändrats (t.ex. pausat läge med samma position).
+    const unchanged =
+      existingRow.position_ms === compensatedPosition &&
+      existingRow.playback_state === effectivePlaybackState &&
+      (existingRow.position_stale_count ?? 0) === newStaleCount &&
+      (updatePayload.duration_ms === undefined || updatePayload.duration_ms === existingRow.duration_ms);
+    if (!unchanged) {
+      await supabase.from('sonos_now_playing')
+        .update(updatePayload)
+        .eq('id', existingRow.id);
+    }
 
     const duration = Date.now() - startTime;
     return new Response(JSON.stringify({
