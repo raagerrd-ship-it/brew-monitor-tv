@@ -20,6 +20,7 @@ const Login = lazy(() => import("./pages/Login"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Brew = lazy(() => import("./pages/Brew"));
 const PrinterDebug = lazy(() => import("./pages/PrinterDebug"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 
 const queryClient = new QueryClient();
@@ -76,6 +77,7 @@ function AppContent() {
             <Routes>
               {/* Brew page without aspect ratio lock */}
               <Route path="/brew/:id" element={<Brew />} />
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
               
               {/* All other routes with aspect ratio lock using layout */}
               <Route element={<AspectRatioLayout />}>
