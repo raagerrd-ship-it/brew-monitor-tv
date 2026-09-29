@@ -8,14 +8,15 @@ export interface RaptBarState {
   piManual: Record<string, boolean>;
   activeSessions: Record<string, boolean>;
   loaded: boolean;
+  updatedAt: number;
 }
 
 // Delad källa: use-brew-data fyller den, headerns stapel läser den.
-let state: RaptBarState = { controllers: [], pills: [], piDisabled: {}, piManual: {}, activeSessions: {}, loaded: false };
+let state: RaptBarState = { controllers: [], pills: [], piDisabled: {}, piManual: {}, activeSessions: {}, loaded: false, updatedAt: 0 };
 const listeners = new Set<() => void>();
 
-export const setRaptBar = (next: Omit<RaptBarState, 'loaded'>) => {
-  state = { ...next, loaded: true };
+export const setRaptBar = (next: Omit<RaptBarState, 'loaded' | 'updatedAt'>) => {
+  state = { ...next, loaded: true, updatedAt: Date.now() };
   listeners.forEach((l) => l());
 };
 
