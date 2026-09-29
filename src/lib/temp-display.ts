@@ -1,21 +1,4 @@
 /**
- * Centralized "actual temperature" calculation.
- *
- * SSOT: actual_temp is pre-calculated by the sync engine and stored on the controller.
- * This function provides a fallback for cases where actual_temp isn't available yet.
- */
-export function getActualTemp(
-  pillTemp: number | null | undefined,
-  probeTemp: number | null | undefined,
-  _pillCompEnabled?: boolean, // deprecated, kept for backward compat
-): number | null {
-  const hasPill = pillTemp != null;
-  const hasProbe = probeTemp != null;
-
-  return hasProbe ? probeTemp : hasPill ? pillTemp : null;
-}
-
-/**
  * Returns a short label describing the temperature source.
  */
 /** @deprecated No longer shown in UI — kept for backward compat */

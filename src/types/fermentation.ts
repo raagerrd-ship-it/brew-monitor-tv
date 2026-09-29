@@ -1,8 +1,6 @@
 export type StepType = 'ramp' | 'hold' | 'wait_for_gravity_stable' | 'wait_for_sg' | 'wait_for_temp' | 'wait_for_acknowledgement' | 'wait_for_pitch' | 'diacetyl_rest' | 'gradual_ramp' | 'smart_cold_crash';
-export type RampType = 'linear' | 'immediate';
 export type SgComparison = 'at_or_below' | 'at_or_above';
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'cancelled';
-export type LogAction = 'started' | 'temp_adjusted' | 'condition_met' | 'completed' | 'paused' | 'resumed' | 'cancelled' | 'acknowledged';
 
 export interface FermentationProfile {
   id: string;
@@ -54,15 +52,6 @@ export interface FermentationSession {
   updated_at: string;
 }
 
-export interface FermentationStepLog {
-  id: string;
-  session_id: string;
-  step_index: number;
-  action: LogAction;
-  details: Record<string, any>;
-  created_at: string;
-}
-
 export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'ramp': 'Temperaturrampa',
   'hold': 'Håll temperatur',
@@ -74,16 +63,6 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   'gradual_ramp': 'Smart diacetylvila',
   'wait_for_pitch': 'Väntar på jäst',
   'smart_cold_crash': 'Smart cold-crash',
-};
-
-export const RAMP_TYPE_LABELS: Record<RampType, string> = {
-  'linear': 'Linjär',
-  'immediate': 'Omedelbar',
-};
-
-export const SG_COMPARISON_LABELS: Record<SgComparison, string> = {
-  'at_or_below': '≤ (lika med eller under)',
-  'at_or_above': '≥ (lika med eller över)',
 };
 
 export const getStepTypeLabel = (stepType: string): string => {
