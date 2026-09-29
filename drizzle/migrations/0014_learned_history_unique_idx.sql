@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pi_learned_hist_param ON public.pi_learned_params_history (controller_id, mode, parameter_name, param_updated_at);
