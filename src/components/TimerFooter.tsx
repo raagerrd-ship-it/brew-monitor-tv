@@ -200,8 +200,12 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (isVisible) {
       setRendered(true);
-      const frame = requestAnimationFrame(() => setEntered(true));
-      return () => cancelAnimationFrame(frame);
+      const frame = requestAnimationFrame(() => {
+        const nextFrame = requestAnimationFrame(() => setEntered(true));
+        frameRef.current = nextFrame;
+      });
+      const frameRef = { current: frame };
+      return () => cancelAnimationFrame(frameRef.current);
     }
     setEntered(false);
     if (!rendered) return;
