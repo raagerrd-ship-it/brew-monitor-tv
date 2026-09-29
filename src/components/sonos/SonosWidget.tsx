@@ -41,12 +41,14 @@ function MarqueeText({ children, className, innerClassName }: { children: React.
 
 interface SonosWidgetProps {
   isMobile?: boolean;
+  isTvMode?: boolean;
   variant?: "floating" | "header";
   onVisibilityChange?: (visible: boolean) => void;
 }
 
 export const SonosWidget = memo(function SonosWidget({
   isMobile = false,
+  isTvMode = false,
   variant = "floating",
   onVisibilityChange,
 }: SonosWidgetProps) {
@@ -190,7 +192,7 @@ export const SonosWidget = memo(function SonosWidget({
     return (
       <div
         className="relative flex min-w-0 flex-1 flex-col justify-center bg-transparent"
-        style={{ padding: '4px 14px 8px', height: '52px', alignSelf: 'flex-start' }}
+        style={{ padding: '4px 14px 8px', height: isTvMode ? '60px' : '52px', alignSelf: 'flex-start' }}
       >
         {/* Label row — exact copy of controller label row */}
         <div className="flex items-center justify-between gap-1">

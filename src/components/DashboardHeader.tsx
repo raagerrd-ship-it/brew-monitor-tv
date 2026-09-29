@@ -269,7 +269,7 @@ export function DashboardHeader({
                   transition: `transform ${sonosVisible ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${sonosVisible ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
                 }}
               >
-                <SonosWidget isMobile={false} variant="header" onVisibilityChange={handleSonosVisibility} />
+                <SonosWidget isMobile={false} isTvMode={isTvMode} variant="header" onVisibilityChange={handleSonosVisibility} />
               </div>
             </div>
 
