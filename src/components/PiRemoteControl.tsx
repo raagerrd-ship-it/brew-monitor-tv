@@ -106,7 +106,7 @@ export function PiRemoteControl({
         : 'Profilen kör lokalt på Pi:n';
 
   return (
-    <div className="rounded-xl border border-border/30 bg-muted/20 backdrop-blur-sm overflow-hidden">
+    <div className="rounded-xl border border-border/30 bg-muted/35 shadow-glass overflow-hidden">
       <style>{`
         @keyframes pi-pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
       `}</style>
@@ -160,7 +160,7 @@ export function PiRemoteControl({
                 type="button"
                 onClick={() => setDraftMode(m.key === activeMode ? null : m.key)}
                 disabled={remote.sending}
-                className="relative flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+                className="relative flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold  disabled:opacity-50"
                 style={selected
                   ? { background: `hsl(${m.hue} / 0.18)`, color: `hsl(${m.hue})`, boxShadow: `inset 0 0 0 1px hsl(${m.hue} / 0.45)` }
                   : { color: 'hsl(var(--muted-foreground))' }}

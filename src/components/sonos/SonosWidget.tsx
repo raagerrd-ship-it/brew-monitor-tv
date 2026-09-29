@@ -249,6 +249,7 @@ export const SonosWidget = memo(function SonosWidget({
                 transformOrigin: 'left',
                 transition: 'transform 1s linear',
                 background: 'hsl(0 0% 95%)',
+                 boxShadow: '0 0 8px hsl(0 0% 95% / 0.6)',
                 opacity: 0.9,
               }}
             />

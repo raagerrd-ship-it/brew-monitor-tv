@@ -94,7 +94,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] bg-background/95 backdrop-blur-xl border-border/50 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[480px] bg-background/95 border-border/50 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-3">
             <div 
@@ -128,14 +128,14 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
 
           {/* PID-motor toggle */}
           {isAuthenticated && !isCooler && !isPi && (
-            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-3 border border-border/30">
+            <div className="bg-muted/45 rounded-xl p-3 border border-border/30">
               <div className="flex items-center justify-between gap-3">
                 <Label className="text-xs text-muted-foreground">PID-motor</Label>
                 <div className="inline-flex rounded-lg bg-muted/50 p-0.5 border border-border/30">
                   <button
                     type="button"
                     onClick={() => updatePidVersion('v5')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    className={`px-3 py-1 text-xs font-medium rounded-md  ${
                       pidVersion === 'v5' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -144,7 +144,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
                   <button
                     type="button"
                     onClick={() => updatePidVersion('claude')}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    className={`px-3 py-1 text-xs font-medium rounded-md  ${
                       pidVersion === 'claude' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -157,7 +157,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
 
           {/* Temperature Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30">
+            <div className="bg-muted/45 rounded-xl p-4 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">Aktuell</p>
               <p className="text-2xl font-bold tabular-nums" style={{ color: controllerColor }}>
                 {actualTemp !== null ? `${actualTemp.toFixed(1)}°` : '—'}
@@ -172,7 +172,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
             </div>
             
             <div 
-              className={`bg-muted/30 backdrop-blur-sm rounded-xl p-4 border border-border/30 transition-all ${
+              className={`bg-muted/45 rounded-xl p-4 border border-border/30 ${
                 isAuthenticated && !hasActiveSession && !isCooler && !isPi ? 'cursor-pointer hover:bg-muted/50 hover:border-primary/30' : ''
               }`}
               onClick={() => {
@@ -247,7 +247,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {/* Givarval sker lokalt på Pi:n (use_pt100 / use_pill i tank_map.json) */}
           {/* Heating/Cooling Status */}
           <div className="flex gap-2">
-            {!isCooler && <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+            {!isCooler && <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg ${
               isActivelyHeating 
                 ? 'bg-orange-500/15 border border-orange-500/30' 
                 : 'bg-muted/20 border border-border/20'
@@ -261,7 +261,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               </span>
             </div>}
             
-            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg ${
               isActivelyCooling 
                 ? 'bg-blue-500/15 border border-blue-500/30' 
                 : 'bg-muted/20 border border-border/20'
@@ -293,7 +293,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           </div>
 
           {/* Temperature Chart */}
-          <div className="bg-muted/20 backdrop-blur-sm rounded-xl p-4 border border-border/30">
+          <div className="bg-muted/35 rounded-xl p-4 border border-border/30">
             <ControllerTempChart 
               controllerId={controller.controller_id} 
               controllerColor={controllerColor}
@@ -313,7 +313,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
         )}
 
         {!isAuthenticated && (
-          <div className="bg-muted/30 backdrop-blur-sm p-4 rounded-xl flex items-center gap-3 border border-border/30 mt-4">
+          <div className="bg-muted/45 p-4 rounded-xl flex items-center gap-3 border border-border/30 mt-4">
             <Lock className="w-4 h-4 text-muted-foreground" />
             <div className="flex-1">
               <p className="text-xs font-medium">Logga in för att ändra temperatur</p>

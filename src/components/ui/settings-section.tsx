@@ -61,8 +61,8 @@ export function SettingsSection({
         </div>
         {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
         {collapsible && (
-          <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-            <ChevronDown className={cn("h-4.5 w-4.5 text-muted-foreground transition-all group-hover:text-primary group-hover:scale-110", isOpen && "rotate-180")} />
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-primary/15">
+            <ChevronDown className={cn("h-4.5 w-4.5 text-muted-foreground transition-transform group-hover:text-primary group-hover:scale-110", isOpen && "rotate-180")} />
           </div>
         )}
       </div>

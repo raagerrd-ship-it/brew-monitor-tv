@@ -97,9 +97,11 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       >
         {/* Progress fill with glow */}
         <div 
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-300 overflow-hidden"
+          className="absolute inset-0 rounded-full overflow-hidden"
           style={{ 
-            width: `${Math.min(100, progressPercent)}%`,
+            transform: `scaleX(${Math.min(100, progressPercent) / 100})`,
+            transformOrigin: 'left',
+            transition: 'transform 300ms ease',
             background: isMash 
               ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
               : isWhirlpool
@@ -136,7 +138,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
               style={{ left: `${position}%` }}
             >
               <div className={cn(
-                "w-4 h-4 rounded-full border-2 transition-all",
+                "w-4 h-4 rounded-full",
                 isTriggered 
                   ? "bg-green-500 border-green-300 shadow-[0_0_8px_rgba(34,197,94,0.6)]" 
                   : isNext
@@ -229,7 +231,7 @@ export const TimerFooter = memo(function TimerFooter() {
         overlayBackground: 'radial-gradient(ellipse at center, rgba(234, 88, 12, 0.25) 0%, rgba(0,0,0,0.85) 100%)',
         content: (
           <div 
-            className="flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
+            className="alarm-glow relative flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
             style={{
               background: 'linear-gradient(145deg, hsl(24 90% 20%) 0%, hsl(20 95% 15%) 100%)',
               border: '2px solid hsl(24 90% 40% / 0.6)',
@@ -293,14 +295,14 @@ export const TimerFooter = memo(function TimerFooter() {
     <>
       {/* Main footer - 3 column grid layout for TV */}
       <div 
-        className="absolute bottom-0 left-0 right-0 z-20 backdrop-blur-xl"
+        className="absolute bottom-0 left-0 right-0 z-20"
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
           background: isMash
-            ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.7) 0%, hsl(222 20% 12% / 0.85) 100%)'
+             ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.82) 0%, hsl(222 20% 12% / 0.95) 100%)'
             : isWhirlpool
-              ? 'linear-gradient(145deg, hsl(180 60% 15% / 0.7) 0%, hsl(222 20% 12% / 0.85) 100%)'
-              : 'linear-gradient(145deg, hsl(var(--primary) / 0.15) 0%, hsl(222 20% 12% / 0.85) 100%)',
+               ? 'linear-gradient(145deg, hsl(180 60% 15% / 0.82) 0%, hsl(222 20% 12% / 0.95) 100%)'
+               : 'linear-gradient(145deg, hsl(var(--primary) / 0.26) 0%, hsl(222 20% 12% / 0.95) 100%)',
           borderTop: isMash
             ? '1px solid hsl(24 80% 40% / 0.15)'
             : isWhirlpool
@@ -459,9 +461,11 @@ export const TimerFooter = memo(function TimerFooter() {
                 }}
               >
                 <div 
-                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                   className="absolute inset-0 rounded-full"
                   style={{ 
-                    width: `${timer.totalSeconds > 0 ? Math.min(100, ((timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) * 100) : 0}%`,
+                     transform: `scaleX(${timer.totalSeconds > 0 ? Math.min(1, (timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) : 0})`,
+                     transformOrigin: 'left',
+                     transition: 'transform 300ms ease',
                     background: isMash 
                       ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
                       : isWhirlpool

@@ -209,7 +209,7 @@ function NotificationBellComponent() {
               {notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`rounded-lg px-3 py-2 text-sm  ${
                     n.read_at ? "opacity-50" : "bg-muted/30"
                   }`}
                 >

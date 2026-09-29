@@ -4,11 +4,11 @@ export function getBackgroundStyle(state: VisualState): string {
   // Enhanced glassmorphism with deeper transparency
   switch (state) {
     case 'waiting':
-      return 'linear-gradient(145deg, hsl(200 90% 50% / 0.12) 0%, hsl(222 20% 12% / 0.7) 100%)';
+      return 'linear-gradient(145deg, hsl(200 90% 50% / 0.22) 0%, hsl(222 20% 12% / 0.82) 100%)';
     case 'ramping':
-      return 'linear-gradient(145deg, hsl(38 92% 50% / 0.1) 0%, hsl(222 20% 12% / 0.7) 100%)';
+      return 'linear-gradient(145deg, hsl(38 92% 50% / 0.2) 0%, hsl(222 20% 12% / 0.82) 100%)';
     default:
-      return 'linear-gradient(145deg, hsl(var(--primary) / 0.08) 0%, hsl(222 20% 12% / 0.7) 100%)';
+      return 'linear-gradient(145deg, hsl(var(--primary) / 0.18) 0%, hsl(222 20% 12% / 0.82) 100%)';
   }
 }
 

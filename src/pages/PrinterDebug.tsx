@@ -129,7 +129,7 @@ export default function PrinterDebug() {
                     key={size}
                     onClick={() => setChunkSize(size)}
                     disabled={running}
-                    className={`h-7 px-2 rounded text-xs font-mono transition-colors ${
+                    className={`h-7 px-2 rounded text-xs font-mono  ${
                       chunkSize === size
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground hover:text-foreground"

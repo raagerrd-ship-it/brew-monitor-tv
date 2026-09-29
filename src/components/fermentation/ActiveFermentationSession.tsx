@@ -173,18 +173,18 @@ export function ActiveFermentationSession({
           {/* Collapse button */}
           <button
             onClick={() => { setExpanded(false); onExpandChange?.(false); }}
-            className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors py-0.5"
+            className="w-full flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground  py-0.5"
           >
             <ChevronUp className="w-3 h-3" />
             <span>Dölj</span>
           </button>
 
           <div 
-            className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+            className="rounded-xl overflow-hidden p-4 space-y-4"
             style={{
-              background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+              background: 'linear-gradient(145deg, hsl(var(--primary) / 0.16) 0%, hsl(222 20% 12% / 0.95) 100%)',
               border: '1px solid hsl(var(--primary) / 0.15)',
-              boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+              boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
             }}
           >
             <FermentationSessionHeader
@@ -285,11 +285,11 @@ export function ActiveFermentationSession({
   return (
     <>
       <div 
-        className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+        className="rounded-xl overflow-hidden p-4 space-y-4"
         style={{
-          background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+          background: 'linear-gradient(145deg, hsl(var(--primary) / 0.16) 0%, hsl(222 20% 12% / 0.95) 100%)',
           border: '1px solid hsl(var(--primary) / 0.15)',
-          boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+          boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
         }}
       >
         <FermentationSessionHeader
@@ -387,7 +387,7 @@ function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverview
               />
             )}
             <div 
-              className="flex items-center gap-1 rounded-md px-1.5 py-1 transition-all"
+              className="flex items-center gap-1 rounded-md px-1.5 py-1"
               style={{
                 background: isCurrent 
                   ? 'hsl(var(--primary) / 0.2)' 

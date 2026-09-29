@@ -146,7 +146,7 @@ function BrewCardComponent({
           {/* Label image thumbnail */}
           {brew.label_image_url && (
             <div 
-              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+              className="flex-shrink-0 rounded-lg overflow-hidden border border-white/10 bg-muted/30 animate-pulse cursor-pointer hover:ring-2 hover:ring-primary/50"
               style={{ width: '52px', height: '52px' }}
               onClick={() => setLabelExpanded(v => !v)}
             >
@@ -164,7 +164,7 @@ function BrewCardComponent({
             {/* Title row */}
             <div className="flex items-center gap-2">
               <h2 
-                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary transition-colors"
+                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary "
                 style={{ 
                   fontSize: '18px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
@@ -179,14 +179,14 @@ function BrewCardComponent({
               <div className="flex-shrink-0 relative" ref={menuRef}>
                 <button
                   onClick={showInteractiveElements ? () => setMenuOpen(!menuOpen) : undefined}
-                  className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap backdrop-blur-md inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
+                  className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
                   style={{ 
                     fontSize: '10px',
                     background: isCompletedOrConditioning 
-                      ? "linear-gradient(135deg, hsl(var(--primary) / 0.25) 0%, hsl(var(--primary) / 0.1) 100%)" 
+                      ? "linear-gradient(135deg, hsl(var(--primary) / 0.36) 0%, hsl(var(--primary) / 0.22) 100%)" 
                       : isBrewing
-                      ? "linear-gradient(135deg, hsl(30 90% 50% / 0.25) 0%, hsl(30 90% 50% / 0.1) 100%)"
-                      : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.25) 0%, hsl(var(--ferment-green) / 0.1) 100%)",
+                      ? "linear-gradient(135deg, hsl(30 90% 50% / 0.36) 0%, hsl(30 90% 50% / 0.22) 100%)"
+                      : "linear-gradient(135deg, hsl(var(--ferment-green) / 0.36) 0%, hsl(var(--ferment-green) / 0.22) 100%)",
                     color: isCompletedOrConditioning ? "hsl(var(--primary))" : isBrewing ? "hsl(30 90% 55%)" : "hsl(var(--ferment-green))",
                     border: isCompletedOrConditioning
                       ? "1px solid hsl(var(--primary) / 0.3)" 
@@ -202,7 +202,6 @@ function BrewCardComponent({
                 {menuOpen && showInteractiveElements && (
                   <div
                     className="absolute right-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg shadow-black/40 min-w-[140px]"
-                    style={{ backdropFilter: 'blur(12px)' }}
                   >
                     {brew.batch_id.startsWith('custom_') && (
                       <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-muted-foreground w-full">
@@ -210,21 +209,21 @@ function BrewCardComponent({
                       </div>
                     )}
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setSmoothLines(!smoothLines); }}
                     >
                       <TrendingUp className={`h-3.5 w-3.5 ${smoothLines ? 'text-primary' : 'text-muted-foreground'}`} />
                       {smoothLines ? 'Raka linjer' : 'Mjuka linjer'}
                     </button>
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setTimeRange(timeRange === 'full' ? '12h' : 'full'); }}
                     >
                       <Clock className={`h-3.5 w-3.5 ${timeRange === '12h' ? 'text-primary' : 'text-muted-foreground'}`} />
                       {timeRange === '12h' ? 'Visa allt' : 'Senaste 12h'}
                     </button>
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { onShareBrew(brew); setMenuOpen(false); }}
                     >
                       <Share2 className="h-3.5 w-3.5" />
@@ -237,7 +236,7 @@ function BrewCardComponent({
                       onEventsChange={onEventsChange}
                       trigger={
                         <button
-                          className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                          className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                           onClick={() => setMenuOpen(false)}
                         >
                           <Plus className="h-3.5 w-3.5" />
@@ -248,7 +247,7 @@ function BrewCardComponent({
                     {isAuthenticated && !isBrewInactive(brew.status) && (
                       <button
                         disabled={rackedSending || rackedSent}
-                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left disabled:opacity-50"
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left disabled:opacity-50"
                         onClick={async () => {
                           setRackedSending(true);
                           const { error } = await supabase.from("pi_commands").insert({
@@ -278,7 +277,7 @@ function BrewCardComponent({
                       </button>
                     )}
                     <button
-                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                       onClick={() => { setPrintLabelOpen(true); setMenuOpen(false); }}
                     >
                       <Printer className="h-3.5 w-3.5" />
@@ -305,7 +304,7 @@ function BrewCardComponent({
                       <Popover open={fermEndOpen} onOpenChange={setFermEndOpen}>
                         <PopoverTrigger asChild>
                           <button
-                            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent transition-colors w-full text-left"
+                            className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent  w-full text-left"
                           >
                             <CalendarDays className="h-3.5 w-3.5" />
                             {brew.fermentationEnd

@@ -23,7 +23,7 @@ export const ProgressOverlay = memo(function ProgressOverlay({
   
   return (
     <div 
-      className="absolute inset-0 pointer-events-none transition-all duration-1000"
+      className="absolute inset-0 pointer-events-none"
       style={{
         background: `linear-gradient(90deg, 
           ${colors.start} 0%, 

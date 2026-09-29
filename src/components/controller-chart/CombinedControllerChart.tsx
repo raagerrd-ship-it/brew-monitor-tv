@@ -145,7 +145,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              className={`px-2 py-0.5 text-xs rounded  ${
                 timeRange === range
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -168,7 +168,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => toggleExpand(ctrl.id)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all hover:bg-muted/60"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium hover:bg-muted/60"
                 >
                   {isExpanded ? (
                     <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -194,7 +194,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                       toggleSeries(`${ctrl.id}_cooling`);
                       setExpanded(prev => new Set(prev).add(ctrl.id));
                     }}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-[10px] text-muted-foreground hover:text-foreground "
                   >
                     visa
                   </button>
@@ -211,7 +211,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                       <button
                         key={key}
                         onClick={() => toggleSeries(key)}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
                           active
                             ? 'border-border bg-card/80 text-foreground'
                             : 'border-transparent bg-muted/30 text-muted-foreground opacity-50'
@@ -223,7 +223,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                   })}
                   <button
                     onClick={() => toggleAllForController(ctrl.id)}
-                    className="px-2 py-0.5 rounded-full text-[10px] text-muted-foreground hover:text-foreground border border-transparent hover:border-border transition-all"
+                    className="px-2 py-0.5 rounded-full text-[10px] text-muted-foreground hover:text-foreground border border-transparent hover:border-border"
                   >
                     alla
                   </button>

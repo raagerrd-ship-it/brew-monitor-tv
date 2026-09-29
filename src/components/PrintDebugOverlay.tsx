@@ -66,7 +66,7 @@ export function PrintDebugOverlay({ open, onClose }: PrintDebugOverlayProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex flex-col">
+    <div className="fixed inset-0 z-[200] bg-background/95 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-foreground">🔬 BLE Debug</h2>

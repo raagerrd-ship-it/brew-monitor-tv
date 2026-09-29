@@ -80,14 +80,14 @@ export default function Brew() {
         </div>
         
         {(brew.label_image_url || brew.description) && (
-          <div className="bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
+          <div className="bg-card/90 rounded-xl border border-white/10 p-4 md:p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row gap-4 md:gap-6 items-start">
               {brew.label_image_url && (
                 <div className="flex-shrink-0 mx-auto sm:mx-0 cursor-pointer" onClick={() => setLabelExpanded(v => !v)}>
                   <img
                     src={brew.label_image_url}
                     alt={`${brew.name} etikett`}
-                    className="max-h-48 sm:max-h-48 md:max-h-64 w-auto rounded-lg shadow-lg border border-white/10 hover:ring-2 hover:ring-primary/50 transition-all"
+                    className="max-h-48 sm:max-h-48 md:max-h-64 w-auto rounded-lg shadow-lg border border-white/10 hover:ring-2 hover:ring-primary/50"
                   />
                   <p className="text-xs text-muted-foreground text-center mt-1">Tryck för att förstora</p>
                 </div>
@@ -107,7 +107,7 @@ export default function Brew() {
         <div className="h-[600px] md:h-[700px]">
           {labelExpanded && brew.label_image_url ? (
             <div
-              className="w-full h-full flex items-center justify-center bg-card/50 backdrop-blur-xl rounded-xl border border-white/10 shadow-xl cursor-pointer"
+              className="w-full h-full flex items-center justify-center bg-card/90 rounded-xl border border-white/10 shadow-xl cursor-pointer"
               onClick={() => setLabelExpanded(false)}
             >
               <img

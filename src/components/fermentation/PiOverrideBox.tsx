@@ -19,9 +19,9 @@ export function PiOverrideBox({ source, effectiveTarget, pausedAt, profileName, 
 
   return (
     <div
-      className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+      className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden"
       style={{
-        background: `linear-gradient(145deg, hsl(${hue} / 0.14) 0%, hsl(222 20% 12% / 0.7) 100%)`,
+        background: `linear-gradient(145deg, hsl(${hue} / 0.25) 0%, hsl(222 20% 12% / 0.82) 100%)`,
         border: `1px solid ${accent}`,
         boxShadow: `0 0 18px hsl(${hue} / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.08)`,
         minHeight: '72px',

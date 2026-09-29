@@ -19,8 +19,8 @@ const Progress = React.forwardRef<
       {...props}
     >
       <div
-        className={cn("h-full transition-all duration-300 rounded-full bg-primary", indicatorClassName)}
-        style={{ width: `${percentage}%`, ...indicatorStyle }}
+        className={cn("h-full w-full transition-transform duration-300 origin-left rounded-full bg-primary", indicatorClassName)}
+        style={{ transform: `scaleX(${percentage / 100})`, ...indicatorStyle }}
       />
     </div>
   );
