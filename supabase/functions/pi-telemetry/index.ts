@@ -670,12 +670,30 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Omsändning efter tappat svar: samma (controller_id, kind, seq) sparas en gång.
+  // Omsändning efter tappat svar: en rad per (controller_id, kind) med senaste
+  // seq. Äldre eller samma seq = dubblett. Uppdatera bara om seq är högre;
+  // annars försök skapa raden (första meddelandet från enheten).
   if (data?.seq != null && controller_id) {
-    const { error: seqErr } = await supabase
+    const newSeq = Number(data.seq);
+    const { data: bumped } = await supabase
       .from("pi_telemetry_seen")
-      .insert({ controller_id, kind, seq: Number(data.seq) });
-    if (seqErr?.code === "23505") {
+      .update({ seq: newSeq, received_at: new Date().toISOString() })
+      .eq("controller_id", controller_id)
+      .eq("kind", kind)
+      .lt("seq", newSeq)
+      .select("controller_id");
+    let isNew = (bumped?.length ?? 0) > 0;
+    if (!isNew) {
+      const { data: inserted } = await supabase
+        .from("pi_telemetry_seen")
+        .upsert(
+          { controller_id, kind, seq: newSeq },
+          { onConflict: "controller_id,kind", ignoreDuplicates: true },
+        )
+        .select("controller_id");
+      isNew = (inserted?.length ?? 0) > 0;
+    }
+    if (!isNew) {
       return new Response(JSON.stringify({ ok: true, duplicate: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
