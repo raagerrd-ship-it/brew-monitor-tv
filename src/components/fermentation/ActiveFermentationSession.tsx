@@ -387,7 +387,7 @@ function StepsOverview({ steps, currentStepIndex, stepStartTemp }: StepsOverview
               />
             )}
             <div 
-              className="flex items-center gap-1 rounded-md px-1.5 py-1 transition-all"
+              className="flex items-center gap-1 rounded-md px-1.5 py-1"
               style={{
                 background: isCurrent 
                   ? 'hsl(var(--primary) / 0.2)' 

@@ -532,7 +532,6 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         : (isCooler ? (compact ? '120px' : '150px') : (compact ? '150px' : '180px')),
                        height: isMobile ? (compact ? '48px' : '54px') : (isTvMode ? '60px' : (compact ? '52px' : '60px')),
                        padding: isMobile ? (compact ? '3px 10px 7px' : '4px 12px 8px') : (isTvMode ? '5px 18px 9px' : (compact ? '4px 14px 8px' : '5px 18px 9px')),
-                       transition: 'background-color 200ms ease',
                     }}
                     onClick={isTvMode ? undefined : () => onControllerClick(controller)}
                     title={!isMobile && !isTvMode ? `${controller.name}\nInbyggd: ${controller.current_temp !== null ? controller.current_temp.toFixed(1) : '--'}°${controller.pill_temp !== null ? `\nPill: ${controller.pill_temp.toFixed(1)}°` : ''}\nMål: ${controller.target_temp !== null ? controller.target_temp.toFixed(1) : '--'}°${isControllerStale ? `\n\n⚠️ Ingen data på ${formatDuration(now - new Date(controller.last_update!).getTime())}` : ''}\n\nKlicka för att ändra inställningar` : undefined}

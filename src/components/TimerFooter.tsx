@@ -461,9 +461,11 @@ export const TimerFooter = memo(function TimerFooter() {
                 }}
               >
                 <div 
-                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
+                   className="absolute inset-0 rounded-full"
                   style={{ 
-                    width: `${timer.totalSeconds > 0 ? Math.min(100, ((timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) * 100) : 0}%`,
+                     transform: `scaleX(${timer.totalSeconds > 0 ? Math.min(1, (timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) : 0})`,
+                     transformOrigin: 'left',
+                     transition: 'transform 300ms ease',
                     background: isMash 
                       ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
                       : isWhirlpool

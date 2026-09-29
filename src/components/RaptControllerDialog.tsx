@@ -247,7 +247,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
           {/* Givarval sker lokalt på Pi:n (use_pt100 / use_pill i tank_map.json) */}
           {/* Heating/Cooling Status */}
           <div className="flex gap-2">
-            {!isCooler && <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+            {!isCooler && <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg ${
               isActivelyHeating 
                 ? 'bg-orange-500/15 border border-orange-500/30' 
                 : 'bg-muted/20 border border-border/20'
@@ -261,7 +261,7 @@ export function RaptControllerDialog({ controller, open, onOpenChange, isCooler 
               </span>
             </div>}
             
-            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all ${
+            <div className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg ${
               isActivelyCooling 
                 ? 'bg-blue-500/15 border border-blue-500/30' 
                 : 'bg-muted/20 border border-border/20'

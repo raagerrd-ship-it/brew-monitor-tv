@@ -24,7 +24,7 @@ export const HeaderIconButton = forwardRef<HTMLButtonElement, HeaderIconButtonPr
       title={label}
       aria-label={label}
       className={cn(
-        "relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:cursor-default disabled:opacity-60",
+        "relative flex items-center justify-center w-10 h-10 rounded-full transition-opacity duration-200 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:cursor-default disabled:opacity-60",
         active ? "opacity-100" : "opacity-55 hover:opacity-100",
         className,
       )}
