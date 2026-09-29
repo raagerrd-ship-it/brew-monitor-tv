@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "sdk_version": "3.0.4",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://plwchuzidrjgyuepwdcl.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "brew-monitor-tv",
+      "version": "0.1.0",
+      "title": "brew-monitor-tv"
+    },
+    "tools": [
+      {
+        "name": "list_controllers",
+        "title": "List tank controllers",
+        "description": "List all fermentation tank controllers and the glycol cooler with current and target temperature.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_live_state",
+        "title": "Get Pi live state",
+        "description": "Read the Raspberry Pi's latest live regulation state per controller (mode, relays, duty, heartbeat).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
