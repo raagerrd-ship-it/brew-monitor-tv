@@ -120,6 +120,13 @@
       "when": 1790690234420,
       "tag": "0016_prune_temp_controller_history",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790690930330,
+      "tag": "0017_pi_telemetry_seen_single_row",
+      "breakpoints": true
     }
   ]
 }
