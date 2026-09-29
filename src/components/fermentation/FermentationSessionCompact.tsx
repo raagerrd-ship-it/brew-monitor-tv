@@ -252,11 +252,11 @@ export function FermentationSessionCompact({
   if (isCompleted) {
     return (
       <div 
-        className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+        className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, hsl(142 70% 30% / 0.3) 0%, hsl(142 70% 20% / 0.2) 100%)',
+          background: 'linear-gradient(135deg, hsl(142 70% 30% / 0.42) 0%, hsl(142 70% 20% / 0.32) 100%)',
           border: '1px solid hsl(142 70% 50% / 0.4)',
-          boxShadow: '0 0 20px hsl(142 70% 50% / 0.15), inset 0 1px 0 hsl(142 70% 70% / 0.1)',
+          boxShadow: '0 0 20px hsl(142 70% 50% / 0.15), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
         }}
       >
         {/* Success shimmer overlay */}
@@ -344,7 +344,7 @@ export function FermentationSessionCompact({
 
   return (
     <div 
-      className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden backdrop-blur-md transition-all duration-300"
+      className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden"
       style={{
         background: getBackgroundStyle(visualState),
         border: `1px solid ${getBorderColor(visualState)}`,

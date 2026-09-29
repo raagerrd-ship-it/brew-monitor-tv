@@ -60,14 +60,13 @@ export const SessionStatusIcon = memo(function SessionStatusIcon({
   
   return (
     <div 
-      className="p-1.5 rounded-full animate-[glow-pulse_2s_ease-in-out_infinite]"
+      className="relative p-1.5 rounded-full session-status-glow"
       style={{ 
         background: `linear-gradient(135deg, ${color.bg} 0%, ${color.bgDark} 100%)`,
-        boxShadow: `0 0 12px ${color.glow}`,
         '--glow-color': color.glow,
       } as React.CSSProperties}
     >
-      <Icon className="h-4 w-4" style={{ color: color.icon }} />
+      <Icon className="relative h-4 w-4" style={{ color: color.icon }} />
     </div>
   );
 });

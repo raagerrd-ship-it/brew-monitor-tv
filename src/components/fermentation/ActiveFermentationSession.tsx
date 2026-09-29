@@ -180,11 +180,11 @@ export function ActiveFermentationSession({
           </button>
 
           <div 
-            className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+            className="rounded-xl overflow-hidden p-4 space-y-4"
             style={{
-              background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+              background: 'linear-gradient(145deg, hsl(var(--primary) / 0.16) 0%, hsl(222 20% 12% / 0.95) 100%)',
               border: '1px solid hsl(var(--primary) / 0.15)',
-              boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+              boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
             }}
           >
             <FermentationSessionHeader
@@ -285,11 +285,11 @@ export function ActiveFermentationSession({
   return (
     <>
       <div 
-        className="rounded-xl overflow-hidden backdrop-blur-md p-4 space-y-4"
+        className="rounded-xl overflow-hidden p-4 space-y-4"
         style={{
-          background: 'linear-gradient(145deg, hsl(var(--primary) / 0.06) 0%, hsl(222 20% 12% / 0.85) 100%)',
+          background: 'linear-gradient(145deg, hsl(var(--primary) / 0.16) 0%, hsl(222 20% 12% / 0.95) 100%)',
           border: '1px solid hsl(var(--primary) / 0.15)',
-          boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)',
+          boxShadow: '0 8px 32px hsl(222 30% 3% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.08)',
         }}
       >
         <FermentationSessionHeader
