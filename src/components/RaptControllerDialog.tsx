@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Thermometer, Clock, RefreshCw, Lock, Flame, Snowflake, Pencil } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { ControllerTempChart } from './controller-chart';
+import { ControllerTempChart } from './controller-chart/ControllerTempChart';
 import { FermentationSessionMinimal } from './fermentation/FermentationSessionMinimal';
 import { PiRemoteControl } from './PiRemoteControl';
 import { DEFAULT_DEVICE_COLOR } from '@/lib/brew-utils';

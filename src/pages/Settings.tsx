@@ -1,6 +1,6 @@
 import { toast } from "@/hooks/use-toast";
 import { BrewManagement } from "@/components/BrewManagement";
-import { CombinedControllerChart } from "@/components/controller-chart";
+import { CombinedControllerChart } from "@/components/controller-chart/CombinedControllerChart";
 
 import { DeviceOverviewPanel } from "@/components/DeviceOverviewPanel";
 import { PiLearnedArchive } from "@/components/PiLearnedArchive";
