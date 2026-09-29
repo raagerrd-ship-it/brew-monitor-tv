@@ -22,17 +22,21 @@ export default function Login() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+    const rawNext = new URLSearchParams(window.location.search).get("next");
+    const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+    const go = () => (next ? (window.location.href = next) : navigate("/"));
+
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        go();
       }
     });
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        navigate("/");
+        go();
       }
     });
 
