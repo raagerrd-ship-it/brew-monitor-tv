@@ -638,22 +638,13 @@ Deno.serve(async (req) => {
       return;
     }
 
-    // Historik: bara nya tidsstämplar.
-    const { data: existing } = await supabase
+    // Historik: bara nya tidsstämplar (unikt index gör dubbletter till no-op).
+    await supabase
       .from("pi_learned_params_history")
-      .select("mode, parameter_name, param_updated_at")
-      .eq("controller_id", fullId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    const seen = new Set(
-      (existing || []).map((r: any) => `${r.mode}|${r.parameter_name}|${r.param_updated_at}`)
-    );
-    const newRows = rows
-      .filter((r) => !seen.has(`${r.mode}|${r.parameter_name}|${r.param_updated_at}`))
-      .map(({ received_at, ...rest }) => rest);
-    if (newRows.length) {
-      await supabase.from("pi_learned_params_history").insert(newRows);
-    }
+      .upsert(rows.map(({ received_at, ...rest }) => rest), {
+        onConflict: "controller_id,mode,parameter_name,param_updated_at",
+        ignoreDuplicates: true,
+      });
   }
 
   // Kvittens på ett kommando från appen: ut ur kön.

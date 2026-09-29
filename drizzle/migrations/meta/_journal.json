@@ -99,6 +99,13 @@
       "when": 1790689309866,
       "tag": "0013_learned_history_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790689326145,
+      "tag": "0014_learned_history_unique_idx",
+      "breakpoints": true
     }
   ]
 }
