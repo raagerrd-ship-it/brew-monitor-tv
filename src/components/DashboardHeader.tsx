@@ -105,15 +105,16 @@ export function DashboardHeader({
   // Keep the slot open until the content has finished fading out.
   const [sonosVisible, setSonosVisible] = useState(false);
   const [slotOpen, setSlotOpen] = useState(false);
+  const handleSonosVisibility = useCallback((visible: boolean) => {
+    if (visible) setSlotOpen(true);
+    setSonosVisible(visible);
+  }, []);
 
   useEffect(() => {
-    if (sonosVisible) {
-      setSlotOpen(true);
-      return;
-    }
+    if (sonosVisible || !slotOpen) return;
     const timer = setTimeout(() => setSlotOpen(false), 350);
     return () => clearTimeout(timer);
-  }, [sonosVisible]);
+  }, [sonosVisible, slotOpen]);
 
   // Alarm/Timer dialog state
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false);
@@ -268,7 +269,7 @@ export function DashboardHeader({
                   transition: 'transform 350ms ease-out, opacity 350ms ease-out',
                 }}
               >
-                <SonosWidget isMobile={false} variant="header" onVisibilityChange={setSonosVisible} />
+                <SonosWidget isMobile={false} variant="header" onVisibilityChange={handleSonosVisibility} />
               </div>
             </div>
 
