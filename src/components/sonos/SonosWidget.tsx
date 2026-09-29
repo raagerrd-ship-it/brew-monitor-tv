@@ -163,13 +163,28 @@ export const SonosWidget = memo(function SonosWidget({
   }, [incomingArtUrl]);
 
   const isHeader = variant === "header";
+  const lastHeaderTrackRef = useRef<NowPlaying | null>(null);
+  const [keepHeaderContent, setKeepHeaderContent] = useState(false);
+  if (isHeader && !isHidden && nowPlaying) lastHeaderTrackRef.current = nowPlaying;
 
-  if (isHidden) return null;
+  useEffect(() => {
+    if (!isHeader) return;
+    if (!isHidden) {
+      setKeepHeaderContent(true);
+      return;
+    }
+    const timer = setTimeout(() => setKeepHeaderContent(false), 350);
+    return () => clearTimeout(timer);
+  }, [isHeader, isHidden]);
+
+  if (isHidden && !(isHeader && keepHeaderContent && lastHeaderTrackRef.current)) return null;
 
     // Header variant: integrated segment in the unified control strip
   if (isHeader) {
-    const progress = nowPlaying.duration_ms
-      ? Math.min(100, ((localProgressRef.current ?? nowPlaying.position_ms ?? 0) / nowPlaying.duration_ms) * 100)
+    const headerTrack = nowPlaying ?? lastHeaderTrackRef.current;
+    if (!headerTrack) return null;
+    const progress = headerTrack.duration_ms
+      ? Math.min(100, ((localProgressRef.current ?? headerTrack.position_ms ?? 0) / headerTrack.duration_ms) * 100)
       : 0;
 
     return (
@@ -190,14 +205,14 @@ export const SonosWidget = memo(function SonosWidget({
         </div>
 
         {/* Value row — exact copy of controller temp row, showing track */}
-        <MarqueeText key={nowPlaying.track_name} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+        <MarqueeText key={headerTrack.track_name} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
           <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '22px',
             lineHeight: 1.05,
             color: 'hsl(0 0% 95%)',
           }}>
-            {nowPlaying.track_name}
+            {headerTrack.track_name}
           </span>
           <span className="whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
@@ -205,7 +220,7 @@ export const SonosWidget = memo(function SonosWidget({
             color: 'hsl(var(--muted-foreground))',
             opacity: 0.95,
           }}>
-            {nowPlaying.artist_name ? '›' : ''}
+            {headerTrack.artist_name ? '›' : ''}
           </span>
           <span ref={artistNameRef} className="whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
@@ -213,13 +228,13 @@ export const SonosWidget = memo(function SonosWidget({
             color: 'hsl(var(--muted-foreground))',
             opacity: 0.95,
           }}>
-            {nowPlaying.artist_name ?? ''}
+            {headerTrack.artist_name ?? ''}
           </span>
 
         </MarqueeText>
 
         {/* Bottom bar — exact copy of controller battery bar, showing progress */}
-        {nowPlaying.duration_ms && (
+        {headerTrack.duration_ms && (
           <div className="absolute bottom-0 left-0 right-0" style={{
             height: '3px',
             background: 'hsl(0 0% 95% / 0.15)',
