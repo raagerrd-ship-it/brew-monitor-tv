@@ -244,7 +244,7 @@ export function BrewingDashboard() {
               <div className="relative py-2 flex-shrink-0">
                 <div className="flex justify-center gap-2">
                   {brews.map((_, index) => (
-                    <button key={index} onClick={() => emblaApi?.scrollTo(index)} className={`h-2 rounded-full transition-all duration-300 ${index === selectedIndex ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30'}`} aria-label={`Gå till öl ${index + 1}`} />
+                    <button key={index} onClick={() => emblaApi?.scrollTo(index)} className={`h-2 rounded-full ${index === selectedIndex ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30'}`} aria-label={`Gå till öl ${index + 1}`} />
                   ))}
                 </div>
               </div>

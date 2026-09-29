@@ -170,8 +170,8 @@ export default function Settings() {
                           <Share2 className="h-2.5 w-2.5 mr-0.5" /> Delad
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-transform duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4 space-y-3">
@@ -222,8 +222,8 @@ export default function Settings() {
                           <Check className="h-2.5 w-2.5 mr-0.5" /> OK
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg transition-all group-hover:bg-primary/15">
-                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg group-hover:bg-primary/15">
+                        <ChevronDown className="h-4.5 w-4.5 text-muted-foreground transition-transform duration-200 group-hover:text-primary group-hover:scale-110 [[data-state=open]_&]:rotate-180" />
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-4">
