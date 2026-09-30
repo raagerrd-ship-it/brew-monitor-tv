@@ -66,7 +66,7 @@ const initialState: ExternalTimerState = {
 
 // Interval constants
 const FAST_POLL_MS = 5_000;
-const SLOW_POLL_MS = 60_000;
+const SLOW_POLL_MS = 10_000;
 
 export function useExternalTimer() {
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
