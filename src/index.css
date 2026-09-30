@@ -21,9 +21,13 @@
   animation: marquee 8s linear infinite;
 }
 
-.cleaning-transition-active *,
-.cleaning-transition-active *::before,
-.cleaning-transition-active *::after {
+.cleaning-transition-active .animate-marquee,
+.cleaning-transition-active .animate-value-shimmer,
+.cleaning-transition-active .animate-battery-pulse,
+.cleaning-transition-active .animate-pulse,
+.cleaning-transition-active .session-status-glow::after,
+.cleaning-transition-active .alarm-glow::before,
+.cleaning-transition-active > .absolute.inset-0 > .absolute.inset-0 {
   animation-play-state: paused !important;
 }
 
