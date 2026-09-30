@@ -32,8 +32,12 @@ export function PiRemoteControl({
   const touched = useRef(false);
   const [draftMode, setDraftMode] = useState<Mode | null>(null);
 
-  const min = minTemp ?? -5;
-  const max = maxTemp ?? 25;
+  // Området kommer från Pi:n (per tank, just nu). 4–30 bara som reserv.
+  const min = remote.targetMin ?? 4;
+  const max = remote.targetMax ?? 30;
+  const profileStatus = remote.profileStatus;
+  // Under 4° (eller PT100-styrning) gäller målet botten.
+  const bottomLabel = (v: number) => (v < 4 || remote.controlSensor === 'pt100' ? `botten ${v.toFixed(1)}°` : `${v.toFixed(1)}°`);
 
   // "Av" vinner alltid över "manuellt" i visningen.
   const activeMode: Mode = remote.enabled === false ? 'off' : (remote.targetSource === 'manual' ? 'manual' : 'profile');
@@ -54,7 +58,7 @@ export function PiRemoteControl({
 
   // Följ Pi:ns verkliga mål tills användaren själv rört reglaget.
   useEffect(() => {
-    if (!touched.current && shownTarget != null) setTemp(Math.round(shownTarget * 2) / 2);
+    if (!touched.current && shownTarget != null) setTemp(shownTarget);
   }, [shownTarget]);
 
   // Släpp utkastet när Pi:n kvitterat samma läge.
@@ -63,7 +67,8 @@ export function PiRemoteControl({
   }, [draftMode, activeMode]);
 
   const targetDiffers = activeMode === 'manual' && shownTarget != null && Math.abs(temp - shownTarget) >= 0.05;
-  const needsApply = isDraft || (viewMode === 'manual' && targetDiffers);
+  const tempInRange = temp >= min && temp <= max;
+  const needsApply = (isDraft || (viewMode === 'manual' && targetDiffers)) && (viewMode !== 'manual' || tempInRange);
 
   const run = async (fn: () => Promise<void>, msg: string) => {
     try {
@@ -85,7 +90,8 @@ export function PiRemoteControl({
       return;
     }
     if (remote.enabled === false) await remote.setEnabled(true);
-    await run(() => remote.setManualTarget(temp), `${controllerName}: manuellt mål ${temp.toFixed(1)}°`);
+    if (temp < min || temp > max) return;
+    await run(() => remote.setManualTarget(temp), `${controllerName}: manuellt mål ${bottomLabel(temp)}`);
   };
 
   const nudge = (d: number) => {
@@ -101,9 +107,11 @@ export function PiRemoteControl({
         : `Väntar på Pi:n — byter mål till ${commandedTarget?.toFixed(1) ?? '?'}°…`)
     : activeMode === 'off'
       ? 'Ingen reglering — fjärrstyrd av dig'
-      : activeMode === 'manual'
-        ? 'Manuellt mål — profilen är pausad'
-        : 'Profilen kör lokalt på Pi:n';
+      : profileStatus === 'completed'
+        ? `Håller sista målet ${shownTarget != null ? bottomLabel(shownTarget) : ''} tills ölet tappas om`
+        : activeMode === 'manual'
+          ? (profileStatus === 'paused' ? 'Manuellt mål — profilen är pausad' : 'Manuellt mål')
+          : 'Profilen kör lokalt på Pi:n';
 
   return (
     <div className="rounded-xl border border-border/30 bg-muted/35 shadow-glass overflow-hidden">
@@ -127,7 +135,7 @@ export function PiRemoteControl({
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Styrning</div>
           <div className="text-sm font-bold tracking-wide truncate" style={{ color: `hsl(${MODES.find(m => m.key === activeMode)!.hue})` }}>
-            {activeMode === 'off' ? 'AVSTÄNGD' : activeMode === 'manual' ? 'MANUELLT MÅL' : 'PI:N STYR'}
+            {activeMode === 'off' ? 'AVSTÄNGD' : profileStatus === 'completed' ? 'PROFIL KLAR' : activeMode === 'manual' ? 'MANUELLT MÅL' : 'PI:N STYR'}
           </div>
           <div
             className="text-[11px] text-muted-foreground truncate"
@@ -142,7 +150,7 @@ export function PiRemoteControl({
               {targetWillChange ? 'Byter till' : 'Reglerar mot'}
             </div>
             <div className="text-2xl font-bold tabular-nums" style={{ color: `hsl(${MODES.find(m => m.key === activeMode)!.hue})` }}>
-              {(targetWillChange ? commandedTarget! : shownTarget).toFixed(1)}°
+              {bottomLabel(targetWillChange ? commandedTarget! : shownTarget)}
             </div>
           </div>
         )}
@@ -166,7 +174,7 @@ export function PiRemoteControl({
                   : { color: 'hsl(var(--muted-foreground))' }}
               >
                 <m.icon className="w-3.5 h-3.5" />
-                {m.label}
+                {m.key === 'profile' && profileStatus === 'completed' ? 'Klar' : m.label}
                 {live && !selected && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ background: `hsl(${m.hue})` }} />}
               </button>
             );
@@ -187,7 +195,7 @@ export function PiRemoteControl({
             </Button>
             <div className="flex-1 text-center leading-none">
               <div className="text-4xl font-bold tabular-nums" style={{ color: 'hsl(38 92% 55%)' }}>
-                {temp.toFixed(1)}°
+                {bottomLabel(temp)}
               </div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1.5">Nytt mål</div>
             </div>
@@ -206,8 +214,8 @@ export function PiRemoteControl({
               disabled={remote.sending}
             />
             <div className="flex justify-between text-[10px] text-muted-foreground/70 mt-1 tabular-nums">
-              <span>{min.toFixed(0)}°</span>
-              <span>{max.toFixed(0)}°</span>
+              <span>{min.toFixed(1)}°</span>
+              <span>{max.toFixed(1)}°</span>
             </div>
           </div>
         </div>
@@ -216,7 +224,9 @@ export function PiRemoteControl({
       {/* Förklaring + bekräfta */}
       <div className="p-4 pt-3 space-y-2">
         <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-          {viewMode === 'profile'
+          {viewMode === 'profile' && profileStatus === 'completed'
+            ? 'Profilen är klar — Pi:n håller sista målet tills ölet tappas om.'
+            : viewMode === 'profile'
             ? 'Pi:n följer den aktiva jäsprofilen och sköter all reglering själv.'
             : viewMode === 'manual'
               ? 'Ett manuellt mål pausar profilen tills du väljer Profil igen.'
@@ -238,7 +248,7 @@ export function PiRemoteControl({
                     ? 'Bekräfta — stäng av reglering'
                     : viewMode === 'profile'
                       ? 'Lämna tillbaka till profilen'
-                      : `Sätt ${temp.toFixed(1)}°`}
+                      : `Sätt ${bottomLabel(temp)}`}
                 </>}
           </Button>
         )}

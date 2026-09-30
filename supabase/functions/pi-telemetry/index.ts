@@ -93,6 +93,9 @@ Deno.serve(async (req) => {
       p.effective_target = d.effective_target != null ? Number(d.effective_target) : null;
     }
     if (has(d, "paused_at")) p.paused_at = d.paused_at ?? null;
+    if (has(d, "profile_status")) p.profile_status = d.profile_status ?? null;
+    if (has(d, "target_min_c")) p.target_min_c = d.target_min_c != null ? Number(d.target_min_c) : null;
+    if (has(d, "target_max_c")) p.target_max_c = d.target_max_c != null ? Number(d.target_max_c) : null;
     return p;
   }
 
