@@ -22,7 +22,7 @@ export function DashboardBackground() {
       {layers.prev && <div className="absolute inset-0" style={layerStyle(layers.prev)} />}
       <div
         key={layers.cur}
-        className="absolute inset-0"
+        className="absolute inset-0 dashboard-background-layer"
         style={{ ...layerStyle(layers.cur), animation: layers.prev ? 'bg-fade-in 0.8s ease-out both' : undefined }}
         onAnimationEnd={() => setLayers(l => (l.prev ? { prev: null, cur: l.cur } : l))}
       />

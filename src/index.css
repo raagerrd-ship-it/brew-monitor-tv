@@ -27,7 +27,7 @@
 .cleaning-transition-active .animate-pulse,
 .cleaning-transition-active .session-status-glow::after,
 .cleaning-transition-active .alarm-glow::before,
-.cleaning-transition-active > .absolute.inset-0 > .absolute.inset-0 {
+.cleaning-transition-active .dashboard-background-layer {
   animation-play-state: paused !important;
 }
 
