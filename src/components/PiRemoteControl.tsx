@@ -229,7 +229,9 @@ export function PiRemoteControl({
             : viewMode === 'profile'
             ? 'Pi:n följer den aktiva jäsprofilen och sköter all reglering själv.'
             : viewMode === 'manual'
-              ? 'Ett manuellt mål pausar profilen tills du väljer Profil igen.'
+              ? (profileStatus === 'completed'
+                ? 'Profilen är klar — ett manuellt mål gäller tills du väljer Profil igen.'
+                : 'Ett manuellt mål pausar profilen tills du väljer Profil igen.')
               : 'Reglering stängs av helt — varken kyla eller värme körs.'}
         </p>
 
