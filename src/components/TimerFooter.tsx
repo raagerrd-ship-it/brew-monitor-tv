@@ -101,7 +101,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
           style={{ 
             transform: `scaleX(${Math.min(100, progressPercent) / 100})`,
             transformOrigin: 'left',
-            transition: 'transform 300ms ease',
+            transition: 'transform 1000ms linear',
             background: isMash 
               ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
               : isWhirlpool
@@ -487,7 +487,7 @@ export const TimerFooter = memo(function TimerFooter() {
                   style={{ 
                      transform: `scaleX(${timer.totalSeconds > 0 ? Math.min(1, (timer.totalSeconds - timer.remainingSeconds) / timer.totalSeconds) : 0})`,
                      transformOrigin: 'left',
-                     transition: 'transform 300ms ease',
+                      transition: 'transform 1000ms linear',
                     background: isMash 
                       ? 'linear-gradient(90deg, hsl(24 80% 45%), hsl(30 90% 50%), hsl(38 95% 55%))' 
                       : isWhirlpool
