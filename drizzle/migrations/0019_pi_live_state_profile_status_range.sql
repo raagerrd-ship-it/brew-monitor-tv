@@ -1,0 +1,1 @@
+ALTER TABLE public.pi_live_state ADD COLUMN IF NOT EXISTS profile_status text, ADD COLUMN IF NOT EXISTS target_min_c numeric, ADD COLUMN IF NOT EXISTS target_max_c numeric;

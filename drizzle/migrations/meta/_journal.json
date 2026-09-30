@@ -134,6 +134,13 @@
       "when": 1790691504881,
       "tag": "0018_deprecate_unused_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790751143151,
+      "tag": "0019_pi_live_state_profile_status_range",
+      "breakpoints": true
     }
   ]
 }
