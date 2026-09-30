@@ -21,6 +21,12 @@
   animation: marquee 8s linear infinite;
 }
 
+.cleaning-transition-active *,
+.cleaning-transition-active *::before,
+.cleaning-transition-active *::after {
+  animation-play-state: paused !important;
+}
+
 @keyframes glow-pulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
