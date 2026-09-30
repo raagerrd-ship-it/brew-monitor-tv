@@ -4,14 +4,14 @@ import { BrewCard } from "./brew-card/BrewCard";
 import { BrewCardSkeleton } from "./brew-card/BrewCardSkeleton";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
 import { useBrewData } from "@/hooks/use-brew-data";
-import { useBrewDay } from "@/hooks/use-brew-day";
+import { useBrewDay, type BrewDay } from "@/hooks/use-brew-day";
 import { BrewDayCard } from "./brew-card/BrewDayCard";
 import { useSplashScreen } from "@/hooks/use-splash-screen";
 import { useBrewCarousel } from "@/hooks/use-brew-carousel";
@@ -43,10 +43,30 @@ export function BrewingDashboard() {
     loadBrewEvents, loadBrews, loadRaptData,
   } = useBrewData();
   const brewDay = useBrewDay();
+  const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
+  const [brewDayEntered, setBrewDayEntered] = useState(false);
 
   // Extracted hooks
   const { visibleBgUrl } = useAlbumArt();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
+  useLayoutEffect(() => {
+    if (!isTvMode) return;
+    if (brewDay) {
+      setExitingBrewDay(brewDay);
+      let secondFrame = 0;
+      const firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => setBrewDayEntered(true));
+      });
+      return () => {
+        cancelAnimationFrame(firstFrame);
+        cancelAnimationFrame(secondFrame);
+      };
+    }
+    setBrewDayEntered(false);
+    const timeout = setTimeout(() => setExitingBrewDay(null), 250);
+    return () => clearTimeout(timeout);
+  }, [isTvMode, !!brewDay]);
+  const displayedBrewDay = isTvMode ? brewDay ?? exitingBrewDay : brewDay;
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
   useEffect(() => {
@@ -161,7 +181,7 @@ export function BrewingDashboard() {
   }, [loadBrews, loadRaptData]);
 
   // Memoized grid layout helpers
-  const cardCount = brews.length + (brewDay ? 1 : 0);
+  const cardCount = brews.length + (displayedBrewDay ? 1 : 0);
   const gridLayout = useMemo(() => {
     return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
   }, [cardCount]);
@@ -287,15 +307,19 @@ export function BrewingDashboard() {
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
               </div>
             ))}
-            {brewDay && (
+            {displayedBrewDay && (
               <div
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                  ...(isTvMode ? {
+                    transform: brewDayEntered ? 'translateY(0)' : 'translateY(100%)',
+                    opacity: brewDayEntered ? 1 : 0,
+                    transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                  } : { transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }),
                 }}
               >
-                <BrewDayCard day={brewDay} hasAlbumArtBackground isTvMode={isTvMode} />
+                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
               </div>
             )}
           </div>
