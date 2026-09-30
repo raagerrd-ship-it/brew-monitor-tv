@@ -204,7 +204,7 @@ export const TimerFooter = memo(function TimerFooter() {
       const frame = requestAnimationFrame(() => {
         const nextFrame = requestAnimationFrame(() => {
           setEntered(true);
-          setFooterSlot(null, TIMER_FOOTER_HEIGHT); // Move the cards as the timer enters.
+           setFooterSlot(null, TIMER_FOOTER_HEIGHT); // Resize the cards once, not on every animation frame.
         });
         frameRef.current = nextFrame;
       });
@@ -212,8 +212,10 @@ export const TimerFooter = memo(function TimerFooter() {
       return () => cancelAnimationFrame(frameRef.current);
     }
     setEntered(false);
-    clearFooterSlot(); // Give the cards their space back as the timer leaves.
-    const timeout = setTimeout(() => setRendered(false), 250);
+    const timeout = setTimeout(() => {
+      setRendered(false);
+      clearFooterSlot(); // Restore the space after the timer has slid out.
+    }, 250);
     return () => clearTimeout(timeout);
   }, [isVisible, setFooterSlot, clearFooterSlot]);
 
