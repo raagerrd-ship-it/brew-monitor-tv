@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { X, ShieldAlert, Droplets, FlaskConical } from 'lucide-react';
 import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleaning-checklist';
 import { useTvMode } from '@/contexts/TvModeContext';
@@ -204,17 +204,30 @@ function highlightItem(text: string, accent: string) {
 function CleaningChecklistOverlayComponent() {
   const { view, setChecklist } = useCleaningChecklist();
   const { isTvMode } = useTvMode();
-  const lastView = useRef<Exclude<CleaningChecklistView, null> | null>(null);
-  if (view) lastView.current = view;
-  if (!lastView.current || !isTvMode) return null;
+  const [renderedView, setRenderedView] = useState<Exclude<CleaningChecklistView, null> | null>(null);
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    if (view && isTvMode) {
+      setRenderedView(view);
+      let secondFrame = 0;
+      const firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => setEntered(true));
+      });
+      return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
+    }
+    setEntered(false);
+    const timeout = setTimeout(() => setRenderedView(null), 400);
+    return () => clearTimeout(timeout);
+  }, [view, isTvMode]);
+  if (!renderedView || !isTvMode) return null;
 
-  const data = lastView.current === 'brewhouse' ? BREWHOUSE : VESSELS;
-  const title = lastView.current === 'brewhouse' ? 'Bryggverksrengöring' : 'Fat- och jäskärlsrengöring';
+  const data = renderedView === 'brewhouse' ? BREWHOUSE : VESSELS;
+  const title = renderedView === 'brewhouse' ? 'Bryggverksrengöring' : 'Fat- och jäskärlsrengöring';
 
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center p-2 motion-reduce:!transition-none"
-      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: view ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 400ms cubic-bezier(0.2, 0, 0, 1)', pointerEvents: view ? 'auto' : 'none' }}
+      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 400ms cubic-bezier(0.2, 0, 0, 1)', pointerEvents: view ? 'auto' : 'none' }}
     >
       <div
         className="relative flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10"
