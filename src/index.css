@@ -21,6 +21,16 @@
   animation: marquee 8s linear infinite;
 }
 
+.cleaning-transition-active .animate-marquee,
+.cleaning-transition-active .animate-value-shimmer,
+.cleaning-transition-active .animate-battery-pulse,
+.cleaning-transition-active .animate-pulse,
+.cleaning-transition-active .session-status-glow::after,
+.cleaning-transition-active .alarm-glow::before,
+.cleaning-transition-active .dashboard-background-layer {
+  animation-play-state: paused !important;
+}
+
 @keyframes glow-pulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }

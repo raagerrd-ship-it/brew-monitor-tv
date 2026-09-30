@@ -4,7 +4,7 @@ import { BrewCard } from "./brew-card/BrewCard";
 import { BrewCardSkeleton } from "./brew-card/BrewCardSkeleton";
 import { DashboardHeader, HEADER_HEIGHT, HEADER_HEIGHT_TV } from "./DashboardHeader";
 
-import { useEffect, useLayoutEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import dbLogo from "@/assets/db-logo.png";
 import { Settings, Loader2, Beer } from "lucide-react";
@@ -45,12 +45,21 @@ export function BrewingDashboard() {
   } = useBrewData();
   const brewDay = useBrewDay();
   const { view: cleaningView } = useCleaningChecklist();
+  const [cleaningTransition, setCleaningTransition] = useState(false);
+  const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
 
   // Extracted hooks
   const { visibleBgUrl } = useAlbumArt();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
+  useLayoutEffect(() => {
+    if (!isTvMode || previousCleaningView.current === cleaningView) return;
+    previousCleaningView.current = cleaningView;
+    setCleaningTransition(true);
+    const timeout = setTimeout(() => setCleaningTransition(false), 950);
+    return () => clearTimeout(timeout);
+  }, [cleaningView, isTvMode]);
   useLayoutEffect(() => {
     if (!isTvMode) return;
     if (brewDay) {
@@ -234,7 +243,7 @@ export function BrewingDashboard() {
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>}
 
-    <div className={`w-full relative flex flex-col overflow-hidden`} style={{
+    <div className={`w-full relative flex flex-col overflow-hidden ${isTvMode && cleaningTransition ? 'cleaning-transition-active' : ''}`} style={{
       height: isMobile ? mobileContainerHeight : getContainerHeight(),
       background: 'transparent',
     }}>
@@ -250,7 +259,7 @@ export function BrewingDashboard() {
       {/* Main Display Area */}
        <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : {}),
-          ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)' } : {}),
+           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
