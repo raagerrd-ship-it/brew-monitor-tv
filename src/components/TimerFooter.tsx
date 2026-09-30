@@ -202,26 +202,22 @@ export const TimerFooter = memo(function TimerFooter() {
       setRendered(true);
       const frameRef = { current: 0 };
       const frame = requestAnimationFrame(() => {
-        const nextFrame = requestAnimationFrame(() => setEntered(true));
+        const nextFrame = requestAnimationFrame(() => {
+          setEntered(true);
+          setFooterSlot(null, TIMER_FOOTER_HEIGHT); // Move the cards as the timer enters.
+        });
         frameRef.current = nextFrame;
       });
       frameRef.current = frame;
       return () => cancelAnimationFrame(frameRef.current);
     }
     setEntered(false);
+    clearFooterSlot(); // Give the cards their space back as the timer leaves.
     const timeout = setTimeout(() => setRendered(false), 250);
     return () => clearTimeout(timeout);
-  }, [isVisible]);
+  }, [isVisible, setFooterSlot, clearFooterSlot]);
 
-  // Register footer height so dashboard can adjust layout
-  useEffect(() => {
-    if (rendered) {
-      setFooterSlot(null, TIMER_FOOTER_HEIGHT); // null content = self-rendering
-    } else {
-      clearFooterSlot();
-    }
-    return () => clearFooterSlot();
-  }, [rendered, setFooterSlot, clearFooterSlot]);
+  useEffect(() => () => clearFooterSlot(), [clearFooterSlot]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
