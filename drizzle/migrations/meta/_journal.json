@@ -141,6 +141,13 @@
       "when": 1790751143151,
       "tag": "0019_pi_live_state_profile_status_range",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790788829756,
+      "tag": "0020_create_brew_day_session",
+      "breakpoints": true
     }
   ]
 }
