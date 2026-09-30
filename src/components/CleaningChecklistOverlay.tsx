@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useLayoutEffect, useState } from 'react';
 import { X, ShieldAlert, Droplets, FlaskConical } from 'lucide-react';
 import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleaning-checklist';
 import { useTvMode } from '@/contexts/TvModeContext';
@@ -206,7 +206,7 @@ function CleaningChecklistOverlayComponent() {
   const { isTvMode } = useTvMode();
   const [renderedView, setRenderedView] = useState<Exclude<CleaningChecklistView, null> | null>(null);
   const [entered, setEntered] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (view && isTvMode) {
       setRenderedView(view);
       let secondFrame = 0;
@@ -216,8 +216,7 @@ function CleaningChecklistOverlayComponent() {
       return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
     }
     setEntered(false);
-    const timeout = setTimeout(() => setRenderedView(null), 950);
-    return () => clearTimeout(timeout);
+    if (!isTvMode || window.matchMedia('(prefers-reduced-motion: reduce)').matches) setRenderedView(null);
   }, [view, isTvMode]);
   if (!renderedView || !isTvMode) return null;
 
@@ -228,6 +227,9 @@ function CleaningChecklistOverlayComponent() {
     <div
       className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center p-2 motion-reduce:!transition-none"
       style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', pointerEvents: view ? 'auto' : 'none' }}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === 'transform' && !view) setRenderedView(null);
+      }}
     >
       <div
         className="relative flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10"
