@@ -262,7 +262,7 @@ export function BrewingDashboard() {
                   </div>
                 ))}
                 {brewDay && (
-                  <div className="flex-[0_0_100%] min-w-0 px-1"><BrewDayCard day={brewDay} /></div>
+                  <div className="flex-[0_0_100%] min-w-0 px-1"><BrewDayCard day={brewDay} hasAlbumArtBackground /></div>
                 )}
               </div>
             </div>
@@ -289,10 +289,13 @@ export function BrewingDashboard() {
             ))}
             {brewDay && (
               <div
-                className={cardWidthClass}
-                style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)` }}
+                className={`${cardWidthClass} motion-reduce:!transition-none`}
+                style={{
+                  height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
+                  transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                }}
               >
-                <BrewDayCard day={brewDay} />
+                <BrewDayCard day={brewDay} hasAlbumArtBackground isTvMode={isTvMode} />
               </div>
             )}
           </div>
