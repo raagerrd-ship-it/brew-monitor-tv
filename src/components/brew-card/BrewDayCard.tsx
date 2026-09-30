@@ -1,10 +1,11 @@
 import { Check, ChefHat } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
 
 export function BrewDayCard({ day }: { day: BrewDay }) {
   const nextId = day.items.find((i) => !i.checked)?.id;
   return (
-    <div className="h-full w-full rounded-xl glass-card border border-white/10 p-5 flex flex-col gap-4 overflow-hidden">
+    <Card className="h-full w-full p-5 flex flex-col gap-4 overflow-hidden">
       <div className="flex items-start gap-3">
         <ChefHat className="h-7 w-7 text-primary shrink-0" />
         <div className="min-w-0">
@@ -33,6 +34,6 @@ export function BrewDayCard({ day }: { day: BrewDay }) {
         ))}
         {day.items.length === 0 && <li className="text-sm text-muted-foreground">Inget att tillsätta i det här steget</li>}
       </ul>
-    </div>
+    </Card>
   );
 }

@@ -11,6 +11,8 @@ import { Settings, Loader2, Beer } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
 import { useBrewData } from "@/hooks/use-brew-data";
+import { useBrewDay } from "@/hooks/use-brew-day";
+import { BrewDayCard } from "./brew-card/BrewDayCard";
 import { useSplashScreen } from "@/hooks/use-splash-screen";
 import { useBrewCarousel } from "@/hooks/use-brew-carousel";
 import { useTvRefresh } from "@/hooks/use-tv-refresh";
@@ -40,6 +42,7 @@ export function BrewingDashboard() {
     brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
   } = useBrewData();
+  const brewDay = useBrewDay();
 
   // Extracted hooks
   const { visibleBgUrl } = useAlbumArt();
@@ -158,13 +161,14 @@ export function BrewingDashboard() {
   }, [loadBrews, loadRaptData]);
 
   // Memoized grid layout helpers
+  const cardCount = brews.length + (brewDay ? 1 : 0);
   const gridLayout = useMemo(() => {
-    return brews.length === 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
-  }, [brews.length]);
+    return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
+  }, [cardCount]);
 
   const cardWidthClass = useMemo(() => {
-    return brews.length === 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
-  }, [brews.length]);
+    return cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
+  }, [cardCount]);
 
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
@@ -257,6 +261,9 @@ export function BrewingDashboard() {
                     <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
                   </div>
                 ))}
+                {brewDay && (
+                  <div className="flex-[0_0_100%] min-w-0 px-1"><BrewDayCard day={brewDay} /></div>
+                )}
               </div>
             </div>
           </div>
@@ -280,6 +287,14 @@ export function BrewingDashboard() {
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
               </div>
             ))}
+            {brewDay && (
+              <div
+                className={cardWidthClass}
+                style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)` }}
+              >
+                <BrewDayCard day={brewDay} />
+              </div>
+            )}
           </div>
         )}
       </div>
