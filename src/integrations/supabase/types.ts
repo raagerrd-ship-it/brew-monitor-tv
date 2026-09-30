@@ -73,6 +73,42 @@ export type Database = {
           },
         ]
       }
+      brew_day_session: {
+        Row: {
+          active: boolean
+          id: number
+          items: Json
+          recipe_name: string | null
+          step_id: string | null
+          step_kind: string | null
+          step_title: string | null
+          target_temp_c: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          id?: number
+          items?: Json
+          recipe_name?: string | null
+          step_id?: string | null
+          step_kind?: string | null
+          step_title?: string | null
+          target_temp_c?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          id?: number
+          items?: Json
+          recipe_name?: string | null
+          step_id?: string | null
+          step_kind?: string | null
+          step_title?: string | null
+          target_temp_c?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brew_events: {
         Row: {
           brew_id: string
