@@ -216,7 +216,7 @@ function CleaningChecklistOverlayComponent() {
       return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
     }
     setEntered(false);
-    const timeout = setTimeout(() => setRenderedView(null), 400);
+    const timeout = setTimeout(() => setRenderedView(null), 950);
     return () => clearTimeout(timeout);
   }, [view, isTvMode]);
   if (!renderedView || !isTvMode) return null;
@@ -227,7 +227,7 @@ function CleaningChecklistOverlayComponent() {
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center p-2 motion-reduce:!transition-none"
-      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 400ms cubic-bezier(0.2, 0, 0, 1)', pointerEvents: view ? 'auto' : 'none' }}
+      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', pointerEvents: view ? 'auto' : 'none' }}
     >
       <div
         className="relative flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10"
