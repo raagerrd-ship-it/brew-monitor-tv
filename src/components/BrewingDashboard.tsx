@@ -24,6 +24,7 @@ import { useAlbumArt } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
 import { DashboardAlertOverlay } from "./DashboardAlertOverlay";
 import { CleaningChecklistOverlay } from "./CleaningChecklistOverlay";
+import { useCleaningChecklist } from "@/hooks/use-cleaning-checklist";
 import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +44,7 @@ export function BrewingDashboard() {
     loadBrewEvents, loadBrews, loadRaptData,
   } = useBrewData();
   const brewDay = useBrewDay();
+  const { view: cleaningView } = useCleaningChecklist();
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
 
@@ -246,7 +248,10 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : undefined}>
+       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} style={{
+         ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : {}),
+         ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 400ms cubic-bezier(0.2, 0, 0, 1)' } : {}),
+       }}>
         {loading && brews.length === 0 ? (
           <div
             className="flex justify-center gap-6 w-full px-4 py-2 motion-reduce:!transition-none"
