@@ -12,6 +12,10 @@ export interface PiRemoteState {
   piTarget: number | null;
   commandedTarget: number | null;
   commandedEnabled: boolean | null;
+  profileStatus: 'running' | 'paused' | 'completed' | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  controlSensor: string | null;
 }
 
 /**
@@ -21,6 +25,7 @@ export interface PiRemoteState {
 export function usePiRemoteControl(controllerId: string, active = true) {
   const [state, setState] = useState<PiRemoteState>({
     targetSource: null, effectiveTarget: null, pausedAt: null, enabled: null, lastHeartbeat: null, piTarget: null, commandedTarget: null, commandedEnabled: null,
+    profileStatus: null, targetMin: null, targetMax: null, controlSensor: null,
   });
   const [commandedAt, setCommandedAt] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -40,6 +45,9 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         enabled: row.enabled ?? null,
         lastHeartbeat: row.last_heartbeat ?? null,
         piTarget: row.target_temp != null ? Number(row.target_temp) : null,
+        profileStatus: row.profile_status ?? null,
+        targetMin: row.target_min_c != null ? Number(row.target_min_c) : null,
+        targetMax: row.target_max_c != null ? Number(row.target_max_c) : null,
       }));
     };
 
@@ -60,7 +68,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
     const refetch = () => {
       supabase
         .from('pi_live_state')
-        .select('target_source, effective_target, paused_at, enabled, last_heartbeat, target_temp, controller_id')
+        .select('target_source, effective_target, paused_at, enabled, last_heartbeat, target_temp, controller_id, profile_status, target_min_c, target_max_c')
         .like('controller_id', `${shortId}%`)
         .limit(1)
         .then(({ data }) => apply(data?.[0]));
@@ -74,6 +82,21 @@ export function usePiRemoteControl(controllerId: string, active = true) {
     };
 
     refetch();
+
+    // Givaren Pi:n reglerar mot (pt100 = botten) finns i bryggstatusen.
+    supabase
+      .from('brew_readings')
+      .select('id')
+      .eq('linked_controller_id', controllerId)
+      .not('status', 'in', '("Arkiverad","Completed","Klar")')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(async ({ data }) => {
+        const id = data?.[0]?.id;
+        if (!id || cancelled) return;
+        const { data: bs } = await supabase.from('brew_status').select('control_sensor').eq('source_id', id).maybeSingle();
+        if (!cancelled) setState((prev) => ({ ...prev, controlSensor: bs?.control_sensor ?? null }));
+      });
 
     // Unikt topic per instans — annars krockar flera komponenter om samma kanal.
     const channel = supabase
