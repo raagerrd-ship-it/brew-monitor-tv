@@ -47,6 +47,12 @@ export function BrewingDashboard() {
   const { view: cleaningView } = useCleaningChecklist();
   const [cleaningTransition, setCleaningTransition] = useState(false);
   const previousCleaningView = useRef(cleaningView);
+  const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
+  const [brewDayEntered, setBrewDayEntered] = useState(false);
+
+  // Extracted hooks
+  const { visibleBgUrl } = useAlbumArt();
+  const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   useLayoutEffect(() => {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
     previousCleaningView.current = cleaningView;
@@ -54,12 +60,6 @@ export function BrewingDashboard() {
     const timeout = setTimeout(() => setCleaningTransition(false), 950);
     return () => clearTimeout(timeout);
   }, [cleaningView, isTvMode]);
-  const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
-  const [brewDayEntered, setBrewDayEntered] = useState(false);
-
-  // Extracted hooks
-  const { visibleBgUrl } = useAlbumArt();
-  const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   useLayoutEffect(() => {
     if (!isTvMode) return;
     if (brewDay) {
