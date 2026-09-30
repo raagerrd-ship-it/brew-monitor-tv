@@ -225,14 +225,14 @@ export function BrewingDashboard() {
        <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'}`} style={isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : undefined}>
         {loading && brews.length === 0 ? (
           <div
-            className="flex justify-center gap-6 w-full px-4 py-2"
+            className="flex justify-center gap-6 w-full px-4 py-2 motion-reduce:!transition-none"
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
-               transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+              transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
             }}
           >
             {[0, 1, 2].map(i => (
-               <div key={i} className="flex-1 min-w-0 motion-reduce:!transition-none" style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : 'calc(100% - 16px)', transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }}>
+              <div key={i} className="flex-1 min-w-0 motion-reduce:!transition-none" style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : 'calc(100% - 16px)', transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }}>
                 <BrewCardSkeleton />
               </div>
             ))}
@@ -262,19 +262,19 @@ export function BrewingDashboard() {
           </div>
         ) : (
           <div
-             className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
+            className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
-               transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+              transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
             }}
           >
             {brews.map((brew, index) => (
               <div
                 key={brew.id}
-                 className={`${cardWidthClass} motion-reduce:!transition-none`}
+                className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                   transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                  transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
                 }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
