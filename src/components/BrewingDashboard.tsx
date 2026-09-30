@@ -57,8 +57,6 @@ export function BrewingDashboard() {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
     previousCleaningView.current = cleaningView;
     setCleaningTransition(true);
-    const timeout = setTimeout(() => setCleaningTransition(false), 950);
-    return () => clearTimeout(timeout);
   }, [cleaningView, isTvMode]);
   useLayoutEffect(() => {
     if (!isTvMode) return;
@@ -257,7 +255,9 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} style={{
+       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} onTransitionEnd={(event) => {
+         if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
+       }} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : {}),
            ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
