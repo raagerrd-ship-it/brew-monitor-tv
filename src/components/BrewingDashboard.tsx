@@ -343,6 +343,9 @@ export function BrewingDashboard() {
               </div>
             ))}
             {displayedBrewDay && (
+              <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} aria-hidden="true" />
+            )}
+            {displayedBrewDay && (
               <div
                 className="absolute motion-reduce:!transition-none"
                 style={{
