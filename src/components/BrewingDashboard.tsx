@@ -95,6 +95,9 @@ export function BrewingDashboard() {
 
   // Footer height from self-contained footer components via context
   const { footerHeight, footerContent } = useDashboardFooter();
+  const layoutFooterRef = useRef(footerHeight);
+  if (!brewDayTransition) layoutFooterRef.current = footerHeight;
+  const layoutFooterHeight = layoutFooterRef.current;
 
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -219,7 +222,7 @@ export function BrewingDashboard() {
 
   const getContentHeight = () => {
     if (isAspectRatioLocked) {
-      const footerSpace = footerHeight;
+      const footerSpace = layoutFooterHeight;
       return containerHeight - activeHeaderHeight - footerSpace;
     }
     return null;
@@ -266,14 +269,14 @@ export function BrewingDashboard() {
        <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} onTransitionEnd={(event) => {
          if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
        }} style={{
-         ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px` } : {}),
+         ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${layoutFooterHeight}px` } : {}),
            ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
             className="flex justify-center gap-6 w-full px-4 py-2 motion-reduce:!transition-none"
             style={{
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
             }}
           >
             {[0, 1, 2].map(i => (
@@ -312,7 +315,7 @@ export function BrewingDashboard() {
           <div
             className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
-              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
+              height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
             }}
           >
             {brews.map((brew, index) => (
@@ -338,7 +341,7 @@ export function BrewingDashboard() {
                   } : {}),
                 }}
               >
-                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
+                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground={!brewDayTransition} isTvMode={isTvMode} />
               </div>
             )}
           </div>
