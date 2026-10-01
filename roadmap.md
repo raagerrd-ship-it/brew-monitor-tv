@@ -1,3 +1,3 @@
 # Roadmap
 
-- [ ] Snygga till bryggdagskortets layout (TV) — designförslag → användaren väljer → implementera. OBS: kortet har bara recipe_name, step_title, step_kind, target_temp_c och tillsatslistan (namn, mängd, enhet, min). Ingen aktuell temp, tid kvar eller volym får visas.
+- [x] Polera bryggdagskortet (TV) i befintligt upplägg — måltemp som chip uppe till höger, "x av y klart"-räknare, tydligare status (klar/nästa/kommande) med NÄSTA-märke. Bara befintlig data; ingen extra timer. Verifierat i förhandsvisningen, bygget grönt.
