@@ -200,7 +200,8 @@ export function BrewingDashboard() {
     sonnerToast.success("Data uppdaterad", { duration: 1500 });
   }, [loadBrews, loadRaptData]);
 
-  // Memoized grid layout helpers
+  // Memoized grid layout helpers — beer cards resize in one step (no animated
+  // layout); the motion comes from the row and brew day card sliding sideways.
   const cardCount = brews.length + (displayedBrewDay ? 1 : 0);
   const gridLayout = useMemo(() => {
     return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
@@ -209,6 +210,15 @@ export function BrewingDashboard() {
   const cardWidthClass = useMemo(() => {
     return cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
   }, [cardCount]);
+
+  // Brew day card matches one card's width; the row starts shifted right by
+  // width + gap and slides to 0 while the card glides in from the right.
+  const brewDayWidth = cardCount >= 3
+    ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
+    : 'calc(50% - 0.75rem)';
+  const brewDayShift = cardCount >= 3
+    ? `calc((100% + 1.5rem) / ${cardCount})`
+    : 'calc(50% + 0.75rem)';
 
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
@@ -313,9 +323,12 @@ export function BrewingDashboard() {
           </div>
         ) : (
           <div
-            className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
+            className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
+              transform: displayedBrewDay && !brewDayEntered ? `translateX(${brewDayShift})` : 'translateX(0)',
+              transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+              willChange: brewDayTransition ? 'transform' : undefined,
             }}
           >
             {brews.map((brew, index) => (
@@ -330,15 +343,19 @@ export function BrewingDashboard() {
               </div>
             ))}
             {displayedBrewDay && (
+              <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} aria-hidden="true" />
+            )}
+            {displayedBrewDay && (
               <div
-                className={`${cardWidthClass} motion-reduce:!transition-none`}
+                className="absolute motion-reduce:!transition-none"
                 style={{
+                  top: '0.5rem',
+                  right: '1rem',
+                  width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  ...(!isMobile || isTvMode ? {
-                    transform: brewDayEntered ? 'translateY(0)' : 'translateY(100%)',
-                    transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
-                    willChange: brewDayTransition ? 'transform' : undefined,
-                  } : {}),
+                  transform: brewDayEntered ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
+                  transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                  willChange: brewDayTransition ? 'transform' : undefined,
                 }}
               >
                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
