@@ -321,10 +321,10 @@ export const TimerFooter = memo(function TimerFooter() {
           opacity: entered ? 1 : 0,
           transition: `transform ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
           background: isMash
-             ? 'linear-gradient(145deg, hsl(24 80% 15% / 0.82) 0%, hsl(222 20% 12% / 0.95) 100%)'
+             ? 'linear-gradient(145deg, hsl(24 70% 9% / 0.97) 0%, hsl(222 25% 6% / 0.98) 100%)'
             : isWhirlpool
-               ? 'linear-gradient(145deg, hsl(180 60% 15% / 0.82) 0%, hsl(222 20% 12% / 0.95) 100%)'
-               : 'linear-gradient(145deg, hsl(var(--primary) / 0.26) 0%, hsl(222 20% 12% / 0.95) 100%)',
+               ? 'linear-gradient(145deg, hsl(180 50% 9% / 0.97) 0%, hsl(222 25% 6% / 0.98) 100%)'
+               : 'linear-gradient(145deg, hsl(var(--primary) / 0.12) 0%, hsl(222 25% 6% / 0.98) 100%), hsl(222 25% 6%)',
           borderTop: isMash
             ? '1px solid hsl(24 80% 40% / 0.15)'
             : isWhirlpool
