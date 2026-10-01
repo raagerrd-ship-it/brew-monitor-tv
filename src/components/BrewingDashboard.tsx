@@ -298,7 +298,7 @@ export function BrewingDashboard() {
          if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
        }} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${layoutFooterHeight}px` } : {}),
-           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 1400ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
+           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 2000ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
