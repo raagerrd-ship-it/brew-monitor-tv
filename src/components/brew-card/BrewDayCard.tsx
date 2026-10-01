@@ -8,7 +8,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
     <Card
       className={`relative border-white/15 h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
       style={{
-        background: hasAlbumArtBackground ? 'hsl(222 18% 15% / 0.75)' : 'hsl(222 18% 15%)',
+        background: hasAlbumArtBackground ? 'hsl(222 18% 12% / 0.93)' : 'hsl(222 18% 15%)',
         boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
