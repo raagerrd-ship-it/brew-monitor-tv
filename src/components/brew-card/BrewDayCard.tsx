@@ -17,8 +17,9 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           <ChefHat className={`${isTvMode ? "h-6 w-6" : "h-5 w-5"} text-foreground/70`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`${isTvMode ? "text-base" : "text-xs"} font-bold uppercase tracking-[0.2em] text-muted-foreground truncate`}>Bryggdag · {day.recipe_name ?? "—"}</div>
-          <div className={`${isTvMode ? "text-5xl" : "text-2xl"} font-bold tracking-tight truncate mt-0.5`}>{day.step_title ?? "—"}</div>
+          <div className={`${isTvMode ? "text-base" : "text-xs"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag</div>
+          <div className={`${isTvMode ? "text-xl" : "text-sm"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
+          <div className={`${isTvMode ? "text-4xl" : "text-2xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
         </div>
         {day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-6 py-2.5" : "px-3 py-2"} text-right`}>
@@ -27,7 +28,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         )}
       </div>
-      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-evenly ${isTvMode ? "gap-2" : "gap-2"}`}>
+      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-center ${isTvMode ? "gap-4" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
           return (
@@ -56,13 +57,13 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
               </span>
               <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-base"} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className="flex items-center gap-5 shrink-0">
-                {i.amount != null && (
+                {i.amount != null && !i.checked && (
                   <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-xl"} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-base"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`${isTvMode ? (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl") : i.checked ? "text-sm" : "text-base"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
                     {i.at_min} min
                   </span>
                 )}
