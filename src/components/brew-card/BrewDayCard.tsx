@@ -8,10 +8,8 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
     <Card
       className={`relative border-white/15 h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3 bg-card shadow-none" : "p-5 gap-4"}`}
       style={{
-        ...(isTvMode ? {} : {
-          background: hasAlbumArtBackground ? 'hsl(222 18% 12% / 0.93)' : 'hsl(222 18% 15%)',
-          boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
-        }),
+        background: hasAlbumArtBackground ? (isTvMode ? 'hsl(222 18% 12% / 0.72)' : 'hsl(222 18% 12% / 0.93)') : (isTvMode ? 'hsl(222 18% 15% / 0.8)' : 'hsl(222 18% 15%)'),
+        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
       <div className="flex items-start gap-4">
@@ -19,9 +17,9 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           <ChefHat className={`${isTvMode ? "h-6 w-6" : "h-6 w-6"} text-foreground/70`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`${isTvMode ? "text-lg" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag</div>
-          <div className={`${isTvMode ? "text-3xl" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
-          <div className={`${isTvMode ? "text-4xl" : "text-3xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
+          <div className={`${isTvMode ? "text-base" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag</div>
+          <div className={`${isTvMode ? "text-2xl" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
+          <div className={`${isTvMode ? "text-3xl" : "text-3xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
         </div>
         {day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-5 py-2" : "px-3 py-2"} text-right`}>
@@ -57,15 +55,15 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
                     : null}
               </span>
-              <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-2xl" : "text-xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
+              <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-2xl" : "text-xl") : (isNext ? "text-2xl" : "text-xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
                 {i.amount != null && !i.checked && (
-                  <span className={`${isTvMode ? (isNext ? "text-4xl" : "text-3xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
+                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`${isTvMode ? (isNext ? "text-4xl" : i.checked ? "text-2xl" : "text-3xl") : (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`${isTvMode ? (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl") : (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
                     {i.at_min} min
                   </span>
                 )}
