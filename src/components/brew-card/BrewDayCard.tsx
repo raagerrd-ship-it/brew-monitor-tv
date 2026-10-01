@@ -72,11 +72,6 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                   </span>
                 )}
               </span>
-              {isNext && (
-                <span className={`${isTvMode ? "text-xs px-2 py-0.5" : "text-[10px] px-1.5 py-0.5"} font-semibold uppercase tracking-wider rounded-md bg-primary/20 text-primary border border-primary/30 whitespace-nowrap`}>
-                  Nästa
-                </span>
-              )}
             </li>
           );
         })}
