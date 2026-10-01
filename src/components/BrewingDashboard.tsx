@@ -92,7 +92,7 @@ export function BrewingDashboard() {
       setExitingBrewDay(null);
       setBrewDayPhase(null);
       setBrewDayTransition(false);
-    }, 1100);
+    }, 1300);
     return () => {
       clearTimeout(row);
       clearTimeout(timeout);
