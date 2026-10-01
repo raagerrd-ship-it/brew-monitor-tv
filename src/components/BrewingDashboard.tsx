@@ -68,15 +68,15 @@ export function BrewingDashboard() {
       setExitingBrewDay(brewDay);
       setBrewDayTransition(true);
       setBrewDayPhase('row');
-      // Let the card paint once off-screen before sliding, so the first
-      // animation frames aren't spent on mounting its content.
-      const enter = setTimeout(() => setBrewDayEntered(true), 120);
-      // Row slides first (600 ms), then the brew day card (600 ms).
-      const card = setTimeout(() => setBrewDayPhase('card'), 720);
+      // Beer cards switch width (and charts redraw) on mount; give the
+      // Chromecast time to finish that before any sliding starts.
+      const enter = setTimeout(() => setBrewDayEntered(true), 500);
+      // Row slides first (600 ms), short pause, then the brew day card (600 ms).
+      const card = setTimeout(() => setBrewDayPhase('card'), 1200);
       const done = setTimeout(() => {
         setBrewDayPhase(null);
         setBrewDayTransition(false);
-      }, 1320);
+      }, 1900);
       return () => {
         clearTimeout(enter);
         clearTimeout(card);
@@ -87,12 +87,12 @@ export function BrewingDashboard() {
     // Exit reversed: the card slides out first, then the row slides back.
     setBrewDayPhase('card');
     if (exitingBrewDay) setBrewDayTransition(true);
-    const row = setTimeout(() => setBrewDayPhase('row'), 400);
+    const row = setTimeout(() => setBrewDayPhase('row'), 550);
     const timeout = setTimeout(() => {
       setExitingBrewDay(null);
       setBrewDayPhase(null);
       setBrewDayTransition(false);
-    }, 800);
+    }, 1100);
     return () => {
       clearTimeout(row);
       clearTimeout(timeout);
