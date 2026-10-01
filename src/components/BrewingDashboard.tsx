@@ -70,13 +70,13 @@ export function BrewingDashboard() {
       setBrewDayPhase('row');
       // Beer cards switch width (and charts redraw) on mount; give the
       // Chromecast time to finish that before any sliding starts.
-      const enter = setTimeout(() => setBrewDayEntered(true), 500);
-      // Row slides first (600 ms), short pause, then the brew day card (600 ms).
-      const card = setTimeout(() => setBrewDayPhase('card'), 1200);
+      const enter = setTimeout(() => setBrewDayEntered(true), 700);
+      // Row slides first (1200 ms), short pause, then the brew day card (1400 ms).
+      const card = setTimeout(() => setBrewDayPhase('card'), 2200);
       const done = setTimeout(() => {
         setBrewDayPhase(null);
         setBrewDayTransition(false);
-      }, 1900);
+      }, 4000);
       return () => {
         clearTimeout(enter);
         clearTimeout(card);
@@ -87,12 +87,12 @@ export function BrewingDashboard() {
     // Exit reversed: the card slides out first, then the row slides back.
     setBrewDayPhase('card');
     if (exitingBrewDay) setBrewDayTransition(true);
-    const row = setTimeout(() => setBrewDayPhase('row'), 550);
+    const row = setTimeout(() => setBrewDayPhase('row'), 1400);
     const timeout = setTimeout(() => {
       setExitingBrewDay(null);
       setBrewDayPhase(null);
       setBrewDayTransition(false);
-    }, 1300);
+    }, 2900);
     return () => {
       clearTimeout(row);
       clearTimeout(timeout);
@@ -345,7 +345,7 @@ export function BrewingDashboard() {
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
               transform: displayedBrewDay && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && (brewDay ? brewDayEntered : true) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+              transition: displayedBrewDay && (brewDay ? brewDayEntered : true) ? `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
@@ -372,7 +372,7 @@ export function BrewingDashboard() {
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                   transform: brewDay && brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
-                  transition: displayedBrewDay ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+                  transition: displayedBrewDay ? `transform ${brewDay ? 1400 : 1200}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
                   willChange: 'transform',
                 }}
               >
