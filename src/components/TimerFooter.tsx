@@ -319,7 +319,7 @@ export const TimerFooter = memo(function TimerFooter() {
           height: `${TIMER_FOOTER_HEIGHT}px`,
           transform: entered ? 'translateY(0)' : 'translateY(100%)',
           opacity: entered ? 1 : 0,
-          transition: `transform ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${entered ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+          transition: `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1), opacity 1200ms cubic-bezier(0.45, 0, 0.55, 1)`,
           background: isMash
              ? 'linear-gradient(145deg, hsl(24 70% 9% / 0.97) 0%, hsl(222 25% 6% / 0.98) 100%)'
             : isWhirlpool
