@@ -49,6 +49,9 @@ export function BrewingDashboard() {
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
+  // Sequential slide phases: beer cards slide fully first, then the brew day
+  // card (reversed on exit) so the two never compete for CPU on Chromecast.
+  const [brewDayPhase, setBrewDayPhase] = useState<'row' | 'card' | null>(null);
   const [brewDayTransition, setBrewDayTransition] = useState(false);
 
   // Extracted hooks
