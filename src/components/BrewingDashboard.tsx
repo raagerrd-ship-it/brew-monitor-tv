@@ -322,9 +322,12 @@ export function BrewingDashboard() {
           </div>
         ) : (
           <div
-            className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
+            className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
+              transform: displayedBrewDay && brewDayEntered ? `translateX(-${brewDayShift})` : 'translateX(0)',
+              transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+              willChange: brewDayTransition ? 'transform' : undefined,
             }}
           >
             {brews.map((brew, index) => (
@@ -340,14 +343,15 @@ export function BrewingDashboard() {
             ))}
             {displayedBrewDay && (
               <div
-                className={`${cardWidthClass} motion-reduce:!transition-none`}
+                className="absolute motion-reduce:!transition-none"
                 style={{
+                  top: '0.5rem',
+                  right: '1rem',
+                  width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  ...(!isMobile || isTvMode ? {
-                    transform: brewDayEntered ? 'translateY(0)' : 'translateY(100%)',
-                    transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
-                    willChange: brewDayTransition ? 'transform' : undefined,
-                  } : {}),
+                  transform: brewDayEntered ? 'translateX(0)' : `translateX(${brewDayShift})`,
+                  transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                  willChange: brewDayTransition ? 'transform' : undefined,
                 }}
               >
                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
