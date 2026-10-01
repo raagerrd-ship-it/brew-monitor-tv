@@ -200,15 +200,24 @@ export function BrewingDashboard() {
     sonnerToast.success("Data uppdaterad", { duration: 1500 });
   }, [loadBrews, loadRaptData]);
 
-  // Memoized grid layout helpers
-  const cardCount = brews.length + (displayedBrewDay ? 1 : 0);
+  // Memoized grid layout helpers — beer cards keep their size; the brew day
+  // card slides in from the right while the row slides left (transform only).
+  const brewCount = brews.length;
   const gridLayout = useMemo(() => {
-    return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
-  }, [cardCount]);
+    return brewCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
+  }, [brewCount]);
 
   const cardWidthClass = useMemo(() => {
-    return cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
-  }, [cardCount]);
+    return brewCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
+  }, [brewCount]);
+
+  // Brew day card matches one beer card's width; the row shifts by width + gap.
+  const brewDayWidth = brewCount >= 3
+    ? `calc((100% - ${(brewCount - 1) * 1.5}rem) / ${brewCount})`
+    : 'calc(50% - 0.75rem)';
+  const brewDayShift = brewCount >= 3
+    ? `calc((100% + 1.5rem) / ${brewCount})`
+    : 'calc(50% + 0.75rem)';
 
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
