@@ -298,7 +298,7 @@ export function BrewingDashboard() {
          if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
        }} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${layoutFooterHeight}px` } : {}),
-           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
+           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.6, 0.85)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
@@ -345,7 +345,7 @@ export function BrewingDashboard() {
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
               transform: displayedBrewDay && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && brewDayPhase === 'row' && (brewDay ? brewDayEntered : true) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+              transition: displayedBrewDay && brewDayPhase === 'row' && (brewDay ? brewDayEntered : true) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.6, 0.85)` : 'none',
               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
@@ -372,7 +372,7 @@ export function BrewingDashboard() {
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                   transform: brewDay && brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
-                  transition: brewDayPhase === 'card' ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+                  transition: brewDayPhase === 'card' ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.6, 0.85)` : 'none',
                   willChange: 'transform',
                 }}
               >
