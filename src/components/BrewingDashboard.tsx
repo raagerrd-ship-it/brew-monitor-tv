@@ -49,6 +49,7 @@ export function BrewingDashboard() {
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
+  const [brewDayTransition, setBrewDayTransition] = useState(false);
 
   // Extracted hooks
   const { visibleBgUrl } = useAlbumArt();
@@ -62,17 +63,24 @@ export function BrewingDashboard() {
     if (!isTvMode) return;
     if (brewDay) {
       setExitingBrewDay(brewDay);
+      setBrewDayTransition(true);
       let secondFrame = 0;
       const firstFrame = requestAnimationFrame(() => {
         secondFrame = requestAnimationFrame(() => setBrewDayEntered(true));
       });
+      const timeout = setTimeout(() => setBrewDayTransition(false), 400);
       return () => {
         cancelAnimationFrame(firstFrame);
         cancelAnimationFrame(secondFrame);
+        clearTimeout(timeout);
       };
     }
     setBrewDayEntered(false);
-    const timeout = setTimeout(() => setExitingBrewDay(null), 250);
+    if (exitingBrewDay) setBrewDayTransition(true);
+    const timeout = setTimeout(() => {
+      setExitingBrewDay(null);
+      setBrewDayTransition(false);
+    }, 250);
     return () => clearTimeout(timeout);
   }, [isTvMode, !!brewDay]);
   const displayedBrewDay = isTvMode ? brewDay ?? exitingBrewDay : brewDay;
@@ -241,7 +249,7 @@ export function BrewingDashboard() {
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>}
 
-    <div className={`w-full relative flex flex-col overflow-hidden ${isTvMode && cleaningTransition ? 'cleaning-transition-active' : ''}`} style={{
+    <div className={`w-full relative flex flex-col overflow-hidden ${isTvMode && (cleaningTransition || brewDayTransition) ? 'cleaning-transition-active' : ''}`} style={{
       height: isMobile ? mobileContainerHeight : getContainerHeight(),
       background: 'transparent',
     }}>
@@ -328,8 +336,8 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                   ...(isTvMode ? {
                     transform: brewDayEntered ? 'translateY(0)' : 'translateY(100%)',
-                    opacity: brewDayEntered ? 1 : 0,
-                    transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1), opacity ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                    transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
+                    willChange: brewDayTransition ? 'transform' : undefined,
                   } : { transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }),
                 }}
               >
