@@ -26,16 +26,6 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         )}
       </div>
-      {day.items.length > 0 && (
-        <div className={`flex items-center gap-3 ${isTvMode ? "" : "gap-2"}`}>
-          <span className={`${isTvMode ? "text-base" : "text-xs"} text-muted-foreground tabular-nums whitespace-nowrap`}>
-            {doneCount} av {day.items.length} klart
-          </span>
-          <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / day.items.length) * 100}%` }} />
-          </div>
-        </div>
-      )}
       <ul className={`flex-1 min-h-0 overflow-hidden grid content-start ${isTvMode ? "gap-3" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
