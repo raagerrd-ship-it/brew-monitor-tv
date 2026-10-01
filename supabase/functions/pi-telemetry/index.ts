@@ -102,15 +102,14 @@ Deno.serve(async (req) => {
   async function writeBackToController(d: any) {
     // Pi:n skickar exakt tre temperaturer per tank. Molnet lagrar dem rakt av —
     // givarval och fusion görs lokalt på Pi:n, ingen härledning här.
+    // null = okänt: skriv aldrig över ett känt värde (rollups saknar ibland temperaturerna).
     const patch: Record<string, any> = {
-      actual_temp: d.actual_temp ?? null,
-      current_temp: d.actual_temp ?? null,
-      pt100_temp: d.pt100_temp ?? null,
+      ...(d.actual_temp != null && { actual_temp: d.actual_temp, current_temp: d.actual_temp }),
+      ...(d.pt100_temp != null && { pt100_temp: d.pt100_temp }),
       // Måltempen är Pi:ns. UI:t läser den härifrån — utan skrivning visas
       // gamla RAPT-värden.
-      target_temp: d.target_temp ?? null,
-      profile_target_temp: d.target_temp ?? null,
-      current_temp_updated_at: new Date().toISOString(),
+      ...(d.target_temp != null && { target_temp: d.target_temp, profile_target_temp: d.target_temp }),
+      ...(d.actual_temp != null && { current_temp_updated_at: new Date().toISOString() }),
       last_update: new Date().toISOString(),
       cooling_enabled: isRegulating(d) && d.mode === "cooling",
       heating_enabled: isRegulating(d) && d.mode === "heating",
