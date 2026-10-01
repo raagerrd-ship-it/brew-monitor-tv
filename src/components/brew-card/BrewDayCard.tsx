@@ -4,7 +4,6 @@ import type { BrewDay } from "@/hooks/use-brew-day";
 
 export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean }) {
   const nextId = day.items.find((i) => !i.checked)?.id;
-  const doneCount = day.items.filter((i) => i.checked).length;
   return (
     <Card
       className={`border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-6 gap-5" : "p-5 gap-4"}`}
