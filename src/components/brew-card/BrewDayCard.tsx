@@ -30,6 +30,11 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         )}
       </div>
+      <div
+        className="absolute top-[76px] left-0 right-0 h-[1px] pointer-events-none"
+        style={{ background: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.5) 25%, hsl(var(--border) / 0.6) 50%, hsl(var(--border) / 0.5) 75%, transparent 95%)' }}
+        aria-hidden
+      />
       <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-center ${isTvMode ? "gap-2.5" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
