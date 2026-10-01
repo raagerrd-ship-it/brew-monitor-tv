@@ -6,9 +6,11 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
   const nextId = day.items.find((i) => !i.checked)?.id;
   return (
     <Card
-      className={`relative border-white/15 h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3 bg-card shadow-none" : "p-5 gap-4"}`}
+      className={`relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
       style={{
-        background: hasAlbumArtBackground ? (isTvMode ? 'hsl(222 18% 12% / 0.72)' : 'hsl(222 18% 12% / 0.93)') : (isTvMode ? 'hsl(222 18% 15% / 0.8)' : 'hsl(222 18% 15%)'),
+        background: hasAlbumArtBackground
+          ? 'hsl(222 18% 15% / 0.75)'
+          : 'hsl(222 18% 15%)',
         boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
