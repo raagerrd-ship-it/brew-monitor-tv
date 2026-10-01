@@ -60,7 +60,7 @@ export function BrewingDashboard() {
     setCleaningTransition(true);
   }, [cleaningView, isTvMode]);
   useLayoutEffect(() => {
-    if (!isTvMode) return;
+    if (isMobile && !isTvMode) return;
     if (brewDay) {
       setExitingBrewDay(brewDay);
       setBrewDayTransition(true);
@@ -82,8 +82,8 @@ export function BrewingDashboard() {
       setBrewDayTransition(false);
     }, 250);
     return () => clearTimeout(timeout);
-  }, [isTvMode, !!brewDay]);
-  const displayedBrewDay = isTvMode ? brewDay ?? exitingBrewDay : brewDay;
+  }, [isTvMode, isMobile, !!brewDay]);
+  const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
   useEffect(() => {
@@ -249,7 +249,7 @@ export function BrewingDashboard() {
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>}
 
-    <div className={`w-full relative flex flex-col overflow-hidden ${isTvMode && (cleaningTransition || brewDayTransition) ? 'cleaning-transition-active' : ''}`} style={{
+    <div className={`w-full relative flex flex-col overflow-hidden ${cleaningTransition || brewDayTransition ? 'cleaning-transition-active' : ''}`} style={{
       height: isMobile ? mobileContainerHeight : getContainerHeight(),
       background: 'transparent',
     }}>
@@ -266,7 +266,7 @@ export function BrewingDashboard() {
        <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} onTransitionEnd={(event) => {
          if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
        }} style={{
-         ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px`, transition: `padding-bottom ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` } : {}),
+         ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${footerHeight}px` } : {}),
            ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 900ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
@@ -274,11 +274,10 @@ export function BrewingDashboard() {
             className="flex justify-center gap-6 w-full px-4 py-2 motion-reduce:!transition-none"
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
-              transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
             }}
           >
             {[0, 1, 2].map(i => (
-              <div key={i} className="flex-1 min-w-0 motion-reduce:!transition-none" style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : 'calc(100% - 16px)', transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }}>
+              <div key={i} className="flex-1 min-w-0 motion-reduce:!transition-none" style={{ height: isAspectRatioLocked ? `${getCardHeight()}px` : 'calc(100% - 16px)' }}>
                 <BrewCardSkeleton />
               </div>
             ))}
@@ -314,7 +313,6 @@ export function BrewingDashboard() {
             className={`${gridLayout} w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${footerHeight > 0 ? ` - ${footerHeight}px` : ''})`,
-              transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
             }}
           >
             {brews.map((brew, index) => (
@@ -323,8 +321,7 @@ export function BrewingDashboard() {
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  transition: isTvMode ? undefined : `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
-                }}
+                    }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
               </div>
@@ -334,11 +331,11 @@ export function BrewingDashboard() {
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  ...(isTvMode ? {
+                  ...(!isMobile || isTvMode ? {
                     transform: brewDayEntered ? 'translateY(0)' : 'translateY(100%)',
                     transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
                     willChange: brewDayTransition ? 'transform' : undefined,
-                  } : { transition: `height ${footerHeight > 0 ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` }),
+                  } : {}),
                 }}
               >
                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
