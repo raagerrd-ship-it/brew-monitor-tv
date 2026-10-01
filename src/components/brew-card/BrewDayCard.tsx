@@ -34,7 +34,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           return (
             <li
               key={i.id}
-              className={`flex items-center ${isTvMode ? "gap-5" : "gap-4"} ${isTvMode ? "px-4" : "px-3"} ${
+              className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} ${isTvMode ? "px-4" : "px-3"} ${
                 isNext
                   ? `bg-primary/10 border border-primary/40 shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)] rounded-2xl ${isTvMode ? "py-2.5" : "py-2.5"}`
                   : i.checked
@@ -56,7 +56,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     : null}
               </span>
               <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-4xl" : "text-3xl") : "text-base"} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
-              <span className="flex items-center gap-5 shrink-0">
+              <span className="flex items-center gap-4 shrink-0">
                 {i.amount != null && !i.checked && (
                   <span className={`${isTvMode ? (isNext ? "text-4xl" : "text-3xl") : "text-xl"} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
