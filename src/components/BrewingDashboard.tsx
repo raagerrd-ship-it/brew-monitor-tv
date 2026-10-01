@@ -67,22 +67,36 @@ export function BrewingDashboard() {
     if (brewDay) {
       setExitingBrewDay(brewDay);
       setBrewDayTransition(true);
+      setBrewDayPhase('row');
       // Let the card paint once off-screen before sliding, so the first
       // animation frames aren't spent on mounting its content.
       const enter = setTimeout(() => setBrewDayEntered(true), 120);
-      const timeout = setTimeout(() => setBrewDayTransition(false), 720);
+      // Row slides first (600 ms), then the brew day card (600 ms).
+      const card = setTimeout(() => setBrewDayPhase('card'), 720);
+      const done = setTimeout(() => {
+        setBrewDayPhase(null);
+        setBrewDayTransition(false);
+      }, 1320);
       return () => {
         clearTimeout(enter);
-        clearTimeout(timeout);
+        clearTimeout(card);
+        clearTimeout(done);
       };
     }
     setBrewDayEntered(false);
+    // Exit reversed: the card slides out first, then the row slides back.
+    setBrewDayPhase('card');
     if (exitingBrewDay) setBrewDayTransition(true);
+    const row = setTimeout(() => setBrewDayPhase('row'), 400);
     const timeout = setTimeout(() => {
       setExitingBrewDay(null);
+      setBrewDayPhase(null);
       setBrewDayTransition(false);
-    }, 400);
-    return () => clearTimeout(timeout);
+    }, 800);
+    return () => {
+      clearTimeout(row);
+      clearTimeout(timeout);
+    };
   }, [isTvMode, isMobile, !!brewDay]);
   const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
   const { showSplash } = useSplashScreen(loading);
