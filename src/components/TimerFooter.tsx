@@ -215,7 +215,7 @@ export const TimerFooter = memo(function TimerFooter() {
     const timeout = setTimeout(() => {
       setRendered(false);
       clearFooterSlot(); // Restore the space after the timer has slid out.
-    }, 250);
+    }, 1400);
     return () => clearTimeout(timeout);
   }, [isVisible, setFooterSlot, clearFooterSlot]);
 
