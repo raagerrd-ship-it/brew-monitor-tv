@@ -27,7 +27,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         )}
       </div>
-      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-start ${isTvMode ? "gap-2.5" : "gap-2"}`}>
+      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-evenly ${isTvMode ? "gap-2" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
           return (
