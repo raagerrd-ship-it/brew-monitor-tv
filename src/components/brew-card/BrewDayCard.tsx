@@ -19,7 +19,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
         <div className="min-w-0 flex-1">
           <div className={`${isTvMode ? "text-lg" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag</div>
           <div className={`${isTvMode ? "text-3xl" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
-          <div className={`${isTvMode ? "text-6xl" : "text-5xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
+          <div className={`${isTvMode ? "text-4xl" : "text-3xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
         </div>
         {day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-5 py-2" : "px-3 py-2"} text-right`}>
