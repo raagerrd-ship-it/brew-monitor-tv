@@ -94,7 +94,7 @@ export function BrewingDashboard() {
   // Footer height from self-contained footer components via context
   const { footerHeight, footerContent } = useDashboardFooter();
   const layoutFooterRef = useRef(footerHeight);
-  if (!brewDayTransition) layoutFooterRef.current = footerHeight;
+  if (!brewDayTransition && !(exitingBrewDay && !brewDay)) layoutFooterRef.current = footerHeight;
   const layoutFooterHeight = layoutFooterRef.current;
 
   const [mobileViewportHeight, setMobileViewportHeight] = useState(() => {
