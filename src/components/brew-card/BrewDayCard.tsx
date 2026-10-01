@@ -7,7 +7,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
   const doneCount = day.items.filter((i) => i.checked).length;
   return (
     <Card
-      className="border-white/15 shadow-deep h-full w-full p-5 flex flex-col gap-4 overflow-hidden"
+      className={`border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-6 gap-5" : "p-5 gap-4"}`}
       style={{
         background: hasAlbumArtBackground ? 'hsl(222 18% 15% / 0.75)' : 'hsl(222 18% 15%)',
         boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
@@ -16,19 +16,24 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
       <div className="flex items-start gap-3">
         <ChefHat className={`${isTvMode ? "h-9 w-9" : "h-7 w-7"} text-primary shrink-0`} />
         <div className="min-w-0 flex-1">
-          <div className={`${isTvMode ? "text-base" : "text-xs"} uppercase tracking-wider text-muted-foreground truncate`}>Bryggdag · {day.recipe_name ?? "—"}</div>
+          <div className={`${isTvMode ? "text-lg" : "text-xs"} uppercase tracking-wider text-muted-foreground truncate`}>Bryggdag · {day.recipe_name ?? "—"}</div>
           <div className={`${isTvMode ? "text-4xl" : "text-2xl"} font-semibold truncate`}>{day.step_title ?? "—"}</div>
         </div>
         {day.target_temp_c != null && (
-          <div className={`shrink-0 rounded-xl border border-white/10 bg-muted/40 ${isTvMode ? "px-4 py-2.5" : "px-3 py-2"} text-right`}>
+          <div className={`shrink-0 rounded-xl border border-white/10 bg-muted/40 ${isTvMode ? "px-5 py-2.5" : "px-3 py-2"} text-right`}>
             <div className={`${isTvMode ? "text-xs" : "text-[10px]"} uppercase tracking-wider text-muted-foreground`}>Mål</div>
-            <div className={`${isTvMode ? "text-2xl" : "text-lg"} font-semibold tabular-nums text-primary`}>{day.target_temp_c.toFixed(1)}°</div>
+            <div className={`${isTvMode ? "text-3xl" : "text-lg"} font-semibold tabular-nums text-primary`}>{day.target_temp_c.toFixed(1)}°</div>
           </div>
         )}
       </div>
       {day.items.length > 0 && (
-        <div className={`${isTvMode ? "text-sm" : "text-xs"} text-muted-foreground tabular-nums`}>
-          {doneCount} av {day.items.length} klart
+        <div className={`flex items-center gap-3 ${isTvMode ? "" : "gap-2"}`}>
+          <span className={`${isTvMode ? "text-base" : "text-xs"} text-muted-foreground tabular-nums whitespace-nowrap`}>
+            {doneCount} av {day.items.length} klart
+          </span>
+          <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / day.items.length) * 100}%` }} />
+          </div>
         </div>
       )}
       <ul className={`flex-1 min-h-0 overflow-hidden grid content-start ${isTvMode ? "gap-3" : "gap-2"}`}>
@@ -37,7 +42,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           return (
             <li
               key={i.id}
-              className={`flex items-center gap-3 rounded-lg ${isTvMode ? "px-3 py-3" : "px-3 py-2"} ${
+              className={`flex items-center gap-4 rounded-lg ${isTvMode ? "px-4 py-3" : "px-3 py-2"} ${
                 isNext
                   ? "bg-primary/15 border border-primary/50 shadow-[0_0_16px_hsl(var(--primary)/0.25)]"
                   : i.checked
@@ -59,14 +64,14 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     : null}
               </span>
               <span className={`flex-1 truncate ${isTvMode ? "text-xl" : "text-base"} ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold" : ""}`}>{i.name}</span>
-              <span className="flex items-center gap-2 shrink-0">
+              <span className="flex items-center gap-3 shrink-0">
                 {i.amount != null && (
                   <span className={`${isTvMode ? "text-xl" : "text-base"} font-semibold text-foreground tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-medium tabular-nums whitespace-nowrap ${isTvMode ? "text-base px-2.5 py-1" : "text-xs"} ${isNext ? "border-primary/40 bg-primary/10 text-foreground" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 font-medium tabular-nums whitespace-nowrap ${isTvMode ? "text-base px-3 py-1" : "text-xs"} ${isNext ? "border-primary/40 bg-primary/10 text-foreground" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
                     <Clock className={isTvMode ? "h-4 w-4" : "h-3 w-3"} />
                     {i.at_min} min
                   </span>
