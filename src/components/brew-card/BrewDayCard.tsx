@@ -24,7 +24,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
         {day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-5 py-2" : "px-3 py-2"} text-right`}>
             <div className={`${isTvMode ? "text-[11px]" : "text-[10px]"} font-bold uppercase tracking-widest text-primary/80`}>Mål</div>
-            <div className={`${isTvMode ? "text-5xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{day.target_temp_c.toFixed(1)}°</div>
+            <div className={`${isTvMode ? "text-4xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{day.target_temp_c.toFixed(1)}°</div>
           </div>
         )}
       </div>
