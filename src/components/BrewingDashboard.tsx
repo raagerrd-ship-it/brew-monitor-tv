@@ -326,8 +326,8 @@ export function BrewingDashboard() {
             className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
-              transform: displayedBrewDay && !brewDayEntered ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && (brewDayEntered || !brewDay) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+              transform: displayedBrewDay && !brewDayEntered && brewDay ? `translateX(${brewDayShift})` : 'translateX(0)',
+              transition: displayedBrewDay && brewDay && brewDayEntered ? 'transform 600ms cubic-bezier(0.45, 0, 0.55, 1)' : 'none',
               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
