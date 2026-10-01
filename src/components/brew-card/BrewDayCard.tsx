@@ -28,7 +28,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         )}
       </div>
-      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-evenly ${isTvMode ? "gap-2" : "gap-2"}`}>
+      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-center ${isTvMode ? "gap-4" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
           return (
@@ -57,13 +57,13 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
               </span>
               <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-base"} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className="flex items-center gap-5 shrink-0">
-                {i.amount != null && (
+                {i.amount != null && !i.checked && (
                   <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-xl"} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : "text-base"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`${isTvMode ? (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl") : i.checked ? "text-sm" : "text-base"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
                     {i.at_min} min
                   </span>
                 )}
