@@ -42,7 +42,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           return (
             <li
               key={i.id}
-              className={`flex items-center gap-3 rounded-lg ${isTvMode ? "px-3 py-3" : "px-3 py-2"} ${
+              className={`flex items-center gap-4 rounded-lg ${isTvMode ? "px-4 py-3.5" : "px-3 py-2"} ${
                 isNext
                   ? "bg-primary/15 border border-primary/50 shadow-[0_0_16px_hsl(var(--primary)/0.25)]"
                   : i.checked
@@ -50,7 +50,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     : "bg-muted/30"
               }`}
             >
-              <span className={`${isTvMode ? "h-6 w-6" : "h-5 w-5"} rounded-full border flex items-center justify-center shrink-0 ${
+              <span className={`${isTvMode ? "h-7 w-7" : "h-5 w-5"} rounded-full border flex items-center justify-center shrink-0 ${
                 i.checked
                   ? "bg-primary border-primary"
                   : isNext
@@ -58,21 +58,21 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     : "border-muted-foreground/50"
               }`}>
                 {i.checked
-                  ? <Check className={`${isTvMode ? "h-4 w-4" : "h-3.5 w-3.5"} text-primary-foreground`} />
+                  ? <Check className={`${isTvMode ? "h-5 w-5" : "h-3.5 w-3.5"} text-primary-foreground`} />
                   : isNext
-                    ? <span className={`${isTvMode ? "h-2 w-2" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
+                    ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
                     : null}
               </span>
-              <span className={`flex-1 truncate ${isTvMode ? "text-xl" : "text-base"} ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold" : ""}`}>{i.name}</span>
-              <span className="flex items-center gap-2 shrink-0">
+              <span className={`flex-1 truncate ${isTvMode ? "text-2xl" : "text-base"} ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold" : ""}`}>{i.name}</span>
+              <span className="flex items-center gap-3 shrink-0">
                 {i.amount != null && (
-                  <span className={`${isTvMode ? "text-xl" : "text-base"} font-semibold text-foreground tabular-nums whitespace-nowrap`}>
+                  <span className={`${isTvMode ? "text-2xl" : "text-base"} font-semibold text-foreground tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-medium tabular-nums whitespace-nowrap ${isTvMode ? "text-base px-2.5 py-1" : "text-xs"} ${isNext ? "border-primary/40 bg-primary/10 text-foreground" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
-                    <Clock className={isTvMode ? "h-4 w-4" : "h-3 w-3"} />
+                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-medium tabular-nums whitespace-nowrap ${isTvMode ? "text-lg px-3 py-1.5" : "text-xs"} ${isNext ? "border-primary/40 bg-primary/10 text-foreground" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
+                    <Clock className={isTvMode ? "h-5 w-5" : "h-3 w-3"} />
                     {i.at_min} min
                   </span>
                 )}
