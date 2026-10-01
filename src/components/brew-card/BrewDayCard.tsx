@@ -1,4 +1,4 @@
-import { Check, ChefHat, Clock } from "lucide-react";
+import { Check, ChefHat } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
 
@@ -60,8 +60,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`inline-flex items-center gap-2 rounded-lg border font-semibold tabular-nums whitespace-nowrap ${isTvMode ? "text-xl px-4 py-1.5" : "text-sm px-3 py-1"} ${isNext ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
-                    <Clock className={isTvMode ? "h-5 w-5" : "h-4 w-4"} />
+                  <span className={`${isTvMode ? "text-lg" : "text-sm"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-primary" : "text-muted-foreground"}`}>
                     {i.at_min} min
                   </span>
                 )}
