@@ -370,8 +370,8 @@ export function BrewingDashboard() {
                   right: '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  transform: brewDayEntered ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
-                  transition: `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)`,
+                  transform: brewDay && brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
+                  transition: brewDayPhase === 'card' ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
                   willChange: 'transform',
                 }}
               >
