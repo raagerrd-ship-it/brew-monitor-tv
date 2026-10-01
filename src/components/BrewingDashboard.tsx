@@ -49,6 +49,9 @@ export function BrewingDashboard() {
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
+  // Sequential slide phases: beer cards slide fully first, then the brew day
+  // card (reversed on exit) so the two never compete for CPU on Chromecast.
+  const [brewDayPhase, setBrewDayPhase] = useState<'row' | 'card' | null>(null);
   const [brewDayTransition, setBrewDayTransition] = useState(false);
 
   // Extracted hooks
@@ -64,22 +67,36 @@ export function BrewingDashboard() {
     if (brewDay) {
       setExitingBrewDay(brewDay);
       setBrewDayTransition(true);
+      setBrewDayPhase('row');
       // Let the card paint once off-screen before sliding, so the first
       // animation frames aren't spent on mounting its content.
       const enter = setTimeout(() => setBrewDayEntered(true), 120);
-      const timeout = setTimeout(() => setBrewDayTransition(false), 720);
+      // Row slides first (600 ms), then the brew day card (600 ms).
+      const card = setTimeout(() => setBrewDayPhase('card'), 720);
+      const done = setTimeout(() => {
+        setBrewDayPhase(null);
+        setBrewDayTransition(false);
+      }, 1320);
       return () => {
         clearTimeout(enter);
-        clearTimeout(timeout);
+        clearTimeout(card);
+        clearTimeout(done);
       };
     }
     setBrewDayEntered(false);
+    // Exit reversed: the card slides out first, then the row slides back.
+    setBrewDayPhase('card');
     if (exitingBrewDay) setBrewDayTransition(true);
+    const row = setTimeout(() => setBrewDayPhase('row'), 400);
     const timeout = setTimeout(() => {
       setExitingBrewDay(null);
+      setBrewDayPhase(null);
       setBrewDayTransition(false);
-    }, 400);
-    return () => clearTimeout(timeout);
+    }, 800);
+    return () => {
+      clearTimeout(row);
+      clearTimeout(timeout);
+    };
   }, [isTvMode, isMobile, !!brewDay]);
   const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
   const { showSplash } = useSplashScreen(loading);
@@ -326,8 +343,8 @@ export function BrewingDashboard() {
             className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
-              transform: displayedBrewDay && !brewDayEntered ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && (brewDayEntered || !brewDay) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+              transform: displayedBrewDay && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
+              transition: displayedBrewDay && brewDayPhase === 'row' && (brewDay ? brewDayEntered : true) ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
@@ -353,8 +370,8 @@ export function BrewingDashboard() {
                   right: '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  transform: brewDayEntered ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
-                  transition: `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)`,
+                  transform: brewDay && brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
+                  transition: brewDayPhase === 'card' ? `transform ${brewDay ? 600 : 400}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
                   willChange: 'transform',
                 }}
               >
