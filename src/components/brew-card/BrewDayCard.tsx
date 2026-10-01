@@ -64,7 +64,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
               <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-2xl" : "text-xl") : (isNext ? "text-2xl" : "text-xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
                 {i.amount != null && !i.checked && (
-                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
+                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap w-28 text-right shrink-0`}>
                     {i.amount}
                     {i.unit && <span className="text-[0.6em] font-semibold text-muted-foreground ml-1">{i.unit}</span>}
                   </span>
