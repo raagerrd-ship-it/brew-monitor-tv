@@ -55,15 +55,15 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
                     : null}
               </span>
-              <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-4xl" : "text-3xl") : (isNext ? "text-3xl" : "text-2xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
+              <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-2xl" : "text-xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
                 {i.amount != null && !i.checked && (
-                  <span className={`${isTvMode ? (isNext ? "text-5xl" : "text-4xl") : (isNext ? "text-4xl" : "text-3xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
+                  <span className={`${isTvMode ? (isNext ? "text-4xl" : "text-3xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`${isTvMode ? (isNext ? "text-5xl" : i.checked ? "text-3xl" : "text-4xl") : (isNext ? "text-4xl" : i.checked ? "text-2xl" : "text-3xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`${isTvMode ? (isNext ? "text-4xl" : i.checked ? "text-2xl" : "text-3xl") : (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
                     {i.at_min} min
                   </span>
                 )}
