@@ -275,7 +275,7 @@ export function BrewingDashboard() {
               </div>
             ))}
           </div>
-        ) : brews.length === 0 ? (
+        ) : brews.length === 0 && !displayedBrewDay ? (
           <div className="h-full" />
         ) : isMobile ? (
           <div className="flex flex-col flex-1 min-h-0">
