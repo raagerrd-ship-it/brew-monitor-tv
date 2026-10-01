@@ -233,9 +233,10 @@ export function BrewingDashboard() {
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
   // of (card width + gap); start shifted by that much so they don't jump.
+  // translateX % uses the row's full width incl. its 2rem padding, so subtract it.
   const brewDayShift = cardCount >= 3
-    ? `calc((100% + 1.5rem) / ${cardCount * 2})`
-    : 'calc(25% + 0.375rem)';
+    ? `calc((100% - 0.5rem) / ${cardCount * 2})`
+    : 'calc(25% - 0.125rem)';
 
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
