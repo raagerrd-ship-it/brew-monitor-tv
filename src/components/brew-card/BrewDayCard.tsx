@@ -1,4 +1,4 @@
-import { Check, ChefHat } from "lucide-react";
+import { Check, ChefHat, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
 
