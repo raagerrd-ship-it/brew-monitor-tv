@@ -7,7 +7,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
   const doneCount = day.items.filter((i) => i.checked).length;
   return (
     <Card
-      className="border-white/15 shadow-deep h-full w-full p-5 flex flex-col gap-4 overflow-hidden"
+      className={`border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-6 gap-5" : "p-5 gap-4"}`}
       style={{
         background: hasAlbumArtBackground ? 'hsl(222 18% 15% / 0.75)' : 'hsl(222 18% 15%)',
         boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
