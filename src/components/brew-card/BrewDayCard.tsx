@@ -16,19 +16,24 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
       <div className="flex items-start gap-3">
         <ChefHat className={`${isTvMode ? "h-9 w-9" : "h-7 w-7"} text-primary shrink-0`} />
         <div className="min-w-0 flex-1">
-          <div className={`${isTvMode ? "text-base" : "text-xs"} uppercase tracking-wider text-muted-foreground truncate`}>Bryggdag · {day.recipe_name ?? "—"}</div>
-          <div className={`${isTvMode ? "text-4xl" : "text-2xl"} font-semibold truncate`}>{day.step_title ?? "—"}</div>
+          <div className={`${isTvMode ? "text-lg" : "text-xs"} uppercase tracking-wider text-muted-foreground truncate`}>Bryggdag · {day.recipe_name ?? "—"}</div>
+          <div className={`${isTvMode ? "text-5xl" : "text-2xl"} font-semibold truncate`}>{day.step_title ?? "—"}</div>
         </div>
         {day.target_temp_c != null && (
-          <div className={`shrink-0 rounded-xl border border-white/10 bg-muted/40 ${isTvMode ? "px-4 py-2.5" : "px-3 py-2"} text-right`}>
-            <div className={`${isTvMode ? "text-xs" : "text-[10px]"} uppercase tracking-wider text-muted-foreground`}>Mål</div>
-            <div className={`${isTvMode ? "text-2xl" : "text-lg"} font-semibold tabular-nums text-primary`}>{day.target_temp_c.toFixed(1)}°</div>
+          <div className={`shrink-0 rounded-xl border border-white/10 bg-muted/40 ${isTvMode ? "px-5 py-3" : "px-3 py-2"} text-right`}>
+            <div className={`${isTvMode ? "text-sm" : "text-[10px]"} uppercase tracking-wider text-muted-foreground`}>Mål</div>
+            <div className={`${isTvMode ? "text-3xl" : "text-lg"} font-semibold tabular-nums text-primary`}>{day.target_temp_c.toFixed(1)}°</div>
           </div>
         )}
       </div>
       {day.items.length > 0 && (
-        <div className={`${isTvMode ? "text-sm" : "text-xs"} text-muted-foreground tabular-nums`}>
-          {doneCount} av {day.items.length} klart
+        <div className={`flex items-center gap-3 ${isTvMode ? "" : "gap-2"}`}>
+          <span className={`${isTvMode ? "text-base" : "text-xs"} text-muted-foreground tabular-nums whitespace-nowrap`}>
+            {doneCount} av {day.items.length} klart
+          </span>
+          <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(doneCount / day.items.length) * 100}%` }} />
+          </div>
         </div>
       )}
       <ul className={`flex-1 min-h-0 overflow-hidden grid content-start ${isTvMode ? "gap-3" : "gap-2"}`}>
