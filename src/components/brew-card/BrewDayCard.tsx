@@ -64,18 +64,18 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
               <span className={`flex-1 truncate ${isTvMode ? (isNext ? "text-2xl" : "text-xl") : (isNext ? "text-2xl" : "text-xl")} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
               <span className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
                 {i.amount != null && !i.checked && (
-                  <span className={`${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap w-28 text-right shrink-0`}>
-                    {i.amount}
-                    {i.unit && <span className="text-[0.6em] font-semibold text-muted-foreground ml-1">{i.unit}</span>}
+                  <span className={`flex items-baseline shrink-0 ${isTvMode ? (isNext ? "text-3xl" : "text-2xl") : (isNext ? "text-3xl" : "text-2xl")} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
+                    <span className="w-16 text-right">{i.amount}</span>
+                    <span className="w-8 text-left text-[0.6em] font-semibold text-muted-foreground ml-1">{i.unit ?? ""}</span>
                   </span>
                 )}
                 {i.amount != null && !i.checked && i.at_min != null && (
                   <span className={`w-px self-stretch shrink-0 ${isNext ? "bg-primary/30" : "bg-foreground/15"}`} aria-hidden />
                 )}
                 {i.at_min != null && (
-                  <span className={`${isTvMode ? (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl") : (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
-                    {i.at_min}
-                    <span className="text-[0.6em] font-semibold ml-1">min</span>
+                  <span className={`flex items-baseline shrink-0 ${isTvMode ? (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl") : (isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl")} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                    <span className="w-12 text-right">{i.at_min}</span>
+                    <span className="w-10 text-left text-[0.6em] font-semibold ml-1">min</span>
                   </span>
                 )}
               </span>
