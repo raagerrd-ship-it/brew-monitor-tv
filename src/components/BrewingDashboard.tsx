@@ -64,14 +64,12 @@ export function BrewingDashboard() {
     if (brewDay) {
       setExitingBrewDay(brewDay);
       setBrewDayTransition(true);
-      let secondFrame = 0;
-      const firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => setBrewDayEntered(true));
-      });
-      const timeout = setTimeout(() => setBrewDayTransition(false), 400);
+      // Let the card paint once off-screen before sliding, so the first
+      // animation frames aren't spent on mounting its content.
+      const enter = setTimeout(() => setBrewDayEntered(true), 120);
+      const timeout = setTimeout(() => setBrewDayTransition(false), 520);
       return () => {
-        cancelAnimationFrame(firstFrame);
-        cancelAnimationFrame(secondFrame);
+        clearTimeout(enter);
         clearTimeout(timeout);
       };
     }
@@ -216,9 +214,11 @@ export function BrewingDashboard() {
   const brewDayWidth = cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
+  // The row is centered, so adding a card moves existing cards left by half
+  // of (card width + gap); start shifted by that much so they don't jump.
   const brewDayShift = cardCount >= 3
-    ? `calc((100% + 1.5rem) / ${cardCount})`
-    : 'calc(50% + 0.75rem)';
+    ? `calc((100% + 1.5rem) / ${cardCount * 2})`
+    : 'calc(25% + 0.375rem)';
 
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
