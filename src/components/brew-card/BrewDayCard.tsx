@@ -6,10 +6,12 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
   const nextId = day.items.find((i) => !i.checked)?.id;
   return (
     <Card
-      className={`relative border-white/15 h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`relative border-white/15 h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3 bg-card shadow-none" : "p-5 gap-4"}`}
       style={{
-        background: hasAlbumArtBackground ? 'hsl(222 18% 12% / 0.93)' : 'hsl(222 18% 15%)',
-        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
+        ...(isTvMode ? {} : {
+          background: hasAlbumArtBackground ? 'hsl(222 18% 12% / 0.93)' : 'hsl(222 18% 15%)',
+          boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
+        }),
       }}
     >
       <div className="flex items-start gap-4">
@@ -36,7 +38,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
               key={i.id}
               className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} ${isTvMode ? "px-3" : "px-3"} ${
                 isNext
-                  ? `bg-primary/10 border border-primary/40 shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)] rounded-2xl ${isTvMode ? "py-2.5" : "py-2.5"}`
+                  ? `bg-primary/10 border border-primary/40 rounded-2xl ${isTvMode ? "" : "shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)]"} py-2.5`
                   : i.checked
                     ? "opacity-30"
                     : "opacity-60"
@@ -73,7 +75,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
         })}
         {day.items.length === 0 && <li className="text-sm text-muted-foreground">Inget att tillsätta i det här steget</li>}
       </ul>
-      <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />
+      {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}
     </Card>
   );
 }
