@@ -341,7 +341,7 @@ export function BrewingDashboard() {
                   } : {}),
                 }}
               >
-                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground={!brewDayTransition} isTvMode={isTvMode} />
+                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
               </div>
             )}
           </div>
