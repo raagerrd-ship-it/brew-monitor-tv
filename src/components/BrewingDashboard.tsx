@@ -349,7 +349,7 @@ export function BrewingDashboard() {
                   right: '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  transform: brewDayEntered ? 'translateX(0)' : `translateX(${brewDayShift})`,
+                  transform: brewDayEntered ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
                   transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
                   willChange: brewDayTransition ? 'transform' : undefined,
                 }}
