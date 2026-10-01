@@ -327,8 +327,8 @@ export function BrewingDashboard() {
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
               transform: displayedBrewDay && !brewDayEntered ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
-              willChange: brewDayTransition ? 'transform' : undefined,
+              transition: displayedBrewDay && (brewDayEntered || !brewDay) ? `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)` : 'none',
+              willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
             {brews.map((brew, index) => (
@@ -355,7 +355,7 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                   transform: brewDayEntered ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
                   transition: `transform ${brewDay ? 400 : 250}ms cubic-bezier(0.2, 0, 0, 1)`,
-                  willChange: brewDayTransition ? 'transform' : undefined,
+                  willChange: 'transform',
                 }}
               >
                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
