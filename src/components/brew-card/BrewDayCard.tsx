@@ -53,15 +53,15 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     : null}
               </span>
               <span className={`flex-1 truncate ${isTvMode ? "text-xl" : "text-base"} ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold" : ""}`}>{i.name}</span>
-              <span className="flex items-center gap-3 shrink-0">
+              <span className="flex items-center gap-4 shrink-0">
                 {i.amount != null && (
-                  <span className={`${isTvMode ? "text-xl" : "text-base"} font-semibold text-foreground tabular-nums whitespace-nowrap`}>
+                  <span className={`${isTvMode ? "text-2xl" : "text-lg"} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
                     {i.amount} {i.unit ?? ""}
                   </span>
                 )}
                 {i.at_min != null && (
-                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 font-medium tabular-nums whitespace-nowrap ${isTvMode ? "text-base px-3 py-1" : "text-xs"} ${isNext ? "border-primary/40 bg-primary/10 text-foreground" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
-                    <Clock className={isTvMode ? "h-4 w-4" : "h-3 w-3"} />
+                  <span className={`inline-flex items-center gap-2 rounded-lg border font-semibold tabular-nums whitespace-nowrap ${isTvMode ? "text-xl px-4 py-1.5" : "text-sm px-3 py-1"} ${isNext ? "border-primary/40 bg-primary/10 text-primary" : "border-white/10 bg-muted/40 text-muted-foreground"}`}>
+                    <Clock className={isTvMode ? "h-5 w-5" : "h-4 w-4"} />
                     {i.at_min} min
                   </span>
                 )}
