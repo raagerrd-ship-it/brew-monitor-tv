@@ -4,6 +4,7 @@ import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-ti
 import { useExternalTimer } from '@/hooks/use-external-timer';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
+import { useAlbumArt } from '@/contexts/AlbumArtContext';
 import { useDashboardFooter } from '@/contexts/DashboardFooterContext';
 import { useDashboardAlert } from '@/contexts/DashboardAlertContext';
 import { cn } from '@/lib/utils';
@@ -166,7 +167,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 export const TimerFooter = memo(function TimerFooter() {
   const liveTimer = useExternalTimer();
   const { timerTvModeOnly } = useExternalUserSettings();
-  const { isTvMode } = useTvMode();
+  const { visibleBgUrl } = useAlbumArt();
+  // Same translucency as the brew day / beer cards: album art shimmers through.
+  const footerBase = visibleBgUrl ? 'hsl(222 18% 15% / 0.75)' : 'hsl(222 18% 15%)';
   const { setFooterSlot, clearFooterSlot } = useDashboardFooter();
   const { showAlert, dismissAlert } = useDashboardAlert();
   const lastActiveTimer = useRef<ExternalTimerState | null>(null);
