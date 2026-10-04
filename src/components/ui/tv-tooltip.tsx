@@ -7,7 +7,7 @@ type P = { children?: ReactNode } & Record<string, any>;
 
 export function TooltipProvider(props: P) {
   const { isTvMode } = useTvMode();
-  return isTvMode ? <>{props.children}</> : <T.TooltipProvider {...props} />;
+  return isTvMode ? <>{props.children}</> : <T.TooltipProvider {...(props as any)} />;
 }
 export function Tooltip(props: P) {
   const { isTvMode } = useTvMode();
