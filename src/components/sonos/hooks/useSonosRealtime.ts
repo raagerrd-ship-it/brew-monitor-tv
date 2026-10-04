@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { NowPlaying, isSeqStale, pushToBgBuffer, extractFileName, updateProgressDOM } from './types';
+import { NowPlaying, isSeqStale, pushToBgBuffer, extractFileName, updateProgressDOM, sonosRealtimeSeen } from './types';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 interface UseSonosRealtimeParams {
@@ -225,6 +225,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
     const channel = supabase
       .channel('sonos-widget-realtime')
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'sonos_now_playing' }, (payload: any) => {
+        sonosRealtimeSeen.at = Date.now();
         handlerRef.current?.(payload);
       })
       .subscribe((status) => { subscribed = status === 'SUBSCRIBED'; });

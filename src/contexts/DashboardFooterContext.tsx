@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 
 interface DashboardFooterContextType {
   footerHeight: number;
@@ -32,8 +32,9 @@ export function DashboardFooterProvider({ children }: { children: ReactNode }) {
     setFooterHeight(0);
   }, []);
 
+  const value = useMemo(() => ({ footerHeight, footerContent, setFooterSlot, clearFooterSlot }), [footerHeight, footerContent, setFooterSlot, clearFooterSlot]);
   return (
-    <DashboardFooterContext.Provider value={{ footerHeight, footerContent, setFooterSlot, clearFooterSlot }}>
+    <DashboardFooterContext.Provider value={value}>
       {children}
     </DashboardFooterContext.Provider>
   );

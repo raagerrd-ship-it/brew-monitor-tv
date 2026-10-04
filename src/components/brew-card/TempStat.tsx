@@ -4,7 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
 

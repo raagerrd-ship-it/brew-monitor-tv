@@ -8,7 +8,7 @@ import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData 
 import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
 import { useTvMode } from '@/contexts/TvModeContext';
-import { setRaptBar } from '@/lib/rapt-bar-store';
+import { setRaptBar, acquireRaptBarOwner } from '@/lib/rapt-bar-store';
 import { tvDebug } from '@/lib/tv-debug-log';
 
 type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null };
@@ -580,7 +580,15 @@ export function useBrewData(): UseBrewDataReturn {
       }
       // Sort using current controllers from ref
       const sortedBrews = sortBrewsByControllers(brewsData, controllersRef.current);
-      setBrews(sortedBrews);
+      // Återanvänd oförändrade brew-/sgData-objekt så att full omladdning inte ritar om alla kort
+      const prevById = new Map(brewsRef.current.map(b => [b.id, b]));
+      setBrews(sortedBrews.map(b => {
+        const prev = prevById.get(b.id);
+        if (!prev) return b;
+        const sameSg = JSON.stringify(prev.sgData) === JSON.stringify(b.sgData);
+        const next = sameSg ? { ...b, sgData: prev.sgData } : b;
+        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+      }));
     } catch (error) {
       console.error('Error loading brews:', error);
       toast({
@@ -895,7 +903,7 @@ export function useBrewData(): UseBrewDataReturn {
   }, [loadRaptData, loadBrews]);
 
   // Mata headerns delade källa (controllers/pills/pi_live_state)
-  useEffect(() => {
+  const { piDisabled, piManual } = useMemo(() => {
     const piDisabled: Record<string, boolean> = {};
     const piManual: Record<string, boolean> = {};
     for (const c of controllers as any[]) {
@@ -903,10 +911,19 @@ export function useBrewData(): UseBrewDataReturn {
       const ls = piLive.find(l => c.controller_id === l.controller_id || c.controller_id.startsWith(l.controller_id));
       if (ls) { piDisabled[c.controller_id] = ls.enabled === false; piManual[c.controller_id] = ls.target_source === 'manual'; }
     }
-    const activeSessions: Record<string, boolean> = {};
-    for (const b of brews) if (b.fermentationSession?.controller_id) activeSessions[b.fermentationSession.controller_id] = true;
+    return { piDisabled, piManual };
+  }, [controllers, piLive]);
+  const sessionKey = brews.map(b => b.fermentationSession?.controller_id ?? '').join(',');
+  const activeSessions = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    for (const id of sessionKey.split(',')) if (id) out[id] = true;
+    return out;
+  }, [sessionKey]);
+  useEffect(() => {
     setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions });
-  }, [controllers, pills, piLive, brews]);
+  }, [controllers, pills, piDisabled, piManual, activeSessions]);
+  // Tala om att den här hooken äger headerns källa (reservpollen i use-rapt-bar-data hoppar då över)
+  useEffect(() => acquireRaptBarOwner(), []);
 
   // Channel 2: Config/session changes (just trigger reload, no payload needed)
   useEffect(() => {
@@ -947,46 +964,24 @@ export function useBrewData(): UseBrewDataReturn {
   useEffect(() => {
     if (!isTvMode) return;
 
-    const lastSessionHash = { current: '' };
     const lastRaptHash = { current: '' };
-
-    const checkSessions = async () => {
-      try {
-        const { data } = await supabase
-          .from('fermentation_sessions')
-          .select('id, current_step_index, status, updated_at')
-          .in('status', ['running', 'paused', 'completed']);
-
-        const hash = JSON.stringify(data || []);
-        if (hash !== lastSessionHash.current) {
-          if (lastSessionHash.current !== '') {
-            console.log('[TV] Fermentation session change detected via polling, reloading...');
-            loadBrews();
-          }
-          lastSessionHash.current = hash;
-        }
-      } catch (e) {
-        console.error('[TV] Fermentation poll error:', e);
-      }
-    };
 
     // Poll RAPT pills + controllers to keep pill.last_update fresh
     // Without this, pill becomes "stale" after 30min when realtime drops,
     // causing TempStat to fall back to controller temp and hide PID/span bars
     const checkRaptData = async () => {
+      if (dataChannelSubscribedRef.current) return; // realtiden täcker
       try {
         const raptData = await loadRaptDataInternal();
         const hash = JSON.stringify(raptData.pills.map(p => `${p.pill_id}:${p.last_update}`))
           + JSON.stringify(raptData.controllers.map(c => `${c.controller_id}:${c.current_temp}:${c.target_temp}:${c.profile_target_temp}`));
         
         if (hash !== lastRaptHash.current) {
-          if (lastRaptHash.current !== '') {
-            console.log('[TV] RAPT data change detected via polling, updating...');
-            setPills(raptData.pills);
-            setControllers(raptData.controllers);
-            setPiLive(raptData.piLive);
-            setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
-          }
+          console.log('[TV] RAPT data change detected via polling, updating...');
+          setPills(raptData.pills);
+          setControllers(raptData.controllers);
+          setPiLive(raptData.piLive);
+          setBrews(prev => sortBrewsByControllers(prev, raptData.controllers));
           lastRaptHash.current = hash;
         }
       } catch (e) {
@@ -994,11 +989,11 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
-    // Reservpoll: mätpunkter som delta; full loadBrews bara om kanalen inte är SUBSCRIBED eller var 15:e min
+    // Reservpoll: mätpunkter som delta; full loadBrews bara om kanalen inte är SUBSCRIBED eller var 60:e min
     let lastFullLoad = Date.now();
     const checkBrewData = async () => {
       try {
-        if (!dataChannelSubscribedRef.current || Date.now() - lastFullLoad >= 900_000) {
+        if (!dataChannelSubscribedRef.current || Date.now() - lastFullLoad >= 3_600_000) {
           lastFullLoad = Date.now();
           await loadBrews();
           return;
@@ -1025,15 +1020,9 @@ export function useBrewData(): UseBrewDataReturn {
       }
     };
 
-    // Initial hash capture
-    checkSessions();
-    checkRaptData();
-
-    const sessionInterval = setInterval(checkSessions, 300_000); // 5 minutes
     const raptInterval = setInterval(checkRaptData, 120_000); // 2 minutes
     const brewInterval = setInterval(checkBrewData, 120_000); // 2 minutes
     return () => {
-      clearInterval(sessionInterval);
       clearInterval(raptInterval);
       clearInterval(brewInterval);
     };

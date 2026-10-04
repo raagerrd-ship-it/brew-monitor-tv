@@ -166,6 +166,8 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
  */
 export function LazyBrewChart(props: BrewChartProps) {
   const { isTvMode } = useTvMode();
+  // Props som bara TV-SVG:n använder skickas inte till BrewChart (undviker omritning)
+  const { lastUpdateRaw: _l, brewCount: _b, hasFermentationSession: _h, ...chartProps } = props;
 
   // TV mode: default to Recharts (same as desktop), fallback to SVG if flag is set
   if (isTvMode && props.brewId) {
@@ -182,7 +184,7 @@ export function LazyBrewChart(props: BrewChartProps) {
         <Skeleton className="w-full h-full rounded-lg" />
       </div>
     }>
-      <BrewChartLazy {...props} />
+      <BrewChartLazy {...chartProps} />
     </Suspense>
   );
 }

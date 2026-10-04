@@ -20,7 +20,7 @@ import { useTvRefresh } from "@/hooks/use-tv-refresh";
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";
 import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
-import { useAlbumArt } from "@/contexts/AlbumArtContext";
+import { useHasAlbumArtBackground } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";
 import { DashboardAlertOverlay } from "./DashboardAlertOverlay";
 import { CleaningChecklistOverlay } from "./CleaningChecklistOverlay";
@@ -56,7 +56,7 @@ export function BrewingDashboard() {
   const [brewDayTransition, setBrewDayTransition] = useState(false);
 
   // Extracted hooks
-  const { visibleBgUrl } = useAlbumArt();
+  const hasAlbumArtBackground = useHasAlbumArtBackground();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   useLayoutEffect(() => {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
@@ -299,7 +299,7 @@ export function BrewingDashboard() {
 
       {/* Header Bar */}
       <DashboardHeader
-        hasAlbumArtBackground={!!visibleBgUrl}
+        hasAlbumArtBackground={hasAlbumArtBackground}
         onRefresh={isMobile ? handleManualRefresh : undefined}
       />
 

@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type Row = Record<string, any>;
 
-// En kanal + en 60 s-poll för sync_settings, delad av alla läsare.
+// En kanal + en 5 min-poll för sync_settings, delad av alla läsare.
 let row: Row | null = null;
 const subs = new Set<(r: Row) => void>();
 let started = false;
@@ -15,7 +15,7 @@ const emit = (r: Row) => {
 const load = async () => {
   const { data } = await supabase
     .from('sync_settings')
-    .select('id, force_tv_refresh_at, cleaning_checklist, chart_smooth_lines, chart_time_range')
+    .select('id, force_tv_refresh_at, cleaning_checklist, chart_smooth_lines, chart_time_range, rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
     .limit(1)
     .maybeSingle();
   if (data) emit(data);
@@ -33,7 +33,7 @@ export function subscribeSyncSettings(cb: (r: Row) => void): () => void {
         if (p.new) emit({ ...row, ...p.new });
       })
       .subscribe();
-    setInterval(load, 60000);
+    setInterval(load, 300_000);
   }
   return () => { subs.delete(cb); };
 }

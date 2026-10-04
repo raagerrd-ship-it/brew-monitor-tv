@@ -21,7 +21,7 @@ function MarqueeText({ children, className, innerClassName, isTvMode = false }: 
     if (!outer || !inner) return;
     const diff = inner.scrollWidth - outer.clientWidth;
     setOverflow(diff > 2 ? diff : 0);
-  }, [children]);
+  }, []); // monteras om per låt (key), så mät bara vid montering
 
   return (
     <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>

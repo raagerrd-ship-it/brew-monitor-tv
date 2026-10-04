@@ -15,6 +15,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeSyncSettings } from "@/lib/sync-settings-store";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
@@ -398,6 +399,8 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const tileRefs = useRef(new Map<string, HTMLDivElement>());
   const tileLefts = useRef(new Map<string, number>());
   const previousCompact = useRef(compact);
+  // Mät bara när compact växlar (eller tanklistan ändras), inte vid varje mätvärde
+  const controllerIdsKey = controllers.map(c => c.controller_id).join(',');
 
   useLayoutEffect(() => {
     if (!isTvMode || isMobile) return;
@@ -417,7 +420,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
     });
     tileLefts.current = nextLefts;
     previousCompact.current = compact;
-  }, [compact, controllers, isTvMode, isMobile]);
+  }, [compact, controllerIdsKey, isTvMode, isMobile]);
 
   // Find the most recent last_update across all controllers
   const latestUpdate = useMemo(() => {
@@ -436,22 +439,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
   // Load sensor freshness thresholds. Controller data now comes from the Pi.
   useEffect(() => {
-    const check = async () => {
-      const { data } = await supabase
-        .from('sync_settings')
-        .select('rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
-        .limit(1)
-        .maybeSingle();
-      if (!data) return;
+    return subscribeSyncSettings((data) => {
       const syncIntervalSec = (data as any).rapt_sync_interval ?? 300;
       const thresholdMin = Math.max(31, Math.round((syncIntervalSec * 2) / 60) + 20);
       setStaleThresholdMin(thresholdMin);
       setPillStaleMin(Number((data as any).pill_stale_threshold_min ?? 5));
       setProbeStaleMin(Number((data as any).probe_stale_threshold_min ?? 31));
-    };
-    check();
-    const interval = setInterval(check, 300000);
-    return () => clearInterval(interval);
+    });
   }, []);
 
   // Tick every 30s to keep duration updated

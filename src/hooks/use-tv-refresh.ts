@@ -3,7 +3,7 @@ import { subscribeSyncSettings } from '@/lib/sync-settings-store';
 
 /**
  * In TV mode, listens for remote force-refresh signals via the shared
- * sync_settings source (realtime + 60 s poll).
+ * sync_settings source (realtime + 5 min poll).
  */
 export function useTvRefresh(isTvMode: boolean) {
   const lastKnownRefreshAt = useRef<string | null | undefined>(undefined);

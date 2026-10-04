@@ -29,6 +29,8 @@ export function isSeqStale(acceptedSeq: number, incomingSeq: number | undefined)
 
 // Position correction interval — matches bridge push frequency (~30s)
 export const PLAYBACK_POLL_INTERVAL = 30000;
+/** Senaste realtidshändelse från sonos_now_playing; klientpollen hoppar över när den är färsk (< 60 s). */
+export const sonosRealtimeSeen = { at: 0 };
 export const PLAYBACK_POLL_TIMEOUT = 12000;
 export const PREDICTIVE_THRESHOLD_MS = 12000;
 export const PREDICTIVE_MARGIN_MS = 500;

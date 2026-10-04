@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { TempController, PillData } from '@/types/brew';
-import { getRaptBar, setRaptBar, useRaptBarStore } from '@/lib/rapt-bar-store';
+import { getRaptBar, setRaptBar, useRaptBarStore, hasRaptBarOwner } from '@/lib/rapt-bar-store';
 
 interface RaptBarData {
   controllers: TempController[];
@@ -57,9 +57,9 @@ async function loadOnce(initial: boolean) {
 export function useRaptBarData(): RaptBarData {
   const s = useRaptBarStore();
   useEffect(() => {
-    if (!getRaptBar().loaded) loadOnce(true);
+    if (!getRaptBar().loaded && !hasRaptBarOwner()) loadOnce(true);
     // Utan use-brew-data (t.ex. Inställningar) blir källan inaktuell — hämta om var 60:e s.
-    const id = setInterval(() => { if (Date.now() - getRaptBar().updatedAt >= 60_000) loadOnce(false); }, 60_000);
+    const id = setInterval(() => { if (!hasRaptBarOwner() && Date.now() - getRaptBar().updatedAt >= 60_000) loadOnce(false); }, 60_000);
     return () => clearInterval(id);
   }, []);
   return { controllers: s.controllers, pills: s.pills, piDisabled: s.piDisabled, piManual: s.piManual, activeSessions: s.activeSessions, loading: !s.loaded };

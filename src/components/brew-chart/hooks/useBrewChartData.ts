@@ -63,6 +63,8 @@ export function useBrewChartData({
   const lastRecordedAt = useRef<string | null>(null);
   // Diagrammet börjar 1 timme före pitch (fermentation_start) om värden finns.
   const chartCutoff = useRef<number | null>(null);
+  const lastFullFetchAt = useRef(0);
+  const rowCount = useRef(0);
 
   useEffect(() => {
     if (!brewId) {
@@ -77,7 +79,9 @@ export function useBrewChartData({
       lastFetchKey.current = fetchKey;
       // Full hämtning bara första gången eller vid byte av bryggning/tidsintervall
       const key = `${brewId}-${timeRange}`;
-      const incremental = fullKey.current === key && lastRecordedAt.current != null;
+      // Full hämtning (serverns ~500-raders gallring) var 6:e timme eller när raderna växt över 2× taket
+      const incremental = fullKey.current === key && lastRecordedAt.current != null
+        && Date.now() - lastFullFetchAt.current < 6 * 60 * 60 * 1000 && rowCount.current <= 1000;
       if (!incremental) setIsLoading(true);
       try {
         if (!incremental) {
@@ -109,9 +113,12 @@ export function useBrewChartData({
         );
         if (incremental) {
           if (rows.length === 0) return;
+          rowCount.current += rows.length;
           setSnapshotRows((prev) => [...prev, ...rows]);
         } else {
           fullKey.current = key;
+          lastFullFetchAt.current = Date.now();
+          rowCount.current = rows.length;
           setSnapshotRows(rows);
         }
         if (rows.length > 0) lastRecordedAt.current = rows[rows.length - 1].recorded_at;
@@ -121,17 +128,13 @@ export function useBrewChartData({
     };
 
     fetchData();
+  }, [brewId, firstDataDate, lastDataDate, timeRange]);
 
-    if (isTvMode) {
-      const intervalId = setInterval(() => {
-        lastFetchKey.current = "";
-        fetchData();
-      }, 300000);
-      return () => clearInterval(intervalId);
-    }
-  }, [brewId, firstDataDate, lastDataDate, isTvMode, timeRange]);
-
+  // Bero bara på den datakälla som faktiskt ritas
+  const hasSnapshots = snapshotRows.length > 0;
+  const fallbackData = hasSnapshots ? null : data;
   const chartData = useMemo(() => {
+    const data = fallbackData;
     let basePoints;
 
     if (snapshotRows.length > 0) {
@@ -200,7 +203,7 @@ export function useBrewChartData({
     const smoothed = calculateMovingAverage(basePoints, windowSize, smoothLines);
     const withTs = addTimestamps(smoothed);
     return isTvMode ? downsampleForTvMode(withTs, 150) : withTs;
-  }, [data, snapshotRows, smoothLines, timeRange, isTvMode]);
+  }, [fallbackData, snapshotRows, smoothLines, timeRange, isTvMode]);
 
   const dayBoundaries = useMemo(() => generateDayBoundaries(chartData), [chartData]);
   const dayTicks = useMemo(() => generateDayTicks(chartData), [chartData]);
