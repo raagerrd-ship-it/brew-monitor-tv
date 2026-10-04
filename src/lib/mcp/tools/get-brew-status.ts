@@ -34,7 +34,7 @@ export default defineTool({
       phase: status.phase,
       og: status.og,
       og_source: status.og_source,
-      og_planned: (brew?.recipe as Record<string, unknown> | null)?.og ?? null,
+      og_planned: ((brew?.recipe as Record<string, unknown> | null)?.og ?? null) as string | number | null,
       fg_expected: status.fg_expected,
       fermentation_start: status.fermentation_start,
       fermentation_start_source: status.fermentation_start_source,
