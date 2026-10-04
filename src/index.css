@@ -62,6 +62,13 @@
   transition: none !important;
 }
 
+.tv .cleaning-transition-active .album-accent-card,
+.tv .cleaning-transition-active .recharts-wrapper svg,
+.tv .cleaning-transition-active .recharts-wrapper svg * {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rolling-number-strip { transition: none !important; }
 }

@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Minska hack när rengöringskorten visas och döljs på TV: synka båda glidytorna och förenkla den rörliga ytan. In/ut verifierat i TV-vy utan sidfel; faktisk Chromecast återstår att känna av.
+
 - [x] Klockan: ett steg per ändrad siffra, även 5→0 och 23→00; datavärden behåller remsan. Verifierat i förhandsvisningen.
 - [x] Ta bort inställningen för den borttagna timerfunktionen. Kontrollera konfigurationen.
 

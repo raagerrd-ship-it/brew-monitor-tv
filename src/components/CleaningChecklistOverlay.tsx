@@ -201,21 +201,15 @@ function highlightItem(text: string, accent: string) {
   );
 }
 
-function CleaningChecklistOverlayComponent() {
+function CleaningChecklistOverlayComponent({ entered }: { entered: boolean }) {
   const { view, setChecklist } = useCleaningChecklist();
   const { isTvMode } = useTvMode();
   const [renderedView, setRenderedView] = useState<Exclude<CleaningChecklistView, null> | null>(null);
-  const [entered, setEntered] = useState(false);
   useLayoutEffect(() => {
     if (view && isTvMode) {
       setRenderedView(view);
-      let secondFrame = 0;
-      const firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => setEntered(true));
-      });
-      return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
+      return;
     }
-    setEntered(false);
     if (!isTvMode || window.matchMedia('(prefers-reduced-motion: reduce)').matches) setRenderedView(null);
   }, [view, isTvMode]);
   if (!renderedView || !isTvMode) return null;
@@ -226,7 +220,7 @@ function CleaningChecklistOverlayComponent() {
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center p-2 motion-reduce:!transition-none"
-      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(222 30% 3% / 0.96)', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 2000ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: 'transform', pointerEvents: view ? 'auto' : 'none' }}
+      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(var(--background))', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 2000ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: 'transform', pointerEvents: view ? 'auto' : 'none' }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === 'transform' && !view) setRenderedView(null);
       }}
@@ -234,9 +228,7 @@ function CleaningChecklistOverlayComponent() {
       <div
         className="relative flex h-full w-full max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10"
         style={{
-          background:
-            'radial-gradient(120% 90% at 10% 0%, hsl(200 40% 18% / 0.55), transparent 60%), hsl(222 20% 9% / 0.95)',
-          boxShadow: '0 30px 90px hsl(222 30% 2% / 0.8)',
+          background: 'hsl(var(--card))',
         }}
       >
         {/* Header */}
@@ -298,7 +290,7 @@ function CleaningChecklistOverlayComponent() {
                 key={s.num}
                 className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 p-3"
                 style={{
-                  background: `linear-gradient(135deg, hsl(${s.hue} 60% 50% / 0.16), hsl(222 20% 12% / 0.7) 55%)`,
+                  background: 'hsl(var(--muted))',
                 }}
               >
                 <span
