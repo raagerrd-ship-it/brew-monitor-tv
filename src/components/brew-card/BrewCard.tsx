@@ -1,4 +1,5 @@
 import { useMemo, memo, useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
+import { PitchLine } from "./PitchLine";
 import { useChartSettings } from "@/hooks/use-chart-settings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -371,6 +372,7 @@ function BrewCardComponent({
                 );
               })()}
             </p>
+            <PitchLine brewId={brew.id} plannedOg={(brew.recipe as any)?.og ?? null} />
           </div>
         </div>
       </div>
