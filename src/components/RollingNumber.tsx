@@ -1,0 +1,74 @@
+import { memo, useEffect, useRef, useState } from "react";
+
+const DIGITS = Array.from({ length: 70 }, (_, i) => i % 10);
+const CENTER = 30;
+
+interface RollingNumberProps {
+  value: number | string;
+  decimals?: number;
+  mutedLastDigit?: boolean;
+  suffix?: React.ReactNode;
+}
+
+const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: number; direction: number }) {
+  const [position, setPosition] = useState(CENTER + digit);
+  const [animated, setAnimated] = useState(false);
+  const previous = useRef(digit);
+  const currentPosition = useRef(CENTER + digit);
+  const element = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (digit === previous.current) return;
+    const old = previous.current;
+    previous.current = digit;
+    if (direction === 0 || element.current?.closest(".cleaning-transition-active")) {
+      currentPosition.current = CENTER + digit;
+      setAnimated(false);
+      setPosition(currentPosition.current);
+      return;
+    }
+    const steps = direction > 0 ? (digit - old + 10) % 10 : -((old - digit + 10) % 10);
+    currentPosition.current += steps;
+    setAnimated(true);
+    setPosition(currentPosition.current);
+    const timer = window.setTimeout(() => {
+      currentPosition.current = CENTER + digit;
+      setAnimated(false);
+      setPosition(currentPosition.current);
+    }, 720);
+    return () => window.clearTimeout(timer);
+  }, [digit, direction]);
+
+  return (
+    <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums">
+      <span
+        className="rolling-number-strip block leading-none"
+        style={{
+          transform: `translateY(-${position}em)`,
+          transition: animated ? "transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none",
+        }}
+      >
+        {DIGITS.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
+      </span>
+    </span>
+  );
+});
+
+export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix }: RollingNumberProps) {
+  const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
+  const previous = useRef(Number(formatted));
+  const numeric = Number(formatted);
+  const direction = numeric > previous.current ? 1 : numeric < previous.current ? -1 : 0;
+  useEffect(() => { previous.current = numeric; }, [numeric]);
+
+  return (
+    <span className="inline-flex items-baseline whitespace-nowrap tabular-nums leading-none" aria-label={`${formatted}${typeof suffix === "string" ? suffix : ""}`}>
+      {Array.from(formatted).map((char, i) => (
+        <span key={i} className={mutedLastDigit && i === formatted.length - 1 ? "text-muted-foreground/40" : undefined}>
+          /\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} /> : char
+        </span>
+      ))}
+      {suffix}
+    </span>
+  );
+});
