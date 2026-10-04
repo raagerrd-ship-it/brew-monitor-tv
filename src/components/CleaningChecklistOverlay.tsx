@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useLayoutEffect, useState } from 'react';
 import { X, ShieldAlert, Droplets, FlaskConical } from 'lucide-react';
 import { useCleaningChecklist, CleaningChecklistView } from '@/hooks/use-cleaning-checklist';
 import { useTvMode } from '@/contexts/TvModeContext';
@@ -205,7 +205,7 @@ function CleaningChecklistOverlayComponent({ entered }: { entered: boolean }) {
   const { view, setChecklist } = useCleaningChecklist();
   const { isTvMode } = useTvMode();
   const [renderedView, setRenderedView] = useState<Exclude<CleaningChecklistView, null> | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (view && isTvMode) {
       setRenderedView(view);
       return;
