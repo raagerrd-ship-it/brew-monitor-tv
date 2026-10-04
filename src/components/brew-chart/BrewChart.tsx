@@ -163,8 +163,19 @@ function BrewChartComponent({
             );
           })}
 
-          {/* X-Axis */}
-          <XAxis
+          {/* Pitch marker - small yellow dot at the bottom edge */}
+          {pitchEvents.map((event) => (
+            <ReferenceDot
+              key={`pitch-${event.id}`}
+              x={event.timestamp}
+              y={tempDomain[0]}
+              yAxisId="temp"
+              r={4}
+              fill="#eab308"
+              stroke="none"
+              isAnimationActive={false}
+            />
+          ))}
             dataKey="timestamp"
             type="number"
             domain={["dataMin", "dataMax"]}
