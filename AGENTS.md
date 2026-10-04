@@ -6,4 +6,5 @@
 
 - Kort i alla lägen byter höjd/bredd/utfyllnad i ett steg; bara transform/opacity animeras och konkurrerande animationer pausas under växlingar. Why: hela UI:t måste klara Chromecast.
 - Stora levande siffervärden använder den delade RollingNumber-komponenten; sifferremsorna animerar bara transform och stoppas under rengöringsväxlingar. Why: samma lättviktiga beteende behövs i TV och andra lägen.
+- Klockan använder RollingNumbers två-raders stegläge medan mätvärden behåller den vanliga sifferremsan. Why: klockans 5→0 och 23→00 ska rulla ett steg utan mellansiffror.
 - Brew Master owns timer state and pushes timer changes to receive-timer; the TV reads the cache through realtime with a slow cache-only fallback, never pulls Brew Master on a cron schedule. Why: one writer prevents stale timer state and unnecessary cross-app requests.

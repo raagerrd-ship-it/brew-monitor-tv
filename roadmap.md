@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Klockan: ett steg per ändrad siffra, även 5→0 och 23→00; datavärden behåller remsan. Verifierat i förhandsvisningen.
+- [x] Ta bort inställningen för den borttagna timerfunktionen. Kontrollera konfigurationen.
+
 - [x] Verifiera paus, fortsätt och milstolpe var för sig vid ett faktiskt timerförlopp. Bekräftat av användaren 4 okt 2026 — alla fem tillfällen (start, paus, fortsätt, milstolpe, stopp) når TV:n via receive-timer.
 
 - [x] Rullande siffror i sidhuvudets temperaturer, statkortens huvudvärden och klockans timmar/minuter; statkortens value-shimmer ersatt. Verifiera i förhandsvisningen.
