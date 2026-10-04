@@ -169,6 +169,13 @@
       "when": 1791112213009,
       "tag": "0023_sonos_vignette_album_accent",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791112687149,
+      "tag": "0024_stop_external_timer_cron",
+      "breakpoints": true
     }
   ]
 }
