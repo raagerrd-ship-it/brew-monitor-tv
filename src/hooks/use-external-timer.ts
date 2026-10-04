@@ -64,15 +64,13 @@ const initialState: ExternalTimerState = {
   timerTargetTemperature: null,
 };
 
-// Interval constants
-const FAST_POLL_MS = 5_000;
-const SLOW_POLL_MS = 10_000;
+// Cache-only safety net; Brew Master pushes changes through receive-timer.
+const FALLBACK_POLL_MS = 60_000;
 
 export function useExternalTimer() {
   const [timerState, setTimerState] = useState<ExternalTimerState>(initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isActiveRef = useRef(false); // Track active state for interval switching
   const timerDataRef = useRef<{
     startedAt: string | null;
     remainingAtStart: number;
@@ -180,7 +178,6 @@ export function useExternalTimer() {
 
       if (!data) {
         timerDataRef.current = null;
-        isActiveRef.current = false;
         setTimerState(initialState);
         return;
       }
@@ -258,12 +255,10 @@ export function useExternalTimer() {
 
 
       if (!data.is_active) {
-        isActiveRef.current = false;
         setTimerState(initialState);
         return;
       }
 
-      isActiveRef.current = true;
 
       const apiProgress = typeof data.progress === 'number' ? data.progress : 0;
       const currentRemaining = calculateRemainingSeconds();
@@ -298,21 +293,13 @@ export function useExternalTimer() {
     }
   }, [parseMilestone, parseNextConfig, calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
-  // Helper to set up sync/poll intervals based on active state
-  const setupIntervals = useCallback((active: boolean) => {
-    // Clear existing
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-
-    const pollMs = active ? FAST_POLL_MS : SLOW_POLL_MS;
-    pollIntervalRef.current = setInterval(() => fetchFromCache(), pollMs);
-  }, [fetchFromCache]);
-
-  // Initial fetch, subscribe, and set up intervals
+  // Initial fetch, realtime updates and a slow cache-only safety net.
   useEffect(() => {
     fetchFromCache();
-
-    // Start with slow intervals; fetchFromCache will update isActiveRef
-    setupIntervals(false);
+    pollIntervalRef.current = setInterval(fetchFromCache, FALLBACK_POLL_MS);
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchFromCache(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', fetchFromCache);
 
     // Realtime subscription for instant updates when cache changes
     const channel = supabase
@@ -320,18 +307,17 @@ export function useExternalTimer() {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'cached_external_timer' }, () => {
         fetchFromCache();
       })
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') fetchFromCache();
+      });
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', fetchFromCache);
       supabase.removeChannel(channel);
     };
-  }, [fetchFromCache, setupIntervals]);
-
-  // Switch intervals when active state changes
-  useEffect(() => {
-    setupIntervals(timerState.isActive);
-  }, [timerState.isActive, setupIntervals]);
+  }, [fetchFromCache]);
 
   // Update remaining seconds every second when timer is active and not paused
   useEffect(() => {
