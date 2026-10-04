@@ -1,7 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 const DIGITS = Array.from({ length: 30 }, (_, i) => i % 10);
 const CENTER = 10;
+const DURATION_DESKTOP = 700;
+const DURATION_TV = 2000;
 
 interface RollingNumberProps {
   value: number | string;
