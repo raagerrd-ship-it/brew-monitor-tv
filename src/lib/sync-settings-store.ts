@@ -15,7 +15,7 @@ const emit = (r: Row) => {
 const load = async () => {
   const { data } = await supabase
     .from('sync_settings')
-    .select('id, force_tv_refresh_at, cleaning_checklist, chart_smooth_lines, chart_time_range')
+    .select('id, force_tv_refresh_at, cleaning_checklist, chart_smooth_lines, chart_time_range, rapt_sync_interval, pill_stale_threshold_min, probe_stale_threshold_min')
     .limit(1)
     .maybeSingle();
   if (data) emit(data);
