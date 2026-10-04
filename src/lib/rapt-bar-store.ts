@@ -22,6 +22,11 @@ export const setRaptBar = (next: Omit<RaptBarState, 'loaded' | 'updatedAt'>) => 
 
 export const getRaptBar = () => state;
 
+// Antal monterade use-brew-data som fyller källan; reservpollen hoppar över när > 0.
+let owners = 0;
+export const acquireRaptBarOwner = () => { owners++; return () => { owners--; }; };
+export const hasRaptBarOwner = () => owners > 0;
+
 export const useRaptBarStore = () =>
   useSyncExternalStore(
     (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
