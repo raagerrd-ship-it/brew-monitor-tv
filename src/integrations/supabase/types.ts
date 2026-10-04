@@ -458,6 +458,7 @@ export type Database = {
           is_active: boolean
           is_paused: boolean
           label: string | null
+          last_push_at: string | null
           last_synced_at: string
           milestones: Json
           next_config: Json | null
@@ -484,6 +485,7 @@ export type Database = {
           is_active?: boolean
           is_paused?: boolean
           label?: string | null
+          last_push_at?: string | null
           last_synced_at?: string
           milestones?: Json
           next_config?: Json | null
@@ -510,6 +512,7 @@ export type Database = {
           is_active?: boolean
           is_paused?: boolean
           label?: string | null
+          last_push_at?: string | null
           last_synced_at?: string
           milestones?: Json
           next_config?: Json | null
