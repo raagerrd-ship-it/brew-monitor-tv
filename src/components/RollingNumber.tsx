@@ -41,7 +41,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: 
       currentPosition.current = CENTER + digit;
       setAnimated(false);
       setPosition(currentPosition.current);
-    }, 720);
+    }, duration + 20);
     return () => window.clearTimeout(timer);
   }, [digit]);
 
@@ -51,7 +51,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: 
         className="rolling-number-strip block leading-none"
         style={{
           transform: `translateY(-${position}em)`,
-          transition: animated ? "transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none",
+          transition: animated ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none",
         }}
       >
         {DIGITS.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
