@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
     progress: total > 0 ? Math.min(100, Math.max(0, ((total - remaining) / total) * 100)) : 0,
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    last_push_at: new Date().toISOString(),
     paused_at: str(body.paused_at, 60),
     next_config: body.next_config && typeof body.next_config === "object" ? body.next_config : null,
     wizard_step: str(body.wizard_step, 80),
