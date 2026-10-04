@@ -1,6 +1,7 @@
 import { Logo } from "./Logo";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
+import { RollingNumber } from "./RollingNumber";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -606,7 +607,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         color: 'hsl(0 0% 96%)',
                         textShadow: isControllerStale ? 'none' : `0 0 10px ${accent}30`,
                       }}>
-                        {displayTemp !== null ? displayTemp.toFixed(1) : '--'}
+                         {displayTemp !== null ? <RollingNumber value={displayTemp} decimals={1} /> : '--'}
                         <span style={{ opacity: 0.55 }}>°</span>
                       </span>
                       {controller.target_temp !== null && (isCooler || isManual || (!isOff && activeSessions[controller.controller_id])) && (
@@ -617,7 +618,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                           opacity: 0.95,
                           textShadow: isManual && !isOff ? '0 0 6px hsl(38 92% 55% / 0.3)' : undefined,
                         }}>
-                          › {controller.target_temp.toFixed(1)}°
+                           › <RollingNumber value={controller.target_temp} decimals={1} />°
                         </span>
                       )}
                     </div>

@@ -89,7 +89,7 @@ export function StatCard({
       </p>
       
       <p 
-        className={`font-bold leading-none z-10 text-center ${isUpdated ? 'animate-value-shimmer' : ''}`}
+        className="font-bold leading-none z-10 text-center"
         style={{ 
           color,
           fontSize: finalValueSize,

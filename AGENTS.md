@@ -5,3 +5,4 @@
 - TV-rengöringen ligger under sidhuvudet och glider horisontellt samtidigt som ölkortens gemensamma yta skjuts ut; bara transform animeras och övriga CSS-animationer pausas under växlingen. Why: Chromecast slipper per-kort- och layoutanimation samt konkurrerande animeringar.
 
 - Kort i alla lägen byter höjd/bredd/utfyllnad i ett steg; bara transform/opacity animeras och konkurrerande animationer pausas under växlingar. Why: hela UI:t måste klara Chromecast.
+- Stora levande siffervärden använder den delade RollingNumber-komponenten; sifferremsorna animerar bara transform och stoppas under rengöringsväxlingar. Why: samma lättviktiga beteende behövs i TV och andra lägen.

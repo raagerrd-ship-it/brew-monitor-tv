@@ -3,6 +3,7 @@ import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
+import { RollingNumber } from "@/components/RollingNumber";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
@@ -314,14 +315,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
     );
   })() : null;
 
-  const [displayTempWhole, displayTempDecimals = '00'] = displayTemp?.toFixed(2).split('.') ?? ['—', ''];
-  const displayTempMain = displayTemp === null ? displayTempWhole : `${displayTempWhole}.${displayTempDecimals[0] ?? '0'}`;
-  const displayTempMuted = displayTempDecimals[1] ?? '';
-
   return (
     <StatCard
       label={label}
-      value={<span className="tabular-nums">{displayTempMain}<span className="text-muted-foreground/40">{displayTempMuted}°</span></span>}
+      value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={2} mutedLastDigit suffix={<span className="text-muted-foreground/40">°</span>} />}
       
       className="gap-0.5 !py-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}

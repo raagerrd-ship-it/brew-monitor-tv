@@ -2,6 +2,7 @@ import { memo } from "react";
 import { BrewData } from "@/types/brew";
 
 import { StatCard } from "./StatCard";
+import { RollingNumber } from "@/components/RollingNumber";
 
 
 interface AttenuationStatProps {
@@ -15,7 +16,7 @@ function AttenuationStatComponent({ brew, updatedFields }: AttenuationStatProps)
   return (
     <StatCard
       label="Utjäsning"
-      value={<span className="tabular-nums">{brew.attenuation}<span className="text-muted-foreground/40">%</span></span>}
+      value={<RollingNumber value={brew.attenuation} suffix={<span className="text-muted-foreground/40">%</span>} />}
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.attenuation}
     />

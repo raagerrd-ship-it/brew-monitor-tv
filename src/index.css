@@ -22,13 +22,20 @@
 }
 
 .cleaning-transition-active .animate-marquee,
-.cleaning-transition-active .animate-value-shimmer,
 .cleaning-transition-active .animate-battery-pulse,
 .cleaning-transition-active .animate-pulse,
 .cleaning-transition-active .session-status-glow::after,
 .cleaning-transition-active .alarm-glow::before,
 .cleaning-transition-active .dashboard-background-layer {
   animation-play-state: paused !important;
+}
+
+.cleaning-transition-active .rolling-number-strip {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rolling-number-strip { transition: none !important; }
 }
 
 @keyframes glow-pulse {
@@ -192,16 +199,6 @@ All colors MUST be HSL.
   .scrollbar-hide {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
-  }
-
-  /* Value shimmer animation for stat updates */
-  @keyframes value-shimmer {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  .animate-value-shimmer {
-    animation: value-shimmer 0.8s ease-in-out;
   }
 
   /* Low battery pulse animation */
