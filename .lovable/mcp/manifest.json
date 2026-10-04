@@ -49,6 +49,31 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "get_brew_status",
+        "title": "Get brew status",
+        "description": "Read a brew's fermentation status from the Pi: measured OG and its source, fermentation start and its source, pitch details, expected FG. When og_source is 'pill' the OG was measured by the pill; when fermentation_start_source is 'pitch' the start time is when the brewer pitched the yeast — do not ask about it.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "source_id": {
+              "type": "string",
+              "description": "The brew's source_id"
+            }
+          },
+          "required": [
+            "source_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
