@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   const total = num(body.total_seconds) ?? 0;
 
   const row = {
-    external_user_id: externalUserId,
+    external_user_id: str(body.external_user_id, 120) ?? "brew-master",
     is_active: body.is_active,
     label: str(body.label),
     remaining_seconds: Math.max(0, Math.round(remaining)),
