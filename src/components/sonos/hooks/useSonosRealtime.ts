@@ -199,7 +199,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           ...prev,
           playback_state: incoming.playback_state,
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
-          ...(bgActuallyChanged ? { accent_color: incoming.accent_color } : {}),
+          ...(bgActuallyChanged || (incoming.accent_color && !prev.accent_color) ? { accent_color: incoming.accent_color } : {}),
           ...(bgActuallyChanged || bgMetaChanged ? { bg_cached: incoming.bg_cached, bg_generation_ms: incoming.bg_generation_ms } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),

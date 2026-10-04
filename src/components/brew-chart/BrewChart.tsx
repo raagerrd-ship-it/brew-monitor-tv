@@ -40,6 +40,7 @@ function BrewChartComponent({
   timeRange = 'full',
   onTimeRangeChange: _onTimeRangeChange,
   pillCompensation: _pillCompensation = true,
+  brewStatus,
 }: BrewChartProps) {
   const [internalSmoothLines, setInternalSmoothLines] = useState(true);
   const smoothLines = externalSmoothLines ?? internalSmoothLines;
@@ -93,6 +94,13 @@ function BrewChartComponent({
   }
 
   const lineType = smoothLines ? "monotoneX" : "linear";
+  const isActiveBrew = brewStatus !== 'Konditionering' && brewStatus !== 'Klar' && !!brewStatus;
+  const lastSgIndex = chartData.length - 1;
+  const lastTempIndex = chartData.findLastIndex(p => p.avgTemp != null && Number.isFinite(p.avgTemp));
+  const liveDot = (lastIndex: number, color: string) => ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) =>
+    isActiveBrew && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy)
+      ? <g><circle className="chart-live-ring" cx={cx} cy={cy} r={4} fill={color} /><circle cx={cx} cy={cy} r={4} fill={color} /></g>
+      : <g />;
   const areaType = smoothLines ? "monotoneX" : "linear";
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
@@ -231,7 +239,7 @@ function BrewChartComponent({
             dataKey="value"
             stroke={COLORS.sg}
             strokeWidth={DATA_SERIES_CONFIG.sg.strokeWidth}
-            dot={false}
+            dot={isActiveBrew ? liveDot(lastSgIndex, COLORS.sg) : false}
             activeDot={{ r: DATA_SERIES_CONFIG.sg.dotRadius, fill: COLORS.sg }}
             name="value"
             isAnimationActive={isAnimationActive}
@@ -247,7 +255,7 @@ function BrewChartComponent({
             stroke={COLORS.temp}
             strokeWidth={DATA_SERIES_CONFIG.avgTemp.strokeWidth}
             fill={`url(#avgTempGrad-${chartIndex})`}
-            dot={false}
+            dot={isActiveBrew ? liveDot(lastTempIndex, COLORS.temp) : false}
             activeDot={{ r: DATA_SERIES_CONFIG.avgTemp.dotRadius, fill: COLORS.temp }}
             name="avgTemp"
             isAnimationActive={isAnimationActive}

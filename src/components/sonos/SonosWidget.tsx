@@ -243,12 +243,11 @@ export const SonosWidget = memo(function SonosWidget({
           }}>
             <div
               ref={progressBarRef}
-              className="absolute inset-0"
+              className="absolute inset-0 album-accent-progress"
               style={{
                 transform: `scaleX(${Math.max(progress, 1) / 100})`,
                 transformOrigin: 'left',
-                transition: 'transform 1s linear',
-                background: 'var(--album-accent, hsl(var(--primary)))',
+                transition: 'transform 1s linear, background-color 800ms ease',
                 boxShadow: '0 0 8px var(--album-accent, hsl(var(--primary)))',
                 opacity: 0.9,
               }}
