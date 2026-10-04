@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAlbumArt } from '@/contexts/AlbumArtContext';
-import defaultBackground from '@/assets/dahlsjo-bryggeri-ren-1080p.jpg.asset.json';
+import defaultBackground from '@/assets/dahlsjo-bryggeri-vignette.jpg.asset.json';
 
 export function DashboardBackground() {
   const { visibleBgUrl } = useAlbumArt();

@@ -71,7 +71,7 @@ function BridgeDiagnostics() {
     try {
       const { data: row } = await supabase
         .from('sonos_now_playing')
-        .select('track_name, artist_name, album_name, playback_state, volume, mute, bass, treble, loudness, crossfade, media_type, track_number, nr_tracks, track_uri, duration_ms, position_ms, track_seq, updated_at, album_art_url, album_art_url_small, bg_image_url, next_track_name, next_artist_name, next_bg_image_url')
+        .select('track_name, artist_name, album_name, playback_state, volume, mute, bass, treble, loudness, crossfade, media_type, track_number, nr_tracks, track_uri, duration_ms, position_ms, track_seq, updated_at, album_art_url, album_art_url_small, bg_image_url, accent_color, next_track_name, next_artist_name, next_bg_image_url, next_accent_color')
         .limit(1)
         .single();
       setData(row);
@@ -266,9 +266,10 @@ export function SonosSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnDashboard, setShowOnDashboard] = useState(true);
   const [bgBlur, setBgBlur] = useState(40);
-  const [bgBrightness, setBgBrightness] = useState(90);
+  const [bgBrightness, setBgBrightness] = useState(70);
   const [bgContrast, setBgContrast] = useState(1.0);
-  const [bgSaturation, setBgSaturation] = useState(1.0);
+  const [bgSaturation, setBgSaturation] = useState(0.8);
+  const [bgVignette, setBgVignette] = useState(0.35);
   const [bgTopGradientOpacity, setBgTopGradientOpacity] = useState(0.45);
   const [bgTopGradientHeight, setBgTopGradientHeight] = useState(85);
   const [trackChangeOffset, setTrackChangeOffset] = useState(2.0);
@@ -283,7 +284,8 @@ export function SonosSettings() {
     try {
       const { data: settings } = await supabase
         .from('sonos_settings')
-        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, track_change_offset_seconds')
+        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_vignette, bg_top_gradient_opacity, bg_top_gradient_height, show_on_dashboard, track_change_offset_seconds')
+        .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
 
@@ -291,9 +293,10 @@ export function SonosSettings() {
         setSettingsId(settings.id);
         setShowOnDashboard(settings.show_on_dashboard ?? true);
         setBgBlur(settings.bg_blur ?? 40);
-        setBgBrightness(settings.bg_brightness ?? 90);
+        setBgBrightness(settings.bg_brightness ?? 70);
         setBgContrast(settings.bg_contrast ?? 1.0);
-        setBgSaturation(settings.bg_saturation ?? 1.0);
+        setBgSaturation(settings.bg_saturation ?? 0.8);
+        setBgVignette(settings.bg_vignette ?? 0.35);
         setBgTopGradientOpacity(settings.bg_top_gradient_opacity ?? 0.45);
         setBgTopGradientHeight(settings.bg_top_gradient_height ?? 85);
         setTrackChangeOffset(Number(settings.track_change_offset_seconds) || 2.0);
@@ -342,6 +345,7 @@ export function SonosSettings() {
         bg_brightness: bgBrightness,
         bg_contrast: bgContrast,
         bg_saturation: bgSaturation,
+        bg_vignette: bgVignette,
         bg_top_gradient_opacity: bgTopGradientOpacity,
         bg_top_gradient_height: bgTopGradientHeight,
       };
@@ -380,11 +384,11 @@ export function SonosSettings() {
       if (response.ok) {
         const { data: nowPlaying } = await supabase
           .from('sonos_now_playing')
-          .select('bg_image_url, track_name')
+          .select('bg_image_url, accent_color, track_name')
           .limit(1)
           .maybeSingle();
         if (nowPlaying?.bg_image_url) {
-          handleAlbumArtChange(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
+          handleAlbumArtChange(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined, nowPlaying.accent_color);
         }
       }
 
@@ -477,8 +481,22 @@ export function SonosSettings() {
               </div>
               <Slider value={[bgBrightness]} min={10} max={100} step={5} onValueChange={(v) => setBgBrightness(v[0])} />
               <p className="text-xs text-muted-foreground">
-                Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
+                Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70
               </p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Mättnad</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{bgSaturation.toFixed(2)}</span>
+              </div>
+              <Slider value={[bgSaturation]} min={0} max={2} step={0.05} onValueChange={(v) => setBgSaturation(v[0])} />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Vinjett</Label>
+                <span className="text-sm text-muted-foreground tabular-nums">{bgVignette.toFixed(2)}</span>
+              </div>
+              <Slider value={[bgVignette]} min={0} max={1} step={0.05} onValueChange={(v) => setBgVignette(v[0])} />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">

@@ -1,0 +1,1 @@
+ALTER TABLE public.sonos_settings ADD COLUMN IF NOT EXISTS bg_vignette numeric NOT NULL DEFAULT 0.35 CHECK (bg_vignette >= 0 AND bg_vignette <= 1); ALTER TABLE public.sonos_now_playing ADD COLUMN IF NOT EXISTS accent_color text, ADD COLUMN IF NOT EXISTS next_accent_color text;

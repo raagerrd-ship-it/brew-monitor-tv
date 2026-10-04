@@ -10,7 +10,7 @@ interface UseSonosRealtimeParams {
   localProgressRef: React.MutableRefObject<number | null>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string, accentColor?: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   acceptedSeqRef: React.MutableRefObject<number>;
@@ -56,7 +56,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
             bgSentRef.current = incoming.bg_image_url;
           }
           tvDebug('sonos', `📡 RT init: "${incoming.track_name}" (seq ${incoming.track_seq ?? '?'}, pos ${Math.round((incoming.position_ms ?? 0) / 1000)}s)`);
@@ -70,7 +70,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
+            onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
             bgSentRef.current = incoming.bg_image_url;
           }
           tvDebug('sonos', `📡 RT wake: "${incoming.track_name}" (pos ${Math.round((incoming.position_ms ?? 0) / 1000)}s)`);
@@ -107,6 +107,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           // Use preloaded next-track images if they match the incoming track
           const preloadMatch = prev.next_track_name === incoming.track_name;
           const preloadedBg = preloadMatch ? prev.next_bg_image_url : null;
+          const preloadedAccent = preloadMatch ? prev.next_accent_color : null;
           const preloadedArt = preloadMatch ? prev.next_album_art_url : null;
 
           const effectiveBg = incoming.bg_image_url || preloadedBg;
@@ -114,7 +115,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
           if (effectiveBg && effectiveBg !== prev.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, effectiveBg);
-            onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name);
+            onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name, incoming.accent_color ?? preloadedAccent);
             bgSentRef.current = effectiveBg;
           } else if (!effectiveBg) {
             // No bg yet for new track — clear sent ref so subsequent same-track
@@ -130,8 +131,10 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           return {
             ...incoming,
             bg_image_url: effectiveBg || null,
+            accent_color: incoming.accent_color ?? preloadedAccent,
             album_art_url: effectiveArt || prev.album_art_url,
             next_bg_image_url: null,
+            next_accent_color: null,
             next_album_art_url: null,
             next_track_name: null,
             next_artist_name: null,
@@ -155,6 +158,8 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           || incoming.next_bg_generation_ms !== prev.next_bg_generation_ms;
         const bgMetaChanged = incoming.bg_cached !== prev.bg_cached
           || incoming.bg_generation_ms !== prev.bg_generation_ms;
+        const accentChanged = !!incoming.accent_color && incoming.accent_color !== prev.accent_color
+          && !!incoming.bg_image_url && stripQs(incoming.bg_image_url) === stripQs(prev.bg_image_url);
         const hasVisibleBg = !!(prev.bg_image_url || bgSentRef.current);
         // Same track should only fill a missing bg, not swap in a second variant a few seconds later.
         const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
@@ -166,8 +171,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
         if (bgActuallyChanged) {
           pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
-          onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name);
+          onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
           bgSentRef.current = incoming.bg_image_url;
+        }
+        if (accentChanged && !bgActuallyChanged) {
+          onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
         }
 
         if (nextBgNew) {
@@ -179,7 +187,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)} ${nextCacheTag}`.trim());
         }
 
-        const hasChanges = nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged
+        const hasChanges = nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged || accentChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
@@ -196,10 +204,12 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           ...prev,
           playback_state: incoming.playback_state,
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
+          ...(bgActuallyChanged || accentChanged ? { accent_color: incoming.accent_color } : {}),
           ...(bgActuallyChanged || bgMetaChanged ? { bg_cached: incoming.bg_cached, bg_generation_ms: incoming.bg_generation_ms } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),
           ...(nextBgNew ? { next_bg_image_url: incoming.next_bg_image_url } : {}),
+          ...(nextBgNew ? { next_accent_color: incoming.next_accent_color } : {}),
           ...(nextBgNew || nextBgMetaChanged ? { next_bg_cached: incoming.next_bg_cached, next_bg_generation_ms: incoming.next_bg_generation_ms } : {}),
           ...(incoming.next_album_art_url ? { next_album_art_url: incoming.next_album_art_url } : {}),
         };
@@ -227,7 +237,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       try {
         const { data } = await supabase
           .from('sonos_now_playing')
-          .select('track_name, artist_name, album_name, album_art_url, bg_image_url, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, track_seq, media_type, bg_cached, next_bg_cached, bg_generation_ms, next_bg_generation_ms')
+            .select('track_name, artist_name, album_name, album_art_url, bg_image_url, accent_color, duration_ms, position_ms, playback_state, updated_at, next_track_name, next_artist_name, next_album_art_url, next_bg_image_url, next_accent_color, track_seq, media_type, bg_cached, next_bg_cached, bg_generation_ms, next_bg_generation_ms')
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();

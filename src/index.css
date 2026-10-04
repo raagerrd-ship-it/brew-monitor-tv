@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+.album-accent-card {
+  border: 1px solid color-mix(in srgb, var(--album-accent, hsl(var(--primary))) 35%, transparent);
+  transition: border-color 800ms ease;
+}
+.album-accent-header-line {
+  background-color: var(--album-accent, hsl(var(--primary)));
+  transition: background-color 800ms ease;
+}
+.album-accent-progress {
+  background-color: var(--album-accent, hsl(var(--primary)));
+  transition: transform 1s linear, background-color 800ms ease !important;
+}
+@keyframes chart-live-pulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(2.5); opacity: 0; }
+}
+.chart-live-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chart-live-pulse 2s ease-out infinite;
+}
+.cleaning-transition-active .chart-live-ring { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .chart-live-ring { animation: none; opacity: 0.4; }
+}
+
 @keyframes marquee-scroll {
   0%, 20% { transform: translateX(0); }
   45%, 55% { transform: translateX(var(--marquee-offset, 0)); }

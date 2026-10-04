@@ -4,9 +4,11 @@ export interface NowPlaying {
   album_name?: string | null;
   album_art_url: string | null;
   bg_image_url?: string | null;
+  accent_color?: string | null;
   next_track_name?: string | null;
   next_artist_name?: string | null;
   next_bg_image_url?: string | null;
+  next_accent_color?: string | null;
   next_album_art_url?: string | null;
   track_seq?: number;
   duration_ms: number | null;
@@ -75,20 +77,21 @@ export async function triggerServerSync(): Promise<void> {
  * Used after triggerServerSync to get bg/widget images without waiting for realtime.
  */
 export async function fetchNowPlayingImages(): Promise<{
-  bgImageUrl?: string; albumArtUrl?: string;
+  bgImageUrl?: string; albumArtUrl?: string; accentColor?: string | null;
   trackName?: string; artistName?: string | null;
 } | null> {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     const { data } = await supabase
       .from('sonos_now_playing')
-      .select('bg_image_url, album_art_url, track_name, artist_name')
+      .select('bg_image_url, album_art_url, accent_color, track_name, artist_name')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
     if (!data) return null;
     return {
       bgImageUrl: data.bg_image_url ?? undefined,
+      accentColor: data.accent_color,
       albumArtUrl: data.album_art_url ?? undefined,
       trackName: data.track_name ?? undefined,
       artistName: data.artist_name ?? null,

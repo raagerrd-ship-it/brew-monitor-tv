@@ -24,7 +24,7 @@ interface UseSonosPlaybackTickerParams {
   predictiveScheduledRef: React.MutableRefObject<boolean>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string, accentColor?: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackChangeOffsetMs?: number;
@@ -220,7 +220,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             }
             if (result?.bgImageUrl) {
               pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-              onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined);
+              onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined, result.accentColor);
               bgSentRef.current = result.bgImageUrl;
               tvDebug('sonos', `✅ Bakgrund hämtad via watchdog`);
             }

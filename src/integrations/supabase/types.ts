@@ -1492,6 +1492,7 @@ export type Database = {
       }
       sonos_now_playing: {
         Row: {
+          accent_color: string | null
           album_art_url: string | null
           album_art_url_small: string | null
           album_name: string | null
@@ -1508,6 +1509,7 @@ export type Database = {
           loudness: boolean | null
           media_type: string | null
           mute: boolean | null
+          next_accent_color: string | null
           next_album_art_url: string | null
           next_artist_name: string | null
           next_av_transport_uri: string | null
@@ -1535,6 +1537,7 @@ export type Database = {
           widget_art_url: string | null
         }
         Insert: {
+          accent_color?: string | null
           album_art_url?: string | null
           album_art_url_small?: string | null
           album_name?: string | null
@@ -1551,6 +1554,7 @@ export type Database = {
           loudness?: boolean | null
           media_type?: string | null
           mute?: boolean | null
+          next_accent_color?: string | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_av_transport_uri?: string | null
@@ -1578,6 +1582,7 @@ export type Database = {
           widget_art_url?: string | null
         }
         Update: {
+          accent_color?: string | null
           album_art_url?: string | null
           album_art_url_small?: string | null
           album_name?: string | null
@@ -1594,6 +1599,7 @@ export type Database = {
           loudness?: boolean | null
           media_type?: string | null
           mute?: boolean | null
+          next_accent_color?: string | null
           next_album_art_url?: string | null
           next_artist_name?: string | null
           next_av_transport_uri?: string | null
@@ -1630,6 +1636,7 @@ export type Database = {
           bg_saturation: number
           bg_top_gradient_height: number
           bg_top_gradient_opacity: number
+          bg_vignette: number
           created_at: string
           id: string
           selected_group_id: string | null
@@ -1645,6 +1652,7 @@ export type Database = {
           bg_saturation?: number
           bg_top_gradient_height?: number
           bg_top_gradient_opacity?: number
+          bg_vignette?: number
           created_at?: string
           id?: string
           selected_group_id?: string | null
@@ -1660,6 +1668,7 @@ export type Database = {
           bg_saturation?: number
           bg_top_gradient_height?: number
           bg_top_gradient_opacity?: number
+          bg_vignette?: number
           created_at?: string
           id?: string
           selected_group_id?: string | null

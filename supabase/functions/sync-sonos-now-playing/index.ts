@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Fetch settings + existing now-playing row in parallel
     const [settingsResult, npResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height')
+        .select('bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_vignette, bg_top_gradient_opacity, bg_top_gradient_height')
         .order('created_at', { ascending: true })
         .limit(1)
         .single(),
@@ -57,9 +57,10 @@ Deno.serve(async (req) => {
     const settings = settingsResult.data;
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
-      brightness: settings?.bg_brightness ?? 90,
+      brightness: settings?.bg_brightness ?? 70,
       contrast: settings?.bg_contrast ?? 1.0,
-      saturation: settings?.bg_saturation ?? 1.0,
+      saturation: settings?.bg_saturation ?? 0.8,
+      vignette: settings?.bg_vignette ?? 0.35,
       topGradientOpacity: settings?.bg_top_gradient_opacity ?? 0.45,
       topGradientHeight: settings?.bg_top_gradient_height ?? 85,
     };
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
       const { bytes, key } = await bgKey();
       const result = await resolveBackground(supabase, bytes, key, bgSettings, viewportW, viewportH, true, trackName);
       if (result.bgUrl) {
-        const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl, bg_cached: result.cached, bg_generation_ms: result.generationMs };
+        const updateFields: Record<string, any> = { updated_at: new Date().toISOString(), bg_image_url: result.bgUrl, accent_color: result.accentColor, bg_cached: result.cached, bg_generation_ms: result.generationMs };
         const { data: row } = await supabase.from('sonos_now_playing').update(updateFields).eq('id', existingRow.id).select('bg_image_url, next_bg_image_url').single();
         if (row) cleanupUnreferencedBackgrounds(supabase, [row.bg_image_url, row.next_bg_image_url]).catch(() => {});
       }
@@ -160,7 +161,7 @@ Deno.serve(async (req) => {
       if (result.bgUrl) bgImageUrl = result.bgUrl;
 
       if (result.bgUrl) {
-        await supabase.from('sonos_now_playing').update({ bg_image_url: result.bgUrl, bg_cached: result.cached, bg_generation_ms: result.generationMs }).eq('id', existingRow.id);
+        await supabase.from('sonos_now_playing').update({ bg_image_url: result.bgUrl, accent_color: result.accentColor, bg_cached: result.cached, bg_generation_ms: result.generationMs }).eq('id', existingRow.id);
       }
 
       cleanupUnreferencedBackgrounds(supabase, [bgImageUrl, existingRow.next_bg_image_url]).catch(() => {});

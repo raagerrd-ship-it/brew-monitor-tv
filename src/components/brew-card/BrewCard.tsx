@@ -122,7 +122,7 @@ function BrewCardComponent({
 
   return (
     <Card 
-      className={`border-white/15 shadow-deep flex flex-col overflow-hidden h-full relative ${
+      className={`album-accent-card shadow-deep flex flex-col overflow-hidden h-full relative ${
         showInteractiveElements ? 'group' : ''
       }`}
       style={{

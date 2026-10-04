@@ -162,6 +162,13 @@
       "when": 1791108108012,
       "tag": "0022_timer_push_marker",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791112213009,
+      "tag": "0023_sonos_vignette_album_accent",
+      "breakpoints": true
     }
   ]
 }

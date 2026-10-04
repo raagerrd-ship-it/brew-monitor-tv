@@ -127,7 +127,7 @@ export const SonosWidget = memo(function SonosWidget({
   // but never re-activate background while the widget is intentionally hidden.
   useEffect(() => {
     if (!shouldHide && nowPlaying?.bg_image_url && !bgSentRef.current) {
-      onAlbumArtChangeRef.current?.(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
+      onAlbumArtChangeRef.current?.(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined, nowPlaying.accent_color);
       bgSentRef.current = nowPlaying.bg_image_url;
       pushToBgBuffer(validBgBufferRef.current, nowPlaying.bg_image_url);
     }
@@ -243,13 +243,12 @@ export const SonosWidget = memo(function SonosWidget({
           }}>
             <div
               ref={progressBarRef}
-              className="absolute inset-0"
+              className="absolute inset-0 album-accent-progress"
               style={{
                 transform: `scaleX(${Math.max(progress, 1) / 100})`,
                 transformOrigin: 'left',
-                transition: 'transform 1s linear',
-                background: 'hsl(0 0% 95%)',
-                 boxShadow: '0 0 8px hsl(0 0% 95% / 0.6)',
+                transition: 'transform 1s linear, background-color 800ms ease',
+                boxShadow: '0 0 8px var(--album-accent, hsl(var(--primary)))',
                 opacity: 0.9,
               }}
             />
@@ -322,7 +321,7 @@ export const SonosWidget = memo(function SonosWidget({
         {nowPlaying.duration_ms && (
           <div className="flex items-center gap-2 mt-3">
             <div className="flex-1 rounded-full overflow-hidden" style={{ height: progressHeight, background: "rgba(255, 255, 255, 0.2)" }}>
-              <div ref={progressBarRef} className="h-full rounded-full" style={{ width: "100%", transform: "scaleX(0)", transformOrigin: "left", transition: "transform 1s linear", background: "rgba(255, 255, 255, 0.9)" }} />
+              <div ref={progressBarRef} className="h-full rounded-full album-accent-progress" style={{ width: "100%", transform: "scaleX(0)", transformOrigin: "left", transition: "transform 1s linear" }} />
             </div>
             <span ref={debugTimeRef} className="text-white/60 font-mono flex-shrink-0" style={{ fontSize: isMobile ? "8px" : "11px", lineHeight: 1 }}>
               0:00
