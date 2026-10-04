@@ -59,7 +59,7 @@ function BrewChartComponent({
   });
 
   // Memoize sorted events
-  const sortedEvents = useMemo(() => getEventsPerDay(events), [events]);
+  const sortedEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type !== 'jast')), [events]);
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
