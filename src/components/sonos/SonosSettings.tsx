@@ -384,11 +384,11 @@ export function SonosSettings() {
       if (response.ok) {
         const { data: nowPlaying } = await supabase
           .from('sonos_now_playing')
-          .select('bg_image_url, track_name')
+          .select('bg_image_url, accent_color, track_name')
           .limit(1)
           .maybeSingle();
         if (nowPlaying?.bg_image_url) {
-          handleAlbumArtChange(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined);
+          handleAlbumArtChange(nowPlaying.bg_image_url, nowPlaying.track_name ?? undefined, nowPlaying.accent_color);
         }
       }
 

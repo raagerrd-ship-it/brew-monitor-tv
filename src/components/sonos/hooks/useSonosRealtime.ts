@@ -158,6 +158,8 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           || incoming.next_bg_generation_ms !== prev.next_bg_generation_ms;
         const bgMetaChanged = incoming.bg_cached !== prev.bg_cached
           || incoming.bg_generation_ms !== prev.bg_generation_ms;
+        const accentChanged = !!incoming.accent_color && incoming.accent_color !== prev.accent_color
+          && !!incoming.bg_image_url && stripQs(incoming.bg_image_url) === stripQs(prev.bg_image_url);
         const hasVisibleBg = !!(prev.bg_image_url || bgSentRef.current);
         // Same track should only fill a missing bg, not swap in a second variant a few seconds later.
         const bgAlreadySent = incoming.bg_image_url && bgSentRef.current && stripQs(incoming.bg_image_url) === stripQs(bgSentRef.current);
@@ -172,6 +174,9 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
           bgSentRef.current = incoming.bg_image_url;
         }
+        if (accentChanged && !bgActuallyChanged) {
+          onAlbumArtChangeRef.current?.(incoming.bg_image_url, incoming.track_name, incoming.accent_color);
+        }
 
         if (nextBgNew) {
           const nextCacheTag = incoming.next_bg_cached === true
@@ -182,7 +187,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)} ${nextCacheTag}`.trim());
         }
 
-        const hasChanges = nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged
+        const hasChanges = nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged || accentChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
@@ -199,7 +204,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           ...prev,
           playback_state: incoming.playback_state,
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
-          ...(bgActuallyChanged || (incoming.accent_color && !prev.accent_color) ? { accent_color: incoming.accent_color } : {}),
+          ...(bgActuallyChanged || accentChanged ? { accent_color: incoming.accent_color } : {}),
           ...(bgActuallyChanged || bgMetaChanged ? { bg_cached: incoming.bg_cached, bg_generation_ms: incoming.bg_generation_ms } : {}),
           ...(incoming.next_track_name && incoming.next_track_name !== prev.next_track_name
             ? { next_track_name: incoming.next_track_name, next_artist_name: incoming.next_artist_name } : {}),

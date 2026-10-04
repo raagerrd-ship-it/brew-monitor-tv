@@ -5,7 +5,7 @@ interface UseSonosVisibilityParams {
   isConnected: boolean;
   showWidget: boolean;
   nowPlaying: NowPlaying | null;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string, accentColor?: string | null) => void) | undefined>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
 }

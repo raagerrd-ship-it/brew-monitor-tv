@@ -95,7 +95,7 @@ function BrewChartComponent({
 
   const lineType = smoothLines ? "monotoneX" : "linear";
   const isActiveBrew = brewStatus !== 'Konditionering' && brewStatus !== 'Klar' && !!brewStatus;
-  const lastSgIndex = chartData.length - 1;
+  const lastSgIndex = chartData.findLastIndex(p => p.value != null && Number.isFinite(p.value));
   const lastTempIndex = chartData.findLastIndex(p => p.avgTemp != null && Number.isFinite(p.avgTemp));
   const liveDot = (lastIndex: number, color: string) => ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) =>
     isActiveBrew && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy)
