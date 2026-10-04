@@ -163,6 +163,7 @@ export function DashboardHeader({
           boxShadow: isMobile ? '0 4px 18px hsl(var(--background) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.08)' : undefined,
         }}
       >
+        <div aria-hidden="true" className="album-accent-header-line absolute bottom-0 left-0 right-0 h-px pointer-events-none" />
         {/* Soft tint fade out below the header instead of a hard edge */}
         {!isMobile && (
           <div

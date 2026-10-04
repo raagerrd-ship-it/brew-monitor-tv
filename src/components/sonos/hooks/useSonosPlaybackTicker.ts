@@ -220,7 +220,7 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
             }
             if (result?.bgImageUrl) {
               pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-              onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined);
+              onAlbumArtChangeRef.current?.(result.bgImageUrl, nowPlayingRef.current?.track_name ?? undefined, result.accentColor);
               bgSentRef.current = result.bgImageUrl;
               tvDebug('sonos', `✅ Bakgrund hämtad via watchdog`);
             }
