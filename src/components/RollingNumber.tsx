@@ -43,7 +43,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
   }, [digit]);
 
   return (
-    <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums">
+    <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums" style={{ verticalAlign: '-0.14em' }}>
       <span
         className="rolling-number-strip block leading-none"
         style={{
