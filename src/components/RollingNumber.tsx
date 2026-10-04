@@ -1,8 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useTvMode } from "@/contexts/TvModeContext";
 
-const DIGITS = Array.from({ length: 30 }, (_, i) => i % 10);
-const CENTER = 10;
 const DURATION_DESKTOP = 700;
 const DURATION_TV = 2000;
 
@@ -16,12 +14,11 @@ interface RollingNumberProps {
   mode?: "strip" | "step";
 }
 
+// I vila ritas bara siffran; vid byte ritas en kort remsa med just de siffror som passeras
+// (strip) eller [gammal, ny] (step), som glider med transform och sedan kollapsar.
 const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mode }: { digit: number; direction: number; duration: number; mode: "strip" | "step" }) {
-  const [position, setPosition] = useState(CENTER + digit);
-  const [animated, setAnimated] = useState(false);
-  const [step, setStep] = useState<{ old: number; next: number; running: boolean } | null>(null);
+  const [roll, setRoll] = useState<{ seq: number[]; from: number; to: number; running: boolean } | null>(null);
   const previous = useRef(digit);
-  const currentPosition = useRef(CENTER + digit);
   const element = useRef<HTMLSpanElement>(null);
   const directionRef = useRef(direction);
   directionRef.current = direction;
@@ -30,50 +27,33 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
     if (digit === previous.current) return;
     const old = previous.current;
     previous.current = digit;
-    if (mode === "step") {
-      if (element.current?.closest(".cleaning-transition-active")) {
-        setStep(null);
-        return;
-      }
-      setStep({ old, next: digit, running: false });
-      const start = window.setTimeout(() => setStep({ old, next: digit, running: true }), 30);
-      const end = window.setTimeout(() => setStep(null), duration + 50);
-      return () => { window.clearTimeout(start); window.clearTimeout(end); };
-    }
-    if (directionRef.current === 0 || element.current?.closest(".cleaning-transition-active")) {
-      currentPosition.current = CENTER + digit;
-      setAnimated(false);
-      setPosition(currentPosition.current);
+    if (element.current?.closest(".cleaning-transition-active") || (mode === "strip" && directionRef.current === 0)) {
+      setRoll(null);
       return;
     }
-    const steps = directionRef.current > 0 ? (digit - old + 10) % 10 : -((old - digit + 10) % 10);
-    currentPosition.current += steps;
-    setAnimated(true);
-    setPosition(currentPosition.current);
-    const timer = window.setTimeout(() => {
-      currentPosition.current = CENTER + digit;
-      setAnimated(false);
-      setPosition(currentPosition.current);
-    }, duration + 20);
-    return () => window.clearTimeout(timer);
+    let next: { seq: number[]; from: number; to: number };
+    if (mode === "step") {
+      next = { seq: [old, digit], from: 0, to: 1 };
+    } else if (directionRef.current > 0) {
+      const steps = (digit - old + 10) % 10;
+      next = { seq: Array.from({ length: steps + 1 }, (_, i) => (old + i) % 10), from: 0, to: steps };
+    } else {
+      const steps = (old - digit + 10) % 10;
+      next = { seq: Array.from({ length: steps + 1 }, (_, i) => (digit + i) % 10), from: steps, to: 0 };
+    }
+    setRoll({ ...next, running: false });
+    const start = window.setTimeout(() => setRoll({ ...next, running: true }), 30);
+    const end = window.setTimeout(() => setRoll(null), duration + 50);
+    return () => { window.clearTimeout(start); window.clearTimeout(end); };
   }, [digit, duration, mode]);
 
   return (
     <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums" style={{ verticalAlign: '-0.14em' }}>
-      {mode === "step" ? step ? (
-        <span className="rolling-number-strip block leading-none" style={{ transform: `translateY(${step.running ? '-1em' : '0'})`, transition: step.running ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none" }}>
-          <span className="block h-[1em] leading-none">{step.old}</span>
-          <span className="block h-[1em] leading-none">{step.next}</span>
+      {roll ? (
+        <span className="rolling-number-strip block leading-none" style={{ transform: `translateY(-${roll.running ? roll.to : roll.from}em)`, transition: roll.running ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none" }}>
+          {roll.seq.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
         </span>
-      ) : digit : <span
-        className="rolling-number-strip block leading-none"
-        style={{
-          transform: `translateY(-${position}em)`,
-          transition: animated ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none",
-        }}
-      >
-        {DIGITS.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
-      </span>}
+      ) : digit}
     </span>
   );
 });
