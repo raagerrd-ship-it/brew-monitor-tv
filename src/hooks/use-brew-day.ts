@@ -19,7 +19,7 @@ export interface BrewDay {
   updated_at: string;
 }
 
-const STALE_MS = 12 * 60 * 60 * 1000;
+const STALE_MS = 6 * 60 * 60 * 1000;
 
 /** Aktiv bryggdag från Brew Master Dashboard, eller null. Egen realtidskanal. */
 export function useBrewDay(): BrewDay | null {
