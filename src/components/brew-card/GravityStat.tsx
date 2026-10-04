@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
+import { RollingNumber } from "@/components/RollingNumber";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const STALL_THRESHOLD = 0.002;
@@ -156,10 +157,6 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
     ? 'linear-gradient(135deg, hsl(120 50% 20% / 0.15) 0%, hsl(120 40% 15% / 0.1) 100%)'
     : 'linear-gradient(135deg, hsl(38 90% 60% / 0.08) 0%, hsl(222 18% 15% / 0.6) 100%)';
 
-  const sgString = brew.currentSG.toFixed(4);
-  const mainPart = sgString.slice(0, -1);
-  const fourthDecimal = sgString.slice(-1);
-
   const progress = useMemo(() => {
     const range = brew.originalGravity - brew.finalGravity;
     if (range <= 0) return 0;
@@ -171,12 +168,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
   return (
     <StatCard
       label="Gravity"
-      value={
-        <span className="tabular-nums">
-          {mainPart}
-          <span className="text-muted-foreground/40">{fourthDecimal}</span>
-        </span>
-      }
+      value={<RollingNumber value={brew.currentSG} decimals={4} mutedLastDigit />}
       color={color}
       isUpdated={updatedFields[brew.batch_id]?.sg}
       

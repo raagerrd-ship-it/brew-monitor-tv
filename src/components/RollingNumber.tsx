@@ -8,6 +8,7 @@ interface RollingNumberProps {
   decimals?: number;
   mutedLastDigit?: boolean;
   suffix?: React.ReactNode;
+  direction?: 1 | -1;
 }
 
 const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: number; direction: number }) {
@@ -54,18 +55,18 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
   );
 });
 
-export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix }: RollingNumberProps) {
+export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection }: RollingNumberProps) {
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
   const previous = useRef(Number(formatted));
   const numeric = Number(formatted);
-  const direction = numeric > previous.current ? 1 : numeric < previous.current ? -1 : 0;
+  const direction = numeric === previous.current ? 0 : forcedDirection ?? (numeric > previous.current ? 1 : -1);
   useEffect(() => { previous.current = numeric; }, [numeric]);
 
   return (
     <span className="inline-flex items-baseline whitespace-nowrap tabular-nums leading-none" aria-label={`${formatted}${typeof suffix === "string" ? suffix : ""}`}>
       {Array.from(formatted).map((char, i) => (
         <span key={i} className={mutedLastDigit && i === formatted.length - 1 ? "text-muted-foreground/40" : undefined}>
-          /\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} /> : char
+          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} /> : char}
         </span>
       ))}
       {suffix}

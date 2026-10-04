@@ -1,5 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { useTvMode } from "@/contexts/TvModeContext";
+import { RollingNumber } from "./RollingNumber";
 
 function ClockComponent() {
   const { isTvMode } = useTvMode();
@@ -29,8 +30,9 @@ function ClockComponent() {
           lineHeight: 1,
         }}
       >
-        {time.slice(0, 5)}
+        <RollingNumber value={time.slice(0, 2)} direction={1} />
         <span className="text-muted-foreground/40">:</span>
+        <RollingNumber value={time.slice(3, 5)} direction={1} />
         <span className="text-muted-foreground/60">{time.slice(6, 8)}</span>
       </p>
       <p 
