@@ -10,7 +10,7 @@ import { useAlbumArtSetter } from "@/contexts/AlbumArtContext";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
-function MarqueeText({ children, className, innerClassName }: { children: React.ReactNode; className?: string; innerClassName?: string }) {
+function MarqueeText({ children, className, innerClassName, isTvMode = false }: { children: React.ReactNode; className?: string; innerClassName?: string; isTvMode?: boolean }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -27,9 +27,9 @@ function MarqueeText({ children, className, innerClassName }: { children: React.
     <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>
       <div
         ref={innerRef}
-        className={innerClassName ?? "whitespace-nowrap inline-block"}
+        className={`${innerClassName ?? "whitespace-nowrap inline-block"}${overflow > 0 ? " sonos-marquee" : ""}`}
         style={overflow > 0 ? {
-          animation: `marquee-scroll ${8 + overflow * 0.05}s linear 3s infinite`,
+          animation: `marquee-scroll ${8 + overflow * (isTvMode ? 0.12 : 0.05)}s linear 3s infinite`,
           '--marquee-offset': `-${overflow}px`,
         } as React.CSSProperties : undefined}
       >
@@ -207,7 +207,7 @@ export const SonosWidget = memo(function SonosWidget({
         </div>
 
         {/* Value row — exact copy of controller temp row, showing track */}
-        <MarqueeText key={headerTrack.track_name} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+        <MarqueeText key={headerTrack.track_name} isTvMode={isTvMode} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
           <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '22px',
