@@ -1,7 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useTvMode } from "@/contexts/TvModeContext";
 
 const DIGITS = Array.from({ length: 30 }, (_, i) => i % 10);
 const CENTER = 10;
+const DURATION_DESKTOP = 700;
+const DURATION_TV = 2000;
 
 interface RollingNumberProps {
   value: number | string;
@@ -11,7 +14,7 @@ interface RollingNumberProps {
   direction?: 1 | -1;
 }
 
-const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: number; direction: number }) {
+const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: { digit: number; direction: number; duration: number }) {
   const [position, setPosition] = useState(CENTER + digit);
   const [animated, setAnimated] = useState(false);
   const previous = useRef(digit);
@@ -38,7 +41,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
       currentPosition.current = CENTER + digit;
       setAnimated(false);
       setPosition(currentPosition.current);
-    }, 720);
+    }, duration + 20);
     return () => window.clearTimeout(timer);
   }, [digit]);
 
@@ -48,7 +51,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
         className="rolling-number-strip block leading-none"
         style={{
           transform: `translateY(-${position}em)`,
-          transition: animated ? "transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none",
+          transition: animated ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none",
         }}
       >
         {DIGITS.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
@@ -58,6 +61,8 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
 });
 
 export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection }: RollingNumberProps) {
+  const { isTvMode } = useTvMode();
+  const duration = isTvMode ? DURATION_TV : DURATION_DESKTOP;
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
   const previous = useRef(Number(formatted));
   const numeric = Number(formatted);
@@ -68,7 +73,7 @@ export const RollingNumber = memo(function RollingNumber({ value, decimals, mute
     <span className="inline-flex items-baseline whitespace-nowrap tabular-nums leading-none" aria-label={`${formatted}${typeof suffix === "string" ? suffix : ""}`}>
       {Array.from(formatted).map((char, i) => (
         <span key={i} className={mutedLastDigit && i === formatted.length - 1 ? "text-muted-foreground/40" : undefined}>
-          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} /> : char}
+          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} /> : char}
         </span>
       ))}
       {suffix}
