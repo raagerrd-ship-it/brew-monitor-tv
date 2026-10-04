@@ -200,8 +200,11 @@ export function generateDayTicks(chartData: ChartDataPointWithTimestamp[]): numb
  */
 export function getEventDisplay(type: string): EventDisplay {
   switch (type) {
+    case 'jast':
+      return { label: 'Jäst', color: '#eab308' }; // yellow
     case 'syresattning':
       return { label: 'Syresättning', color: '#0ea5e9' }; // cyan
+
     case 'diacetylrast':
       return { label: 'Diacetylrast', color: '#f97316' }; // orange
     case 'torrhumling':
