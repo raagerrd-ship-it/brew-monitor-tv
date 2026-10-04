@@ -305,14 +305,17 @@ export type Database = {
           created_at: string
           fermentation_days: number | null
           fermentation_start: string | null
+          fermentation_start_source: string | null
           fermenting_done_at: string | null
           fermenting_done_basis: string | null
           fg_estimated_at: string | null
           fg_expected: number | null
           fg_measured: number | null
           final_report_at: string | null
+          og: number | null
           og_measured: number | null
           og_measured_at: string | null
+          og_source: string | null
           outcome: string | null
           phase: string | null
           pi_brew_id: string | null
@@ -352,14 +355,17 @@ export type Database = {
           created_at?: string
           fermentation_days?: number | null
           fermentation_start?: string | null
+          fermentation_start_source?: string | null
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
           fg_expected?: number | null
           fg_measured?: number | null
           final_report_at?: string | null
+          og?: number | null
           og_measured?: number | null
           og_measured_at?: string | null
+          og_source?: string | null
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
@@ -399,14 +405,17 @@ export type Database = {
           created_at?: string
           fermentation_days?: number | null
           fermentation_start?: string | null
+          fermentation_start_source?: string | null
           fermenting_done_at?: string | null
           fermenting_done_basis?: string | null
           fg_estimated_at?: string | null
           fg_expected?: number | null
           fg_measured?: number | null
           final_report_at?: string | null
+          og?: number | null
           og_measured?: number | null
           og_measured_at?: string | null
+          og_source?: string | null
           outcome?: string | null
           phase?: string | null
           pi_brew_id?: string | null
