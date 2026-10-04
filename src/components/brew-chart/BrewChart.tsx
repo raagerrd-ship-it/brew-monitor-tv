@@ -176,6 +176,9 @@ function BrewChartComponent({
               isAnimationActive={false}
             />
           ))}
+
+          {/* X-Axis */}
+          <XAxis
             dataKey="timestamp"
             type="number"
             domain={["dataMin", "dataMax"]}
