@@ -34,7 +34,7 @@ function ClockComponent() {
         <span className="text-muted-foreground/40">:</span>
         <RollingNumber value={time.slice(3, 5)} direction={1} />
         <span className="text-muted-foreground/25">:</span>
-        <span className="text-muted-foreground/60"><RollingNumber value={time.slice(6, 8)} direction={1} maxDuration={1000} /></span>
+        <span className="text-muted-foreground/60"><RollingNumber value={time.slice(6, 7)} direction={1} maxDuration={2000} />{time.slice(7, 8)}</span>
       </p>
       <p 
         className="text-foreground uppercase font-bold" 
