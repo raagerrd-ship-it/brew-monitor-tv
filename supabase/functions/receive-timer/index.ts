@@ -21,7 +21,6 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => null);
   if (!body || typeof body.is_active !== "boolean") return json({ error: "is_active (boolean) krävs" }, 400);
 
-  const externalUserId = str(body.external_user_id, 120) ?? "brew-master";
   const milestones = Array.isArray(body.milestones) ? body.milestones.slice(0, 100) : [];
   const remaining = num(body.remaining_seconds) ?? 0;
   const total = num(body.total_seconds) ?? 0;
@@ -53,6 +52,11 @@ Deno.serve(async (req) => {
   };
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  // The old pull used the external account ID; keep writing that same cache row.
+  const { data: existing, error: lookupError } = await supabase.from("cached_external_timer")
+    .select("external_user_id").order("last_synced_at", { ascending: false }).limit(1).maybeSingle();
+  if (lookupError) return json({ error: lookupError.message }, 500);
+  row.external_user_id = existing?.external_user_id ?? str(body.external_user_id, 120) ?? "brew-master";
   const { error } = await supabase.from("cached_external_timer").upsert(row, { onConflict: "external_user_id" });
   if (error) return json({ error: error.message }, 500);
   return json({ ok: true });
