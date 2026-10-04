@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .album-accent-card {
-  border: 1px solid var(--album-accent, hsl(var(--primary)));
+  border: 1px solid color-mix(in srgb, var(--album-accent, hsl(var(--primary))) 35%, transparent);
   transition: border-color 800ms ease;
 }
 .album-accent-header-line {

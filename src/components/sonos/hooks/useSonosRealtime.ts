@@ -115,7 +115,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
 
           if (effectiveBg && effectiveBg !== prev.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, effectiveBg);
-            onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name, incoming.bg_image_url ? incoming.accent_color : preloadedAccent);
+            onAlbumArtChangeRef.current?.(effectiveBg, incoming.track_name, incoming.accent_color ?? preloadedAccent);
             bgSentRef.current = effectiveBg;
           } else if (!effectiveBg) {
             // No bg yet for new track — clear sent ref so subsequent same-track
@@ -131,7 +131,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           return {
             ...incoming,
             bg_image_url: effectiveBg || null,
-            accent_color: incoming.bg_image_url ? incoming.accent_color : preloadedAccent,
+            accent_color: incoming.accent_color ?? preloadedAccent,
             album_art_url: effectiveArt || prev.album_art_url,
             next_bg_image_url: null,
             next_accent_color: null,
