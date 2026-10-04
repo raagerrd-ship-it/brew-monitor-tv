@@ -1,4 +1,4 @@
-import { BgSettings, simpleHash, fetchImageBytes, decodeJpegBytes, processBackground } from "./image-processing.ts";
+import { BgSettings, simpleHash, fetchImageBytes, decodeJpegBytes, processBackground, extractAccent } from "./image-processing.ts";
 
 // Upload image bytes to storage and return public URL
 export async function uploadBackground(
@@ -110,18 +110,22 @@ export async function resolveBackground(
   targetH: number,
   _forceRegenerate?: boolean,
   trackName?: string | null,
-): Promise<{ bgUrl: string | null, cached: boolean, generationMs: number }> {
-  if (!art) return { bgUrl: null, cached: false, generationMs: 0 };
+): Promise<{ bgUrl: string | null, cached: boolean, generationMs: number, accentColor: string | null }> {
+  if (!art) return { bgUrl: null, cached: false, generationMs: 0, accentColor: null };
 
   const t0 = Date.now();
   const trackHash = simpleHash(trackId);
-  const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
+  const settingsHash = simpleHash(`${settings.blur}-${settings.brightness}-${settings.contrast}-${settings.saturation}-${settings.vignette}-${settings.topGradientOpacity}-${settings.topGradientHeight}`);
   const namePart = trackName
     ? '-' + trackName.toLowerCase()
         .replace(/å/g, 'a').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u')
         .replace(/[^a-z0-9]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
     : '';
-  const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v8.jpg`;
+  const bgFileName = `${trackHash}${namePart}-${settingsHash}-${targetW}x${targetH}-v9.jpg`;
+
+  const bytes = typeof art === 'string' ? await fetchImageBytes(art) : art;
+  const decoded = bytes ? await decodeJpegBytes(bytes) : null;
+  const accentColor = decoded ? extractAccent(decoded.data, decoded.width, decoded.height) : null;
 
   // Cache check: skip if forceRegenerate
   if (!_forceRegenerate) {
@@ -135,15 +139,13 @@ export async function resolveBackground(
       const ts = new Date(cached.updated_at || cached.created_at).getTime();
       const elapsed = Date.now() - t0;
       console.log(`[SonosSync] Cache hit: ${bgFileName} (${elapsed}ms)`);
-      return { bgUrl: `${urlData.publicUrl}?v=${ts}`, cached: true, generationMs: elapsed };
+      return { bgUrl: `${urlData.publicUrl}?v=${ts}`, cached: true, generationMs: elapsed, accentColor };
     }
   }
 
   // Cache miss — fetch, process, upload
   // Bytes från bryggan används direkt — ingen nedladdning av filen vi just laddat upp
-  const bytes = typeof art === 'string' ? await fetchImageBytes(art) : art;
-  const decoded = bytes ? await decodeJpegBytes(bytes) : null;
-  if (!decoded) return { bgUrl: null, cached: false, generationMs: Date.now() - t0 };
+  if (!decoded) return { bgUrl: null, cached: false, generationMs: Date.now() - t0, accentColor: null };
 
   console.log(`[SonosSync] Generating BG: ${bgFileName}`);
   const bgBytes = await processBackground(decoded.data, decoded.width, decoded.height, targetW, targetH, settings);
@@ -152,5 +154,5 @@ export async function resolveBackground(
   const elapsed = Date.now() - t0;
   console.log(`[SonosSync] Generated BG in ${elapsed}ms: ${bgFileName}`);
 
-  return { bgUrl, cached: false, generationMs: elapsed };
+  return { bgUrl, cached: false, generationMs: elapsed, accentColor };
 }

@@ -6,6 +6,7 @@ export interface BgSettings {
   brightness: number;
   contrast: number;
   saturation: number;
+  vignette: number;
   topGradientOpacity: number;
   topGradientHeight: number;
 }
@@ -210,6 +211,46 @@ function applyTopGradient(
   }
 }
 
+function applyVignette(pixels: Uint8Array, w: number, h: number, strength: number): void {
+  if (strength <= 0) return;
+  for (let y = 0; y < h; y++) {
+    const dy = (2 * y / (h - 1)) - 1;
+    for (let x = 0; x < w; x++) {
+      const dx = (2 * x / (w - 1)) - 1;
+      const factor = 1 - strength * Math.min(1, (dx * dx + dy * dy) / 2);
+      const i = (y * w + x) * 4;
+      pixels[i] = Math.round(pixels[i] * factor);
+      pixels[i + 1] = Math.round(pixels[i + 1] * factor);
+      pixels[i + 2] = Math.round(pixels[i + 2] * factor);
+    }
+  }
+}
+
+// Sample the original cover, not the darkened/blurred background.
+export function extractAccent(pixels: Uint8Array, w: number, h: number): string | null {
+  const bins = new Map<number, { count: number; saturation: number }>();
+  const stride = Math.max(1, Math.floor(Math.sqrt(w * h / 2048)));
+  for (let y = 0; y < h; y += stride) for (let x = 0; x < w; x += stride) {
+    const i = (y * w + x) * 4;
+    const r = pixels[i] / 255, g = pixels[i + 1] / 255, b = pixels[i + 2] / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
+    const light = (max + min) / 2;
+    const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * light - 1));
+    if (saturation < 0.2 || light < 0.12 || light > 0.88) continue;
+    let hue = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+    hue = (hue * 60 + 360) % 360;
+    const bin = Math.round(hue / 15) % 24;
+    const entry = bins.get(bin) ?? { count: 0, saturation: 0 };
+    entry.count++;
+    entry.saturation += saturation;
+    bins.set(bin, entry);
+  }
+  const dominant = [...bins].sort((a, b) => b[1].count - a[1].count)[0];
+  if (!dominant) return null;
+  const [bin, { count, saturation }] = dominant;
+  return `hsl(${bin * 15} ${Math.round(Math.max(0.5, saturation / count) * 100)}% 60%)`;
+}
+
 // Encode pixel data to JPEG bytes
 async function encodeJpegBytes(pixels: Uint8Array, w: number, h: number, quality: number): Promise<Uint8Array> {
   const { encode } = await jpeg();
@@ -274,6 +315,7 @@ export async function processBackground(
   pixels = applyBlur(pixels, targetW, targetH, settings.blur);
   applyColorAdjustments(pixels, targetW, targetH, settings.brightness, settings.contrast, settings.saturation);
   applyTopGradient(pixels, targetW, targetH, settings.topGradientOpacity, settings.topGradientHeight);
+  applyVignette(pixels, targetW, targetH, settings.vignette);
 
   return encodeJpegBytes(pixels, targetW, targetH, 85);
 }
