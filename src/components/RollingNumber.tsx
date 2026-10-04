@@ -61,6 +61,8 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: 
 });
 
 export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection }: RollingNumberProps) {
+  const { isTvMode } = useTvMode();
+  const duration = isTvMode ? DURATION_TV : DURATION_DESKTOP;
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
   const previous = useRef(Number(formatted));
   const numeric = Number(formatted);
@@ -71,7 +73,7 @@ export const RollingNumber = memo(function RollingNumber({ value, decimals, mute
     <span className="inline-flex items-baseline whitespace-nowrap tabular-nums leading-none" aria-label={`${formatted}${typeof suffix === "string" ? suffix : ""}`}>
       {Array.from(formatted).map((char, i) => (
         <span key={i} className={mutedLastDigit && i === formatted.length - 1 ? "text-muted-foreground/40" : undefined}>
-          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} /> : char}
+          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} /> : char}
         </span>
       ))}
       {suffix}
