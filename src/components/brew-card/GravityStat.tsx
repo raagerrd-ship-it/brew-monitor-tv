@@ -2,7 +2,7 @@ import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 
 const STALL_THRESHOLD = 0.002;
 

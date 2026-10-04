@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode, useRef } from 'react';
 
 type AlbumArtChange = (url: string | null, trackName?: string, accentColor?: string | null) => void;
 const AlbumArtSetterContext = createContext<AlbumArtChange>(() => {});
@@ -18,6 +18,12 @@ const AlbumArtContext = createContext<AlbumArtContextType>({
   visibleBgUrl: null,
   handleAlbumArtChange: () => {},
 });
+
+const HasAlbumArtContext = createContext(false);
+/** Bara om en bakgrund finns — ingen omritning vid varje låtbyte */
+export function useHasAlbumArtBackground() {
+  return useContext(HasAlbumArtContext);
+}
 
 export function useAlbumArt() {
   return useContext(AlbumArtContext);
@@ -66,10 +72,13 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
     img.decode().then(apply, fail);
   }, []);
 
+  const value = useMemo(() => ({ visibleBgUrl, handleAlbumArtChange }), [visibleBgUrl, handleAlbumArtChange]);
   return (
     <AlbumArtSetterContext.Provider value={handleAlbumArtChange}>
-      <AlbumArtContext.Provider value={{ visibleBgUrl, handleAlbumArtChange }}>
-        {children}
+      <AlbumArtContext.Provider value={value}>
+        <HasAlbumArtContext.Provider value={!!visibleBgUrl}>
+          {children}
+        </HasAlbumArtContext.Provider>
       </AlbumArtContext.Provider>
     </AlbumArtSetterContext.Provider>
   );
