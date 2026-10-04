@@ -60,17 +60,15 @@ export function BrewingDashboard() {
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
   useLayoutEffect(() => {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
+    const wasShown = !!previousCleaningView.current;
     previousCleaningView.current = cleaningView;
+    // Switching between two checklists doesn't slide anything.
+    if (wasShown === !!cleaningView) return;
     setCleaningTransition(true);
-    if (!cleaningView) {
-      setCleaningEntered(false);
-      return;
-    }
-    let secondFrame = 0;
-    const firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => setCleaningEntered(true));
-    });
-    return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
+    // Give the Chromecast time to repaint without shadows/filters and to
+    // rasterize the checklist before the slide starts, in both directions.
+    const start = setTimeout(() => setCleaningEntered(!!cleaningView), 700);
+    return () => clearTimeout(start);
   }, [cleaningView, isTvMode]);
   useLayoutEffect(() => {
     if (isMobile && !isTvMode) return;
