@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Brew Master skickar start, paus, fortsätt, milstolpe och stopp direkt till receive-timer (väntar på ändring i Brew Master-projektet).
+- [ ] Verifiera ett faktiskt timerförlopp på TV:n: Brew Master uppger att start, paus, fortsätt, milstolpe och stopp skickas direkt till receive-timer, men ingen mottagen push har ännu synts i timerdatan.
 
 - [x] Rullande siffror i sidhuvudets temperaturer, statkortens huvudvärden och klockans timmar/minuter; statkortens value-shimmer ersatt. Verifiera i förhandsvisningen.
 
