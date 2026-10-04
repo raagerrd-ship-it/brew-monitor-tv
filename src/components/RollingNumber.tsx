@@ -17,7 +17,7 @@ interface RollingNumberProps {
 // I vila ritas bara siffran; vid byte ritas en kort remsa med just de siffror som passeras
 // (strip) eller [gammal, ny] (step), som glider med transform och sedan kollapsar.
 const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mode }: { digit: number; direction: number; duration: number; mode: "strip" | "step" }) {
-  const [roll, setRoll] = useState<{ seq: number[]; from: number; to: number; running: boolean } | null>(null);
+  const [roll, setRoll] = useState<{ seq: number[]; from: number; to: number } | null>(null);
   const previous = useRef(digit);
   const element = useRef<HTMLSpanElement>(null);
   const directionRef = useRef(direction);
@@ -41,16 +41,19 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
       const steps = (old - digit + 10) % 10;
       next = { seq: Array.from({ length: steps + 1 }, (_, i) => (digit + i) % 10), from: steps, to: 0 };
     }
-    setRoll({ ...next, running: false });
-    const start = window.setTimeout(() => setRoll({ ...next, running: true }), 30);
-    const end = window.setTimeout(() => setRoll(null), duration + 50);
-    return () => { window.clearTimeout(start); window.clearTimeout(end); };
-  }, [digit, duration, mode]);
+    setRoll(next);
+  }, [digit, mode]);
+
+  useEffect(() => {
+    if (!roll) return;
+    const end = window.setTimeout(() => setRoll(null), duration + 300);
+    return () => window.clearTimeout(end);
+  }, [roll, duration]);
 
   return (
     <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums" style={{ verticalAlign: '-0.14em' }}>
       {roll ? (
-        <span className="rolling-number-strip block leading-none" style={{ transform: `translateY(-${roll.running ? roll.to : roll.from}em)`, transition: roll.running ? `transform ${duration}ms cubic-bezier(0.2, 0.8, 0.2, 1)` : "none" }}>
+        <span key={`${roll.seq.join('')}-${roll.from}-${roll.to}`} className="rolling-number-strip block leading-none" onAnimationEnd={() => setRoll(null)} style={{ '--roll-from': `translateY(-${roll.from}em)`, '--roll-to': `translateY(-${roll.to}em)`, animationDuration: `${duration}ms` } as React.CSSProperties}>
           {roll.seq.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
         </span>
       ) : digit}
