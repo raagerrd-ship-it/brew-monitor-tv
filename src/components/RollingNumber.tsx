@@ -14,7 +14,7 @@ interface RollingNumberProps {
   direction?: 1 | -1;
 }
 
-const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: number; direction: number }) {
+const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: { digit: number; direction: number; duration: number }) {
   const [position, setPosition] = useState(CENTER + digit);
   const [animated, setAnimated] = useState(false);
   const previous = useRef(digit);
