@@ -220,7 +220,7 @@ function CleaningChecklistOverlayComponent({ entered }: { entered: boolean }) {
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center p-2 motion-reduce:!transition-none"
-      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(var(--background))', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 3000ms cubic-bezier(0.25, 0.10, 0.75, 0.90)', willChange: 'transform', pointerEvents: view ? 'auto' : 'none' }}
+      style={{ top: HEADER_HEIGHT_TV, background: 'hsl(var(--background))', transform: entered ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 4000ms cubic-bezier(0.37, 0, 0.63, 1)', willChange: 'transform', pointerEvents: view ? 'auto' : 'none' }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === 'transform' && !view) setRenderedView(null);
       }}
