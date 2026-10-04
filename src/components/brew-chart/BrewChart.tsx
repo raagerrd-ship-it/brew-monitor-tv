@@ -173,7 +173,6 @@ function BrewChartComponent({
               r={4}
               fill="#eab308"
               stroke="none"
-              isAnimationActive={false}
             />
           ))}
 
