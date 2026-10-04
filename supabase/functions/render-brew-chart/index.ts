@@ -146,6 +146,7 @@ function generateChartSvg(
   compact: boolean = false,
   brewCount: number = 2,
   pillCompensation: boolean = true,
+  active: boolean = false,
 ): string {
   const WIDTH = WIDTHS[brewCount] ?? 600;
   const HEIGHT = compact ? HEIGHT_COMPACT : HEIGHT_FULL;
@@ -356,6 +357,15 @@ function generateChartSvg(
     ? `<path d="${buildPath(targetPoints)}" fill="none" stroke="${COLORS.targetLine}" stroke-width="1.5" stroke-dasharray="4 4"/>`
     : '';
 
+  const liveMarker = (point: { x: number; y: number } | undefined, color: string) => point
+    ? `<g><circle class="chart-live-ring" cx="${point.x}" cy="${point.y}" r="4" fill="${color}"/><circle cx="${point.x}" cy="${point.y}" r="4" fill="${color}"/></g>`
+    : '';
+  const lastTemp = [...parsed].reverse().find(p => (p.actual ?? p.pill) !== null);
+  const liveMarkers = active
+    ? liveMarker(sgPoints[sgPoints.length - 1], COLORS.sgLine) +
+      (lastTemp ? liveMarker({ x: scaleX(lastTemp.t, tMin, tMax), y: tempScaleY((lastTemp.actual ?? lastTemp.pill) as number) }, COLORS.avgTempLine) : '')
+    : '';
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" width="100%" height="100%">
     <defs>
       <linearGradient id="tempSpanGrad" x1="0" y1="0" x2="0" y2="1">
@@ -373,6 +383,7 @@ function generateChartSvg(
     ${controllerSvg}
     ${pillSvg}
     ${sgLineSvg}
+    ${liveMarkers}
   </svg>`;
 }
 
@@ -476,7 +487,7 @@ Deno.serve(async (req) => {
       // Client disconnected before body was read
       return new Response(null, { status: 499, headers: corsHeaders });
     }
-    const { brewId, compact, brewCount, action, pillCompensation } = body;
+    const { brewId, compact, brewCount, action, pillCompensation, brewStatus } = body;
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -531,7 +542,7 @@ Deno.serve(async (req) => {
 
     // ── Step 2: Generate SVG and return inline ──
     const usePillComp = pillCompensation !== undefined ? !!pillCompensation : brew.pill_compensation !== false;
-    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc, usePillComp);
+    const svg = generateChartSvg(chartRows, brew.original_gravity, brew.final_gravity, !!compact, bc, usePillComp, !!brewStatus && brewStatus !== 'Konditionering' && brewStatus !== 'Klar');
 
     console.log(`[RenderChart] Generated ${brewId} in ${Date.now() - startTime}ms (${allSnapshots.length}→${chartRows.length} pts)`);
 

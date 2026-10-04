@@ -25,6 +25,7 @@ export function useSonosInit(params: UseSonosInitParams) {
           supabase
             .from('sonos_settings')
             .select('show_on_dashboard, selected_group_id, track_change_offset_seconds')
+            .order('created_at', { ascending: true })
             .limit(1)
             .maybeSingle(),
           supabase

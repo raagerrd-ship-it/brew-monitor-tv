@@ -481,7 +481,7 @@ export function SonosSettings() {
               </div>
               <Slider value={[bgBrightness]} min={10} max={100} step={5} onValueChange={(v) => setBgBrightness(v[0])} />
               <p className="text-xs text-muted-foreground">
-                Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70-100
+                Normaliserad ljusstyrka — alla bilder når samma ljusnivå oavsett original. Rekommenderat ~70
               </p>
             </div>
             <div className="space-y-3">
