@@ -8,3 +8,7 @@
 - Stora levande siffervärden använder den delade RollingNumber-komponenten; sifferremsorna animerar bara transform och stoppas under rengöringsväxlingar. Why: samma lättviktiga beteende behövs i TV och andra lägen.
 - Klockan använder RollingNumbers två-raders stegläge medan mätvärden behåller den vanliga sifferremsan. Why: klockans 5→0 och 23→00 ska rulla ett steg utan mellansiffror.
 - Brew Master owns timer state and pushes timer changes to receive-timer; the TV reads the cache through realtime with a slow cache-only fallback, never pulls Brew Master on a cron schedule. Why: one writer prevents stale timer state and unnecessary cross-app requests.
+
+- Live-punktens pulserande ring ritas som HTML ovanpå diagrammet, aldrig som SVG-animation; i TV-läge inga drop-shadow-filter, tooltips eller aktiva punkter. Why: SVG-animationer tvingar omritning av hela diagrammet på Chromecast.
+- Reservpollar körs bara när realtiden inte täcker (SUBSCRIBED-grind / ingen händelse på 60 s); use-brew-data äger headerns delade källa och use-rapt-bar-data pollar bara utan ägare. Why: färre anrop och reservpollen saknade Pi-målet.
+- RollingNumber ritar i vila bara siffran och vid byte en kort remsa med de passerade siffrorna. Why: mindre DOM på TV:n med samma rullning.
