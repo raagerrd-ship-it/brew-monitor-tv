@@ -20,10 +20,11 @@ export function useStepPhases(brewId?: string) {
     if (!brewId) return;
     const load = async () => {
       const { data } = await supabase.from("brew_status").select("step_phases").eq("source_id", brewId).maybeSingle();
-      setPhases(Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null);
+      const next = Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null;
+      setPhases((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     };
     load();
-    const t = setInterval(load, 30000);
+    const t = setInterval(load, 300_000);
     return () => clearInterval(t);
   }, [brewId]);
   return phases;

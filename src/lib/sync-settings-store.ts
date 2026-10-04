@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type Row = Record<string, any>;
 
-// En kanal + en 60 s-poll för sync_settings, delad av alla läsare.
+// En kanal + en 5 min-poll för sync_settings, delad av alla läsare.
 let row: Row | null = null;
 const subs = new Set<(r: Row) => void>();
 let started = false;
@@ -33,7 +33,7 @@ export function subscribeSyncSettings(cb: (r: Row) => void): () => void {
         if (p.new) emit({ ...row, ...p.new });
       })
       .subscribe();
-    setInterval(load, 60000);
+    setInterval(load, 300_000);
   }
   return () => { subs.delete(cb); };
 }
