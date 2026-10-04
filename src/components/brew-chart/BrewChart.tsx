@@ -106,6 +106,26 @@ function BrewChartComponent({
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
 
+  // Event labels: explicit horizontal <text> above the dot (no rotation, no wrapping)
+  type DotLabelProps = { viewBox?: { x: number; y: number; width: number; height: number } };
+  const eventLabel = (value: string, color: string) =>
+    ({ viewBox }: DotLabelProps) =>
+      viewBox ? (
+        <text
+          x={viewBox.x + viewBox.width / 2}
+          y={viewBox.y - 6}
+          textAnchor="middle"
+          fill={color}
+          fontSize={10}
+          fontWeight={600}
+        >
+          {value}
+        </text>
+      ) : (
+        <g />
+      );
+
+
   return (
     <div className="h-full relative group">
       <ResponsiveContainer width="100%" height="100%">
@@ -151,29 +171,28 @@ function BrewChartComponent({
                 r={4}
                 fill={eventDisplay.color}
                 stroke="none"
-                label={{
-                  value: eventDisplay.label,
-                  position: "top",
-                  fill: eventDisplay.color,
-                  fontSize: 10,
-                  fontWeight: 600,
-                }}
+                label={eventLabel(eventDisplay.label, eventDisplay.color)}
               />
             );
           })}
 
-          {/* Pitch marker - small yellow dot at the bottom edge */}
-          {pitchEvents.map((event) => (
-            <ReferenceDot
-              key={`pitch-${event.id}`}
-              x={event.timestamp}
-              y={tempDomain[0]}
-              yAxisId="temp"
-              r={4}
-              fill="#eab308"
-              stroke="none"
-            />
-          ))}
+          {/* Pitch marker - dot at the bottom edge with label above the dot */}
+          {pitchEvents.map((event) => {
+            const eventDisplay = getEventDisplay('jast');
+            return (
+              <ReferenceDot
+                key={`pitch-${event.id}`}
+                x={event.timestamp}
+                y={tempDomain[0]}
+                yAxisId="temp"
+                r={4}
+                fill={eventDisplay.color}
+                stroke="none"
+                label={eventLabel(eventDisplay.label, eventDisplay.color)}
+              />
+            );
+          })}
+
 
           {/* X-Axis */}
           <XAxis
