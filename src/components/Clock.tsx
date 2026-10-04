@@ -30,11 +30,11 @@ function ClockComponent() {
           lineHeight: 1,
         }}
       >
-        <RollingNumber value={time.slice(0, 2)} direction={1} />
+        <RollingNumber value={time.slice(0, 2)} mode="step" />
         <span className="text-muted-foreground/40">:</span>
-        <RollingNumber value={time.slice(3, 5)} direction={1} />
+        <RollingNumber value={time.slice(3, 5)} mode="step" />
         <span className="text-muted-foreground/25">:</span>
-        <span className="text-muted-foreground/60"><RollingNumber value={time.slice(6, 7)} direction={1} maxDuration={2000} />{time.slice(7, 8)}</span>
+        <span className="text-muted-foreground/60"><RollingNumber value={time.slice(6, 7)} mode="step" maxDuration={2000} />{time.slice(7, 8)}</span>
       </p>
       <p 
         className="text-foreground uppercase font-bold" 
