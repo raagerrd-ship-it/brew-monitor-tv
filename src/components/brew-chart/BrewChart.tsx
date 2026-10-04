@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useMemo, memo, useRef } from "react";
 import { useTvMode } from "@/contexts/TvModeContext";
 import {
   Area,
@@ -46,6 +46,15 @@ function BrewChartComponent({
   const smoothLines = externalSmoothLines ?? internalSmoothLines;
   const setSmoothLines = onSmoothLinesChange ?? setInternalSmoothLines;
   const { isTvMode } = useTvMode();
+  // Live-ringarna ritas som HTML ovanpå diagrammet (GPU-komponerad transform/opacity i stället för SVG-omritning).
+  const [rings, setRings] = useState<Record<string, { x: number; y: number; color: string }>>({});
+  const ringRef = useRef(rings);
+  const reportRing = (key: string, x: number, y: number, color: string) => {
+    const prev = ringRef.current[key];
+    if (prev && prev.x === x && prev.y === y) return;
+    ringRef.current = { ...ringRef.current, [key]: { x, y, color } };
+    queueMicrotask(() => setRings(ringRef.current));
+  };
 
   // Defer chart rendering using staggered approach
   const shouldRenderChart = useStaggeredRender(chartIndex);
@@ -98,10 +107,12 @@ function BrewChartComponent({
   const isActiveBrew = brewStatus !== 'Konditionering' && brewStatus !== 'Klar' && !!brewStatus;
   const lastSgIndex = chartData.reduce((last, p, i) => p.value != null && Number.isFinite(p.value) ? i : last, -1);
   const lastTempIndex = chartData.reduce((last, p, i) => p.avgTemp != null && Number.isFinite(p.avgTemp) ? i : last, -1);
-  const liveDot = (lastIndex: number, color: string) => ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) =>
-    isActiveBrew && lastIndex >= 0 && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy)
-      ? <g><circle className="chart-live-ring" cx={cx} cy={cy} r={4} fill={color} /><circle cx={cx} cy={cy} r={4} fill={color} /></g>
-      : <g />;
+  const liveDot = (key: string, lastIndex: number, color: string) => ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) => {
+    if (!(isActiveBrew && lastIndex >= 0 && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy))) return <g />;
+    reportRing(key, cx!, cy!, color);
+    return <circle cx={cx} cy={cy} r={4} fill={color} />;
+  };
+  const activeDot = <T,>(d: T) => (isTvMode ? false : d);
   const areaType = smoothLines ? "monotoneX" : "linear";
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
@@ -233,7 +244,7 @@ function BrewChartComponent({
           />
 
           {/* Tooltip */}
-           <Tooltip
+           {!isTvMode && <Tooltip
              contentStyle={{
                backgroundColor: COLORS.card,
                border: "none",
@@ -267,7 +278,24 @@ function BrewChartComponent({
                  }
                  return [value, name];
                }}
+            />}
+
+          {/* TV: bred halvgenomskinlig stroke som glöd i stället för drop-shadow-filter */}
+          {isTvMode && (
+            <Line
+              yAxisId="sg"
+              type={lineType}
+              dataKey="value"
+              stroke={COLORS.sg}
+              strokeOpacity={0.25}
+              strokeWidth={DATA_SERIES_CONFIG.sg.strokeWidth * 3}
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+              tooltipType="none"
+              legendType="none"
             />
+          )}
 
           {/* SG Line */}
           <Line
@@ -276,11 +304,11 @@ function BrewChartComponent({
             dataKey="value"
             stroke={COLORS.sg}
             strokeWidth={DATA_SERIES_CONFIG.sg.strokeWidth}
-            dot={isActiveBrew ? liveDot(lastSgIndex, COLORS.sg) : false}
-            activeDot={{ r: DATA_SERIES_CONFIG.sg.dotRadius, fill: COLORS.sg }}
+            dot={isActiveBrew ? liveDot("sg", lastSgIndex, COLORS.sg) : false}
+            activeDot={activeDot({ r: DATA_SERIES_CONFIG.sg.dotRadius, fill: COLORS.sg })}
             name="value"
             isAnimationActive={isAnimationActive}
-            style={{ filter: DATA_SERIES_CONFIG.sg.filter }}
+            style={isTvMode ? undefined : { filter: DATA_SERIES_CONFIG.sg.filter }}
           />
 
 
@@ -292,8 +320,8 @@ function BrewChartComponent({
             stroke={COLORS.temp}
             strokeWidth={DATA_SERIES_CONFIG.avgTemp.strokeWidth}
             fill={`url(#avgTempGrad-${chartIndex})`}
-            dot={isActiveBrew ? liveDot(lastTempIndex, COLORS.temp) : false}
-            activeDot={{ r: DATA_SERIES_CONFIG.avgTemp.dotRadius, fill: COLORS.temp }}
+            dot={isActiveBrew ? liveDot("temp", lastTempIndex, COLORS.temp) : false}
+            activeDot={activeDot({ r: DATA_SERIES_CONFIG.avgTemp.dotRadius, fill: COLORS.temp })}
             name="avgTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
@@ -309,7 +337,7 @@ function BrewChartComponent({
             strokeWidth={DATA_SERIES_CONFIG.controllerTemp.strokeWidth}
             fill="transparent"
             dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
+            activeDot={activeDot({ r: DATA_SERIES_CONFIG.controllerTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" })}
             name="controllerTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
@@ -339,7 +367,7 @@ function BrewChartComponent({
             strokeWidth={DATA_SERIES_CONFIG.pillTemp.strokeWidth}
             fill="transparent"
             dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" }}
+            activeDot={activeDot({ r: DATA_SERIES_CONFIG.pillTemp.dotRadius, fill: "hsl(var(--temp-blue) / 0.5)" })}
             name="pillTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
@@ -354,13 +382,21 @@ function BrewChartComponent({
             strokeWidth={DATA_SERIES_CONFIG.targetTemp.strokeWidth}
             strokeDasharray={DATA_SERIES_CONFIG.targetTemp.strokeDasharray}
             dot={false}
-            activeDot={{ r: DATA_SERIES_CONFIG.targetTemp.dotRadius, fill: COLORS.targetTemp }}
+            activeDot={activeDot({ r: DATA_SERIES_CONFIG.targetTemp.dotRadius, fill: COLORS.targetTemp })}
             name="targetTemp"
             isAnimationActive={isAnimationActive}
             connectNulls={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
+      {isActiveBrew && Object.entries(rings).map(([key, r]) => (
+        <span
+          key={key}
+          aria-hidden="true"
+          className="chart-live-ring pointer-events-none absolute rounded-full"
+          style={{ left: r.x - 4, top: r.y - 4, width: 8, height: 8, background: r.color }}
+        />
+      ))}
     </div>
   );
 }
