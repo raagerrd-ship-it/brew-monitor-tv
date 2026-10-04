@@ -1,7 +1,9 @@
 import { toRecipeData, type RecipeData } from "@/components/RecipeEditor";
+import { PitchLine } from "./PitchLine";
 
 interface Props {
   recipe: RecipeData | null | undefined;
+  brewId?: string;
   onClose: () => void;
 }
 
@@ -28,7 +30,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function RecipeView({ recipe, onClose }: Props) {
+export function RecipeView({ recipe, brewId, onClose }: Props) {
   // Receptet kan komma i bryggappens/Pi:ns format — översätt först.
   const r = recipe ? toRecipeData(recipe) : recipe;
 
