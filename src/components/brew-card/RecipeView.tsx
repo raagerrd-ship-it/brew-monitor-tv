@@ -57,6 +57,7 @@ export function RecipeView({ recipe, brewId, onClose }: Props) {
         </div>
       ) : (
         <div className="grid gap-3" onClick={(e) => e.stopPropagation()}>
+          {brewId && <PitchLine brewId={brewId} plannedOg={(recipe as any)?.og ?? null} />}
           {r!.ingredients?.length > 0 && (
             <Section title="Ingredienser">
               <ul className="grid gap-0.5">
