@@ -22,7 +22,6 @@
 }
 
 .cleaning-transition-active .animate-marquee,
-.cleaning-transition-active .animate-value-shimmer,
 .cleaning-transition-active .animate-battery-pulse,
 .cleaning-transition-active .animate-pulse,
 .cleaning-transition-active .session-status-glow::after,
@@ -200,16 +199,6 @@ All colors MUST be HSL.
   .scrollbar-hide {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
-  }
-
-  /* Value shimmer animation for stat updates */
-  @keyframes value-shimmer {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  .animate-value-shimmer {
-    animation: value-shimmer 0.8s ease-in-out;
   }
 
   /* Low battery pulse animation */

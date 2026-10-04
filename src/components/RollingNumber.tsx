@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 
-const DIGITS = Array.from({ length: 70 }, (_, i) => i % 10);
-const CENTER = 30;
+const DIGITS = Array.from({ length: 30 }, (_, i) => i % 10);
+const CENTER = 10;
 
 interface RollingNumberProps {
   value: number | string;
