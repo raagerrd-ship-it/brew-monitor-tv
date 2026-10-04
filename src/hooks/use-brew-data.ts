@@ -401,6 +401,8 @@ export function useBrewData(): UseBrewDataReturn {
         });
       }
       if (snap.sg == null) continue;
+      const cutoff = chartCutoffByBrew.get(snap.brew_id);
+      if (cutoff != null && new Date(snap.recorded_at).getTime() < cutoff) continue;
       const list = snapshotsByBrew.get(snap.brew_id) || [];
       list.push({ date: snap.recorded_at, value: snap.sg, temp: snap.pill_temp ?? 0 });
       snapshotsByBrew.set(snap.brew_id, list);
