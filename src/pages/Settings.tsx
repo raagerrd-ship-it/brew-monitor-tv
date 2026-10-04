@@ -256,9 +256,9 @@ export default function Settings() {
                 <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
                   <div className="flex items-center gap-2">
                     <Timer className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-semibold">sync-external-timer</span>
+                    <span className="text-xs font-semibold">receive-timer</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Hämtar live bryggtimer från extern bryggtjänst.</p>
+                  <p className="text-[10px] text-muted-foreground">Tar emot timerändringar direkt från Brew Master.</p>
                 </div>
                 <div className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-1">
                   <div className="flex items-center gap-2">

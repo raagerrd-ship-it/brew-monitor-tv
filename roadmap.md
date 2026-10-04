@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Brew Master skickar start, paus, fortsätt, milstolpe och stopp direkt till receive-timer (väntar på ändring i Brew Master-projektet).
+
 - [x] Rullande siffror i sidhuvudets temperaturer, statkortens huvudvärden och klockans timmar/minuter; statkortens value-shimmer ersatt. Verifiera i förhandsvisningen.
 
 - [x] Polera bryggdagskortet (TV) i befintligt upplägg — måltemp som chip uppe till höger, "x av y klart"-räknare, tydligare status (klar/nästa/kommande) med NÄSTA-märke. Bara befintlig data; ingen extra timer. Verifierat i förhandsvisningen, bygget grönt.
