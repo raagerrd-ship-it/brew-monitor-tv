@@ -7,7 +7,7 @@ interface UseSonosTrackChangeParams {
   localProgressRef: React.MutableRefObject<number | null>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
-  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string) => void) | undefined>;
+  onAlbumArtChangeRef: React.MutableRefObject<((url: string | null, trackName?: string, accentColor?: string | null) => void) | undefined>;
   progressBarRef: React.RefObject<HTMLDivElement | null>;
   debugTimeRef: React.RefObject<HTMLSpanElement | null>;
   trackNameRef: React.RefObject<HTMLDivElement | null>;
@@ -59,7 +59,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         tvDebug('sonos', `🎵 → "${artist}${data.trackName}" ✅`);
         if (nextBg) {
           pushToBgBuffer(validBgBufferRef.current, nextBg);
-          onAlbumArtChangeRef.current?.(nextBg, data.trackName);
+          onAlbumArtChangeRef.current?.(nextBg, data.trackName, prev.next_accent_color);
           bgSentRef.current = nextBg;
         } else {
           // Had widget art but no bg — retry to get bg
@@ -77,9 +77,9 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 }
                 if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                   pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-                  onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
+                  onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName, result.accentColor);
                   bgSentRef.current = result.bgImageUrl;
-                  setNowPlaying(cur => cur ? { ...cur, bg_image_url: result.bgImageUrl } : cur);
+                   setNowPlaying(cur => cur ? { ...cur, bg_image_url: result.bgImageUrl, accent_color: result.accentColor } : cur);
                   break;
                 }
               } catch { /* next attempt */ }
@@ -115,7 +115,7 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
                 setNowPlaying(cur => cur ? { ...cur, track_name: dbTrack, artist_name: result?.artistName ?? null } : cur);
                 if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                   pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-                  onAlbumArtChangeRef.current?.(result.bgImageUrl, dbTrack);
+                   onAlbumArtChangeRef.current?.(result.bgImageUrl, dbTrack, result.accentColor);
                   bgSentRef.current = result.bgImageUrl;
                 }
                 break;
@@ -130,13 +130,14 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
 
               if (result?.bgImageUrl && result.bgImageUrl !== prevBg) {
                 pushToBgBuffer(validBgBufferRef.current, result.bgImageUrl);
-                onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName);
+                 onAlbumArtChangeRef.current?.(result.bgImageUrl, data.trackName, result.accentColor);
                 bgSentRef.current = result.bgImageUrl;
               }
               if (result) {
                 setNowPlaying(cur => cur ? {
                   ...cur,
                   ...(result.bgImageUrl ? { bg_image_url: result.bgImageUrl } : {}),
+                   ...(result.bgImageUrl ? { accent_color: result.accentColor } : {}),
                   ...(result.albumArtUrl ? { album_art_url: result.albumArtUrl } : {}),
                 } : cur);
               }
@@ -155,8 +156,10 @@ export function useSonosTrackChange(params: UseSonosTrackChangeParams) {
         playback_state: data.playbackState,
         position_ms: data.positionMillis,
         ...(nextBg ? { bg_image_url: nextBg, bg_cached: prev.next_bg_cached ?? null, bg_generation_ms: prev.next_bg_generation_ms ?? null } : {}),
+        ...(nextBg ? { accent_color: prev.next_accent_color } : {}),
         ...(nextArt ? { album_art_url: nextArt } : {}),
         next_bg_image_url: null,
+        next_accent_color: null,
         next_album_art_url: null,
         next_track_name: null,
         next_artist_name: null,

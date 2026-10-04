@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useRef } from 'react';
 
-type AlbumArtChange = (url: string | null, trackName?: string) => void;
+type AlbumArtChange = (url: string | null, trackName?: string, accentColor?: string | null) => void;
 const AlbumArtSetterContext = createContext<AlbumArtChange>(() => {});
 
 /** Stable setter only — consumers don't re-render on background swaps */
@@ -11,7 +11,7 @@ import { tvDebug } from '@/lib/tv-debug-log';
 
 interface AlbumArtContextType {
   visibleBgUrl: string | null;
-  handleAlbumArtChange: (url: string | null, trackName?: string) => void;
+  handleAlbumArtChange: AlbumArtChange;
 }
 
 const AlbumArtContext = createContext<AlbumArtContextType>({
@@ -28,16 +28,20 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
   const visibleBgBaseRef = useRef<string | null>(null);
   const preloadingUrlRef = useRef<string | null>(null);
 
-  const handleAlbumArtChange = useCallback((url: string | null, trackName?: string) => {
+  const handleAlbumArtChange = useCallback((url: string | null, trackName?: string, accentColor?: string | null) => {
     const label = trackName ? `"${trackName}"` : '(okänd)';
     if (!url) {
+      document.documentElement.style.removeProperty('--album-accent');
       setVisibleBgUrl(null);
       visibleBgBaseRef.current = null;
       preloadingUrlRef.current = null;
       return;
     }
     const baseUrl = url.split('?')[0];
-    if (baseUrl === visibleBgBaseRef.current) return;
+    if (baseUrl === visibleBgBaseRef.current) {
+      if (accentColor) document.documentElement.style.setProperty('--album-accent', accentColor);
+      return;
+    }
     if (url === preloadingUrlRef.current) return;
     preloadingUrlRef.current = url;
     const img = new Image();
@@ -48,6 +52,8 @@ export function AlbumArtProvider({ children }: { children: ReactNode }) {
         return;
       }
       visibleBgBaseRef.current = baseUrl;
+      if (accentColor) document.documentElement.style.setProperty('--album-accent', accentColor);
+      else document.documentElement.style.removeProperty('--album-accent');
       setVisibleBgUrl(url);
       preloadingUrlRef.current = null;
       tvDebug('bg', `✅ Bakgrund laddad för ${label} — bytt`);
