@@ -383,6 +383,14 @@ export function useBrewData(): UseBrewDataReturn {
       }
     }
 
+    // Diagrammet börjar 1 timme före pitch (fermentation_start) om värden finns.
+    const chartCutoffByBrew = new Map<string, number>();
+    for (const r of brewReadings as any[]) {
+      if (r.fermentation_start) {
+        chartCutoffByBrew.set(r.id, new Date(r.fermentation_start).getTime() - 60 * 60 * 1000);
+      }
+    }
+
     const snapshotsByBrew = new Map<string, Array<{ date: string; value: number; temp: number }>>();
     const latestDutyByBrew = new Map<string, { duty: number; mode: 'cooling' | 'heating' }>();
     for (const snap of allSnapshots) {
@@ -393,6 +401,8 @@ export function useBrewData(): UseBrewDataReturn {
         });
       }
       if (snap.sg == null) continue;
+      const cutoff = chartCutoffByBrew.get(snap.brew_id);
+      if (cutoff != null && new Date(snap.recorded_at).getTime() < cutoff) continue;
       const list = snapshotsByBrew.get(snap.brew_id) || [];
       list.push({ date: snap.recorded_at, value: snap.sg, temp: snap.pill_temp ?? 0 });
       snapshotsByBrew.set(snap.brew_id, list);
