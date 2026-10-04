@@ -1,3 +1,4 @@
+import { useRaptBarStore } from '@/lib/rapt-bar-store';
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -143,31 +144,22 @@ export function useActiveFermentationSession({
     controllerId ??
     null;
 
+  // Ingen egen kanal per kort: läs tankens värden ur den delade källan som use-brew-data håller i realtid.
+  const { controllers: sharedControllers } = useRaptBarStore();
+  const shared = realtimeControllerId ? sharedControllers.find(c => c.controller_id === realtimeControllerId) as any : null;
+  const sharedKey = shared ? [shared.current_temp, shared.pill_temp, shared.actual_temp, shared.target_temp, shared.profile_target_temp].join('|') : null;
   useEffect(() => {
-    const cId = realtimeControllerId;
-    if (!cId) return;
-
-    const channel = supabase
-      .channel(`ferm-ctrl-${cId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'rapt_temp_controllers',
-        filter: `controller_id=eq.${cId}`,
-      }, (payload) => {
-        const newData = payload.new as Record<string, number | null>;
-        setControllerData(prev => ({
-          ...prev,
-          current_temp: newData.current_temp ?? prev?.current_temp ?? null,
-          pill_temp: newData.pill_temp ?? prev?.pill_temp ?? null,
-          actual_temp: newData.actual_temp ?? prev?.actual_temp ?? null,
-          target_temp: newData.target_temp ?? prev?.target_temp ?? null,
-          profile_target_temp: newData.profile_target_temp ?? prev?.profile_target_temp ?? null,
-          name: prev?.name ?? '',
-        }));
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [realtimeControllerId]);
+    if (!shared) return;
+    setControllerData(prev => ({
+      ...prev,
+      current_temp: shared.current_temp ?? prev?.current_temp ?? null,
+      pill_temp: shared.pill_temp ?? prev?.pill_temp ?? null,
+      actual_temp: shared.actual_temp ?? prev?.actual_temp ?? null,
+      target_temp: shared.target_temp ?? prev?.target_temp ?? null,
+      profile_target_temp: shared.profile_target_temp ?? prev?.profile_target_temp ?? null,
+      name: prev?.name ?? '',
+    }));
+  }, [sharedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load session (non-preloaded)
   const loadSession = useCallback(async () => {
