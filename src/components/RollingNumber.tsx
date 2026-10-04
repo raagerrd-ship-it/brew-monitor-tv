@@ -17,18 +17,20 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
   const previous = useRef(digit);
   const currentPosition = useRef(CENTER + digit);
   const element = useRef<HTMLSpanElement>(null);
+  const directionRef = useRef(direction);
+  directionRef.current = direction;
 
   useEffect(() => {
     if (digit === previous.current) return;
     const old = previous.current;
     previous.current = digit;
-    if (direction === 0 || element.current?.closest(".cleaning-transition-active")) {
+    if (directionRef.current === 0 || element.current?.closest(".cleaning-transition-active")) {
       currentPosition.current = CENTER + digit;
       setAnimated(false);
       setPosition(currentPosition.current);
       return;
     }
-    const steps = direction > 0 ? (digit - old + 10) % 10 : -((old - digit + 10) % 10);
+    const steps = directionRef.current > 0 ? (digit - old + 10) % 10 : -((old - digit + 10) % 10);
     currentPosition.current += steps;
     setAnimated(true);
     setPosition(currentPosition.current);
@@ -38,7 +40,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction }: { digit: n
       setPosition(currentPosition.current);
     }, 720);
     return () => window.clearTimeout(timer);
-  }, [digit, direction]);
+  }, [digit]);
 
   return (
     <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums">
