@@ -95,10 +95,10 @@ function BrewChartComponent({
 
   const lineType = smoothLines ? "monotoneX" : "linear";
   const isActiveBrew = brewStatus !== 'Konditionering' && brewStatus !== 'Klar' && !!brewStatus;
-  const lastSgIndex = chartData.findLastIndex(p => p.value != null && Number.isFinite(p.value));
-  const lastTempIndex = chartData.findLastIndex(p => p.avgTemp != null && Number.isFinite(p.avgTemp));
+  const lastSgIndex = chartData.reduce((last, p, i) => p.value != null && Number.isFinite(p.value) ? i : last, -1);
+  const lastTempIndex = chartData.reduce((last, p, i) => p.avgTemp != null && Number.isFinite(p.avgTemp) ? i : last, -1);
   const liveDot = (lastIndex: number, color: string) => ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) =>
-    isActiveBrew && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy)
+    isActiveBrew && lastIndex >= 0 && index === lastIndex && Number.isFinite(cx) && Number.isFinite(cy)
       ? <g><circle className="chart-live-ring" cx={cx} cy={cy} r={4} fill={color} /><circle cx={cx} cy={cy} r={4} fill={color} /></g>
       : <g />;
   const areaType = smoothLines ? "monotoneX" : "linear";

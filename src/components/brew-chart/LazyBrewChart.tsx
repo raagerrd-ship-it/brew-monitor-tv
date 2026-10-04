@@ -37,7 +37,7 @@ const BrewChartLazy = lazy(() =>
  * Refreshes when lastUpdateRaw changes (data update) or every 15 min as fallback.
  */
 function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, brewStatus }: { brewId: string; compact?: boolean; lastUpdateRaw?: string | null; brewCount?: number; brewStatus?: string }) {
-  const cacheKey = `tv-chart-v2-${brewId}-${compact ? 'c' : 'f'}-${brewCount}`;
+  const cacheKey = `tv-chart-v3-${brewId}-${compact ? 'c' : 'f'}-${brewCount}-${brewStatus}`;
   const isInactive = brewStatus === 'Konditionering' || brewStatus === 'Klar';
   const [visibleSvg, setVisibleSvg] = useState<string | null>(() => {
     try { return localStorage.getItem(cacheKey); } catch { return null; }
@@ -57,7 +57,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
       const response = await fetch(`${supabaseUrl}/functions/v1/render-brew-chart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...deviceHeaders() },
-        body: JSON.stringify({ brewId, compact, brewCount }),
+        body: JSON.stringify({ brewId, compact, brewCount, brewStatus }),
         signal,
       });
 
@@ -95,7 +95,7 @@ function TvModeChart({ brewId, compact = false, lastUpdateRaw, brewCount = 2, br
       setError(true);
       return false;
     }
-  }, [brewId, compact, brewCount]);
+  }, [brewId, compact, brewCount, brewStatus]);
 
   // Initial fetch on mount — skip if inactive brew with cached SVG
   useEffect(() => {
