@@ -31,7 +31,6 @@ export function PitchLine({ brewId, plannedOg }: { brewId: string; plannedOg: nu
   const parts: string[] = [];
   if (og != null) parts.push(`OG ${sg(og)}${s.og_source === "pill" ? " (pillen)" : ""}`);
   if (s.og_source === "pill" && plannedOg != null) parts.push(`planerat ${sg(plannedOg)}`);
-  if (s.fg_expected != null) parts.push(`förväntad FG ${sg(s.fg_expected)}`);
   if (!p?.at && !parts.length) return null;
 
   return (
