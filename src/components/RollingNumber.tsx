@@ -53,7 +53,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
   return (
     <span ref={element} aria-hidden="true" className="inline-block h-[1em] overflow-hidden align-baseline leading-none tabular-nums" style={{ verticalAlign: '-0.14em' }}>
       {roll ? (
-        <span className="rolling-number-strip block leading-none" onAnimationEnd={() => setRoll(null)} style={{ '--roll-from': `translateY(-${roll.from}em)`, '--roll-to': `translateY(-${roll.to}em)`, animationDuration: `${duration}ms` } as React.CSSProperties}>
+        <span key={`${roll.seq.join('')}-${roll.from}-${roll.to}`} className="rolling-number-strip block leading-none" onAnimationEnd={() => setRoll(null)} style={{ '--roll-from': `translateY(-${roll.from}em)`, '--roll-to': `translateY(-${roll.to}em)`, animationDuration: `${duration}ms` } as React.CSSProperties}>
           {roll.seq.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
         </span>
       ) : digit}
