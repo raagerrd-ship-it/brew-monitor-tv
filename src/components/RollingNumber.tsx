@@ -12,6 +12,7 @@ interface RollingNumberProps {
   mutedLastDigit?: boolean;
   suffix?: React.ReactNode;
   direction?: 1 | -1;
+  maxDuration?: number;
 }
 
 const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: { digit: number; direction: number; duration: number }) {
@@ -60,9 +61,9 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration }: 
   );
 });
 
-export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection }: RollingNumberProps) {
+export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection, maxDuration }: RollingNumberProps) {
   const { isTvMode } = useTvMode();
-  const duration = isTvMode ? DURATION_TV : DURATION_DESKTOP;
+  const duration = Math.min(isTvMode ? DURATION_TV : DURATION_DESKTOP, maxDuration ?? Infinity);
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
   const previous = useRef(Number(formatted));
   const numeric = Number(formatted);
