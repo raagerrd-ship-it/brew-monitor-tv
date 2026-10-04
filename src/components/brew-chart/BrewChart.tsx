@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -58,8 +59,9 @@ function BrewChartComponent({
     timeRange,
   });
 
-  // Memoize sorted events
+  // Memoize sorted events (pitch marker handled separately as a bottom-edge dot)
   const sortedEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type !== 'jast')), [events]);
+  const pitchEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type === 'jast')), [events]);
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
@@ -160,6 +162,19 @@ function BrewChartComponent({
               />
             );
           })}
+
+          {/* Pitch marker - small yellow dot at the bottom edge */}
+          {pitchEvents.map((event) => (
+            <ReferenceDot
+              key={`pitch-${event.id}`}
+              x={event.timestamp}
+              y={tempDomain[0]}
+              yAxisId="temp"
+              r={4}
+              fill="#eab308"
+              stroke="none"
+            />
+          ))}
 
           {/* X-Axis */}
           <XAxis
