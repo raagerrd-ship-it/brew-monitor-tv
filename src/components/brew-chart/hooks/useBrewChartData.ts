@@ -61,6 +61,8 @@ export function useBrewChartData({
 
   const fullKey = useRef<string>("");
   const lastRecordedAt = useRef<string | null>(null);
+  // Diagrammet börjar 1 timme före pitch (fermentation_start) om värden finns.
+  const chartCutoff = useRef<number | null>(null);
 
   useEffect(() => {
     if (!brewId) {
@@ -78,6 +80,16 @@ export function useBrewChartData({
       const incremental = fullKey.current === key && lastRecordedAt.current != null;
       if (!incremental) setIsLoading(true);
       try {
+        if (!incremental) {
+          const { data: brewRow } = await supabase
+            .from("brew_readings")
+            .select("fermentation_start")
+            .eq("id", brewId)
+            .single();
+          chartCutoff.current = brewRow?.fermentation_start
+            ? new Date(brewRow.fermentation_start).getTime() - 60 * 60 * 1000
+            : null;
+        }
         // Thinning policy caps snapshots at ~500 per brew, no pagination needed
         let q = supabase
           .from("brew_data_snapshots")
@@ -91,7 +103,10 @@ export function useBrewChartData({
           return;
         }
 
-        const rows = (batch as SnapshotRow[]) ?? [];
+        const cutoff = chartCutoff.current;
+        const rows = ((batch as SnapshotRow[]) ?? []).filter(
+          (r) => cutoff == null || new Date(r.recorded_at).getTime() >= cutoff
+        );
         if (incremental) {
           if (rows.length === 0) return;
           setSnapshotRows((prev) => [...prev, ...rows]);
