@@ -1,7 +1,9 @@
 import { toRecipeData, type RecipeData } from "@/components/RecipeEditor";
+import { PitchLine } from "./PitchLine";
 
 interface Props {
   recipe: RecipeData | null | undefined;
+  brewId?: string;
   onClose: () => void;
 }
 
@@ -28,7 +30,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function RecipeView({ recipe, onClose }: Props) {
+export function RecipeView({ recipe, brewId, onClose }: Props) {
   // Receptet kan komma i bryggappens/Pi:ns format — översätt först.
   const r = recipe ? toRecipeData(recipe) : recipe;
 
@@ -55,6 +57,7 @@ export function RecipeView({ recipe, onClose }: Props) {
         </div>
       ) : (
         <div className="grid gap-3" onClick={(e) => e.stopPropagation()}>
+          {brewId && <PitchLine brewId={brewId} plannedOg={(recipe as any)?.og ?? null} />}
           {r!.ingredients?.length > 0 && (
             <Section title="Ingredienser">
               <ul className="grid gap-0.5">
