@@ -46,6 +46,7 @@ export function BrewingDashboard() {
   const brewDay = useBrewDay();
   const { view: cleaningView } = useCleaningChecklist();
   const [cleaningTransition, setCleaningTransition] = useState(false);
+  const [cleaningEntered, setCleaningEntered] = useState(false);
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
   const [brewDayEntered, setBrewDayEntered] = useState(false);
@@ -61,6 +62,15 @@ export function BrewingDashboard() {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
     previousCleaningView.current = cleaningView;
     setCleaningTransition(true);
+    if (!cleaningView) {
+      setCleaningEntered(false);
+      return;
+    }
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => setCleaningEntered(true));
+    });
+    return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
   }, [cleaningView, isTvMode]);
   useLayoutEffect(() => {
     if (isMobile && !isTvMode) return;
@@ -298,7 +308,7 @@ export function BrewingDashboard() {
          if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
        }} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${layoutFooterHeight}px` } : {}),
-           ...(isTvMode ? { transform: cleaningView ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 2000ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
+           ...(isTvMode ? { transform: cleaningEntered ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 2000ms cubic-bezier(0.45, 0, 0.55, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
@@ -398,7 +408,7 @@ export function BrewingDashboard() {
       <DashboardAlertOverlay />
 
       {/* Shared cleaning checklist (toggled from the menu, mirrored on TV) */}
-      <CleaningChecklistOverlay />
+      <CleaningChecklistOverlay entered={cleaningEntered} />
 
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
