@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { notifyBrewDay } from '@/hooks/use-brew-day';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
@@ -840,11 +841,15 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_day_session' }, (p: any) => {
+        lastRtEventAtRef.current = Date.now();
+        notifyBrewDay(p.new);
+      })
       .subscribe((status) => {
         dataChannelSubscribedRef.current = status === 'SUBSCRIBED';
         // Catch up on events missed while the realtime connection was down
         if (status === 'SUBSCRIBED') {
-          if (hasSubscribed) { loadRaptData(); loadBrews(); }
+          if (hasSubscribed) { loadRaptData(); loadBrews(); notifyBrewDay(); }
           hasSubscribed = true;
         }
       });
@@ -860,6 +865,7 @@ export function useBrewData(): UseBrewDataReturn {
       dataChannelSubscribedRef.current = false;
       loadRaptData();
       loadBrews();
+      notifyBrewDay();
       lastRtEventAtRef.current = Date.now();
       watchdogIntervalMsRef.current = Math.min(watchdogIntervalMsRef.current * 2, 900_000);
       setWatchdogNonce(n => n + 1);

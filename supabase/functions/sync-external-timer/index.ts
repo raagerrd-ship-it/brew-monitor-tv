@@ -57,10 +57,17 @@ Deno.serve(async (req) => {
     // Cheap early return: idle timer (inactive, or stuck at 0 s for > 5 min) checked < 20 s ago → skip external call
     const { data: cached } = await localSupabase
       .from('cached_external_timer')
-      .select('is_active, last_synced_at, zero_since')
+      .select('is_active, last_synced_at, zero_since, last_push_at')
       .order('last_synced_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    // Brew Master pushade via receive-timer nyss — dess rad är färskare än vår pull
+    if (cached?.last_push_at && Date.now() - new Date(cached.last_push_at).getTime() < 60_000) {
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'recent_push' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const stuckAtZero = !!cached?.zero_since && Date.now() - new Date(cached.zero_since).getTime() > 5 * 60_000;
     if (cached && (!cached.is_active || stuckAtZero) && Date.now() - new Date(cached.last_synced_at).getTime() < 20_000) {
       return new Response(

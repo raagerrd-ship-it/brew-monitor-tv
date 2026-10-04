@@ -1,0 +1,1 @@
+ALTER TABLE public.cached_external_timer ADD COLUMN IF NOT EXISTS last_push_at timestamptz;

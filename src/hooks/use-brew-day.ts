@@ -21,9 +21,19 @@ export interface BrewDay {
 
 const STALE_MS = 6 * 60 * 60 * 1000;
 
-/** Aktiv bryggdag från Brew Master Dashboard, eller null. Egen realtidskanal. */
+type Row = (BrewDay & { active: boolean }) | null;
+type Listener = (row: Row | undefined) => void; // undefined = ladda om
+const listeners = new Set<Listener>();
+
+/** Anropas från data-updates-kanalen i useBrewData (realtid eller omladdning). */
+export function notifyBrewDay(row?: Row) {
+  listeners.forEach((l) => l(row));
+}
+
+/** Aktiv bryggdag från Brew Master Dashboard, eller null. Realtid via den gemensamma data-kanalen. */
 export function useBrewDay(): BrewDay | null {
-  const [row, setRow] = useState<(BrewDay & { active: boolean }) | null>(null);
+  const [row, setRow] = useState<Row>(null);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -31,11 +41,20 @@ export function useBrewDay(): BrewDay | null {
       setRow((data as any) ?? null);
     };
     load();
-    const channel = supabase
-      .channel("brew-day")
-      .on("postgres_changes", { event: "*", schema: "public", table: "brew_day_session" }, (p) => setRow(p.new as any))
-      .subscribe((s) => { if (s === "SUBSCRIBED") load(); });
-    return () => { supabase.removeChannel(channel); };
+    const listener: Listener = (r) => (r === undefined ? load() : setRow(r));
+    listeners.add(listener);
+    const poll = setInterval(load, 60_000);
+    const stale = setInterval(() => setTick((t) => t + 1), 60_000);
+    const resume = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      listeners.delete(listener);
+      clearInterval(poll);
+      clearInterval(stale);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
   }, []);
 
   if (!row?.active || Date.now() - new Date(row.updated_at).getTime() > STALE_MS) return null;
