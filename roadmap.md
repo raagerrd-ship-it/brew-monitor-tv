@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Verifiera paus, fortsätt och milstolpe var för sig vid ett faktiskt timerförlopp. Start och stopp från Brew Master är bekräftade i timerdatan (Testtimer, push 4 okt 2026 kl. 13:24 respektive 13:26 svensk tid). Timercachen sparar bara senaste tillståndet, så mellanliggande händelser kan inte styrkas i efterhand.
+- [x] Verifiera paus, fortsätt och milstolpe var för sig vid ett faktiskt timerförlopp. Bekräftat av användaren 4 okt 2026 — alla fem tillfällen (start, paus, fortsätt, milstolpe, stopp) når TV:n via receive-timer.
 
 - [x] Rullande siffror i sidhuvudets temperaturer, statkortens huvudvärden och klockans timmar/minuter; statkortens value-shimmer ersatt. Verifiera i förhandsvisningen.
 
