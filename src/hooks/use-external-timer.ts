@@ -133,19 +133,22 @@ export function useExternalTimer() {
 
   const parseMilestone = useCallback((m: unknown): TimerMilestone => {
     const milestone = m as Record<string, unknown>;
+    // Accept both camelCase and the sender contract's snake_case field names.
+    const boolOf = (...keys: string[]) => keys.map(k => milestone[k]).find(v => typeof v === 'boolean') as boolean | undefined;
+    const numOf = (...keys: string[]) => keys.map(k => milestone[k]).find(v => typeof v === 'number') as number | undefined;
     return {
       time: typeof milestone.time === 'number' ? milestone.time : 0,
-      atSeconds: typeof milestone.atSeconds === 'number' ? milestone.atSeconds : undefined,
-      atMs: typeof milestone.atMs === 'number' ? milestone.atMs : undefined,
+      atSeconds: numOf('atSeconds', 'at_seconds'),
+      atMs: numOf('atMs', 'at_ms'),
       label: typeof milestone.label === 'string' ? milestone.label : '',
-      triggered: typeof milestone.triggered === 'boolean' ? milestone.triggered : undefined,
-      current: typeof milestone.current === 'boolean' ? milestone.current : undefined,
-      pauseHere: typeof milestone.pauseHere === 'boolean' ? milestone.pauseHere : undefined,
-      ack: typeof milestone.ack === 'boolean' ? milestone.ack : undefined,
-      acknowledged: typeof milestone.acknowledged === 'boolean' ? milestone.acknowledged : undefined,
-      pauseForTemperature: typeof milestone.pauseForTemperature === 'boolean' ? milestone.pauseForTemperature : undefined,
-      targetTemperature: typeof milestone.targetTemperature === 'number' ? milestone.targetTemperature : undefined,
-      whirlpoolTime: typeof milestone.whirlpoolTime === 'number' ? milestone.whirlpoolTime : undefined,
+      triggered: boolOf('triggered'),
+      current: boolOf('current'),
+      pauseHere: boolOf('pauseHere', 'pause_here'),
+      ack: boolOf('ack'),
+      acknowledged: boolOf('acknowledged'),
+      pauseForTemperature: boolOf('pauseForTemperature', 'pause_for_temperature'),
+      targetTemperature: numOf('targetTemperature', 'target_temperature'),
+      whirlpoolTime: numOf('whirlpoolTime', 'whirlpool_time'),
       description: typeof milestone.description === 'string' ? milestone.description : undefined,
       action: typeof milestone.action === 'string' ? milestone.action : undefined,
     };
