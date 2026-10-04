@@ -29,7 +29,7 @@ function MarqueeText({ children, className, innerClassName, isTvMode = false }: 
         ref={innerRef}
         className={`${innerClassName ?? "whitespace-nowrap inline-block"}${overflow > 0 ? " sonos-marquee" : ""}`}
         style={overflow > 0 ? {
-          animation: `marquee-scroll ${8 + overflow * (isTvMode ? 0.12 : 0.05)}s linear 3s infinite`,
+          animation: `marquee-scroll ${8 + overflow * (isTvMode ? 0.25 : 0.08)}s linear 3s infinite`,
           '--marquee-offset': `-${overflow}px`,
         } as React.CSSProperties : undefined}
       >
