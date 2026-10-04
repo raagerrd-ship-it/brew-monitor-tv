@@ -60,6 +60,7 @@
 
 .cleaning-transition-active .rolling-number-strip {
   animation: none !important;
+  transform: var(--roll-to);
 }
 
 @keyframes rolling-digit {
@@ -78,7 +79,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rolling-number-strip { animation: none !important; }
+  .rolling-number-strip { animation: none !important; transform: var(--roll-to); }
 }
 
 @keyframes glow-pulse {
