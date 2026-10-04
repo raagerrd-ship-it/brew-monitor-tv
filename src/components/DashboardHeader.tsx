@@ -15,6 +15,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 import { TempController } from "@/types/brew";
 import { DEFAULT_DEVICE_COLOR } from "@/lib/brew-utils";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeSyncSettings } from "@/lib/sync-settings-store";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
