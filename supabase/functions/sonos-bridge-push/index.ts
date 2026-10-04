@@ -107,12 +107,12 @@ Deno.serve(async (req) => {
     // Fetch settings + existing row in parallel
     const [settingsResult, existingResult] = await Promise.all([
       supabase.from('sonos_settings')
-        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
+        .select('id, bg_blur, bg_brightness, bg_contrast, bg_saturation, bg_vignette, bg_top_gradient_opacity, bg_top_gradient_height, selected_group_id')
         .order('created_at', { ascending: true })
         .limit(1)
         .single(),
       supabase.from('sonos_now_playing')
-        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, next_album_art_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
+        .select('id, track_name, track_seq, position_ms, bg_image_url, next_bg_image_url, accent_color, next_accent_color, next_album_art_url, next_track_name, playback_state, album_art_url, updated_at, position_stale_count')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -136,9 +136,10 @@ Deno.serve(async (req) => {
 
     const bgSettings: BgSettings = {
       blur: settings?.bg_blur ?? 40,
-      brightness: settings?.bg_brightness ?? 90,
+      brightness: settings?.bg_brightness ?? 70,
       contrast: settings?.bg_contrast ?? 1.0,
-      saturation: settings?.bg_saturation ?? 1.0,
+      saturation: settings?.bg_saturation ?? 0.8,
+      vignette: settings?.bg_vignette ?? 0.35,
       topGradientOpacity: settings?.bg_top_gradient_opacity ?? 0.45,
       topGradientHeight: settings?.bg_top_gradient_height ?? 85,
     };
@@ -268,13 +269,17 @@ Deno.serve(async (req) => {
       original_track_number: originalTrackNumber ?? null,
       protocol_info: protocolInfo ?? null,
       // Clear bg on new track to prevent stale bg flash
-      ...(sameTrack ? (doEarly ? { bg_image_url: existingRow.next_bg_image_url } : {}) : promoteNext ? {
+      ...(sameTrack ? (doEarly ? { bg_image_url: existingRow.next_bg_image_url, accent_color: existingRow.next_accent_color } : {}) : promoteNext ? {
         bg_image_url: existingRow.next_bg_image_url,
+        accent_color: existingRow.next_accent_color,
         ...(existingRow.next_album_art_url && !bridgeArtUrl ? { album_art_url: existingRow.next_album_art_url } : {}),
         next_bg_image_url: null,
+        next_accent_color: null,
       } : {
         bg_image_url: null,
+        accent_color: null,
         next_bg_image_url: null,
+        next_accent_color: null,
       }),
     };
 
@@ -333,11 +338,13 @@ Deno.serve(async (req) => {
     ]);
     if (result?.bgUrl) {
       imageUpdate.bg_image_url = result.bgUrl;
+      imageUpdate.accent_color = result.accentColor;
       imageUpdate.bg_cached = result.cached;
       imageUpdate.bg_generation_ms = result.generationMs;
     }
     if (nextResult?.bgUrl) {
       imageUpdate.next_bg_image_url = nextResult.bgUrl;
+      imageUpdate.next_accent_color = nextResult.accentColor;
       imageUpdate.next_bg_cached = nextResult.cached;
       imageUpdate.next_bg_generation_ms = nextResult.generationMs;
     }
