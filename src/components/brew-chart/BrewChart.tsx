@@ -106,24 +106,28 @@ function BrewChartComponent({
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
 
-  // Event labels: explicit horizontal <text> above the dot (no rotation, no wrapping)
+  // Event labels: vertical text reading upward from just above the dot
   type DotLabelProps = { viewBox?: { x: number; y: number; width: number; height: number } };
   const eventLabel = (value: string, color: string) =>
-    ({ viewBox }: DotLabelProps) =>
-      viewBox ? (
+    ({ viewBox }: DotLabelProps) => {
+      if (!viewBox) return <g />;
+      const x = viewBox.x + viewBox.width / 2 + 4;
+      const y = viewBox.y - 5;
+      return (
         <text
-          x={viewBox.x + viewBox.width / 2}
-          y={viewBox.y - 6}
-          textAnchor="middle"
+          transform={`rotate(-90 ${x} ${y})`}
+          x={x}
+          y={y}
+          textAnchor="start"
           fill={color}
           fontSize={10}
           fontWeight={600}
         >
           {value}
         </text>
-      ) : (
-        <g />
       );
+    };
+
 
 
   return (
