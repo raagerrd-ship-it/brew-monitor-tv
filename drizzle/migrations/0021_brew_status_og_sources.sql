@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_status ADD COLUMN IF NOT EXISTS og numeric, ADD COLUMN IF NOT EXISTS og_source text, ADD COLUMN IF NOT EXISTS fermentation_start_source text;
