@@ -58,8 +58,9 @@ function BrewChartComponent({
     timeRange,
   });
 
-  // Memoize sorted events
+  // Memoize sorted events (pitch marker handled separately as a bottom-edge dot)
   const sortedEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type !== 'jast')), [events]);
+  const pitchEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type === 'jast')), [events]);
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
