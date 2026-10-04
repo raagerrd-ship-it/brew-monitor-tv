@@ -383,6 +383,14 @@ export function useBrewData(): UseBrewDataReturn {
       }
     }
 
+    // Diagrammet börjar 1 timme före pitch (fermentation_start) om värden finns.
+    const chartCutoffByBrew = new Map<string, number>();
+    for (const r of brewReadings as any[]) {
+      if (r.fermentation_start) {
+        chartCutoffByBrew.set(r.id, new Date(r.fermentation_start).getTime() - 60 * 60 * 1000);
+      }
+    }
+
     const snapshotsByBrew = new Map<string, Array<{ date: string; value: number; temp: number }>>();
     const latestDutyByBrew = new Map<string, { duty: number; mode: 'cooling' | 'heating' }>();
     for (const snap of allSnapshots) {
