@@ -106,6 +106,42 @@ var get_live_state_default = defineTool2({
   }
 });
 
+// src/lib/mcp/tools/get-brew-status.ts
+import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@3.0.4";
+import { z } from "npm:zod@^3.25.76";
+var get_brew_status_default = defineTool3({
+  name: "get_brew_status",
+  title: "Get brew status",
+  description: "Read a brew's fermentation status from the Pi: measured OG and its source, fermentation start and its source, pitch details, expected FG. When og_source is 'pill' the OG was measured by the pill; when fermentation_start_source is 'pitch' the start time is when the brewer pitched the yeast \u2014 do not ask about it.",
+  inputSchema: { source_id: z.string().describe("The brew's source_id") },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: async (args, ctx) => {
+    if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
+    const client = supabaseForUser(ctx);
+    const { data: status, error } = await client.from("brew_status").select("source_id, pi_brew_id, phase, og, og_source, og_measured, fg_expected, fermentation_start, fermentation_start_source, pitch, sg_current, attenuation_pct, updated_at").eq("source_id", args.source_id).maybeSingle();
+    if (error) return { content: [{ type: "text", text: error.message }], isError: true };
+    if (!status) return { content: [{ type: "text", text: "No status for that source_id" }], isError: true };
+    const brewIds = [status.source_id, status.pi_brew_id].filter(Boolean);
+    const { data: brew } = await client.from("brew_readings").select("id, name, original_gravity, recipe").in("id", brewIds).limit(1).maybeSingle();
+    const result = {
+      source_id: status.source_id,
+      name: brew?.name ?? null,
+      phase: status.phase,
+      og: status.og,
+      og_source: status.og_source,
+      og_planned: brew?.recipe?.og ?? null,
+      fg_expected: status.fg_expected,
+      fermentation_start: status.fermentation_start,
+      fermentation_start_source: status.fermentation_start_source,
+      pitch: status.pitch,
+      sg_current: status.sg_current,
+      attenuation_pct: status.attenuation_pct,
+      updated_at: status.updated_at
+    };
+    return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
+  }
+});
+
 // src/lib/mcp/index.ts
 var projectRef = "plwchuzidrjgyuepwdcl";
 var mcp_default = defineMcp({
@@ -117,7 +153,7 @@ var mcp_default = defineMcp({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"
   }),
-  tools: [list_controllers_default, get_live_state_default]
+  tools: [list_controllers_default, get_live_state_default, get_brew_status_default]
 });
 
 // lovable-mcp-supabase-entry.ts
