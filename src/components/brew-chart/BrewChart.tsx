@@ -22,7 +22,6 @@ import {
   COLORS,
   GRID_CONFIG,
   DAY_BOUNDARY_CONFIG,
-  EVENT_MARKER_CONFIG,
   DATA_SERIES_CONFIG,
   AXIS_STYLES,
 } from "./chartConfig";
@@ -140,24 +139,24 @@ function BrewChartComponent({
             />
           ))}
 
-          {/* Event markers - must be direct children */}
+          {/* Event markers - dots at the bottom edge with label above the dot */}
           {sortedEvents.map((event) => {
             const eventDisplay = getEventDisplay(event.event_type);
             return (
-              <ReferenceLine
+              <ReferenceDot
                 key={event.id}
                 x={event.timestamp}
-                yAxisId="sg"
-                stroke={eventDisplay.color}
-                strokeWidth={EVENT_MARKER_CONFIG.strokeWidth}
+                y={tempDomain[0]}
+                yAxisId="temp"
+                r={4}
+                fill={eventDisplay.color}
+                stroke="none"
                 label={{
                   value: eventDisplay.label,
-                  position: EVENT_MARKER_CONFIG.labelConfig.position,
+                  position: "top",
                   fill: eventDisplay.color,
-                  fontSize: EVENT_MARKER_CONFIG.labelConfig.fontSize,
-                  fontWeight: EVENT_MARKER_CONFIG.labelConfig.fontWeight,
-                  angle: EVENT_MARKER_CONFIG.labelConfig.angle,
-                  offset: EVENT_MARKER_CONFIG.labelConfig.offset,
+                  fontSize: 10,
+                  fontWeight: 600,
                 }}
               />
             );
