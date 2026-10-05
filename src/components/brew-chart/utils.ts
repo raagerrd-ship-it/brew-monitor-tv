@@ -211,6 +211,10 @@ export function getEventDisplay(type: string): EventDisplay {
       return { label: 'Torrhumling', color: '#22c55e' }; // green
     case 'coldcrash':
       return { label: 'Coldcrash', color: '#3b82f6' }; // blue
+    case 'sample':
+      return { label: 'Prov', color: '#ec4899' }; // pink
+    case 'other':
+      return { label: 'Anteckning', color: '#a855f7' }; // purple
     default:
       return { label: 'Händelse', color: '#a855f7' }; // purple
   }

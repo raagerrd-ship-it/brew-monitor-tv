@@ -849,6 +849,8 @@ export function useBrewData(): UseBrewDataReturn {
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
       .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'brew_data_snapshots' }, (p: any) => dispatch('brew_data_snapshots', p))
+      // Bryggarens händelser är sällsynta — ladda om bryggorna så kurva och kort får dem direkt
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_events' }, () => loadBrews())
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_day_session' }, (p: any) => {
         lastRtEventAtRef.current = Date.now();
         notifyBrewDay(p.new);
