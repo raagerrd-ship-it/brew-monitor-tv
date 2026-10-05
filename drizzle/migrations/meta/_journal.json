@@ -176,6 +176,13 @@
       "when": 1791112687149,
       "tag": "0024_stop_external_timer_cron",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791224197306,
+      "tag": "0025_brew_events_realtime",
+      "breakpoints": true
     }
   ]
 }
