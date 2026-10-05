@@ -1,9 +1,16 @@
 import { toRecipeData, type RecipeData } from "@/components/RecipeEditor";
 import { PitchLine } from "./PitchLine";
 
+interface BrewEvent {
+  id: string;
+  event_date: string;
+  notes: string | null;
+}
+
 interface Props {
   recipe: RecipeData | null | undefined;
   brewId?: string;
+  events?: BrewEvent[];
   onClose: () => void;
 }
 

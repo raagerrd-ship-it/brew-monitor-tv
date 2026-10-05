@@ -391,7 +391,7 @@ function BrewCardComponent({
                 />
               </div>
             ) : recipeExpanded ? (
-              <RecipeView recipe={brew.recipe} brewId={brew.id} onClose={() => setRecipeExpanded(false)} />
+              <RecipeView recipe={brew.recipe} brewId={brew.id} events={brew.events} onClose={() => setRecipeExpanded(false)} />
             ) : (
               <LazyBrewChart 
                 data={brew.sgData} 
