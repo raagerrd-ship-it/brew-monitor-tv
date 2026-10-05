@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
     if (!rows.length) return;
     const { error } = await supabase
       .from("brew_events")
-      .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
+      .upsert(rows, { onConflict: "id" });
     if (error) console.error("events mirror failed:", error.message);
   }
 
