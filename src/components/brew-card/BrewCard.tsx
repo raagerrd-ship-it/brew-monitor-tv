@@ -413,24 +413,6 @@ function BrewCardComponent({
               />
             )}
           </div>
-          {brew.events.length > 0 && (
-            <ul className="flex-shrink-0 mt-1 px-1 space-y-0.5 text-[11px] leading-tight text-muted-foreground">
-              {[...brew.events]
-                .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
-                .slice(0, 3)
-                .map((e) => {
-                  const d = new Date(e.event_date);
-                  const sameDay = d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }) === new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
-                  const time = d.toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' });
-                  const day = sameDay ? '' : `${d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' }).replace('.', '')} `;
-                  return (
-                    <li key={e.id} className="truncate">
-                      <span className="tabular-nums text-foreground/70">{day}{time}</span> {e.notes}
-                    </li>
-                  );
-                })}
-            </ul>
-          )}
         </div>
       )}
         
