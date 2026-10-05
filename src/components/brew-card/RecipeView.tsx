@@ -37,7 +37,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function RecipeView({ recipe, brewId, onClose }: Props) {
+export function RecipeView({ recipe, brewId, events, onClose }: Props) {
   // Receptet kan komma i bryggappens/Pi:ns format — översätt först.
   const r = recipe ? toRecipeData(recipe) : recipe;
 
@@ -125,6 +125,25 @@ export function RecipeView({ recipe, brewId, onClose }: Props) {
           {r!.notes && (
             <Section title="Anteckningar">
               <p className="whitespace-pre-wrap">{r!.notes}</p>
+            </Section>
+          )}
+          {events && events.length > 0 && (
+            <Section title="Händelser">
+              <ul className="grid gap-0.5 text-muted-foreground">
+                {[...events]
+                  .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+                  .map((e) => {
+                    const d = new Date(e.event_date);
+                    const sameDay = d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }) === new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+                    const time = d.toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit' });
+                    const day = sameDay ? '' : `${d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm', day: 'numeric', month: 'short' }).replace('.', '')} `;
+                    return (
+                      <li key={e.id} className="truncate">
+                        <span className="tabular-nums text-foreground/70">{day}{time}</span> {e.notes}
+                      </li>
+                    );
+                  })}
+              </ul>
             </Section>
           )}
         </div>
