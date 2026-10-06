@@ -33,7 +33,8 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
     }
     let next: { seq: number[]; from: number; to: number };
     if (mode === "step") {
-      next = { seq: [old, digit], from: 0, to: 1 };
+      // Ett steg: uppåt vid ökning, nedåt vid minskning
+      next = directionRef.current < 0 ? { seq: [digit, old], from: 1, to: 0 } : { seq: [old, digit], from: 0, to: 1 };
     } else if (directionRef.current > 0) {
       const steps = (digit - old + 10) % 10;
       next = { seq: Array.from({ length: steps + 1 }, (_, i) => (old + i) % 10), from: 0, to: steps };
