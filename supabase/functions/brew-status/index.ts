@@ -72,7 +72,10 @@ Deno.serve(async (req) => {
     const { data: existing } = await supabase
       .from("brew_status").select("final_report_at, racked_at").eq("source_id", sourceId).maybeSingle();
     // En slutrapport utan racked_at ersätts av en senare med racked_at.
-    const accept = !existing?.final_report_at || (!existing.racked_at && body.racked_at != null);
+    // En omskickad slutrapport (samma racked_at) ersätter den gamla.
+    const sameRack = existing?.racked_at != null && body.racked_at != null &&
+      new Date(existing.racked_at).getTime() === new Date(body.racked_at).getTime();
+    const accept = !existing?.final_report_at || (!existing.racked_at && body.racked_at != null) || sameRack;
     if (accept) {
       if (Array.isArray(body.steps_executed)) patch.steps_executed = body.steps_executed;
       for (const k of FINAL_JSON) if (has(k) && Array.isArray(body[k])) patch[k] = body[k];
