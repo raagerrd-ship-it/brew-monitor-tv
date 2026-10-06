@@ -333,9 +333,21 @@ Deno.serve(async (req) => {
       });
     }
     if (!rows.length) return;
+    // Fönstret överlappar — skriv bara nya/ändrade rader så realtiden inte får identiska UPDATEs.
+    const { data: existing } = await supabase
+      .from("brew_events")
+      .select("id, brew_id, event_type, event_date, notes")
+      .in("id", rows.map((r) => r.id));
+    const byId = new Map((existing ?? []).map((r: any) => [r.id, r]));
+    const changed = rows.filter((r) => {
+      const o: any = byId.get(r.id);
+      return !o || o.brew_id !== r.brew_id || o.event_type !== r.event_type || o.notes !== r.notes
+        || new Date(o.event_date).getTime() !== new Date(r.event_date).getTime();
+    });
+    if (!changed.length) return;
     const { error } = await supabase
       .from("brew_events")
-      .upsert(rows, { onConflict: "id" });
+      .upsert(changed, { onConflict: "id" });
     if (error) console.error("events mirror failed:", error.message);
   }
 
