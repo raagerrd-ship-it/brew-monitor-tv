@@ -5,7 +5,7 @@ import { RollingNumber } from "./RollingNumber";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, RotateCcw, Droplets } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, Power, RotateCcw, Droplets } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -542,6 +542,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         {isCooler ? 'Glykol' : (linkedPill?.name || controller.name)}
                       </span>
                       <span className="flex items-center gap-1.5 flex-shrink-0 -mt-[1px]" title={isOff ? `${controller.name} är avstängd` : isManual ? `${controller.name} har manuellt mål (profilen pausad)` : undefined}>
+                        {isOff && (
+                          <Power className="w-3 h-3 text-destructive" aria-label="Avstängd" />
+                        )}
                         {isManual && !isOff && (
                           <Hand style={{
                             width: '0.75rem',
