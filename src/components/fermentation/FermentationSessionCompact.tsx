@@ -8,7 +8,7 @@ import { SessionStatusIcon } from "./SessionStatusIcon";
 import type { StepPhase } from "./StepPhasesList";
 
 const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
-const fmtSg = (v: number) => v.toFixed(4).replace('.', ',');
+const fmtSg = (v: number) => v.toLocaleString('sv-SE', { maximumFractionDigits: 4 });
 import { 
   getBackgroundStyle, 
   getBorderColor, 
