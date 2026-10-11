@@ -122,9 +122,9 @@ export function FermentationSessionCompact({
       conditionText = `Väntar på dig: ${cond.label}`;
       conditionWarn = true;
     } else if (cond.unit === 'h') {
-      const eta = new Date(Date.now() + (cond.target - cond.value) * 3600_000)
-        .toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
-      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} h · klart ca ${eta}`;
+      const eta = fmtEndsAt(cond.ends_at)
+        ?? `klart ca ${fmtClock(new Date(Date.now() + (cond.remaining_h ?? cond.target - cond.value) * 3600_000))}`;
+      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} h · ${eta}`;
       phaseOverlay = cond.value / cond.target;
     } else if (cond.unit === '%') {
       conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} %`;
