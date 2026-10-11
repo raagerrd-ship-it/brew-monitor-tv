@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap, CheckCircle2 } from "lucide-react";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { Progress } from "@/components/ui/progress";
+import { formatConditionParts, type StepPhase } from "./StepPhasesList";
 
 interface StepExecutionDisplayProps {
   currentStep: FermentationProfileStep;
@@ -18,6 +19,8 @@ interface StepExecutionDisplayProps {
   activityScore?: number | null;
   attenuation?: number | null;
   rampDone?: boolean; // Pi:ns delfas säger att rampen är klar
+  /** Pi:ns aktiva delfas ur step_phases — sanningen, ritas rakt av */
+  piActivePhase?: StepPhase | null;
 }
 
 interface ExecutionItem {
@@ -44,10 +47,29 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   activityScore,
   attenuation,
   rampDone,
+  piActivePhase,
 }: StepExecutionDisplayProps) {
   const items: ExecutionItem[] = [];
   const iconClass = "w-3 h-3 shrink-0";
   const stepType = currentStep.step_type;
+
+  // Pi:ns aktiva delfas är sanningen — ritas rakt ur step_phases utan egna gissningar.
+  const piCond = piActivePhase?.condition ?? null;
+  if (piActivePhase && piCond) {
+    const parts = formatConditionParts(piCond);
+    const condIcon = piCond.unit === 'h' ? <Clock className={iconClass} />
+      : piCond.unit === 'sg' ? <Beaker className={iconClass} />
+      : piCond.unit === '°C' ? <Thermometer className={iconClass} />
+      : <Activity className={iconClass} />;
+    items.push({
+      label: parts.waitText ? 'Väntar på dig' : piActivePhase.label,
+      icon: parts.waitText ? <Hand className={iconClass} /> : condIcon,
+      value: parts.waitText ? piCond.label : parts.value ?? '',
+      detail: parts.waitText ? undefined : parts.eta ?? undefined,
+      progress: parts.progress ?? undefined,
+      color: parts.warn ? 'hsl(38 92% 55%)' : 'hsl(var(--primary))',
+    });
+  }
 
   // Step type label
   const stepLabel = getStepTypeLabel(stepType);
@@ -129,7 +151,7 @@ export const StepExecutionDisplay = memo(function StepExecutionDisplay({
   }
 
   // --- Time elapsed ---
-  if (currentStep.duration_hours && (stepType === 'hold' || stepType === 'ramp')) {
+  if (piCond?.unit !== 'h' && currentStep.duration_hours && (stepType === 'hold' || stepType === 'ramp')) {
     const stepStarted = new Date(stepStartedAt);
     const elapsedHours = (Date.now() - stepStarted.getTime()) / (1000 * 60 * 60);
     const remaining = Math.max(0, currentStep.duration_hours - elapsedHours);

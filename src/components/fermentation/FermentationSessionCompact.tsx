@@ -5,22 +5,8 @@ import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/t
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
-import type { StepPhase } from "./StepPhasesList";
+import { formatConditionParts, type StepPhase } from "./StepPhasesList";
 
-const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
-const fmtSg = (v: number) => v.toLocaleString('sv-SE', { maximumFractionDigits: 4 });
-// Pi:ns ends_at är UTC — alltid svensk tid, oavsett TV-enhetens tidszon.
-const STOCKHOLM_TZ = 'Europe/Stockholm';
-const fmtClock = (d: Date) => d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: STOCKHOLM_TZ });
-const fmtEndsAt = (iso: string | null | undefined) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const clock = fmtClock(d);
-  return d.getTime() - Date.now() > 86_400_000
-    ? `klart ${d.toLocaleDateString('sv-SE', { weekday: 'short', timeZone: STOCKHOLM_TZ })} ${clock}`
-    : `klart ca ${clock}`;
-};
 import { 
   getBackgroundStyle, 
   getBorderColor, 
@@ -118,22 +104,10 @@ export function FermentationSessionCompact({
   let conditionWarn = false;
   let phaseOverlay: number | null = null;
   if (hasPiPhases && cond) {
-    if (cond.value == null || cond.target == null) {
-      conditionText = `Väntar på dig: ${cond.label}`;
-      conditionWarn = true;
-    } else if (cond.unit === 'h') {
-      const eta = fmtEndsAt(cond.ends_at)
-        ?? `klart ca ${fmtClock(new Date(Date.now() + (cond.remaining_h ?? cond.target - cond.value) * 3600_000))}`;
-      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} h · ${eta}`;
-      phaseOverlay = cond.value / cond.target;
-    } else if (cond.unit === '%') {
-      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} %`;
-      phaseOverlay = cond.value / cond.target;
-    } else if (cond.unit === '°C') {
-      conditionText = `nu ${fmtNum(cond.value)}° · mål ${fmtNum(cond.target)}°`;
-    } else if (cond.unit === 'sg') {
-      conditionText = `nu ${fmtSg(cond.value)} · mål ${fmtSg(cond.target)}`;
-    }
+    const parts = formatConditionParts(cond);
+    conditionText = parts.waitText ?? ([parts.value, parts.eta].filter(Boolean).join(' · ') || null);
+    conditionWarn = parts.warn;
+    phaseOverlay = parts.progress;
   }
 
   // Single source of truth: backend-computed profile target stored on controller
