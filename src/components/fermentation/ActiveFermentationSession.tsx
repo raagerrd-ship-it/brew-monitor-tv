@@ -229,11 +229,12 @@ export function ActiveFermentationSession({
               </>
             )}
 
-            {session.steps && session.steps.length > 0 && (
+            {!stepPhases?.length && session.steps && session.steps.length > 0 && (
               <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
             )}
 
             <StepPhasesList phases={stepPhases} />
+
 
 
           </div>
