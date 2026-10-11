@@ -544,36 +544,59 @@ export function FermentationSessionCompact({
             
             <Separator />
             
-            {/* Step type label + next step condition */}
-            {(() => {
-              const { icon, color } = getStepIconWithColor(currentStep.step_type);
-              return (
-                <span className="flex items-center gap-1" style={{ color }}>
-                  {icon}
-                  <span className="font-semibold">{getStepTypeLabel(currentStep.step_type)}</span>
+            {/* Step type label + next step condition — med Pi:ns delfaser ritas den aktiva fasen rakt av */}
+            {hasPiPhases ? (
+              <>
+                <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
+                  <Activity className="h-3 w-3 shrink-0" />
+                  <span className="font-semibold">{activePhase?.label ?? piStepName ?? getStepTypeLabel(currentStep.step_type)}</span>
                 </span>
-              );
-            })()}
-            <Separator />
-            <span className="flex items-center gap-1 text-muted-foreground/80">
-              {(() => {
-                const stepType = currentStep.step_type;
-                if (waitingForTemp) return <Thermometer className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                return null;
-              })()}
-              <span className="font-medium">{getNextStepCondition(currentStep)}</span>
-            </span>
+                {conditionText && (
+                  <>
+                    <Separator />
+                    <span
+                      className="flex items-center gap-1 font-medium"
+                      style={{ color: conditionWarn ? 'hsl(38 92% 60%)' : undefined }}
+                      className={conditionWarn ? undefined : "flex items-center gap-1 text-muted-foreground/80 font-medium"}
+                    >
+                      {conditionText}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {(() => {
+                  const { icon, color } = getStepIconWithColor(currentStep.step_type);
+                  return (
+                    <span className="flex items-center gap-1" style={{ color }}>
+                      {icon}
+                      <span className="font-semibold">{getStepTypeLabel(currentStep.step_type)}</span>
+                    </span>
+                  );
+                })()}
+                <Separator />
+                <span className="flex items-center gap-1 text-muted-foreground/80">
+                  {(() => {
+                    const stepType = currentStep.step_type;
+                    if (waitingForTemp) return <Thermometer className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    return null;
+                  })()}
+                  <span className="font-medium">{getNextStepCondition(currentStep)}</span>
+                </span>
 
-            {/* Progress percentage - after condition text */}
-            {isRamping && !waitingForTemp && rampProgress !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
-            )}
-            {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
+                {/* Progress percentage - after condition text */}
+                {isRamping && !waitingForTemp && rampProgress !== null && (
+                  <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
+                )}
+                {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
+                  <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
+                )}
+              </>
             )}
           </div>
         )}
