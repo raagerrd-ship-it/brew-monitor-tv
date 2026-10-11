@@ -9,6 +9,18 @@ import type { StepPhase } from "./StepPhasesList";
 
 const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
 const fmtSg = (v: number) => v.toLocaleString('sv-SE', { maximumFractionDigits: 4 });
+// Pi:ns ends_at är UTC — alltid svensk tid, oavsett TV-enhetens tidszon.
+const STOCKHOLM_TZ = 'Europe/Stockholm';
+const fmtClock = (d: Date) => d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: STOCKHOLM_TZ });
+const fmtEndsAt = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const clock = fmtClock(d);
+  return d.getTime() - Date.now() > 86_400_000
+    ? `klart ${d.toLocaleDateString('sv-SE', { weekday: 'short', timeZone: STOCKHOLM_TZ })} ${clock}`
+    : `klart ca ${clock}`;
+};
 import { 
   getBackgroundStyle, 
   getBorderColor, 
