@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_status ADD COLUMN step_name text, ADD COLUMN step_count integer;

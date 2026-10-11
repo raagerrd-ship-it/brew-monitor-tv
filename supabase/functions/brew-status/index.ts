@@ -19,8 +19,8 @@ const NUM = [
 ];
 // Utfallsdata i slutrapporten — skrivs bara tillsammans med steps_executed.
 const FINAL_JSON = ["time_in_band_pct_per_step", "sg_curve", "sessions"];
-const INT = ["step_index"];
-const TEXT = ["phase", "fermenting_done_basis", "step_label", "outcome", "pi_brew_id", "control_sensor", "og_source", "fermentation_start_source"];
+const INT = ["step_index", "step_count"];
+const TEXT = ["phase", "fermenting_done_basis", "step_label", "step_name", "outcome", "pi_brew_id", "control_sensor", "og_source", "fermentation_start_source"];
 const TIME = ["step_started_at", "step_ends_at", "fg_estimated_at", "fermenting_done_at", "racked_at", "og_measured_at", "fermentation_start"];
 
 Deno.serve(async (req) => {

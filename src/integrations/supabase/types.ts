@@ -327,9 +327,11 @@ export type Database = {
           sg_curve: Json | null
           sg_k: number | null
           source_id: string
+          step_count: number | null
           step_ends_at: string | null
           step_index: number | null
           step_label: string | null
+          step_name: string | null
           step_phases: Json | null
           step_started_at: string | null
           steps_executed: Json | null
@@ -377,9 +379,11 @@ export type Database = {
           sg_curve?: Json | null
           sg_k?: number | null
           source_id: string
+          step_count?: number | null
           step_ends_at?: string | null
           step_index?: number | null
           step_label?: string | null
+          step_name?: string | null
           step_phases?: Json | null
           step_started_at?: string | null
           steps_executed?: Json | null
@@ -427,9 +431,11 @@ export type Database = {
           sg_curve?: Json | null
           sg_k?: number | null
           source_id?: string
+          step_count?: number | null
           step_ends_at?: string | null
           step_index?: number | null
           step_label?: string | null
+          step_name?: string | null
           step_phases?: Json | null
           step_started_at?: string | null
           steps_executed?: Json | null
