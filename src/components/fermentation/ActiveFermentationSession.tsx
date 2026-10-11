@@ -233,6 +233,9 @@ export function ActiveFermentationSession({
               <StepsOverview steps={session.steps} currentStepIndex={session.current_step_index} stepStartTemp={session.step_start_temp} />
             )}
 
+            <StepPhasesList phases={stepPhases} />
+
+
           </div>
 
         </div>
@@ -282,7 +285,6 @@ export function ActiveFermentationSession({
           piTempTargetC={stepStatus?.tempTargetC ?? null}
         />
         )}
-        <StepPhasesList phases={stepPhases} />
       </div>
     );
   }
