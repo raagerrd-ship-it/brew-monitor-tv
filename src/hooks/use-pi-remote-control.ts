@@ -94,7 +94,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       .then(async ({ data }) => {
         const id = data?.[0]?.id;
         if (!id || cancelled) return;
-        const { data: bs } = await supabase.from('brew_status').select('control_sensor').eq('source_id', id).maybeSingle();
+        const { data: bs } = await supabase.from('brew_status').select('control_sensor').or(`source_id.eq.${id},pi_brew_id.eq.${id}`).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (!cancelled) setState((prev) => ({ ...prev, controlSensor: bs?.control_sensor ?? null }));
       });
 

@@ -31,7 +31,9 @@ export function useStepPhases(brewId?: string): StepStatus | null {
       const { data } = await supabase
         .from("brew_status")
         .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c")
-        .eq("source_id", brewId)
+        .or(`source_id.eq.${brewId},pi_brew_id.eq.${brewId}`)
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       const next: StepStatus = {
         phases: Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null,
