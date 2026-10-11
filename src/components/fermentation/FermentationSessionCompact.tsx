@@ -129,7 +129,9 @@ export function FermentationSessionCompact({
 
   // Profile target only — never fall back to controller's raw target_temp,
   // which can be a PWM-burst value (e.g. -5°C / 40°C) and would mislead the user.
-  const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? null;
+  const displayTargetTemp = (hasPiPhases && piTempTargetC != null)
+    ? piTempTargetC
+    : (effectiveStepTarget ?? profileStepTarget ?? null);
 
   const progress = useFermentationProgress({
     currentStep,
@@ -399,15 +401,21 @@ export function FermentationSessionCompact({
         style={{ background: getTopReflection() }}
       />
       
-      {/* Progress overlays */}
-      <ProgressOverlay progress={sgProgress} color="green" />
-      {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
-      {(currentStep?.step_type === 'wait_for_gravity_stable' || 
-        ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
-        <ProgressOverlay progress={piStepProgress ?? stabilityProgress} color="purple" />
-      )}
-      {isGradualRampStep && gradualRampProgress != null && (
-        <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
+      {/* Progress overlays — med Pi:ns delfaser ritas bara den aktiva fasens framsteg */}
+      {hasPiPhases ? (
+        phaseOverlay !== null && <ProgressOverlay progress={phaseOverlay} color={cond?.unit === 'h' ? 'purple' : 'green'} />
+      ) : (
+        <>
+          <ProgressOverlay progress={sgProgress} color="green" />
+          {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
+          {(currentStep?.step_type === 'wait_for_gravity_stable' ||
+            ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
+            <ProgressOverlay progress={piStepProgress ?? stabilityProgress} color="purple" />
+          )}
+          {isGradualRampStep && gradualRampProgress != null && (
+            <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
+          )}
+        </>
       )}
       
       <ShimmerOverlay />
@@ -450,7 +458,9 @@ export function FermentationSessionCompact({
                   boxShadow: progress > 0.5 ? `0 0 8px hsl(var(--primary) / ${progress * 0.2})` : undefined,
                 }}
               >
-                {currentStepIndex + 1} / {totalSteps}
+                {hasPiPhases && piStepIndex != null && piStepCount != null
+                  ? `Steg ${piStepIndex + 1}/${piStepCount}${piStepName ? ` · ${piStepName}` : ''}`
+                  : `${currentStepIndex + 1} / ${totalSteps}`}
               </Badge>
             );
           })()}
