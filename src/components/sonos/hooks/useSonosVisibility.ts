@@ -57,14 +57,23 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
     setGraceExpired(false);
   }, [isInactive, wantsToHide]);
 
-  // PAUSED: hide after 30s without a new update
+  // PAUSED: hide after 30s without a new update — men bara om något spelat
+  // sedan sidan laddades. En paus som är första läget döljer direkt.
   useEffect(() => {
+    if (nowPlaying?.playback_state === 'PLAYBACK_STATE_PLAYING') {
+      hasPlayedRef.current = true;
+    }
     if (isInactive) {
       if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null; }
       setPauseHidden(false);
       return;
     }
     if (isPaused) {
+      if (!hasPlayedRef.current) {
+        setPauseHidden(true);
+        clearAll();
+        return;
+      }
       // (Re)start 30s timer on every update while paused
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = setTimeout(() => {
