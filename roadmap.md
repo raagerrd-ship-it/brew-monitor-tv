@@ -19,4 +19,6 @@
 - [x] Omslagets accentfärg i Sonos-detaljer och kortkanter, synkron med bakgrundsbyte.
 - [x] Pulserande live-punkt på aktiva bryggders SG- och temperaturkurvor.
 - [x] Händelseprickar i diagrammen med vertikalt läst förklaringstext ovanför pricken, jäst/pitch inkluderad.
+- [ ] TV-kortet visar steg/delfas/framsteg rakt ur Pi:ns step_phases (kontrakt v26): nya fält step_name/step_count i brew_status, stegstatus var 60:e s, badge "Steg x/y · namn", aktiv fas label+villkor, en overlay för h/%, fallback oförändrad utan step_phases.
+- [ ] AI-funktion med Claude (användaren bad om det; väntar på val av typ — skrivskyddad, ingen styrning av Pi:n).
 

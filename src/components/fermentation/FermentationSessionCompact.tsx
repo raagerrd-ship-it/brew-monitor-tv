@@ -5,6 +5,10 @@ import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/t
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
+import type { StepPhase } from "./StepPhasesList";
+
+const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
+const fmtSg = (v: number) => v.toLocaleString('sv-SE', { maximumFractionDigits: 4 });
 import { 
   getBackgroundStyle, 
   getBorderColor, 
@@ -51,6 +55,12 @@ interface FermentationSessionCompactProps {
   piStepProgress?: number | null;
   /** Pi:ns aktiva delfas, t.ex. "Vilar tills SG är stilla 2 dygn · 8 / 48 h" */
   piActivePhase?: string | null;
+  /** Pi:ns delfaser rakt ur brew_status.step_phases — ritas utan egna gissningar */
+  piStepPhases?: StepPhase[] | null;
+  piStepName?: string | null;
+  piStepCount?: number | null;
+  piStepIndex?: number | null;
+  piTempTargetC?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -81,14 +91,47 @@ export function FermentationSessionCompact({
   controllerProfileTarget,
   piStepProgress,
   piActivePhase,
+  piStepPhases,
+  piStepName,
+  piStepCount,
+  piStepIndex,
+  piTempTargetC,
 }: FermentationSessionCompactProps) {
+
+  // Pi:ns delfaser är sanningen — inget räknas fram lokalt när de finns.
+  const hasPiPhases = !!piStepPhases && piStepPhases.length > 0;
+  const activePhase = hasPiPhases ? piStepPhases!.find(p => p.status === 'active') : undefined;
+  const cond = activePhase?.condition;
+  let conditionText: string | null = null;
+  let conditionWarn = false;
+  let phaseOverlay: number | null = null;
+  if (hasPiPhases && cond) {
+    if (cond.value == null || cond.target == null) {
+      conditionText = `Väntar på dig: ${cond.label}`;
+      conditionWarn = true;
+    } else if (cond.unit === 'h') {
+      const eta = new Date(Date.now() + (cond.target - cond.value) * 3600_000)
+        .toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} h · klart ca ${eta}`;
+      phaseOverlay = cond.value / cond.target;
+    } else if (cond.unit === '%') {
+      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} %`;
+      phaseOverlay = cond.value / cond.target;
+    } else if (cond.unit === '°C') {
+      conditionText = `nu ${fmtNum(cond.value)}° · mål ${fmtNum(cond.target)}°`;
+    } else if (cond.unit === 'sg') {
+      conditionText = `nu ${fmtSg(cond.value)} · mål ${fmtSg(cond.target)}`;
+    }
+  }
 
   // Single source of truth: backend-computed profile target stored on controller
   const effectiveStepTarget = controllerProfileTarget;
 
   // Profile target only — never fall back to controller's raw target_temp,
   // which can be a PWM-burst value (e.g. -5°C / 40°C) and would mislead the user.
-  const displayTargetTemp = effectiveStepTarget ?? profileStepTarget ?? null;
+  const displayTargetTemp = (hasPiPhases && piTempTargetC != null)
+    ? piTempTargetC
+    : (effectiveStepTarget ?? profileStepTarget ?? null);
 
   const progress = useFermentationProgress({
     currentStep,
@@ -358,15 +401,21 @@ export function FermentationSessionCompact({
         style={{ background: getTopReflection() }}
       />
       
-      {/* Progress overlays */}
-      <ProgressOverlay progress={sgProgress} color="green" />
-      {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
-      {(currentStep?.step_type === 'wait_for_gravity_stable' || 
-        ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
-        <ProgressOverlay progress={piStepProgress ?? stabilityProgress} color="purple" />
-      )}
-      {isGradualRampStep && gradualRampProgress != null && (
-        <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
+      {/* Progress overlays — med Pi:ns delfaser ritas bara den aktiva fasens framsteg */}
+      {hasPiPhases ? (
+        phaseOverlay !== null && <ProgressOverlay progress={phaseOverlay} color={cond?.unit === 'h' ? 'purple' : 'green'} />
+      ) : (
+        <>
+          <ProgressOverlay progress={sgProgress} color="green" />
+          {isRamping && !waitingForTemp && <ProgressOverlay progress={rampProgress} color="amber" />}
+          {(currentStep?.step_type === 'wait_for_gravity_stable' ||
+            ((currentStep?.step_type === 'gradual_ramp' || currentStep?.step_type === 'diacetyl_rest') && gradualRampTriggered && stabilityDuration)) && (
+            <ProgressOverlay progress={piStepProgress ?? stabilityProgress} color="purple" />
+          )}
+          {isGradualRampStep && gradualRampProgress != null && (
+            <ProgressOverlay progress={gradualRampProgress} color={gradualRampTriggered ? 'amber' : 'blue'} />
+          )}
+        </>
       )}
       
       <ShimmerOverlay />
@@ -409,7 +458,9 @@ export function FermentationSessionCompact({
                   boxShadow: progress > 0.5 ? `0 0 8px hsl(var(--primary) / ${progress * 0.2})` : undefined,
                 }}
               >
-                {currentStepIndex + 1} / {totalSteps}
+                {hasPiPhases && piStepIndex != null && piStepCount != null
+                  ? `Steg ${piStepIndex + 1}/${piStepCount}${piStepName ? ` · ${piStepName}` : ''}`
+                  : `${currentStepIndex + 1} / ${totalSteps}`}
               </Badge>
             );
           })()}
@@ -493,36 +544,58 @@ export function FermentationSessionCompact({
             
             <Separator />
             
-            {/* Step type label + next step condition */}
-            {(() => {
-              const { icon, color } = getStepIconWithColor(currentStep.step_type);
-              return (
-                <span className="flex items-center gap-1" style={{ color }}>
-                  {icon}
-                  <span className="font-semibold">{getStepTypeLabel(currentStep.step_type)}</span>
+            {/* Step type label + next step condition — med Pi:ns delfaser ritas den aktiva fasen rakt av */}
+            {hasPiPhases ? (
+              <>
+                <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
+                  <Activity className="h-3 w-3 shrink-0" />
+                  <span className="font-semibold">{activePhase?.label ?? piStepName ?? getStepTypeLabel(currentStep.step_type)}</span>
                 </span>
-              );
-            })()}
-            <Separator />
-            <span className="flex items-center gap-1 text-muted-foreground/80">
-              {(() => {
-                const stepType = currentStep.step_type;
-                if (waitingForTemp) return <Thermometer className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
-                return null;
-              })()}
-              <span className="font-medium">{getNextStepCondition(currentStep)}</span>
-            </span>
+                {conditionText && (
+                  <>
+                    <Separator />
+                    <span
+                      className="flex items-center gap-1 font-medium"
+                      style={{ color: conditionWarn ? 'hsl(38 92% 60%)' : 'hsl(var(--muted-foreground) / 0.8)' }}
+                    >
+                      {conditionText}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {(() => {
+                  const { icon, color } = getStepIconWithColor(currentStep.step_type);
+                  return (
+                    <span className="flex items-center gap-1" style={{ color }}>
+                      {icon}
+                      <span className="font-semibold">{getStepTypeLabel(currentStep.step_type)}</span>
+                    </span>
+                  );
+                })()}
+                <Separator />
+                <span className="flex items-center gap-1 text-muted-foreground/80">
+                  {(() => {
+                    const stepType = currentStep.step_type;
+                    if (waitingForTemp) return <Thermometer className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'hold' && currentStep.duration_hours) return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'ramp') return <Clock className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'wait_for_gravity_stable' || stepType === 'wait_for_sg') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    if (stepType === 'diacetyl_rest' || stepType === 'gradual_ramp') return <Activity className="h-2.5 w-2.5 shrink-0 opacity-60" />;
+                    return null;
+                  })()}
+                  <span className="font-medium">{getNextStepCondition(currentStep)}</span>
+                </span>
 
-            {/* Progress percentage - after condition text */}
-            {isRamping && !waitingForTemp && rampProgress !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
-            )}
-            {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
-              <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
+                {/* Progress percentage - after condition text */}
+                {isRamping && !waitingForTemp && rampProgress !== null && (
+                  <span className="text-muted-foreground font-medium">{Math.round(rampProgress * 100)}%</span>
+                )}
+                {currentStep?.step_type === 'wait_for_gravity_stable' && (piStepProgress ?? stabilityProgress) !== null && (
+                  <span className="text-muted-foreground font-medium">{Math.round(((piStepProgress ?? stabilityProgress) as number) * 100)}%</span>
+                )}
+              </>
             )}
           </div>
         )}
