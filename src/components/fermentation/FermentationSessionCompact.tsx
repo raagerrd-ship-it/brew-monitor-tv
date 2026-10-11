@@ -556,8 +556,7 @@ export function FermentationSessionCompact({
                     <Separator />
                     <span
                       className="flex items-center gap-1 font-medium"
-                      style={{ color: conditionWarn ? 'hsl(38 92% 60%)' : undefined }}
-                      className={conditionWarn ? undefined : "flex items-center gap-1 text-muted-foreground/80 font-medium"}
+                      style={{ color: conditionWarn ? 'hsl(38 92% 60%)' : 'hsl(var(--muted-foreground) / 0.8)' }}
                     >
                       {conditionText}
                     </span>
