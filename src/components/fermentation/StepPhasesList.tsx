@@ -6,7 +6,7 @@ export interface StepPhase {
   label: string;
   status: "done" | "active" | "pending";
   detail?: string | null;
-  condition?: { label: string; value: number | null; target: number | null; unit: string | null } | null;
+  condition?: { label: string; value: number | null; target: number | null; unit: string | null; remaining_h?: number | null; ends_at?: string | null } | null;
 }
 
 const fmt = (v: number | null) => (v == null ? "okänt" : String(Math.round(v * 10) / 10));
