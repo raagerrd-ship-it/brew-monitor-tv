@@ -47,7 +47,8 @@ export function ActiveFermentationSession({
 
   // Pi:n ekar tillbaka vem som äger målet — "av" vinner över "manuellt".
   const piRemote = usePiRemoteControl(controllerId ?? '', !!controllerId);
-  const stepPhases = useStepPhases(brewId);
+  const stepStatus = useStepPhases(brewId);
+  const stepPhases = stepStatus?.phases ?? null;
   const rampDone = !!stepPhases?.some(p => p.status === 'done' && /höj|ramp/i.test(p.label));
   const activePhase = stepPhases?.find(p => p.status === 'active');
   const piActivePhase = activePhase
@@ -274,6 +275,11 @@ export function ActiveFermentationSession({
           controllerProfileTarget={controllerData?.profile_target_temp ?? null}
           piStepProgress={(session as { step_progress?: number | null }).step_progress ?? null}
           piActivePhase={piActivePhase}
+          piStepPhases={stepPhases}
+          piStepName={stepStatus?.stepName ?? null}
+          piStepCount={stepStatus?.stepCount ?? null}
+          piStepIndex={stepStatus?.stepIndex ?? null}
+          piTempTargetC={stepStatus?.tempTargetC ?? null}
         />
         )}
         <StepPhasesList phases={stepPhases} />
