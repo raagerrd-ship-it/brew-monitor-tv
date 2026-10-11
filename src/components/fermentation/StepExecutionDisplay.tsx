@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Thermometer, Clock, ArrowDown, ArrowUp, Activity, Hand, Beaker, Zap, CheckCircle2 } from "lucide-react";
 import { FermentationProfileStep, getStepTypeLabel } from "@/types/fermentation";
 import { Progress } from "@/components/ui/progress";
+import { formatConditionParts, type StepPhase } from "./StepPhasesList";
 
 interface StepExecutionDisplayProps {
   currentStep: FermentationProfileStep;
@@ -18,6 +19,8 @@ interface StepExecutionDisplayProps {
   activityScore?: number | null;
   attenuation?: number | null;
   rampDone?: boolean; // Pi:ns delfas säger att rampen är klar
+  /** Pi:ns aktiva delfas ur step_phases — sanningen, ritas rakt av */
+  piActivePhase?: StepPhase | null;
 }
 
 interface ExecutionItem {
