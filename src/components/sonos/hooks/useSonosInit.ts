@@ -49,17 +49,18 @@ export function useSonosInit(params: UseSonosInitParams) {
 
         const { data: npData, error: npError } = nowPlayingResult;
         if (npData && !npError && show) {
-          const PAUSE_TIMEOUT_MS = 5 * 60 * 1000;
-          const isPausedOrIdle = npData.playback_state === 'PLAYBACK_STATE_PAUSED' || npData.playback_state === 'PLAYBACK_STATE_IDLE';
-          const stalePause = isPausedOrIdle && npData.updated_at && (Date.now() - new Date(npData.updated_at).getTime()) > PAUSE_TIMEOUT_MS;
-
-          if (npData.playback_state !== 'PLAYBACK_STATE_IDLE' && !stalePause) {
+          // Seed the monotonic seq gate regardless of state
+          if (typeof npData.track_seq === 'number') {
+            acceptedSeqRef.current = npData.track_seq;
+          }
+          // Vid start: visa bara om Sonos faktiskt spelar — en pausad rad
+          // uppdateras fortlöpande av bryggan och ska inte väcka widgeten.
+          const isPlaying = npData.playback_state === 'PLAYBACK_STATE_PLAYING'
+            || npData.playback_state === 'PLAYBACK_STATE_BUFFERING'
+            || npData.playback_state === 'PLAYBACK_STATE_TRANSITIONING';
+          if (isPlaying) {
             setNowPlaying(npData);
             localProgressRef.current = npData.position_ms;
-            // Seed the monotonic seq gate
-            if (typeof npData.track_seq === 'number') {
-              acceptedSeqRef.current = npData.track_seq;
-            }
           }
         }
       } catch {
