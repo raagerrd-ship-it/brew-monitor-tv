@@ -22,6 +22,8 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
   const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pauseHidden, setPauseHidden] = useState(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Har något spelat sedan sidan laddades? Styr om 30 s-pausgränsen gäller.
+  const hasPlayedRef = useRef(false);
 
   const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
   const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
@@ -55,14 +57,23 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
     setGraceExpired(false);
   }, [isInactive, wantsToHide]);
 
-  // PAUSED: hide after 30s without a new update
+  // PAUSED: hide after 30s without a new update — men bara om något spelat
+  // sedan sidan laddades. En paus som är första läget döljer direkt.
   useEffect(() => {
+    if (nowPlaying?.playback_state === 'PLAYBACK_STATE_PLAYING') {
+      hasPlayedRef.current = true;
+    }
     if (isInactive) {
       if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null; }
       setPauseHidden(false);
       return;
     }
     if (isPaused) {
+      if (!hasPlayedRef.current) {
+        setPauseHidden(true);
+        clearAll();
+        return;
+      }
       // (Re)start 30s timer on every update while paused
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = setTimeout(() => {
