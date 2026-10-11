@@ -105,7 +105,7 @@ export function FermentationSessionCompact({
   let phaseOverlay: number | null = null;
   if (hasPiPhases && cond) {
     const parts = formatConditionParts(cond);
-    conditionText = parts.waitText ?? [parts.value, parts.eta].filter(Boolean).join(' · ') || null;
+    conditionText = parts.waitText ?? ([parts.value, parts.eta].filter(Boolean).join(' · ') || null);
     conditionWarn = parts.warn;
     phaseOverlay = parts.progress;
   }
