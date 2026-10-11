@@ -13,21 +13,41 @@ const fmt = (v: number | null) => (v == null ? "okänt" : String(Math.round(v * 
 export const formatCondition = (c: NonNullable<StepPhase["condition"]>) =>
   `${fmt(c.value)} / ${fmt(c.target)}${c.unit ? ` ${c.unit}` : ""}`;
 
-// Läser exakt de delfaser Pi:n skriver i brew_status.step_phases — inget räknas fram här.
-export function useStepPhases(brewId?: string) {
-  const [phases, setPhases] = useState<StepPhase[] | null>(null);
+export interface StepStatus {
+  phases: StepPhase[] | null;
+  stepName: string | null;
+  stepCount: number | null;
+  stepIndex: number | null;
+  stepEndsAt: string | null;
+  tempTargetC: number | null;
+}
+
+// Läser exakt det Pi:n skriver i brew_status — inget räknas fram här.
+export function useStepPhases(brewId?: string): StepStatus | null {
+  const [status, setStatus] = useState<StepStatus | null>(null);
   useEffect(() => {
     if (!brewId) return;
     const load = async () => {
-      const { data } = await supabase.from("brew_status").select("step_phases").eq("source_id", brewId).maybeSingle();
-      const next = Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null;
-      setPhases((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+      const { data } = await supabase
+        .from("brew_status")
+        .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c")
+        .eq("source_id", brewId)
+        .maybeSingle();
+      const next: StepStatus = {
+        phases: Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null,
+        stepName: data?.step_name ?? null,
+        stepCount: data?.step_count ?? null,
+        stepIndex: data?.step_index ?? null,
+        stepEndsAt: data?.step_ends_at ?? null,
+        tempTargetC: data?.temp_target_c ?? null,
+      };
+      setStatus((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     };
     load();
-    const t = setInterval(load, 300_000);
+    const t = setInterval(load, 60_000);
     return () => clearInterval(t);
   }, [brewId]);
-  return phases;
+  return status;
 }
 
 export function StepPhasesList({ phases }: { phases: StepPhase[] | null }) {
