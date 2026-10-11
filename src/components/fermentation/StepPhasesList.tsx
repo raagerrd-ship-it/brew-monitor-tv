@@ -13,6 +13,48 @@ const fmt = (v: number | null) => (v == null ? "okänt" : String(Math.round(v * 
 export const formatCondition = (c: NonNullable<StepPhase["condition"]>) =>
   `${fmt(c.value)} / ${fmt(c.target)}${c.unit ? ` ${c.unit}` : ""}`;
 
+const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
+const fmtSg = (v: number) => v.toLocaleString('sv-SE', { maximumFractionDigits: 4 });
+// Pi:ns ends_at är UTC — alltid svensk tid, oavsett TV-enhetens tidszon.
+const STOCKHOLM_TZ = 'Europe/Stockholm';
+const fmtClock = (d: Date) => d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: STOCKHOLM_TZ });
+const fmtEndsAt = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const clock = fmtClock(d);
+  return d.getTime() - Date.now() > 86_400_000
+    ? `klart ${d.toLocaleDateString('sv-SE', { weekday: 'short', timeZone: STOCKHOLM_TZ })} ${clock}`
+    : `klart ca ${clock}`;
+};
+
+export interface ConditionParts {
+  value: string | null;
+  eta: string | null;
+  warn: boolean;
+  progress: number | null;
+  waitText: string | null;
+}
+
+// Formaterar Pi:ns aktiva delfasvillkor — en källa för både TV-kortet och stegvisningen.
+export function formatConditionParts(c: NonNullable<StepPhase["condition"]>): ConditionParts {
+  if (c.value == null || c.target == null)
+    return { value: null, eta: null, warn: true, progress: null, waitText: `Väntar på dig: ${c.label}` };
+  if (c.unit === 'h') {
+    const eta = fmtEndsAt(c.ends_at)
+      ?? `klart ca ${fmtClock(new Date(Date.now() + (c.remaining_h ?? c.target - c.value) * 3_600_000))}`;
+    return { value: `${fmtNum(c.value)} av ${fmtNum(c.target)} h`, eta, warn: false, progress: c.value / c.target, waitText: null };
+  }
+  if (c.unit === '%')
+    return { value: `${fmtNum(c.value)} av ${fmtNum(c.target)} %`, eta: null, warn: false, progress: c.value / c.target, waitText: null };
+  if (c.unit === '°C')
+    return { value: `nu ${fmtNum(c.value)}° · mål ${fmtNum(c.target)}°`, eta: null, warn: false, progress: null, waitText: null };
+  if (c.unit === 'sg')
+    return { value: `nu ${fmtSg(c.value)} · mål ${fmtSg(c.target)}`, eta: null, warn: false, progress: null, waitText: null };
+  return { value: null, eta: null, warn: false, progress: null, waitText: null };
+}
+
+
 export interface StepStatus {
   phases: StepPhase[] | null;
   stepName: string | null;

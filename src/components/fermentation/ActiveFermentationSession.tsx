@@ -213,6 +213,7 @@ export function ActiveFermentationSession({
                   originalGravity={originalGravity}
                   activityScore={activityScore}
                   attenuation={attenuation}
+                  piActivePhase={activePhase}
                 />
                 <StepConditionsDisplay
                   currentStep={currentStep}
@@ -319,11 +320,12 @@ export function ActiveFermentationSession({
               isRamping={isRamping}
               rampProgress={rampProgress}
               rampTriggeredAt={session.ramp_triggered_at}
-                  rampDone={rampDone}
+              rampDone={rampDone}
               currentSg={currentSg}
               originalGravity={originalGravity}
               activityScore={activityScore}
               attenuation={attenuation}
+              piActivePhase={activePhase}
             />
             <StepConditionsDisplay
               currentStep={currentStep}
