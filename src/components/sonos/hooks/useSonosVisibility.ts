@@ -22,6 +22,8 @@ export function useSonosVisibility(params: UseSonosVisibilityParams) {
   const hideGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pauseHidden, setPauseHidden] = useState(false);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Har något spelat sedan sidan laddades? Styr om 30 s-pausgränsen gäller.
+  const hasPlayedRef = useRef(false);
 
   const isInactive = !isConnected || !showWidget || !nowPlaying?.track_name || nowPlaying.track_name === 'TV Audio';
   const wantsToHide = !isInactive && nowPlaying?.playback_state === 'PLAYBACK_STATE_IDLE';
