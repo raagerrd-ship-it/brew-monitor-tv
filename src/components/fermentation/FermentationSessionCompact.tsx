@@ -5,6 +5,10 @@ import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/t
 import { useFermentationProgress } from "./hooks/useFermentationProgress";
 import { ProgressOverlay, ShimmerOverlay } from "./SessionProgressOverlays";
 import { SessionStatusIcon } from "./SessionStatusIcon";
+import type { StepPhase } from "./StepPhasesList";
+
+const fmtNum = (v: number, digits = 1) => v.toLocaleString('sv-SE', { maximumFractionDigits: digits });
+const fmtSg = (v: number) => v.toFixed(4).replace('.', ',');
 import { 
   getBackgroundStyle, 
   getBorderColor, 
@@ -51,6 +55,12 @@ interface FermentationSessionCompactProps {
   piStepProgress?: number | null;
   /** Pi:ns aktiva delfas, t.ex. "Vilar tills SG är stilla 2 dygn · 8 / 48 h" */
   piActivePhase?: string | null;
+  /** Pi:ns delfaser rakt ur brew_status.step_phases — ritas utan egna gissningar */
+  piStepPhases?: StepPhase[] | null;
+  piStepName?: string | null;
+  piStepCount?: number | null;
+  piStepIndex?: number | null;
+  piTempTargetC?: number | null;
 }
 
 export function FermentationSessionCompact({
@@ -81,7 +91,38 @@ export function FermentationSessionCompact({
   controllerProfileTarget,
   piStepProgress,
   piActivePhase,
+  piStepPhases,
+  piStepName,
+  piStepCount,
+  piStepIndex,
+  piTempTargetC,
 }: FermentationSessionCompactProps) {
+
+  // Pi:ns delfaser är sanningen — inget räknas fram lokalt när de finns.
+  const hasPiPhases = !!piStepPhases && piStepPhases.length > 0;
+  const activePhase = hasPiPhases ? piStepPhases!.find(p => p.status === 'active') : undefined;
+  const cond = activePhase?.condition;
+  let conditionText: string | null = null;
+  let conditionWarn = false;
+  let phaseOverlay: number | null = null;
+  if (hasPiPhases && cond) {
+    if (cond.value == null || cond.target == null) {
+      conditionText = `Väntar på dig: ${cond.label}`;
+      conditionWarn = true;
+    } else if (cond.unit === 'h') {
+      const eta = new Date(Date.now() + (cond.target - cond.value) * 3600_000)
+        .toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} h · klart ca ${eta}`;
+      phaseOverlay = cond.value / cond.target;
+    } else if (cond.unit === '%') {
+      conditionText = `${fmtNum(cond.value)} av ${fmtNum(cond.target)} %`;
+      phaseOverlay = cond.value / cond.target;
+    } else if (cond.unit === '°C') {
+      conditionText = `nu ${fmtNum(cond.value)}° · mål ${fmtNum(cond.target)}°`;
+    } else if (cond.unit === 'sg') {
+      conditionText = `nu ${fmtSg(cond.value)} · mål ${fmtSg(cond.target)}`;
+    }
+  }
 
   // Single source of truth: backend-computed profile target stored on controller
   const effectiveStepTarget = controllerProfileTarget;
