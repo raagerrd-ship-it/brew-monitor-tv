@@ -62,6 +62,8 @@ export interface StepStatus {
   stepIndex: number | null;
   stepEndsAt: string | null;
   tempTargetC: number | null;
+  phase: string | null;
+  warnings: string[];
 }
 
 // Läser exakt det Pi:n skriver i brew_status — inget räknas fram här.
@@ -70,13 +72,15 @@ export function useStepPhases(brewId?: string): StepStatus | null {
   useEffect(() => {
     if (!brewId) return;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("brew_status")
-        .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c")
+        .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c, phase, warnings")
         .or(`source_id.eq.${brewId},pi_brew_id.eq.${brewId}`)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      // Behåll förra statusen vid ett enstaka fel i stället för att falla tillbaka.
+      if (error) return;
       const next: StepStatus = {
         phases: Array.isArray(data?.step_phases) ? (data!.step_phases as unknown as StepPhase[]) : null,
         stepName: data?.step_name ?? null,
@@ -84,6 +88,8 @@ export function useStepPhases(brewId?: string): StepStatus | null {
         stepIndex: data?.step_index ?? null,
         stepEndsAt: data?.step_ends_at ?? null,
         tempTargetC: data?.temp_target_c ?? null,
+        phase: data?.phase ?? null,
+        warnings: Array.isArray(data?.warnings) ? (data!.warnings as unknown[]).filter((w): w is string => typeof w === 'string' && !!w) : [],
       };
       setStatus((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     };
