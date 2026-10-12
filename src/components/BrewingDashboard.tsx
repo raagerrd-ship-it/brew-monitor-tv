@@ -53,7 +53,12 @@ export function BrewingDashboard() {
   const [brewDayEntered, setBrewDayEntered] = useState(false);
   // Sequential slide phases: beer cards slide fully first, then the brew day
   // card (reversed on exit) so the two never compete for CPU on Chromecast.
-  const [brewDayPhase, setBrewDayPhase] = useState<'prepare' | 'row' | 'card' | 'footer' | null>(null);
+  const [brewDayPhase, setBrewDayPhase] = useState<'prepare' | 'row' | 'beer0' | 'beer1' | 'card' | 'footer' | null>(null);
+  const EXP = new URLSearchParams(window.location.search);
+  const perCardSlide = EXP.get('slide') === 'card' && brews.length === 2;
+  const gateSlide = EXP.get('gate') === '1';
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [beerShiftPx, setBeerShiftPx] = useState(0);
   const [brewDayTransition, setBrewDayTransition] = useState(false);
 
   // Extracted hooks
@@ -79,16 +84,33 @@ export function BrewingDashboard() {
       setBrewDayPhase('prepare');
       // Beer cards switch width (and charts redraw) on mount; give the
       // Chromecast time to finish that before any sliding starts.
-      const enter = setTimeout(() => { setBrewDayPhase('row'); setBrewDayEntered(true); }, 700);
-      return () => clearTimeout(enter);
+      return afterPrepare(() => { setBrewDayPhase(perCardSlide ? 'beer0' : 'row'); setBrewDayEntered(true); });
     }
     if (!exitingBrewDay) return;
     // Reverse the sequence: prepare the layout, footer, card, then row.
     setBrewDayPhase('prepare');
     setBrewDayTransition(true);
-    const footer = setTimeout(() => setBrewDayPhase('footer'), 700);
-    return () => clearTimeout(footer);
+    return afterPrepare(() => setBrewDayPhase('footer'));
   }, [isTvMode, isMobile, !!brewDay]);
+  useLayoutEffect(() => {
+    if (brewDayPhase === 'prepare' && perCardSlide && rowRef.current) setBeerShiftPx((rowRef.current.offsetWidth - 8) / 6);
+  }, [brewDayPhase, perCardSlide]);
+  function afterPrepare(start: () => void) {
+    let frame = 0;
+    const cap = setTimeout(() => { cancelAnimationFrame(frame); start(); }, 2500);
+    const min = setTimeout(() => {
+      if (!gateSlide) { clearTimeout(cap); start(); return; }
+      // Start only after two calm frames in a row (relative to the fastest frame seen).
+      let last = performance.now(), fastest = Infinity, calm = 0;
+      const tick = (t: number) => {
+        const d = t - last; last = t; fastest = Math.min(fastest, d);
+        calm = d <= Math.max(50, fastest * 1.5) ? calm + 1 : 0;
+        if (calm >= 2) { clearTimeout(cap); start(); } else frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    }, 700);
+    return () => { clearTimeout(min); clearTimeout(cap); cancelAnimationFrame(frame); };
+  }
   const phasePause = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (phasePause.current) clearTimeout(phasePause.current); }, [!!brewDay]);
@@ -97,19 +119,21 @@ export function BrewingDashboard() {
     if (phaseWatchdog.current) clearTimeout(phaseWatchdog.current);
     if (phasePause.current) clearTimeout(phasePause.current);
     // Wait for the actual transform to finish, not a wall-clock deadline.
-    const pause = brewDay ? (brewDayPhase === 'row' ? 300 : brewDayPhase === 'card' ? 400 : 200) : (brewDayPhase === 'card' ? 200 : brewDayPhase === 'row' ? 300 : 200);
+    const pause = brewDay ? (brewDayPhase === 'row' || brewDayPhase === 'beer0' || brewDayPhase === 'beer1' ? 300 : brewDayPhase === 'card' ? 400 : 200) : (brewDayPhase === 'card' ? 200 : brewDayPhase === 'row' || brewDayPhase.startsWith('beer') ? 300 : 200);
     phasePause.current = setTimeout(() => {
       if (brewDay) {
-        if (brewDayPhase === 'row') setBrewDayPhase('card');
+        if (brewDayPhase === 'row' || brewDayPhase === 'beer1') setBrewDayPhase('card');
+        else if (brewDayPhase === 'beer0') setBrewDayPhase('beer1');
         else if (brewDayPhase === 'card') setBrewDayPhase('footer');
         else { setBrewDayPhase(null); setBrewDayTransition(false); }
       } else {
         if (brewDayPhase === 'footer') { setBrewDayPhase('card'); setBrewDayEntered(false); }
-        else if (brewDayPhase === 'card') setBrewDayPhase('row');
+        else if (brewDayPhase === 'card') setBrewDayPhase(perCardSlide ? 'beer1' : 'row');
+        else if (brewDayPhase === 'beer1') setBrewDayPhase('beer0');
         else { setExitingBrewDay(null); setBrewDayPhase(null); setBrewDayTransition(false); }
       }
     }, pause);
-  }, [!!brewDay, brewDayPhase, brewDayTransition]);
+  }, [!!brewDay, brewDayPhase, brewDayTransition, perCardSlide]);
   useEffect(() => {
     if (!brewDayTransition || !brewDayPhase || brewDayPhase === 'prepare') return;
     const duration = brewDayPhase === 'footer' ? 2000 : brewDayPhase === 'card' && brewDay ? 1400 : 1200;
@@ -124,6 +148,11 @@ export function BrewingDashboard() {
     finishBrewDayPhase();
   }, [brewDayPhase, brewDayTransition, finishBrewDayPhase]);
   const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
+  // Per-card slide: how many beer cards (from the left) sit at their final spot.
+  const settledBeers = brewDay
+    ? (brewDayPhase === 'prepare' ? 0 : brewDayPhase === 'beer0' ? 1 : 2)
+    : (brewDayPhase === 'beer1' ? 1 : brewDayPhase === 'beer0' ? 0 : 2);
+  const cardWaiting = brewDayPhase === 'row' || brewDayPhase === 'beer0' || brewDayPhase === 'beer1';
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
   useEffect(() => {
@@ -366,12 +395,13 @@ export function BrewingDashboard() {
           </div>
         ) : (
           <div
+            ref={rowRef}
             className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
             onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && brewDayPhase === 'row') finishBrewDayPhase(); }}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
-              transform: displayedBrewDay && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && (brewDay ? brewDayEntered : true) ? `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
+              transform: displayedBrewDay && !perCardSlide && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
+              transition: displayedBrewDay && !perCardSlide && (brewDay ? brewDayEntered : true) ? `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
                willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
@@ -379,8 +409,14 @@ export function BrewingDashboard() {
               <div
                 key={brew.id}
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
+                onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && brewDayPhase === `beer${index}`) finishBrewDayPhase(); }}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
+                  ...(perCardSlide && displayedBrewDay ? {
+                    transform: `translateX(${index < settledBeers ? 0 : beerShiftPx}px)`,
+                    transition: brewDayPhase === 'beer0' || brewDayPhase === 'beer1' ? 'transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)' : 'none',
+                    willChange: brewDayTransition ? 'transform' : undefined,
+                  } : {}),
                     }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
@@ -398,7 +434,7 @@ export function BrewingDashboard() {
                    right: soloBrewDay ? '16.666667%' : '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                   transform: brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
+                   transform: brewDayEntered && !cardWaiting ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
                   transition: displayedBrewDay ? `transform ${brewDay ? 1400 : 1200}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
                    willChange: 'transform',
                 }}

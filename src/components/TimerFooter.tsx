@@ -169,7 +169,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = null, onSlideEnd }: { brewDay: BrewDay | null; slidePhase?: 'prepare' | 'row' | 'card' | 'footer' | null; onSlideEnd?: () => void }) {
+export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = null, onSlideEnd }: { brewDay: BrewDay | null; slidePhase?: 'prepare' | 'row' | 'beer0' | 'beer1' | 'card' | 'footer' | null; onSlideEnd?: () => void }) {
   const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
