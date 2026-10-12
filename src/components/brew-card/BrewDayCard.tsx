@@ -31,7 +31,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
         <div className="min-w-0 flex-1">
           <div className={`${isTvMode ? "text-base" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
           <div className={`${isTvMode ? "text-2xl" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
-          <div className={`${isTvMode ? "text-3xl" : "text-3xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
+          <div className={`${isTvMode ? "text-3xl" : "text-3xl"} font-bold tracking-tight break-words mt-1`}>{day.step_title ?? "—"}</div>
           {isDone && <div className="text-base font-semibold text-green-300 mt-1">Tryck Klar i appen</div>}
         </div>
         {isDone ? (
@@ -40,22 +40,21 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           </div>
         ) : day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-5 py-2" : "px-3 py-2"} text-right`}>
-            <div className={`${isTvMode ? "text-4xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{day.target_temp_c.toFixed(1)}°</div>
+            <div className={`${isTvMode ? "text-4xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{Number(day.target_temp_c.toFixed(1))}°</div>
           </div>
         )}
       </div>
       <div
-        className="absolute top-[76px] left-0 right-0 h-[1px] pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, transparent 5%, hsl(var(--border) / 0.5) 25%, hsl(var(--border) / 0.6) 50%, hsl(var(--border) / 0.5) 75%, transparent 95%)' }}
+        className="shrink-0 h-px bg-border/60 pointer-events-none"
         aria-hidden
       />
-      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-center ${isTvMode ? "gap-2.5" : "gap-2"}`}>
+      <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-start ${isTvMode ? "gap-2.5" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
           return (
             <li
               key={i.id}
-              className={`flex items-center ${isTvMode ? "gap-3" : "gap-4"} ${isTvMode ? "px-3" : "px-3"} ${
+              className={`flex shrink-0 items-center ${isTvMode ? "gap-3" : "gap-4"} ${isTvMode ? "px-3" : "px-3"} ${
                 isNext
                   ? `bg-primary/10 border border-primary/40 rounded-2xl ${isTvMode ? "" : "shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)]"} py-2.5`
                   : i.checked
@@ -105,10 +104,13 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
         {day.items.length === 0 && <li className="text-sm text-muted-foreground">Inget att tillsätta i det här steget</li>}
       </ul>
       {day.next_step_title && (
-        <div className="text-base text-muted-foreground truncate">
-          Nästa: {day.next_step_title}
+        <div className="shrink-0 border-t border-border/60 pt-3">
+          <div className="text-base font-bold uppercase tracking-[0.2em] text-muted-foreground">Nästa</div>
+          <div className="text-xl font-medium text-foreground break-words">
+          {day.next_step_title}
           {day.next_step_minutes != null ? ` · ${day.next_step_minutes} min` : ""}
-          {day.next_step_items != null && day.next_step_items > 0 ? ` · ${day.next_step_items} tillsatser` : ""}
+          {day.next_step_items != null && day.next_step_items > 0 ? ` · ${day.next_step_items} ${day.next_step_items === 1 ? "tillsats" : "tillsatser"}` : ""}
+          </div>
         </div>
       )}
       {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}

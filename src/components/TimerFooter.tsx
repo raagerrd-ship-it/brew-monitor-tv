@@ -2,7 +2,8 @@ import { memo, useRef, useEffect, useState } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
 import { useSharedExternalTimer } from '@/hooks/use-external-timer';
-import { latestPassed, pickAlertMilestone } from '@/lib/timer-milestones';
+import { pickCurrentMilestone, pickAlertMilestone } from '@/lib/timer-milestones';
+import type { BrewDay } from '@/hooks/use-brew-day';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useAlbumArt } from '@/contexts/AlbumArtContext';
@@ -55,6 +56,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
   const getMarkerPosition = (milestone: TimerMilestone) =>
     Math.max(0, Math.min(100, ((totalSeconds - milestone.time) / totalSeconds) * 100));
+  let previousLabelPosition = -Infinity;
 
   return (
     <div className="relative w-full h-full flex flex-col justify-center -translate-y-2">
@@ -62,6 +64,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
       <div className="relative h-5 mb-1">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
+          if (position - previousLabelPosition < 3) return null;
+          previousLabelPosition = position;
           const isTriggered = isPassed(milestone, hasCurrentFlag, remainingSeconds);
           const isFirst = index === 0;
           const isLast = index === sortedMilestones.length - 1;
@@ -165,7 +169,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-export const TimerFooter = memo(function TimerFooter() {
+export const TimerFooter = memo(function TimerFooter({ brewDay }: { brewDay: BrewDay | null }) {
   const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
@@ -205,16 +209,7 @@ export const TimerFooter = memo(function TimerFooter() {
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
-  // "Now" = the milestone the brew app flagged `current`. Never derived here.
-  // `triggered` stays as a legacy fallback for older payloads.
-  const flaggedCurrent = timer.milestones.find(m => m.current === true) || null;
-  const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
-  const passedLocally = isUntimed ? null : latestPassed(timer.remainingSeconds, timer.milestones);
-  const appCurrent = flaggedCurrent ?? (hasTriggeredFlags
-    ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
-    : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null);
-  // The local countdown wins when it is further along than the app's flag (phone asleep).
-  const currentMilestone = passedLocally && (!appCurrent || passedLocally.time < appCurrent.time) ? passedLocally : appCurrent;
+  const currentMilestone = isUntimed ? null : pickCurrentMilestone(timer.remainingSeconds, timer.milestones);
 
 
   // Check if we should show based on TV mode setting
@@ -476,8 +471,10 @@ export const TimerFooter = memo(function TimerFooter() {
               )}>
                 Nästa:
               </span>
-              {isDone ? (
-                <span className="text-sm font-medium truncate text-foreground">{doneNextLabel ?? '—'}</span>
+              {isUntimed && brewDay?.next_step_title ? (
+                <span className="text-sm font-medium truncate text-foreground">{brewDay.next_step_title}</span>
+              ) : isDone ? (
+                <span className="text-sm font-medium truncate text-foreground">{doneNextLabel ?? brewDay?.next_step_title ?? '✓ Klart!'}</span>
               ) : timer.nextMilestone ? (
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Flame className={cn(
@@ -516,6 +513,8 @@ export const TimerFooter = memo(function TimerFooter() {
                     {timer.nextConfig.label} ({timer.nextConfig.minutes} min)
                   </span>
                 </div>
+              ) : brewDay?.next_step_title ? (
+                <span className="text-sm font-medium truncate text-foreground">{brewDay.next_step_title}</span>
               ) : (
                 <span className={cn(
                   "text-sm font-medium",
@@ -528,8 +527,14 @@ export const TimerFooter = memo(function TimerFooter() {
           </div>
 
           {/* CENTER COLUMN: Visual Timeline */}
-          <div className="flex items-center px-6">
-            {timer.milestones.length > 0 ? (
+           <div className="flex items-center justify-center px-6">
+             {isUntimed ? (
+               timer.timerAction && timer.timerTargetTemperature != null ? (
+                 <span className="text-xs font-bold text-foreground">
+                   {timer.timerAction === 'heat' ? 'Värm till' : timer.timerAction === 'cool' ? 'Kyl till' : 'Håll vid'} {timer.timerTargetTemperature} °C
+                 </span>
+               ) : null
+             ) : timer.milestones.length > 0 ? (
               <VisualTimeline 
                 milestones={timer.milestones}
                 totalSeconds={timer.totalSeconds}
@@ -579,7 +584,7 @@ export const TimerFooter = memo(function TimerFooter() {
             "flex flex-col justify-center items-end px-4 border-l",
             "border-white/5"
           )}>
-            {timer.isPaused && (
+            {timer.isPaused && !isUntimed && (
               <div className={cn(
                 "flex items-center gap-1.5 rounded font-bold uppercase tracking-wider",
                 timer.pausedByMilestone
