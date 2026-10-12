@@ -77,7 +77,7 @@ export function BrewingDashboard() {
     // Switching between two checklists doesn't slide anything.
     if (wasShown === !!cleaningView) return;
     const main = mainRef.current;
-    lock();
+    lock('cleaning');
     if (main) main.style.willChange = 'transform';
     let done = false;
     const finish = () => {
@@ -86,7 +86,7 @@ export function BrewingDashboard() {
       clearTimeout(start); clearTimeout(watchdog);
       main?.removeEventListener('transitionend', onEnd);
       if (main) main.style.willChange = '';
-      unlock();
+      unlock('cleaning');
     };
     const onEnd = (event: TransitionEvent) => { if (event.target === main && event.propertyName === 'transform') finish(); };
     main?.addEventListener('transitionend', onEnd);
@@ -240,7 +240,7 @@ export function BrewingDashboard() {
     if (isMobile && !isTvMode) return;
     const enter = !!brewDay;
     if (!enter && !exitingBrewDay) return;
-    lock();
+    lock('brew-day');
     if (enter) setExitingBrewDay(brewDay);
     setBrewDayTransition(true);
     const row = rowRef.current, card = cardRef.current;
@@ -264,7 +264,7 @@ export function BrewingDashboard() {
       for (const el of moved) el.style.willChange = '';
       setBrewDayTransition(false);
       if (!enter) setExitingBrewDay(null);
-      unlock();
+      unlock('brew-day');
     };
     const run = (steps: Step[], i: number) => {
       if (cancelled) return;
@@ -306,7 +306,7 @@ export function BrewingDashboard() {
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
-      if (!finished) unlock();
+      if (!finished) unlock('brew-day');
     };
   }, [isTvMode, isMobile, !!brewDay]);
   // After the exit the card is gone and the row is back to its own layout.
