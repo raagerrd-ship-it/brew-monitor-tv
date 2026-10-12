@@ -30,6 +30,9 @@ import { TempController } from "@/types/brew";
 
 import { supabase } from "@/integrations/supabase/client";
 import { TvDebugOverlay } from "./TvDebugOverlay";
+import { lock, unlock, onMotionLockChange } from "@/lib/motion-lock";
+
+const SLIDE_EASE = 'cubic-bezier(0.45, 0, 0.55, 1)';
 
 export function BrewingDashboard() {
   const [selectedController, setSelectedController] = useState<TempController | null>(null);
@@ -46,100 +49,54 @@ export function BrewingDashboard() {
   } = useBrewData();
   const brewDay = useBrewDay();
   const { view: cleaningView } = useCleaningChecklist();
-  const [cleaningTransition, setCleaningTransition] = useState(false);
   const [cleaningEntered, setCleaningEntered] = useState(false);
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
-  const [brewDayEntered, setBrewDayEntered] = useState(false);
-  // Sequential slide phases: beer cards slide fully first, then the brew day
-  // card (reversed on exit) so the two never compete for CPU on Chromecast.
-  const [brewDayPhase, setBrewDayPhase] = useState<'prepare' | 'row' | 'beer0' | 'beer1' | 'card' | 'footer' | null>(null);
+  // True from preparation until the last slide phase is done: freezes the
+  // card countdown and keeps the footer mounted. The phases themselves run
+  // outside React (runSlide) so nothing re-renders while anything moves.
+  const [brewDayTransition, setBrewDayTransition] = useState(false);
   // With two beer cards each slides on its own (measured smoother on Chromecast than moving the whole row).
   const perCardSlide = brews.length === 2;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
-  const [beerShiftPx, setBeerShiftPx] = useState(0);
-  const [brewDayTransition, setBrewDayTransition] = useState(false);
+  const beerRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
 
   // Extracted hooks
   const hasAlbumArtBackground = useHasAlbumArtBackground();
   const { emblaRef, emblaApi, selectedIndex, shouldUseCarousel, isMobile, isTvMode } = useBrewCarousel(brews);
+  // Pauses competing animations while the motion lock is held, without re-rendering.
+  useEffect(() => onMotionLockChange(locked => rootRef.current?.classList.toggle('cleaning-transition-active', locked)), []);
   useLayoutEffect(() => {
     if (!isTvMode || previousCleaningView.current === cleaningView) return;
     const wasShown = !!previousCleaningView.current;
     previousCleaningView.current = cleaningView;
     // Switching between two checklists doesn't slide anything.
     if (wasShown === !!cleaningView) return;
-    setCleaningTransition(true);
+    const main = mainRef.current;
+    lock();
+    if (main) main.style.willChange = 'transform';
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(start); clearTimeout(watchdog);
+      main?.removeEventListener('transitionend', onEnd);
+      if (main) main.style.willChange = '';
+      unlock();
+    };
+    const onEnd = (event: TransitionEvent) => { if (event.target === main && event.propertyName === 'transform') finish(); };
+    main?.addEventListener('transitionend', onEnd);
     // Give the Chromecast time to repaint without shadows/filters and to
     // rasterize the checklist before the slide starts, in both directions.
     const start = setTimeout(() => setCleaningEntered(!!cleaningView), 700);
-    return () => clearTimeout(start);
+    const watchdog = setTimeout(finish, 700 + 4000 + 1500);
+    return finish;
   }, [cleaningView, isTvMode]);
-  useLayoutEffect(() => {
-    if (isMobile && !isTvMode) return;
-    if (brewDay) {
-      setExitingBrewDay(brewDay);
-      setBrewDayTransition(true);
-      setBrewDayPhase('prepare');
-      // Beer cards switch width (and charts redraw) on mount; give the
-      // Chromecast time to finish that before any sliding starts.
-      return afterPrepare(() => { setBrewDayPhase(perCardSlide ? 'beer0' : 'row'); setBrewDayEntered(true); });
-    }
-    if (!exitingBrewDay) return;
-    // Reverse the sequence: prepare the layout, footer, card, then row.
-    setBrewDayPhase('prepare');
-    setBrewDayTransition(true);
-    return afterPrepare(() => setBrewDayPhase('footer'));
-  }, [isTvMode, isMobile, !!brewDay]);
-  useLayoutEffect(() => {
-    if (brewDayPhase === 'prepare' && perCardSlide && rowRef.current) setBeerShiftPx((rowRef.current.offsetWidth - 8) / 6);
-  }, [brewDayPhase, perCardSlide]);
-  function afterPrepare(start: () => void) {
-    const t = setTimeout(start, 700);
-    return () => clearTimeout(t);
-  }
-  const phasePause = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const phaseWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (phasePause.current) clearTimeout(phasePause.current); }, [!!brewDay]);
-  const finishBrewDayPhase = useCallback(() => {
-    if (!brewDayTransition || !brewDayPhase || brewDayPhase === 'prepare') return;
-    if (phaseWatchdog.current) clearTimeout(phaseWatchdog.current);
-    if (phasePause.current) clearTimeout(phasePause.current);
-    // Wait for the actual transform to finish, not a wall-clock deadline.
-    const pause = brewDay ? (brewDayPhase === 'row' || brewDayPhase === 'beer0' || brewDayPhase === 'beer1' ? 300 : brewDayPhase === 'card' ? 400 : 200) : (brewDayPhase === 'card' ? 200 : brewDayPhase === 'row' || brewDayPhase.startsWith('beer') ? 300 : 200);
-    phasePause.current = setTimeout(() => {
-      if (brewDay) {
-        if (brewDayPhase === 'row' || brewDayPhase === 'beer1') setBrewDayPhase('card');
-        else if (brewDayPhase === 'beer0') setBrewDayPhase('beer1');
-        else if (brewDayPhase === 'card') setBrewDayPhase('footer');
-        else { setBrewDayPhase(null); setBrewDayTransition(false); }
-      } else {
-        if (brewDayPhase === 'footer') { setBrewDayPhase('card'); setBrewDayEntered(false); }
-        else if (brewDayPhase === 'card') setBrewDayPhase(perCardSlide ? 'beer1' : 'row');
-        else if (brewDayPhase === 'beer1') setBrewDayPhase('beer0');
-        else { setExitingBrewDay(null); setBrewDayPhase(null); setBrewDayTransition(false); }
-      }
-    }, pause);
-  }, [!!brewDay, brewDayPhase, brewDayTransition, perCardSlide]);
-  useEffect(() => {
-    if (!brewDayTransition || !brewDayPhase || brewDayPhase === 'prepare') return;
-    const duration = brewDayPhase === 'footer' ? 2000 : brewDayPhase === 'card' && brewDay ? 1400 : 1200;
-    phaseWatchdog.current = setTimeout(finishBrewDayPhase, duration + 1500);
-    return () => {
-      if (phaseWatchdog.current) clearTimeout(phaseWatchdog.current);
-      if (phasePause.current) clearTimeout(phasePause.current);
-    };
-  }, [brewDayPhase, brewDayTransition, finishBrewDayPhase]);
-  useEffect(() => {
-    if (!brewDayTransition || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    finishBrewDayPhase();
-  }, [brewDayPhase, brewDayTransition, finishBrewDayPhase]);
   const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
-  // Per-card slide: how many beer cards (from the left) sit at their final spot.
-  const settledBeers = brewDay
-    ? (brewDayPhase === 'prepare' ? 0 : brewDayPhase === 'beer0' ? 1 : 2)
-    : (brewDayPhase === 'beer1' ? 1 : brewDayPhase === 'beer0' ? 0 : 2);
-  const cardWaiting = brewDayPhase === 'row' || brewDayPhase === 'beer0' || brewDayPhase === 'beer1';
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
   useEffect(() => {
@@ -279,6 +236,87 @@ export function BrewingDashboard() {
     ? `calc((100% - 0.5rem) / ${cardCount * 2})`
     : 'calc(25% - 0.125rem)';
 
+  useLayoutEffect(() => {
+    if (isMobile && !isTvMode) return;
+    const enter = !!brewDay;
+    if (!enter && !exitingBrewDay) return;
+    lock();
+    if (enter) setExitingBrewDay(brewDay);
+    setBrewDayTransition(true);
+    const row = rowRef.current, card = cardRef.current;
+    const beers = perCardSlide ? beerRefs.current.slice(0, 2).filter((el): el is HTMLDivElement => !!el) : [];
+    const beerShift = perCardSlide && row ? `translateX(${(row.offsetWidth - 8) / 6}px)` : '';
+    const rowShift = `translateX(${brewDayShift})`;
+    const cardOut = 'translateX(calc(100% + 1.5rem))';
+    if (enter) {
+      // Start positions, applied before the first paint.
+      for (const el of beers) { el.style.transition = 'none'; el.style.transform = beerShift; }
+      if (row && !perCardSlide) { row.style.transition = 'none'; row.style.transform = rowShift; }
+      if (card) { card.style.transition = 'none'; card.style.transform = cardOut; }
+    }
+    type Step = { el: HTMLElement; transform: string; ms: number; pause: number; opacity?: string };
+    const moved: HTMLElement[] = [];
+    let cancelled = false;
+    let finished = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const finish = () => {
+      finished = true;
+      for (const el of moved) el.style.willChange = '';
+      setBrewDayTransition(false);
+      if (!enter) setExitingBrewDay(null);
+      unlock();
+    };
+    const run = (steps: Step[], i: number) => {
+      if (cancelled) return;
+      const step = steps[i];
+      if (!step) return finish();
+      const { el } = step;
+      let done = false;
+      const next = () => {
+        if (done || cancelled) return;
+        done = true;
+        el.removeEventListener('transitionend', onEnd);
+        clearTimeout(watchdog);
+        timers.push(setTimeout(() => run(steps, i + 1), step.pause));
+      };
+      // Phase watchdog: continue as if transitionend came after duration + 1500 ms.
+      const onEnd = (event: TransitionEvent) => { if (event.target === el && event.propertyName === 'transform') next(); };
+      el.addEventListener('transitionend', onEnd);
+      moved.push(el);
+      el.style.willChange = 'transform';
+      el.style.transition = `transform ${step.ms}ms ${SLIDE_EASE}${step.opacity ? `, opacity ${step.ms}ms ${SLIDE_EASE}` : ''}`;
+      el.style.transform = step.transform;
+      if (step.opacity) el.style.opacity = step.opacity;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const watchdog = setTimeout(next, reduced ? 0 : step.ms + 1500);
+      timers.push(watchdog);
+    };
+    // Beer cards switch width (and charts redraw) on mount; give the
+    // Chromecast time to finish that before any sliding starts.
+    timers.push(setTimeout(() => {
+      const footer = footerRef.current;
+      const footerSlides = !!footer && footer.dataset.footerVisible === (enter ? '1' : '0');
+      const rowSteps: Step[] = perCardSlide
+        ? (enter ? beers : [...beers].reverse()).map(el => ({ el, transform: enter ? 'translateX(0)' : beerShift, ms: 1200, pause: 300 }))
+        : row ? [{ el: row, transform: enter ? 'translateX(0)' : rowShift, ms: 1200, pause: 300 }] : [];
+      const cardStep: Step[] = card ? [{ el: card, transform: enter ? 'translateX(0)' : cardOut, ms: enter ? 1400 : 1200, pause: enter ? 400 : 200 }] : [];
+      const footerStep: Step[] = footerSlides ? [{ el: footer!, transform: enter ? 'translateY(0)' : 'translateY(100%)', opacity: enter ? '1' : '0', ms: 2000, pause: 200 }] : [];
+      run(enter ? [...rowSteps, ...cardStep, ...footerStep] : [...footerStep, ...cardStep, ...rowSteps], 0);
+    }, 700));
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      if (!finished) unlock();
+    };
+  }, [isTvMode, isMobile, !!brewDay]);
+  // After the exit the card is gone and the row is back to its own layout.
+  useLayoutEffect(() => {
+    if (displayedBrewDay) return;
+    for (const el of [rowRef.current, ...beerRefs.current]) {
+      if (el) { el.style.transform = ''; el.style.transition = ''; el.style.willChange = ''; }
+    }
+  }, [!!displayedBrewDay]);
+
   // Layout calculations
   const MOBILE_HEADER_HEIGHT = controllers.length > 0 ? 112 : 56;
   const activeHeaderHeight = isTvMode ? HEADER_HEIGHT_TV : HEADER_HEIGHT;
@@ -321,7 +359,7 @@ export function BrewingDashboard() {
       <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
     </div>}
 
-    <div className={`w-full relative flex flex-col overflow-hidden ${cleaningTransition || brewDayTransition ? 'cleaning-transition-active' : ''}`} style={{
+    <div ref={rootRef} className="w-full relative flex flex-col overflow-hidden" style={{
       height: isMobile ? mobileContainerHeight : getContainerHeight(),
       background: 'transparent',
     }}>
@@ -335,11 +373,9 @@ export function BrewingDashboard() {
       />
 
       {/* Main Display Area */}
-       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} onTransitionEnd={(event) => {
-         if (event.target === event.currentTarget && event.propertyName === 'transform') setCleaningTransition(false);
-       }} style={{
+       <div className={`relative flex flex-col z-0 ${isMobile ? 'flex-1 min-h-0 overflow-hidden motion-reduce:!transition-none' : 'flex-1 overflow-visible'} ${isTvMode ? 'motion-reduce:!transition-none' : ''}`} ref={mainRef} style={{
          ...(isMobile ? { paddingTop: `${MOBILE_HEADER_HEIGHT}px`, paddingBottom: `${layoutFooterHeight}px` } : {}),
-           ...(isTvMode ? { transform: cleaningEntered ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 4000ms cubic-bezier(0.37, 0, 0.63, 1)', willChange: cleaningTransition ? 'transform' : undefined } : {}),
+           ...(isTvMode ? { transform: cleaningEntered ? 'translateX(-100%)' : 'translateX(0)', transition: 'transform 4000ms cubic-bezier(0.37, 0, 0.63, 1)' } : {}),
        }}>
         {loading && brews.length === 0 ? (
           <div
@@ -384,26 +420,17 @@ export function BrewingDashboard() {
           <div
             ref={rowRef}
             className={`${gridLayout} relative w-full px-4 py-2 motion-reduce:!transition-none`}
-            onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && brewDayPhase === 'row') finishBrewDayPhase(); }}
             style={{
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
-              transform: displayedBrewDay && !perCardSlide && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
-              transition: displayedBrewDay && !perCardSlide && (brewDay ? brewDayEntered : true) ? `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
-               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
             {brews.map((brew, index) => (
               <div
                 key={brew.id}
+                ref={el => { beerRefs.current[index] = el; }}
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
-                onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && brewDayPhase === `beer${index}`) finishBrewDayPhase(); }}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                  ...(perCardSlide && displayedBrewDay ? {
-                    transform: `translateX(${index < settledBeers ? 0 : beerShiftPx}px)`,
-                    transition: brewDayPhase === 'beer0' || brewDayPhase === 'beer1' ? 'transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)' : 'none',
-                    willChange: brewDayTransition ? 'transform' : undefined,
-                  } : {}),
                     }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
@@ -414,16 +441,13 @@ export function BrewingDashboard() {
             )}
             {displayedBrewDay && (
               <div
+                ref={cardRef}
                 className="absolute motion-reduce:!transition-none"
-                onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && brewDayPhase === 'card') finishBrewDayPhase(); }}
                 style={{
                   top: '0.5rem',
                    right: soloBrewDay ? '16.666667%' : '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
-                   transform: brewDayEntered && !cardWaiting ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
-                  transition: displayedBrewDay ? `transform ${brewDay ? 1400 : 1200}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
-                   willChange: 'transform',
                 }}
               >
                  <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} />
@@ -437,7 +461,7 @@ export function BrewingDashboard() {
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
       {/* Footer Slot: context-driven content or self-rendering components */}
-      <TimerFooter brewDay={brewDay} slidePhase={brewDayPhase} onSlideEnd={finishBrewDayPhase} />
+      <TimerFooter brewDay={brewDay} sliding={brewDayTransition} slideRef={footerRef} />
       {footerContent && (
         <div className="absolute left-0 right-0 z-20" style={{ bottom: `${footerContentOffset}px`, height: `${footerContentHeight}px` }}>
           {footerContent}

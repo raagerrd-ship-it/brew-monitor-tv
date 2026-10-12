@@ -1,4 +1,5 @@
 import { useRaptBarStore } from '@/lib/rapt-bar-store';
+import { isLocked } from "@/lib/motion-lock";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -64,7 +65,7 @@ export function useActiveFermentationSession({
     const checkInterval = isTvMode ? 30000 : 5000;
     const intervalId = setInterval(() => {
       const currentMinute = Math.floor(Date.now() / 60000);
-      if (currentMinute !== lastMinuteRef.current) {
+      if (!isLocked() && currentMinute !== lastMinuteRef.current) {
         lastMinuteRef.current = currentMinute;
         setTick(t => t + 1);
       }

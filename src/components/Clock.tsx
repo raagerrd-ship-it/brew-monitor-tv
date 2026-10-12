@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { RollingNumber } from "./RollingNumber";
+import { isLocked } from "@/lib/motion-lock";
 import { stockholmFormat } from "@/lib/stockholm-time";
 
 const TIME_FORMAT = stockholmFormat({ hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -10,7 +11,8 @@ function ClockComponent() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setNow(new Date());
+      // Seconds freeze while something slides (measured: the tick cost long frames).
+      if (!isLocked()) setNow(new Date());
     }, 1000);
     return () => clearInterval(interval);
   }, []);

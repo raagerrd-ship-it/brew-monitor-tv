@@ -1,4 +1,5 @@
-import { memo, useRef, useEffect, useState } from 'react';
+import { memo, useRef, useEffect, useState, type Ref } from 'react';
+import { isLocked } from "@/lib/motion-lock";
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
 import { useSharedExternalTimer } from '@/hooks/use-external-timer';
@@ -169,7 +170,8 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = null, onSlideEnd }: { brewDay: BrewDay | null; slidePhase?: 'prepare' | 'row' | 'beer0' | 'beer1' | 'card' | 'footer' | null; onSlideEnd?: () => void }) {
+// While `sliding`, BrewingDashboard moves the footer element itself (via slideRef).
+export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false, slideRef }: { brewDay: BrewDay | null; sliding?: boolean; slideRef?: Ref<HTMLDivElement> }) {
   const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
@@ -183,6 +185,8 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
   const timer = liveTimer.isActive ? liveTimer : lastActiveTimer.current ?? liveTimer;
   const [rendered, setRendered] = useState(false);
   const [entered, setEntered] = useState(false);
+  const wasSliding = useRef(false);
+  if (sliding) wasSliding.current = true;
   
   // Track triggered milestones for attention notification
   const lastTriggeredRef = useRef<Set<string>>(new Set());
@@ -200,7 +204,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
   const [, setUntimedTick] = useState(0);
   useEffect(() => {
     if (!isUntimed || !liveTimer.isActive) return;
-    const id = setInterval(() => setUntimedTick(t => t + 1), 30_000);
+    const id = setInterval(() => { if (!isLocked()) setUntimedTick(t => t + 1); }, 30_000);
     return () => clearInterval(id);
   }, [isUntimed, liveTimer.isActive]);
   const zeroMilestone = timer.milestones.find(m => m.time === 0) ?? null;
@@ -220,18 +224,26 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
     if (isVisible) {
       setRendered(true);
       setFooterSlot(null, TIMER_FOOTER_HEIGHT, 'brew-timer');
-      if (slidePhase && slidePhase !== 'footer') return;
+      if (sliding) return;
       const frameRef = { current: 0 };
       const start = setTimeout(() => {
         frameRef.current = requestAnimationFrame(() => {
           frameRef.current = requestAnimationFrame(() => setEntered(true));
         });
-      }, isTvMode && !slidePhase ? 700 : 0);
+      }, isTvMode && !wasSliding.current ? 700 : 0);
+      wasSliding.current = false;
       return () => { clearTimeout(start); cancelAnimationFrame(frameRef.current); };
     }
-    if (slidePhase) {
+    if (sliding) {
       clearFooterSlot('brew-timer');
-      if (slidePhase !== 'footer') return;
+      return;
+    }
+    if (wasSliding.current) {
+      // The dashboard already slid the footer out.
+      wasSliding.current = false;
+      setEntered(false);
+      setRendered(false);
+      return;
     }
     if (isTvMode && brewDay && !isVisible) return;
     let timeout: ReturnType<typeof setTimeout>;
@@ -241,12 +253,9 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
         setRendered(false);
         clearFooterSlot('brew-timer');
       }, 2200);
-    }, isTvMode && !slidePhase ? 700 : 0);
+    }, isTvMode ? 700 : 0);
     return () => { clearTimeout(start); clearTimeout(timeout); };
-  }, [isVisible, slidePhase, isTvMode, !!brewDay, setFooterSlot, clearFooterSlot]);
-  useEffect(() => {
-    if (slidePhase === 'footer' && (!rendered || entered === isVisible)) onSlideEnd?.();
-  }, [slidePhase, rendered, isVisible, onSlideEnd]);
+  }, [isVisible, sliding, isTvMode, !!brewDay, setFooterSlot, clearFooterSlot]);
 
   useEffect(() => () => clearFooterSlot('brew-timer'), [clearFooterSlot]);
 
@@ -375,8 +384,9 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
     <>
       {/* Main footer - 3 column grid layout for TV */}
       <div 
+        ref={slideRef}
+        data-footer-visible={isVisible ? '1' : '0'}
         className="absolute bottom-0 left-0 right-0 z-20 motion-reduce:!transition-none"
-        onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform') onSlideEnd?.(); }}
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
           transform: entered ? 'translateY(0)' : 'translateY(100%)',
