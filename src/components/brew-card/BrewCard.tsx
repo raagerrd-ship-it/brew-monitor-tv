@@ -29,6 +29,7 @@ const BatchReportButton = lazy(() => import("../BatchReportButton").then(m => ({
 const SyncedDataDialog = lazy(() => import("./SyncedDataDialog").then(m => ({ default: m.SyncedDataDialog })));
 const PrintLabelDialog = lazy(() => import("../PrintLabelDialog").then(m => ({ default: m.PrintLabelDialog })));
 import { RecipeView } from "./RecipeView";
+import { useStepPhases } from "@/components/fermentation/StepPhasesList";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
@@ -109,10 +110,21 @@ function BrewCardComponent({
 
 
 
-  const statusText = useMemo(() => 
-    getStatusDisplayText(brew), 
-    [brew.status, brew.fermentationRate]
-  );
+  // Kortets läge kommer från Pi:ns brew_status.phase när den finns.
+  const piStatus = useStepPhases(brew.id);
+  const piPhase = piStatus?.phase ?? null;
+  const piFermStart = piStatus?.fermentationStart ?? null;
+  const statusText = useMemo(() => {
+    if (piPhase === 'fermenting' && piFermStart) {
+      return `Jäsning dag ${Math.max(0, Math.floor((Date.now() - new Date(piFermStart).getTime()) / 86_400_000))}`;
+    }
+    if (piPhase === 'conditioning') return 'Kallagring';
+    if (piPhase === 'done') return 'Klar';
+    return getStatusDisplayText(brew);
+  }, [brew.status, brew.fermentationRate, piPhase, piFermStart]); // eslint-disable-line react-hooks/exhaustive-deps
+  // "Redo att krascha" motsäger Pi:n när kraschen redan pågår.
+  const hideReadyToCrash = piPhase === 'conditioning' || piStatus?.stepName === 'Smart cold-crash';
+  const piWarnings = piStatus?.warnings ?? [];
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
   const isBrewing = brew.status === "Bryggning";
@@ -371,6 +383,11 @@ function BrewCardComponent({
                 );
               })()}
             </p>
+            {piWarnings.length > 0 && (
+              <div className="text-[10px] leading-tight" style={{ color: 'hsl(38 92% 55%)' }}>
+                {piWarnings.map((w, k) => <p key={k} className="truncate">{w}</p>)}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -440,6 +457,7 @@ function BrewCardComponent({
           <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full overflow-visible">
             <GravityStat 
               brew={brew} 
+              hideReadyToCrash={hideReadyToCrash}
               updatedFields={updatedFields} 
               onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}
             />

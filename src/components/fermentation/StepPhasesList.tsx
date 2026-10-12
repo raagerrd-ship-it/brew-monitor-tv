@@ -63,6 +63,7 @@ export interface StepStatus {
   stepEndsAt: string | null;
   tempTargetC: number | null;
   phase: string | null;
+  fermentationStart: string | null;
   warnings: string[];
 }
 
@@ -74,7 +75,7 @@ export function useStepPhases(brewId?: string): StepStatus | null {
     const load = async () => {
       const { data, error } = await supabase
         .from("brew_status")
-        .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c, phase, warnings")
+        .select("step_phases, step_name, step_count, step_index, step_ends_at, temp_target_c, phase, warnings, fermentation_start")
         .or(`source_id.eq.${brewId},pi_brew_id.eq.${brewId}`)
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -89,6 +90,7 @@ export function useStepPhases(brewId?: string): StepStatus | null {
         stepEndsAt: data?.step_ends_at ?? null,
         tempTargetC: data?.temp_target_c ?? null,
         phase: data?.phase ?? null,
+        fermentationStart: data?.fermentation_start ?? null,
         warnings: Array.isArray(data?.warnings) ? (data!.warnings as unknown[]).filter((w): w is string => typeof w === 'string' && !!w) : [],
       };
       setStatus((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));

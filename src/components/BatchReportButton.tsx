@@ -80,7 +80,7 @@ function BatchReportButtonComponent({
       ];
       if (metrics) {
         fields.push(["Fas", String(metrics.fermentation_phase)]);
-        fields.push(["Aktivitet", `${metrics.activity_score}%`]);
+        fields.push(["Aktivitet", metrics.activity_score == null ? "pillen tyst" : `${metrics.activity_score}%`]);
         fields.push(["Peak Δ", `${parseFloat(String(metrics.peak_delta)).toFixed(1)}°C`]);
         if (metrics.ready_to_crash) fields.push(["Cold Crash", "Redo"]);
       }
