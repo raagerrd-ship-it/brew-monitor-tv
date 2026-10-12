@@ -269,7 +269,8 @@ export function useExternalTimer() {
         : apiProgress;
 
       setTimerState({
-        isActive: data.is_active && currentRemaining > 0,
+        // Hidden only on explicit end (is_active false) or after 24 h without a push.
+        isActive: data.is_active && Date.now() - new Date(data.last_push_at ?? data.last_synced_at).getTime() < 24 * 3_600_000,
         label: data.label || '',
         remainingSeconds: currentRemaining,
         totalSeconds: data.total_seconds,

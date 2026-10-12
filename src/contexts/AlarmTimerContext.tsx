@@ -282,14 +282,15 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       setFooterSlot(
         <AlarmTimerFooterBar entry={entry} onCancel={cancel} />,
         FOOTER_HEIGHT,
+        'alarm',
       );
     } else {
-      clearFooterSlot();
+      clearFooterSlot('alarm');
     }
   }, [entry?.id, entry?.fired, cancel, setFooterSlot, clearFooterSlot]);
 
   // Cleanup footer on unmount
-  useEffect(() => () => clearFooterSlot(), [clearFooterSlot]);
+  useEffect(() => () => clearFooterSlot('alarm'), [clearFooterSlot]);
 
   const value = useMemo(() => ({ entry, startTimer, setAlarm, cancel }), [entry, startTimer, setAlarm, cancel]);
 

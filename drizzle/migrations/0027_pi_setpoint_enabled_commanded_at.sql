@@ -1,0 +1,1 @@
+ALTER TABLE public.pi_setpoint ADD COLUMN IF NOT EXISTS enabled_commanded_at timestamptz NULL;

@@ -117,7 +117,7 @@ export function BrewingDashboard() {
   useTvRefresh(isTvMode);
 
   // Footer height from self-contained footer components via context
-  const { footerHeight, footerContent } = useDashboardFooter();
+  const { footerHeight, footerContent, footerContentOffset, footerContentHeight } = useDashboardFooter();
   const layoutFooterRef = useRef(footerHeight);
   if (!brewDayTransition && !(exitingBrewDay && !brewDay)) layoutFooterRef.current = footerHeight;
   const layoutFooterHeight = layoutFooterRef.current;
@@ -397,7 +397,7 @@ export function BrewingDashboard() {
       {/* Footer Slot: context-driven content or self-rendering components */}
       <TimerFooter />
       {footerContent && (
-        <div className="absolute bottom-0 left-0 right-0 z-20" style={{ height: `${footerHeight}px` }}>
+        <div className="absolute left-0 right-0 z-20" style={{ bottom: `${footerContentOffset}px`, height: `${footerContentHeight}px` }}>
           {footerContent}
         </div>
       )}

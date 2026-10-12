@@ -192,6 +192,7 @@ Deno.serve(async (req) => {
       // null betyder "släpp overriden" — får aldrig castas till NaN.
       target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
       commanded_at: sp.commanded_at ?? null,
+      enabled_commanded_at: sp.enabled_commanded_at ?? null,
       mode_allowed: sp.mode_allowed,
       enabled: sp.enabled !== false,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
@@ -227,6 +228,7 @@ Deno.serve(async (req) => {
       controller_id: String(sp.controller_id).slice(0, 8),
       target_temp: sp.target_temp != null ? parseFloat(String(sp.target_temp)) : null,
       commanded_at: sp.commanded_at ?? null,
+      enabled_commanded_at: sp.enabled_commanded_at ?? null,
       mode_allowed: sp.mode_allowed,
       enabled: sp.enabled !== false,
       max_duty_pct: parseFloat(String(sp.max_duty_pct)),
