@@ -927,8 +927,6 @@ export function useBrewData(): UseBrewDataReturn {
   // Tala om att den här hooken äger headerns källa (reservpollen i use-rapt-bar-data hoppar då över)
   useEffect(() => acquireRaptBarOwner(), []);
 
-  const brewsRef = useRef(brews);
-  brewsRef.current = brews;
 
   // Channel 2: session/profile changes. (selected_rapt_* finns inte i realtime-publikationen
   // och fick servern att avvisa hela kanalen.)
