@@ -361,7 +361,7 @@ export function BrewingDashboard() {
               height: isAspectRatioLocked ? `${getContentHeight()}px` : `calc(100vh - ${activeHeaderHeight}px${layoutFooterHeight > 0 ? ` - ${layoutFooterHeight}px` : ''})`,
               transform: displayedBrewDay && (brewDay ? !brewDayEntered : brewDayPhase === 'row') ? `translateX(${brewDayShift})` : 'translateX(0)',
               transition: displayedBrewDay && (brewDay ? brewDayEntered : true) ? `transform 1200ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
-               willChange: brewDayTransition ? 'transform' : undefined,
+               willChange: displayedBrewDay ? 'transform' : undefined,
             }}
           >
             {brews.map((brew, index) => (
@@ -389,7 +389,7 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                    transform: brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
                   transition: displayedBrewDay ? `transform ${brewDay ? 1400 : 1200}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none',
-                   willChange: brewDayTransition ? 'transform' : undefined,
+                   willChange: 'transform',
                 }}
               >
                  <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} />
@@ -403,7 +403,7 @@ export function BrewingDashboard() {
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
       {/* Footer Slot: context-driven content or self-rendering components */}
-      <TimerFooter brewDay={brewDay} slidePhase={isTvMode ? brewDayPhase : null} onSlideEnd={finishBrewDayPhase} />
+      <TimerFooter brewDay={brewDay} slidePhase={brewDayPhase} onSlideEnd={finishBrewDayPhase} />
       {footerContent && (
         <div className="absolute left-0 right-0 z-20" style={{ bottom: `${footerContentOffset}px`, height: `${footerContentHeight}px` }}>
           {footerContent}

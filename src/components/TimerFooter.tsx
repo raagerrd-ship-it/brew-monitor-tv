@@ -233,6 +233,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
       clearFooterSlot('brew-timer');
       if (slidePhase !== 'footer') return;
     }
+    if (isTvMode && brewDay && !isVisible) return;
     let timeout: ReturnType<typeof setTimeout>;
     const start = setTimeout(() => {
       setEntered(false);
@@ -242,7 +243,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
       }, 2200);
     }, isTvMode && !slidePhase ? 700 : 0);
     return () => { clearTimeout(start); clearTimeout(timeout); };
-  }, [isVisible, slidePhase, isTvMode, setFooterSlot, clearFooterSlot]);
+  }, [isVisible, slidePhase, isTvMode, !!brewDay, setFooterSlot, clearFooterSlot]);
   useEffect(() => {
     if (slidePhase === 'footer' && (!rendered || entered === isVisible)) onSlideEnd?.();
   }, [slidePhase, rendered, isVisible, onSlideEnd]);
