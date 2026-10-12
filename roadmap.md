@@ -35,3 +35,4 @@
 - [x] Kontrakt v27: klar-tid från Pi:ns condition.ends_at/remaining_h (UTC) i stället för egen uträkning, alltid svensk tid, dag med vid >1 dygn ("klart ons 08:10"). Verifierat i TV-vyn: "3,3 av 12 h · klart ca 20:09".
 - [ ] AI-funktion med Claude (användaren bad om det; väntar på val av typ — skrivskyddad, ingen styrning av Pi:n).
 
+- [x] Rörelselås + glidning utan React för bryggdag/rengöring
