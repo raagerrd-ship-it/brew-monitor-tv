@@ -169,7 +169,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
-export const TimerFooter = memo(function TimerFooter({ brewDay }: { brewDay: BrewDay | null }) {
+export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = null, onSlideEnd }: { brewDay: BrewDay | null; slidePhase?: 'prepare' | 'row' | 'card' | 'footer' | null; onSlideEnd?: () => void }) {
   const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
@@ -219,24 +219,34 @@ export const TimerFooter = memo(function TimerFooter({ brewDay }: { brewDay: Bre
   useEffect(() => {
     if (isVisible) {
       setRendered(true);
+      setFooterSlot(null, TIMER_FOOTER_HEIGHT, 'brew-timer');
+      if (slidePhase && slidePhase !== 'footer') return;
       const frameRef = { current: 0 };
-      const frame = requestAnimationFrame(() => {
-        const nextFrame = requestAnimationFrame(() => {
-          setEntered(true);
-           setFooterSlot(null, TIMER_FOOTER_HEIGHT, 'brew-timer'); // Resize the cards once, not on every animation frame.
+      const start = setTimeout(() => {
+        frameRef.current = requestAnimationFrame(() => {
+          frameRef.current = requestAnimationFrame(() => setEntered(true));
         });
-        frameRef.current = nextFrame;
-      });
-      frameRef.current = frame;
-      return () => cancelAnimationFrame(frameRef.current);
+      }, isTvMode && !slidePhase ? 700 : 0);
+      return () => { clearTimeout(start); cancelAnimationFrame(frameRef.current); };
     }
-    setEntered(false);
-    const timeout = setTimeout(() => {
-      setRendered(false);
-      clearFooterSlot('brew-timer'); // Restore the space after the timer has slid out.
-    }, 2200);
-    return () => clearTimeout(timeout);
-  }, [isVisible, setFooterSlot, clearFooterSlot]);
+    if (slidePhase) {
+      clearFooterSlot('brew-timer');
+      if (slidePhase !== 'footer') return;
+    }
+    if (isTvMode && brewDay && !isVisible) return;
+    let timeout: ReturnType<typeof setTimeout>;
+    const start = setTimeout(() => {
+      setEntered(false);
+      timeout = setTimeout(() => {
+        setRendered(false);
+        clearFooterSlot('brew-timer');
+      }, 2200);
+    }, isTvMode && !slidePhase ? 700 : 0);
+    return () => { clearTimeout(start); clearTimeout(timeout); };
+  }, [isVisible, slidePhase, isTvMode, !!brewDay, setFooterSlot, clearFooterSlot]);
+  useEffect(() => {
+    if (slidePhase === 'footer' && (!rendered || entered === isVisible)) onSlideEnd?.();
+  }, [slidePhase, rendered, isVisible, onSlideEnd]);
 
   useEffect(() => () => clearFooterSlot('brew-timer'), [clearFooterSlot]);
 
@@ -366,6 +376,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay }: { brewDay: Bre
       {/* Main footer - 3 column grid layout for TV */}
       <div 
         className="absolute bottom-0 left-0 right-0 z-20 motion-reduce:!transition-none"
+        onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform') onSlideEnd?.(); }}
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,
           transform: entered ? 'translateY(0)' : 'translateY(100%)',

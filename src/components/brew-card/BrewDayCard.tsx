@@ -1,12 +1,19 @@
+import { memo, useRef } from "react";
 import { Check, ChefHat } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
-import { useSharedExternalTimer } from "@/hooks/use-external-timer";
+import { useSharedExternalTimer, type ExternalTimerState } from "@/hooks/use-external-timer";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean }) {
-  const timer = useSharedExternalTimer();
+type BrewDayCardProps = { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean; transitionActive?: boolean };
+export function BrewDayCard(props: BrewDayCardProps) {
+  const liveTimer = useSharedExternalTimer();
+  const frozenTimer = useRef(liveTimer);
+  if (!props.transitionActive || (!frozenTimer.current?.isActive && liveTimer?.isActive)) frozenTimer.current = liveTimer;
+  return <BrewDayCardContent {...props} timer={frozenTimer.current} />;
+}
+const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBackground, isTvMode, timer }: BrewDayCardProps & { timer: ExternalTimerState | null }) {
   const active = timer?.isActive ? timer : null;
   const isDone = !!active && active.totalSeconds > 0 && active.remainingSeconds === 0;
   // Same row as the footer's next milestone; otherwise first unchecked.
@@ -116,4 +123,4 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
       {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}
     </Card>
   );
-}
+});
