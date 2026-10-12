@@ -10,7 +10,7 @@ type BrewDayCardProps = { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMod
 export function BrewDayCard(props: BrewDayCardProps) {
   const liveTimer = useSharedExternalTimer();
   const frozenTimer = useRef(liveTimer);
-  if (!props.transitionActive) frozenTimer.current = liveTimer;
+  if (!props.transitionActive || (!frozenTimer.current?.isActive && liveTimer?.isActive)) frozenTimer.current = liveTimer;
   return <BrewDayCardContent {...props} timer={frozenTimer.current} />;
 }
 const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBackground, isTvMode, timer }: BrewDayCardProps & { timer: ExternalTimerState | null }) {
