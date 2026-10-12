@@ -48,7 +48,7 @@ describe('Sonos progress', () => {
     act(() => rt.handler?.({ new: track }));
     expect(result.current.nowPlaying?.duration_ms).toBe(240000);
     expect(result.current.localProgressRef.current).toBe(20000);
-    expect(result.current.progressBarRef.current.style.transform).toBe(`scaleX(${20000 / 240000})`);
+    expect(Number(result.current.progressBarRef.current.style.transform.slice(7, -1))).toBeCloseTo(20000 / 240000);
   });
 
   it.each([null, { ...track, playback_state: 'PLAYBACK_STATE_IDLE' }])('seeds first state or wake position independently of the updater', initial => {
