@@ -530,9 +530,25 @@ export const TimerFooter = memo(function TimerFooter({ brewDay }: { brewDay: Bre
            <div className="flex items-center justify-center px-6">
              {isUntimed ? (
                timer.timerAction && timer.timerTargetTemperature != null ? (
-                 <span className="text-xs font-bold text-foreground">
-                   {timer.timerAction === 'heat' ? 'Värm till' : timer.timerAction === 'cool' ? 'Kyl till' : 'Håll vid'} {timer.timerTargetTemperature} °C
-                 </span>
+                 (() => {
+                   const isHeat = timer.timerAction === 'heat';
+                   const isCool = timer.timerAction === 'cool';
+                   const verb = isHeat ? 'Värm till' : isCool ? 'Kyl till' : 'Håll vid';
+                   const palette = isHeat
+                     ? 'bg-orange-500/20 text-orange-300'
+                     : isCool
+                       ? 'bg-cyan-500/20 text-cyan-300'
+                       : 'bg-emerald-500/20 text-emerald-300';
+                   return (
+                     <div className={cn(
+                       "flex items-center gap-2 rounded px-5 py-2 text-xl font-bold",
+                       palette,
+                     )}>
+                       {isHeat ? <Flame className="w-5 h-5" /> : <Thermometer className="w-5 h-5" />}
+                       <span>{verb} {timer.timerTargetTemperature} °C</span>
+                     </div>
+                   );
+                 })()
                ) : null
              ) : timer.milestones.length > 0 ? (
               <VisualTimeline 
