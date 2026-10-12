@@ -45,6 +45,8 @@ export interface ExternalTimerState {
   timerAction: 'heat' | 'cool' | 'hold' | string | null;
   timerTargetTemperature: number | null;
   wizardStartedAt: string | null;
+  /** Countdown base from the latest push/correction; local milestone rules only apply below it. */
+  baseRemainingSeconds: number;
 }
 
 const initialState: ExternalTimerState = {
@@ -66,6 +68,7 @@ const initialState: ExternalTimerState = {
   timerAction: null,
   timerTargetTemperature: null,
   wizardStartedAt: null,
+  baseRemainingSeconds: 0,
 };
 
 // Cache-only safety net; Brew Master pushes changes through receive-timer.
@@ -92,7 +95,7 @@ export function useExternalTimer() {
     const startedAt = new Date(data.startedAt).getTime();
     const now = Date.now();
     const elapsed = Math.floor((now - startedAt) / 1000);
-    return applyMilestonePause(Math.max(0, data.remainingAtStart - elapsed), data.milestones).remaining;
+    return applyMilestonePause(Math.max(0, data.remainingAtStart - elapsed), data.milestones, data.remainingAtStart).remaining;
   }, []);
 
   const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
@@ -124,7 +127,7 @@ export function useExternalTimer() {
     const nextMilestone = calculateNextMilestone(remainingSeconds);
     const timeToNextMilestone = calculateTimeToNextMilestone(remainingSeconds, nextMilestone);
     const progress = data.totalSeconds > 0 ? ((data.totalSeconds - remainingSeconds) / data.totalSeconds) * 100 : 0;
-    const frozen = !data.isPaused && applyMilestonePause(remainingSeconds, data.milestones).frozen;
+    const frozen = !data.isPaused && applyMilestonePause(remainingSeconds, data.milestones, data.remainingAtStart).frozen;
     setTimerState(prev => ({
       ...prev,
       ...(frozen ? { isPaused: true, pausedByMilestone: true } : {}),
@@ -132,6 +135,7 @@ export function useExternalTimer() {
       nextMilestone,
       timeToNextMilestone,
       progress: Math.min(100, Math.max(0, progress)),
+      baseRemainingSeconds: data.remainingAtStart,
     }));
   }, [calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
@@ -274,7 +278,7 @@ export function useExternalTimer() {
         ? ((data.total_seconds - currentRemaining) / data.total_seconds) * 100 
         : apiProgress;
 
-      const frozen = !data.is_paused && applyMilestonePause(currentRemaining, milestones).frozen;
+      const frozen = !data.is_paused && applyMilestonePause(currentRemaining, milestones, timerDataRef.current?.remainingAtStart ?? currentRemaining).frozen;
       setTimerState({
         // Hidden only on explicit end (is_active false) or after 24 h without a push.
         isActive: data.is_active && Date.now() - new Date(data.last_push_at ?? data.last_synced_at).getTime() < 24 * 3_600_000,
@@ -296,6 +300,7 @@ export function useExternalTimer() {
         timerAction: (data as Record<string, unknown>).timer_action as string | null ?? null,
         timerTargetTemperature: (data as Record<string, unknown>).timer_target_temperature as number | null ?? null,
         wizardStartedAt: data.wizard_started_at ?? null,
+        baseRemainingSeconds: timerDataRef.current?.remainingAtStart ?? currentRemaining,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);
