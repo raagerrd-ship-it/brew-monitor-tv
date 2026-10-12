@@ -19,6 +19,7 @@ import { useTvRefresh } from "@/hooks/use-tv-refresh";
 
 import { useAspectRatio } from "@/components/AspectRatioContainer";
 import { TimerFooter } from "@/components/TimerFooter";
+import { ExternalTimerProvider } from "@/hooks/use-external-timer";
 import { useDashboardFooter } from "@/contexts/DashboardFooterContext";
 import { useHasAlbumArtBackground } from "@/contexts/AlbumArtContext";
 import { DashboardBackground } from "./DashboardBackground";

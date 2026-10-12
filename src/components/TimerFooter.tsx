@@ -1,7 +1,8 @@
 import { memo, useRef, useEffect, useState } from 'react';
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
-import { useExternalTimer } from '@/hooks/use-external-timer';
+import { useSharedExternalTimer } from '@/hooks/use-external-timer';
+import { latestPassed, pickAlertMilestone } from '@/lib/timer-milestones';
 import { useExternalUserSettings } from '@/hooks/use-external-user-settings';
 import { useTvMode } from '@/contexts/TvModeContext';
 import { useAlbumArt } from '@/contexts/AlbumArtContext';
@@ -165,7 +166,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
 export const TimerFooter = memo(function TimerFooter() {
-  const liveTimer = useExternalTimer();
+  const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
   const { visibleBgUrl } = useAlbumArt();
@@ -199,9 +200,12 @@ export const TimerFooter = memo(function TimerFooter() {
   // `triggered` stays as a legacy fallback for older payloads.
   const flaggedCurrent = timer.milestones.find(m => m.current === true) || null;
   const hasTriggeredFlags = timer.milestones.some(m => typeof m.triggered === 'boolean');
-  const currentMilestone = flaggedCurrent ?? (hasTriggeredFlags
+  const passedLocally = isUntimed ? null : latestPassed(timer.remainingSeconds, timer.milestones);
+  const appCurrent = flaggedCurrent ?? (hasTriggeredFlags
     ? timer.milestones.filter(m => m.triggered === true).sort((a, b) => b.time - a.time)[0] || null
     : timer.milestones.filter(m => m.time >= timer.remainingSeconds).sort((a, b) => a.time - b.time)[0] || null);
+  // The local countdown wins when it is further along than the app's flag (phone asleep).
+  const currentMilestone = passedLocally && (!appCurrent || passedLocally.time < appCurrent.time) ? passedLocally : appCurrent;
 
 
   // Check if we should show based on TV mode setting
@@ -247,11 +251,7 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
 
-    const hasCurrentFlag = timer.milestones.some(m => m.current === true);
-    const justTriggered = timer.milestones.find(m => {
-      const isNow = hasCurrentFlag ? m.current === true : m.triggered === true;
-      return isNow && !m.acknowledged && !m.ack && !lastTriggeredRef.current.has(m.label);
-    });
+    const justTriggered = pickAlertMilestone(timer.milestones, timer.remainingSeconds, lastTriggeredRef.current);
     
     if (justTriggered) {
       lastTriggeredRef.current.add(justTriggered.label);
@@ -295,7 +295,7 @@ export const TimerFooter = memo(function TimerFooter() {
         ),
       });
     }
-  }, [timer.milestones, timer.isActive, showAlert]);
+  }, [timer.milestones, timer.isActive, timer.remainingSeconds, showAlert]);
 
   // Step finished: show once per step; closed on label change (above) or when the 0-s milestone is acknowledged.
   const zeroAcked = zeroMilestone?.acknowledged === true;
@@ -648,6 +648,11 @@ export const TimerFooter = memo(function TimerFooter() {
             >
               {formatTime(timer.remainingSeconds)} totalt
             </div>}
+            {isUntimed && timer.wizardStartedAt && (
+              <div className="font-mono tabular-nums text-base text-muted-foreground">
+                pågått {Math.max(0, Math.floor((Date.now() - new Date(timer.wizardStartedAt).getTime()) / 60000))} min
+              </div>
+            )}
           </div>
         </div>
       </div>
