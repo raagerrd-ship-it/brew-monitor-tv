@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Bryggdagens TV-layout: toppjusterad lista, tydligt Nästa-fält, hela målgrader, 0/3 ölkort, korrekt footer och glesade tidslinjeetiketter. Verifiera med enbart mockade svar; inga testrader eller publicering.
+
 - [x] Bryggdag: TV larmar själv vid förfallna milstolpar, steg/Nästa på kortet, gemensam timer för kort och footer, KLART på kortet, "pågått" för steg utan tid. Verifierat i 1920×1080 TV-vy, ej publicerat.
 
 - [x] Sonos-header: mät text efter bredd/fontändringar, rätta låtlängd och positionsstart. Fyra tester gröna; kort/lång text och riktigt låtbyte verifierade i 1920×1080 TV-vy, bygge grönt, ej publicerat.

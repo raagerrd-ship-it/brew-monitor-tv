@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyMilestonePause, pickAlertMilestone } from '@/lib/timer-milestones';
+import { applyMilestonePause, pickAlertMilestone, pickCurrentMilestone } from '@/lib/timer-milestones';
 
 describe('local milestone alarms', () => {
   const hop = { time: 900, label: 'Citra 30 g' };
@@ -37,5 +37,19 @@ describe('local milestone alarms', () => {
     // Base 500 ≤ milestone 600: the app's latest message was already past it.
     const p = { time: 600, label: 'Whirlpool', pauseHere: true };
     expect(applyMilestonePause(450, [p], 500)).toEqual({ remaining: 450, frozen: false });
+  });
+});
+
+describe('footer current milestone', () => {
+  it('ignores acknowledged and old milestones, including legacy triggered flags', () => {
+    expect(pickCurrentMilestone(1500, [
+      { time: 3600, label: 'Magnum', current: true, acknowledged: true },
+      { time: 1800, label: 'Old', triggered: true },
+    ])).toBeNull();
+  });
+  it('shows a recent due milestone or an unacknowledged current flag', () => {
+    expect(pickCurrentMilestone(880, [{ time: 900, label: 'Saaz' }])?.label).toBe('Saaz');
+    expect(pickCurrentMilestone(700, [{ time: 900, label: 'Saaz' }])).toBeNull();
+    expect(pickCurrentMilestone(700, [{ time: 900, label: 'Saaz', current: true }])?.label).toBe('Saaz');
   });
 });

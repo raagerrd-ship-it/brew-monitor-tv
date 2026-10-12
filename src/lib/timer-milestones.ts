@@ -23,6 +23,15 @@ export function latestPassed(remaining: number, milestones: TimerMilestone[]) {
     .sort((a, b) => a.time - b.time)[0] ?? null;
 }
 
+/** Only an unacknowledged current or recently due milestone belongs in "Nu:". */
+export function pickCurrentMilestone(remaining: number, milestones: TimerMilestone[]) {
+  const eligible = milestones.filter(m => !isAcked(m));
+  const due = eligible.filter(m => m.time > 0 && remaining <= m.time && m.time - remaining <= DUE_WINDOW_S)
+    .sort((a, b) => a.time - b.time)[0];
+  const current = eligible.find(m => m.current === true);
+  return due && (!current || due.time < current.time) ? due : current ?? null;
+}
+
 /**
  * Milestone that should raise "Dags nu!": flagged by the app or due by the local countdown (≤120 s ago).
  * Local due only counts when the TV's own countdown passed it after the app's latest message

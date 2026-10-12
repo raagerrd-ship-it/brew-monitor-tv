@@ -237,7 +237,8 @@ export function BrewingDashboard() {
 
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.
-  const brewDayWidth = cardCount >= 3
+  const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
+  const brewDayWidth = soloBrewDay ? '66.666667%' : cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
@@ -377,7 +378,7 @@ export function BrewingDashboard() {
                 className="absolute motion-reduce:!transition-none"
                 style={{
                   top: '0.5rem',
-                  right: '1rem',
+                   right: soloBrewDay ? '16.666667%' : '1rem',
                   width: brewDayWidth,
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                   transform: brewDay && brewDayEntered && brewDayPhase !== 'row' ? 'translateX(0)' : 'translateX(calc(100% + 1.5rem))',
@@ -396,7 +397,7 @@ export function BrewingDashboard() {
       {selectedController && <RaptControllerDialog controller={selectedController} open={controllerDialogOpen} onOpenChange={setControllerDialogOpen} isCooler={selectedControllerIsCooler} controllerColor={pills.find(p => p.pill_id === selectedController.linked_pill_id)?.color || undefined} />}
 
       {/* Footer Slot: context-driven content or self-rendering components */}
-      <TimerFooter />
+      <TimerFooter brewDay={brewDay} />
       {footerContent && (
         <div className="absolute left-0 right-0 z-20" style={{ bottom: `${footerContentOffset}px`, height: `${footerContentHeight}px` }}>
           {footerContent}
