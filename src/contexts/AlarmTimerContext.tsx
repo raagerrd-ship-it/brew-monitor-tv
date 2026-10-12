@@ -189,13 +189,17 @@ export function AlarmTimerProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState !== 'visible') return;
       const { data } = await supabase.from('shared_timer').select('*').limit(1).maybeSingle();
       const e = data && data.is_active ? rowToEntry(data) : null;
-      setEntry(e && !e.fired ? e : null);
+      const next = e && !e.fired ? e : null;
+      setEntry(prev => (prev?.id === next?.id && prev?.endsAt === next?.endsAt && prev?.fired === next?.fired ? prev : next));
     };
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('online', resume);
+    // Reservhämtning: realtime/visibility kommer inte alltid fram på Chromecast.
+    const poll = setInterval(resume, 60_000);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(poll);
       document.removeEventListener('visibilitychange', resume);
       window.removeEventListener('online', resume);
     };
