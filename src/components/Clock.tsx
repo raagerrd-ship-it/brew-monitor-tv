@@ -10,7 +10,7 @@ function ClockComponent() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setNow(new Date());
+      if (!(window as any).__noclock || !document.querySelector(".cleaning-transition-active")) setNow(new Date());
     }, 1000);
     return () => clearInterval(interval);
   }, []);
