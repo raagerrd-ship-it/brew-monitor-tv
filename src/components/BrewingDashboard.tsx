@@ -90,9 +90,11 @@ export function BrewingDashboard() {
     return () => clearTimeout(footer);
   }, [isTvMode, isMobile, !!brewDay]);
   const phasePause = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phaseWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (phasePause.current) clearTimeout(phasePause.current); }, [!!brewDay]);
   const finishBrewDayPhase = useCallback(() => {
     if (!brewDayTransition || !brewDayPhase || brewDayPhase === 'prepare') return;
+    if (phaseWatchdog.current) clearTimeout(phaseWatchdog.current);
     if (phasePause.current) clearTimeout(phasePause.current);
     // Wait for the actual transform to finish, not a wall-clock deadline.
     const pause = brewDay ? (brewDayPhase === 'row' ? 300 : brewDayPhase === 'card' ? 400 : 200) : (brewDayPhase === 'card' ? 200 : brewDayPhase === 'row' ? 300 : 200);
@@ -108,6 +110,15 @@ export function BrewingDashboard() {
       }
     }, pause);
   }, [!!brewDay, brewDayPhase, brewDayTransition]);
+  useEffect(() => {
+    if (!brewDayTransition || !brewDayPhase || brewDayPhase === 'prepare') return;
+    const duration = brewDayPhase === 'footer' ? 2000 : brewDayPhase === 'card' && brewDay ? 1400 : 1200;
+    phaseWatchdog.current = setTimeout(finishBrewDayPhase, duration + 1500);
+    return () => {
+      if (phaseWatchdog.current) clearTimeout(phaseWatchdog.current);
+      if (phasePause.current) clearTimeout(phasePause.current);
+    };
+  }, [brewDayPhase, brewDayTransition, finishBrewDayPhase]);
   useEffect(() => {
     if (!brewDayTransition || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     finishBrewDayPhase();
