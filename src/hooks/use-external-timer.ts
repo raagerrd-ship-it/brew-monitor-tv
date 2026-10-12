@@ -45,6 +45,8 @@ export interface ExternalTimerState {
   timerAction: 'heat' | 'cool' | 'hold' | string | null;
   timerTargetTemperature: number | null;
   wizardStartedAt: string | null;
+  /** Countdown base from the latest push/correction; local milestone rules only apply below it. */
+  baseRemainingSeconds: number;
 }
 
 const initialState: ExternalTimerState = {
@@ -66,6 +68,7 @@ const initialState: ExternalTimerState = {
   timerAction: null,
   timerTargetTemperature: null,
   wizardStartedAt: null,
+  baseRemainingSeconds: 0,
 };
 
 // Cache-only safety net; Brew Master pushes changes through receive-timer.
@@ -132,6 +135,7 @@ export function useExternalTimer() {
       nextMilestone,
       timeToNextMilestone,
       progress: Math.min(100, Math.max(0, progress)),
+      baseRemainingSeconds: data.remainingAtStart,
     }));
   }, [calculateRemainingSeconds, calculateNextMilestone, calculateTimeToNextMilestone]);
 
@@ -296,6 +300,7 @@ export function useExternalTimer() {
         timerAction: (data as Record<string, unknown>).timer_action as string | null ?? null,
         timerTargetTemperature: (data as Record<string, unknown>).timer_target_temperature as number | null ?? null,
         wizardStartedAt: data.wizard_started_at ?? null,
+        baseRemainingSeconds: timerDataRef.current?.remainingAtStart ?? currentRemaining,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);
