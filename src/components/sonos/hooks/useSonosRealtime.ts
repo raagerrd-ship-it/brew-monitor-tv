@@ -7,6 +7,7 @@ interface UseSonosRealtimeParams {
   isConnected: boolean;
   showWidget: boolean;
   setNowPlaying: React.Dispatch<React.SetStateAction<NowPlaying | null>>;
+  nowPlayingRef: React.MutableRefObject<NowPlaying | null>;
   localProgressRef: React.MutableRefObject<number | null>;
   bgSentRef: React.MutableRefObject<string | null>;
   validBgBufferRef: React.MutableRefObject<string[]>;
@@ -23,7 +24,7 @@ interface UseSonosRealtimeParams {
  */
 export function useSonosRealtime(params: UseSonosRealtimeParams) {
   const {
-    isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying, nowPlayingRef,
     localProgressRef, bgSentRef, validBgBufferRef,
     onAlbumArtChangeRef, progressBarRef, debugTimeRef,
     acceptedSeqRef, swappedFromRef,
@@ -48,11 +49,16 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
       let accepted = false;
       let isTrackChange = false;
 
+      const current = nowPlayingRef.current;
+      if ((!current || (current.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING')) && incoming.position_ms != null) {
+        localProgressRef.current = incoming.position_ms;
+        updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
+      }
+
       setNowPlaying(prev => {
         // First state
         if (!prev) {
           accepted = true;
-          isTrackChange = true;
           if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
@@ -66,7 +72,6 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         // Wake from IDLE
         if (prev.playback_state === 'PLAYBACK_STATE_IDLE' && incoming.playback_state === 'PLAYBACK_STATE_PLAYING') {
           accepted = true;
-          isTrackChange = true;
           if (typeof incoming.track_seq === 'number') acceptedSeqRef.current = incoming.track_seq;
           if (incoming.bg_image_url) {
             pushToBgBuffer(validBgBufferRef.current, incoming.bg_image_url);
@@ -148,8 +153,11 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           acceptedSeqRef.current = incoming.track_seq;
         }
 
-        // Sync local progress from periodic push to prevent ticker drift,
-        // Bridge position is stale — position correction handled by 10s poll against sonos-playback-status
+        const durationChanged = incoming.duration_ms != null && incoming.duration_ms !== prev.duration_ms;
+        if (durationChanged && incoming.position_ms != null) {
+          localProgressRef.current = incoming.position_ms;
+          updateProgressDOM(progressBarRef, debugTimeRef, incoming.position_ms, incoming.duration_ms);
+        }
 
         const stripQs = (u: string | null) => u?.split('?')[0] ?? '';
         const nextBgNew = incoming.next_bg_image_url && stripQs(incoming.next_bg_image_url) !== stripQs(prev.next_bg_image_url);
@@ -187,7 +195,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
           tvDebug('sonos', `📡 RT next: ${extractFileName(incoming.next_bg_image_url)} ${nextCacheTag}`.trim());
         }
 
-        const hasChanges = nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged || accentChanged
+        const hasChanges = durationChanged || nextBgNew || nextBgMetaChanged || bgActuallyChanged || bgMetaChanged || accentChanged
           || incoming.playback_state !== prev.playback_state
           || (incoming.next_track_name && incoming.next_track_name !== prev.next_track_name);
 
@@ -203,6 +211,7 @@ export function useSonosRealtime(params: UseSonosRealtimeParams) {
         return {
           ...prev,
           playback_state: incoming.playback_state,
+          ...(durationChanged ? { duration_ms: incoming.duration_ms, position_ms: incoming.position_ms } : {}),
           ...(bgActuallyChanged ? { bg_image_url: incoming.bg_image_url } : {}),
           ...(bgActuallyChanged || accentChanged ? { accent_color: incoming.accent_color } : {}),
           ...(bgActuallyChanged || bgMetaChanged ? { bg_cached: incoming.bg_cached, bg_generation_ms: incoming.bg_generation_ms } : {}),
