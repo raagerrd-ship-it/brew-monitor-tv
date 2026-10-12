@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useTvMode } from '@/contexts/TvModeContext';
 import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart } from 'recharts';
 import { Loader2, Snowflake, ChevronDown, ChevronRight } from 'lucide-react';
 import { useMultiControllerTempData } from './hooks/useMultiControllerTempData';
@@ -33,6 +34,7 @@ function metricColor(base: string, suffix: string): string {
 }
 
 export function CombinedControllerChart({ controllers }: CombinedControllerChartProps) {
+  const { isTvMode } = useTvMode();
   // Track which controllers are expanded (showing their sub-metrics)
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // Track which individual series are visible: key = "{id}_{suffix}"
@@ -288,6 +290,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
                   const isHeating = metric.suffix === 'heating';
                   return (
                     <Area
+                      isAnimationActive={isTvMode ? false : undefined}
                       key={key}
                       yAxisId="cooling"
                       type="stepAfter"
@@ -305,6 +308,7 @@ export function CombinedControllerChart({ controllers }: CombinedControllerChart
 
                 return (
                   <Line
+                    isAnimationActive={isTvMode ? false : undefined}
                     key={key}
                     yAxisId="temp"
                     type={metric.suffix === 'target' || metric.suffix === 'profile' ? 'stepAfter' : 'monotone'}
