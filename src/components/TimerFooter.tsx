@@ -251,7 +251,7 @@ export const TimerFooter = memo(function TimerFooter() {
   useEffect(() => {
     if (!timer.milestones.length || !timer.isActive) return;
 
-    const justTriggered = pickAlertMilestone(timer.milestones, timer.remainingSeconds, lastTriggeredRef.current);
+    const justTriggered = pickAlertMilestone(timer.milestones, timer.remainingSeconds, lastTriggeredRef.current, timer.baseRemainingSeconds);
     
     if (justTriggered) {
       lastTriggeredRef.current.add(justTriggered.label);
