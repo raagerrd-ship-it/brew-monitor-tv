@@ -25,11 +25,12 @@ vi.mock('@/components/DashboardBackground', () => ({ DashboardBackground: () => 
 vi.mock('@/components/DashboardAlertOverlay', () => ({ DashboardAlertOverlay: () => null }));
 vi.mock('@/components/CleaningChecklistOverlay', () => ({ CleaningChecklistOverlay: () => null }));
 
-afterEach(() => { vi.useRealTimers(); state.day = null; });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); state.day = null; });
 
 describe('brew day phase watchdog', () => {
   it('finishes entry and exit without any transitionend events', () => {
     vi.useFakeTimers();
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
     state.day = { recipe_name: 'Mätbrygd', items: [] };
     const view = render(<BrewingDashboard />);
     const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms));
