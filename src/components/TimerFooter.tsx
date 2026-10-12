@@ -208,7 +208,7 @@ export const TimerFooter = memo(function TimerFooter() {
       const frame = requestAnimationFrame(() => {
         const nextFrame = requestAnimationFrame(() => {
           setEntered(true);
-           setFooterSlot(null, TIMER_FOOTER_HEIGHT); // Resize the cards once, not on every animation frame.
+           setFooterSlot(null, TIMER_FOOTER_HEIGHT, 'brew-timer'); // Resize the cards once, not on every animation frame.
         });
         frameRef.current = nextFrame;
       });
@@ -218,12 +218,12 @@ export const TimerFooter = memo(function TimerFooter() {
     setEntered(false);
     const timeout = setTimeout(() => {
       setRendered(false);
-      clearFooterSlot(); // Restore the space after the timer has slid out.
+      clearFooterSlot('brew-timer'); // Restore the space after the timer has slid out.
     }, 2200);
     return () => clearTimeout(timeout);
   }, [isVisible, setFooterSlot, clearFooterSlot]);
 
-  useEffect(() => () => clearFooterSlot(), [clearFooterSlot]);
+  useEffect(() => () => clearFooterSlot('brew-timer'), [clearFooterSlot]);
 
   // Reset triggered milestones when phase changes (e.g. Mäsk → Kok → Whirlpool)
   useEffect(() => {
