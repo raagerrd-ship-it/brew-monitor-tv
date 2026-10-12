@@ -1,3 +1,4 @@
+import { formatStockholm } from '@/lib/stockholm-time';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { notifyBrewDay } from '@/hooks/use-brew-day';
@@ -440,7 +441,7 @@ export function useBrewData(): UseBrewDataReturn {
         originalGravity: reading.original_gravity,
         finalGravity: reading.final_gravity,
         lastUpdate: effectiveLastUpdate
-          ? new Date(effectiveLastUpdate).toLocaleString('sv-SE', {
+          ? formatStockholm(effectiveLastUpdate, {
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -686,7 +687,7 @@ export function useBrewData(): UseBrewDataReturn {
               abv: updatedReading.abv,
               battery: updatedReading.battery,
               lastUpdate: updatedReading.last_update
-                ? new Date(updatedReading.last_update).toLocaleString('sv-SE', {
+                ? formatStockholm(updatedReading.last_update, {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',

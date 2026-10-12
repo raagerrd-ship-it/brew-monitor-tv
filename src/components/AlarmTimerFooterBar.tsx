@@ -1,3 +1,4 @@
+import { formatStockholm } from '@/lib/stockholm-time';
 import { memo, useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { AlarmTimerEntry } from '@/contexts/AlarmTimerContext';
@@ -17,7 +18,7 @@ function formatCountdown(ms: number): string {
 }
 
 function formatEndTime(epoch: number): string {
-  return new Date(epoch).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  return formatStockholm(epoch, { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatRightLabel(entry: AlarmTimerEntry): string {
