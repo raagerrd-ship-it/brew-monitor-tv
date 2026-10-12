@@ -238,13 +238,14 @@ export function BrewingDashboard() {
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.
   const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
-  const brewDayWidth = soloBrewDay ? '66.666667%' : cardCount >= 3
+  const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay;
+  const brewDayWidth = soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
   // of (card width + gap); start shifted by that much so they don't jump.
   // translateX % uses the row's full width incl. its 2rem padding, so subtract it.
-  const brewDayShift = cardCount >= 3
+  const brewDayShift = threeBrewsWithDay ? 'calc(16.666667% + 0.75rem)' : cardCount >= 3
     ? `calc((100% - 0.5rem) / ${cardCount * 2})`
     : 'calc(25% - 0.125rem)';
 
@@ -371,7 +372,7 @@ export function BrewingDashboard() {
               </div>
             ))}
             {displayedBrewDay && (
-              <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} aria-hidden="true" />
+              <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} style={threeBrewsWithDay ? { flex: `0 0 ${brewDayWidth}` } : undefined} aria-hidden="true" />
             )}
             {displayedBrewDay && (
               <div
