@@ -7,6 +7,7 @@ const SECRETS = [
 ].filter(Boolean);
 
 const num = (v: unknown) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
+const int = (v: unknown) => { const n = num(v); return n == null ? null : Math.round(n); };
 const str = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 
 Deno.serve(async (req) => {
@@ -21,6 +22,7 @@ Deno.serve(async (req) => {
   if (!body || typeof body.active !== "boolean") return json({ error: "active (boolean) krävs" }, 400);
 
   const step = body.step ?? {};
+  const next = body.next_step && typeof body.next_step === "object" ? body.next_step : null;
   const items = Array.isArray(body.items)
     ? body.items.slice(0, 50).map((i: Record<string, unknown>, idx: number) => ({
         id: str(i?.id, 80) ?? String(idx),
@@ -39,8 +41,18 @@ Deno.serve(async (req) => {
         step_id: str(step.id, 80), step_kind: str(step.kind, 40), step_title: str(step.title),
         target_temp_c: num(step.target_temp_c),
         items, updated_at: new Date().toISOString(),
+        step_index: int(body.step_index ?? step.index),
+        step_count: int(body.step_count ?? step.count),
+        next_step_title: str(next?.title),
+        next_step_minutes: int(next?.minutes),
+        next_step_items: Array.isArray(next?.items) ? next.items.length : int(next?.items),
+        step_started_at: str(body.step_started_at ?? step.started_at, 60),
       }
-    : { id: 1, active: false, items: [], updated_at: new Date().toISOString() };
+    : {
+        id: 1, active: false, items: [], updated_at: new Date().toISOString(),
+        step_index: null, step_count: null, next_step_title: null,
+        next_step_minutes: null, next_step_items: null, step_started_at: null,
+      };
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { error } = await supabase.from("brew_day_session").upsert(row, { onConflict: "id" });

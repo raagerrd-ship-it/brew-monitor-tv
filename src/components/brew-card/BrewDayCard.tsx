@@ -1,9 +1,19 @@
 import { Check, ChefHat } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
+import { useSharedExternalTimer } from "@/hooks/use-external-timer";
+
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean }) {
-  const nextId = day.items.find((i) => !i.checked)?.id;
+  const timer = useSharedExternalTimer();
+  const active = timer?.isActive ? timer : null;
+  const isDone = !!active && active.totalSeconds > 0 && active.remainingSeconds === 0;
+  // Same row as the footer's next milestone; otherwise first unchecked.
+  const nm = active?.nextMilestone;
+  const matchedId = nm ? day.items.find((i) => i.at_min != null && i.at_min * 60 === nm.time)?.id : undefined;
+  const nextId = matchedId ?? day.items.find((i) => !i.checked)?.id;
+  const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
   return (
     <Card
       className={`relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
@@ -19,11 +29,16 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
           <ChefHat className={`${isTvMode ? "h-6 w-6" : "h-6 w-6"} text-foreground/70`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`${isTvMode ? "text-base" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag</div>
+          <div className={`${isTvMode ? "text-base" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
           <div className={`${isTvMode ? "text-2xl" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
           <div className={`${isTvMode ? "text-3xl" : "text-3xl"} font-bold tracking-tight truncate mt-1`}>{day.step_title ?? "—"}</div>
+          {isDone && <div className="text-base font-semibold text-green-300 mt-1">Tryck Klar i appen</div>}
         </div>
-        {day.target_temp_c != null && (
+        {isDone ? (
+          <div className={`shrink-0 rounded-2xl border border-green-400/40 bg-green-500/20 ${isTvMode ? "px-5 py-2" : "px-3 py-2"}`}>
+            <div className="text-4xl font-bold text-green-300 leading-tight tracking-wider">KLART</div>
+          </div>
+        ) : day.target_temp_c != null && (
           <div className={`shrink-0 rounded-2xl border border-primary/30 bg-primary/15 ${isTvMode ? "px-5 py-2" : "px-3 py-2"} text-right`}>
             <div className={`${isTvMode ? "text-4xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{day.target_temp_c.toFixed(1)}°</div>
           </div>
@@ -78,12 +93,24 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
                     <span className="w-10 text-left text-[0.6em] font-semibold ml-1">min</span>
                   </span>
                 )}
+                {isNext && countdown != null && (
+                  <span className={`flex items-baseline shrink-0 ${isTvMode ? "text-3xl" : "text-3xl"} font-medium tabular-nums whitespace-nowrap text-foreground`}>
+                    <span className="text-[0.6em] font-semibold mr-1">om</span>{fmt(countdown)}
+                  </span>
+                )}
               </span>
             </li>
           );
         })}
         {day.items.length === 0 && <li className="text-sm text-muted-foreground">Inget att tillsätta i det här steget</li>}
       </ul>
+      {day.next_step_title && (
+        <div className="text-base text-muted-foreground truncate">
+          Nästa: {day.next_step_title}
+          {day.next_step_minutes != null ? ` · ${day.next_step_minutes} min` : ""}
+          {day.next_step_items != null && day.next_step_items > 0 ? ` · ${day.next_step_items} tillsatser` : ""}
+        </div>
+      )}
       {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}
     </Card>
   );

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, createElement, useContext, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { applyMilestonePause } from '@/lib/timer-milestones';
 
 export interface TimerMilestone {
   time: number;
@@ -42,6 +44,7 @@ export interface ExternalTimerState {
   beerStyle: string | null;
   timerAction: 'heat' | 'cool' | 'hold' | string | null;
   timerTargetTemperature: number | null;
+  wizardStartedAt: string | null;
 }
 
 const initialState: ExternalTimerState = {
@@ -62,6 +65,7 @@ const initialState: ExternalTimerState = {
   beerStyle: null,
   timerAction: null,
   timerTargetTemperature: null,
+  wizardStartedAt: null,
 };
 
 // Cache-only safety net; Brew Master pushes changes through receive-timer.
@@ -88,7 +92,7 @@ export function useExternalTimer() {
     const startedAt = new Date(data.startedAt).getTime();
     const now = Date.now();
     const elapsed = Math.floor((now - startedAt) / 1000);
-    return Math.max(0, data.remainingAtStart - elapsed);
+    return applyMilestonePause(Math.max(0, data.remainingAtStart - elapsed), data.milestones).remaining;
   }, []);
 
   const calculateNextMilestone = useCallback((remainingSeconds: number): TimerMilestone | null => {
@@ -120,8 +124,10 @@ export function useExternalTimer() {
     const nextMilestone = calculateNextMilestone(remainingSeconds);
     const timeToNextMilestone = calculateTimeToNextMilestone(remainingSeconds, nextMilestone);
     const progress = data.totalSeconds > 0 ? ((data.totalSeconds - remainingSeconds) / data.totalSeconds) * 100 : 0;
+    const frozen = !data.isPaused && applyMilestonePause(remainingSeconds, data.milestones).frozen;
     setTimerState(prev => ({
       ...prev,
+      ...(frozen ? { isPaused: true, pausedByMilestone: true } : {}),
       remainingSeconds,
       nextMilestone,
       timeToNextMilestone,
@@ -268,14 +274,15 @@ export function useExternalTimer() {
         ? ((data.total_seconds - currentRemaining) / data.total_seconds) * 100 
         : apiProgress;
 
+      const frozen = !data.is_paused && applyMilestonePause(currentRemaining, milestones).frozen;
       setTimerState({
         // Hidden only on explicit end (is_active false) or after 24 h without a push.
         isActive: data.is_active && Date.now() - new Date(data.last_push_at ?? data.last_synced_at).getTime() < 24 * 3_600_000,
         label: data.label || '',
         remainingSeconds: currentRemaining,
         totalSeconds: data.total_seconds,
-        isPaused: data.is_paused,
-        pausedByMilestone: data.paused_by_milestone,
+        isPaused: data.is_paused || frozen,
+        pausedByMilestone: data.paused_by_milestone || frozen,
         pausedAt: data.paused_at ?? null,
         milestones,
         nextMilestone: localNextMilestone,
@@ -288,6 +295,7 @@ export function useExternalTimer() {
         beerStyle: data.beer_style ?? null,
         timerAction: (data as Record<string, unknown>).timer_action as string | null ?? null,
         timerTargetTemperature: (data as Record<string, unknown>).timer_target_temperature as number | null ?? null,
+        wizardStartedAt: data.wizard_started_at ?? null,
       });
     } catch (error) {
       console.error('Error fetching cached timer:', error);
@@ -344,4 +352,15 @@ export function useExternalTimer() {
   }, [timerState.isActive, timerState.isPaused, timerState.pausedByMilestone, updateTimerState]);
 
   return timerState;
+}
+
+const ExternalTimerContext = createContext<ExternalTimerState | null>(null);
+
+/** One timer instance (one realtime channel) shared by footer and brew day card. */
+export function ExternalTimerProvider({ children }: { children: ReactNode }) {
+  return createElement(ExternalTimerContext.Provider, { value: useExternalTimer() }, children);
+}
+
+export function useSharedExternalTimer(): ExternalTimerState | null {
+  return useContext(ExternalTimerContext);
 }
