@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Fasvakt (varaktighet + 1500 ms) för bryggdagens in/ut; båda når null utan transitionend i test och TV-vy med CPU ×6, 1/2 ölkort. 22 tester och automatiskt bygge gröna; sparade före/efter-mätningar sammanställda. Ingen publicering.
+
 - [x] Mät bryggdagsglidning in/ut med 1/2 ölkort och CPU ×6: behåll förberett höjdbyte, sekventiella glidningar och fryst nedräkning; återställ skuggförsök och tillfälligt will-change efter fler långa bildrutor. 21 tester och automatiskt bygge gröna; förberedelsen har fortfarande långa bildrutor. Inga testrader eller publicering.
 
 - [x] Bryggdagens TV-layout: toppjusterad lista, tydligt Nästa-fält, hela målgrader, 0/3 ölkort, korrekt footer och glesade tidslinjeetiketter. Verifierat i 1920×1080 med mockade svar och blockerade pushanrop; 19 tester och automatiskt bygge gröna. Tre ölkort ritas rent med bryggdagen på 1/3; långt tillsatsnamn förkortas fortfarande. Inga testrader eller publicering.
