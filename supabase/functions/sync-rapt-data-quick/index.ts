@@ -68,6 +68,12 @@ Deno.serve(async (req) => {
         .select('id, name, original_gravity, final_gravity, current_sg, current_temp, battery, status, last_update, linked_controller_id, fermentation_start, attenuation, style')
         .in('status', ['Jäsning', 'Fermenting']);
 
+      // Pi:n äger metrics (och redo-att-krascha) för bryggder på Pi-styrda tankar.
+      const { data: piCtrls } = await supabase
+        .from('rapt_temp_controllers').select('controller_id').eq('actuation', 'pi');
+      const piCtrlIds = new Set((piCtrls ?? []).map((c: any) => c.controller_id));
+      const cloudMetricBrews = (allFermentingBrews ?? []).filter((b: any) => !piCtrlIds.has(b.linked_controller_id));
+
       const fermentingBrewIds = (allFermentingBrews ?? []).map((b: any) => b.id);
       const { data: sharedBrewMetrics } = fermentingBrewIds.length > 0
         ? await supabase.from('brew_fermentation_metrics')
@@ -84,7 +90,7 @@ Deno.serve(async (req) => {
 
       [metricsResult, healthResult] = await Promise.all([
         computeAllMetrics(supabase, {
-          brews: allFermentingBrews ?? [],
+          brews: cloudMetricBrews,
           sessions: activeSessCheck ?? [],
           existingMetrics: sharedBrewMetrics ?? [],
         }).catch((err: any) => { console.error(`metrics error: ${err}`); return { __error: true, __step: 'metrics' }; }),

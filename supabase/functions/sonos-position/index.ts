@@ -66,7 +66,9 @@ Deno.serve(async (req) => {
     const latencyMs = (typeof pushedAt === 'number' && pushedAt > 0)
       ? Math.max(0, Date.now() - pushedAt)
       : 0;
-    const compensatedPosition = hasRealPosition ? positionMillis + latencyMs : 0;
+    // Latenskompensation bara vid uppspelning; i paus sparas rå position så "oförändrad" kan matcha.
+    const isPlayingNow = (playbackState || existingRow.playback_state) === 'PLAYBACK_STATE_PLAYING';
+    const compensatedPosition = hasRealPosition ? positionMillis + (isPlayingNow ? latencyMs : 0) : 0;
 
     // --- Stale-position detection: bridge reports PLAYING but position is frozen ---
     let effectivePlaybackState = playbackState || existingRow.playback_state || 'PLAYBACK_STATE_PLAYING';
