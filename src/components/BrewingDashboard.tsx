@@ -392,7 +392,7 @@ export function BrewingDashboard() {
                   willChange: 'transform',
                 }}
               >
-                <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} />
+                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} />
               </div>
             )}
           </div>

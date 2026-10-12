@@ -71,9 +71,6 @@
 }
 
 .tv .cleaning-transition-active .album-accent-card,
-.tv .cleaning-transition-active .brew-day-card,
-.tv .cleaning-transition-active .brew-timer-footer,
-.tv .cleaning-transition-active .brew-timer-footer *,
 .tv .cleaning-transition-active .recharts-wrapper svg,
 .tv .cleaning-transition-active .recharts-wrapper svg * {
   box-shadow: none !important;
