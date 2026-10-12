@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Kontrollera Recharts-animationer i TV-diagram; mät 2 ölkort före/efter med CPU ×6 och behåll bara förbättring. Test och bygge, inga dataskrivningar eller publicering.
+- [x] Recharts kontrollerat: BrewChart har redan alla Line/Area-animationer avstängda, GravityStat/TempStat använder inte Recharts. Controller-diagrammens TV-avstängning provmätt med 2 ölkort, CPU ×6 och återställd utan visad förbättring; de ingår inte i kortens glidflöde. Inga dataskrivningar eller publicering.
 
 - [x] Fasvakt (varaktighet + 1500 ms) för bryggdagens in/ut; båda når null utan transitionend i test och TV-vy med CPU ×6, 1/2 ölkort. 22 tester och automatiskt bygge gröna; sparade före/efter-mätningar sammanställda. Ingen publicering.
 

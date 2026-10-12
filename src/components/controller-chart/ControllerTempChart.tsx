@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useTvMode } from '@/contexts/TvModeContext';
 import { Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { useControllerTempData } from './hooks/useControllerTempData';
@@ -25,7 +24,6 @@ const LABEL_MAP: Record<string, string> = {
 const DEFAULT_HIDDEN = new Set(['currentTemp', 'profileTargetTemp', 'coolingPercent', 'heatingPercent']);
 
 export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6', coolingOnly = false }: ControllerTempChartProps) {
-  const { isTvMode } = useTvMode();
   const { data, loading, timeRange, setTimeRange, minTemp, maxTemp } = useControllerTempData({ controllerId });
   const [hidden, setHidden] = useState<Set<string>>(
     () => new Set(coolingOnly ? ['profileTargetTemp'] : DEFAULT_HIDDEN)
@@ -154,7 +152,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             />
             {/* Cooling % area */}
             <Area 
-              isAnimationActive={isTvMode ? false : undefined}
               yAxisId="cooling"
               type="stepAfter"
               dataKey="coolingPercent"
@@ -168,7 +165,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             />
             {/* Heating % area */}
             {!coolingOnly && <Area 
-              isAnimationActive={isTvMode ? false : undefined}
               yAxisId="cooling"
               type="stepAfter"
               dataKey="heatingPercent"
@@ -182,7 +178,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             />}
             {/* Probe temp (always shown by default) */}
             <Area 
-              isAnimationActive={isTvMode ? false : undefined}
               yAxisId="temp"
               type={LINE_CONFIG.current.type}
               dataKey="currentTemp" 
@@ -196,7 +191,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             />
             {/* HW target */}
             <Line 
-              isAnimationActive={isTvMode ? false : undefined}
               yAxisId="temp"
               type={LINE_CONFIG.target.type}
               dataKey="targetTemp" 
@@ -210,7 +204,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             {/* Actual (fused) temp — hidden by default */}
             {hasActualTemp && (
               <Line 
-                isAnimationActive={isTvMode ? false : undefined}
                 yAxisId="temp"
                 type="monotone"
                 dataKey="actualTemp" 
@@ -224,7 +217,6 @@ export function ControllerTempChart({ controllerId, controllerColor = '#3b82f6',
             {/* Profile target — hidden by default */}
             {hasProfileTarget && (
               <Line 
-                isAnimationActive={isTvMode ? false : undefined}
                 yAxisId="temp"
                 type="stepAfter"
                 dataKey="profileTargetTemp" 
