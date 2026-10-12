@@ -139,13 +139,6 @@ Det nuvarande BrewingDashboard med BrewCards, karusell, Sonos-widget, album art 
 - Minimal — Cloud är sekundär
 - Hämtar: brew timer (`sync-external-timer`), album art (om ej cachad)
 
-## AI-funktioner
-
-- Manuell knapp i UI (t.ex. fermenteringssession-vyn)
-- Anropar Lovable Cloud Edge Function direkt (`ai-consultation`)
-- Om internet saknas: knappen disabled med tooltip "Kräver internet"
-- Ingen automatisk AI-körning lokalt
-
 ## Frontend-anpassning
 
 ### Ny API-klient
