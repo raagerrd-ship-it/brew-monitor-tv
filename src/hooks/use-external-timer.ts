@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { isLocked } from "@/lib/motion-lock";
 import { createContext, createElement, useContext, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { applyMilestonePause } from '@/lib/timer-milestones';
@@ -339,7 +340,8 @@ export function useExternalTimer() {
     
     if (shouldCount) {
       intervalRef.current = setInterval(() => {
-        updateTimerState();
+        // Nedräkningen räknas från tidsstämplar och kommer ikapp efter glidningen.
+        if (!isLocked()) updateTimerState();
       }, 1000);
     } else {
       if (intervalRef.current) {

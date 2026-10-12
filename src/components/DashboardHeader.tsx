@@ -1,4 +1,5 @@
 import { Logo } from "./Logo";
+import { isLocked } from "@/lib/motion-lock";
 import { NotificationBell } from "./NotificationBell";
 import { Clock } from "./Clock";
 import { RollingNumber } from "./RollingNumber";
@@ -42,7 +43,7 @@ function PiMenuItem() {
     };
     load();
     const iv = setInterval(load, 30000);
-    const tick = setInterval(() => setNow(Date.now()), 15000);
+    const tick = setInterval(() => { if (!isLocked()) setNow(Date.now()); }, 15000);
     return () => {
       mounted = false;
       clearInterval(iv);
@@ -450,7 +451,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
 
   // Tick every 30s to keep duration updated
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 30000);
+    const interval = setInterval(() => { if (!isLocked()) setNow(Date.now()); }, 30000);
     return () => clearInterval(interval);
   }, []);
 

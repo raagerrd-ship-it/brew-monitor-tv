@@ -1,4 +1,5 @@
 import { memo, useRef, useEffect, useState } from 'react';
+import { isLocked } from "@/lib/motion-lock";
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
 import { useSharedExternalTimer } from '@/hooks/use-external-timer';
@@ -200,7 +201,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
   const [, setUntimedTick] = useState(0);
   useEffect(() => {
     if (!isUntimed || !liveTimer.isActive) return;
-    const id = setInterval(() => setUntimedTick(t => t + 1), 30_000);
+    const id = setInterval(() => { if (!isLocked()) setUntimedTick(t => t + 1); }, 30_000);
     return () => clearInterval(id);
   }, [isUntimed, liveTimer.isActive]);
   const zeroMilestone = timer.milestones.find(m => m.time === 0) ?? null;
