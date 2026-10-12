@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { notifyBrewDay } from '@/hooks/use-brew-day';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData } from '@/types/brew';
 import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
@@ -928,6 +927,9 @@ export function useBrewData(): UseBrewDataReturn {
   // Tala om att den här hooken äger headerns källa (reservpollen i use-rapt-bar-data hoppar då över)
   useEffect(() => acquireRaptBarOwner(), []);
 
+  const brewsRef = useRef(brews);
+  brewsRef.current = brews;
+
   // Channel 2: session/profile changes. (selected_rapt_* finns inte i realtime-publikationen
   // och fick servern att avvisa hela kanalen.)
   useEffect(() => {
@@ -940,30 +942,19 @@ export function useBrewData(): UseBrewDataReturn {
         const row = payload.new;
         if (payload.eventType !== 'UPDATE' || !row?.id) { loadBrews(); return; }
         // Rollupen skriver var 3:e minut — patcha på plats, ladda bara om vid stegbyte/status/profil.
-        let reload = false;
-        let touched = false;
-        setBrews(prev => {
-          const next = prev.map(b => {
-            const s = b.fermentationSession;
-            if (!s || s.id !== row.id) return b;
-            touched = true;
-            if (s.current_step_index !== row.current_step_index || s.status !== row.status || s.profile_id !== row.profile_id) {
-              reload = true;
-              return b;
-            }
-            return { ...b, fermentationSession: {
-              ...s,
-              step_started_at: row.step_started_at,
-              started_at: row.started_at,
-              step_start_temp: row.step_start_temp,
-              ramp_triggered_at: row.ramp_triggered_at ?? null,
-              step_progress: row.step_progress ?? null,
-            } };
-          });
-          return reload ? prev : next;
-        });
-        // setBrews-uppdateraren körs synkront; okänd session (t.ex. nystartad) kräver omladdning.
-        if (reload || !touched) loadBrews();
+        const s = brewsRef.current.find(b => b.fermentationSession?.id === row.id)?.fermentationSession;
+        if (!s || s.current_step_index !== row.current_step_index || s.status !== row.status || s.profile_id !== row.profile_id) {
+          loadBrews();
+          return;
+        }
+        setBrews(prev => prev.map(b => b.fermentationSession?.id !== row.id ? b : { ...b, fermentationSession: {
+          ...b.fermentationSession,
+          step_started_at: row.step_started_at,
+          started_at: row.started_at,
+          step_start_temp: row.step_start_temp,
+          ramp_triggered_at: row.ramp_triggered_at ?? null,
+          step_progress: row.step_progress ?? null,
+        } }));
       })
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_profile_steps' }, () => loadBrews())
       .subscribe(logStatus);
