@@ -275,7 +275,7 @@ export function BrewingDashboard() {
 
   const mobileContainerHeight = mobileViewportHeight > 0 ? `${mobileViewportHeight}px` : '100dvh';
 
-  return <>
+  return <ExternalTimerProvider>
     {/* Splash overlay — unmounted after fade to free the decoded logo */}
     {!splashGone && <div
       className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-4 pointer-events-none"
@@ -412,5 +412,5 @@ export function BrewingDashboard() {
       {/* TV Debug Overlay */}
       {/* {!isTvMode && <TvDebugOverlay />} */}
     </div>
-  </>;
+  </ExternalTimerProvider>;
 }
