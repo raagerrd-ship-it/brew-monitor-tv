@@ -63,6 +63,6 @@ if (typeof window !== "undefined" && window.fetch) {
     if (count === 0) return res;
     const body = await res.arrayBuffer();
     await untilUnlocked();
-    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+    return new Response([101, 204, 205, 304].includes(res.status) ? null : body, { status: res.status, statusText: res.statusText, headers: res.headers });
   };
 }
