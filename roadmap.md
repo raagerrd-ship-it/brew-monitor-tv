@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Kontrollera Recharts-animationer i TV-diagram; mät 2 ölkort före/efter med CPU ×6 och behåll bara förbättring. Test och bygge, inga dataskrivningar eller publicering.
+
 - [x] Fasvakt (varaktighet + 1500 ms) för bryggdagens in/ut; båda når null utan transitionend i test och TV-vy med CPU ×6, 1/2 ölkort. 22 tester och automatiskt bygge gröna; sparade före/efter-mätningar sammanställda. Ingen publicering.
 
 - [x] Mät bryggdagsglidning in/ut med 1/2 ölkort och CPU ×6: behåll förberett höjdbyte, sekventiella glidningar och fryst nedräkning; återställ skuggförsök och tillfälligt will-change efter fler långa bildrutor. 21 tester och automatiskt bygge gröna; förberedelsen har fortfarande långa bildrutor. Inga testrader eller publicering.
