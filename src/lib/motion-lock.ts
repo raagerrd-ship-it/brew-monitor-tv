@@ -40,14 +40,16 @@ export function useMotionLocked() {
   return useSyncExternalStore(onMotionLockChange, isLocked, () => false);
 }
 
+/** Kör callbacken direkt, eller köar anropet (med sina argument) tills låset släpps. */
+export function gate<A extends unknown[]>(cb: (...args: A) => void) {
+  return (...args: A) => whenUnlocked(() => cb(...args));
+}
+
 // Realtid: köa varje callback som kommer under låset.
 const proto = RealtimeChannel.prototype as any;
 const on = proto.on;
 proto.on = function (type: unknown, filter: unknown, cb?: unknown) {
-  const gated = typeof cb === "function"
-    ? (...args: unknown[]) => (count > 0 ? queue.push(() => (cb as any)(...args)) : (cb as any)(...args))
-    : cb;
-  return on.call(this, type, filter, gated);
+  return on.call(this, type, filter, typeof cb === "function" ? gate(cb as (...a: unknown[]) => void) : cb);
 };
 
 // Nätanrop: starta och leverera först när låset är släppt.
