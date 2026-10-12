@@ -486,7 +486,7 @@ export function useBrewData(): UseBrewDataReturn {
           if (!m) return null;
           return {
             fermentation_phase: m.fermentation_phase,
-            activity_score: Number(m.activity_score),
+            activity_score: m.activity_score != null ? Number(m.activity_score) : null,
             sg_rate_per_hour: Number(m.sg_rate_per_hour),
             eta_to_fg_hours: m.eta_to_fg_hours != null ? Number(m.eta_to_fg_hours) : null,
             peak_delta: Number(m.peak_delta),
