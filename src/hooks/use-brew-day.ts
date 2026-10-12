@@ -17,6 +17,12 @@ export interface BrewDay {
   target_temp_c: number | null;
   items: BrewDayItem[];
   updated_at: string;
+  step_index: number | null;
+  step_count: number | null;
+  next_step_title: string | null;
+  next_step_minutes: number | null;
+  next_step_items: number | null;
+  step_started_at: string | null;
 }
 
 const STALE_MS = 24 * 60 * 60 * 1000;
