@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Sonos-header: mät text efter bredd/fontändringar, rätta låtlängd och positionsstart; verifiera TV-vy utan publicering.
+
 - [x] TV-optimering enligt prioriteringslistan (live-ring som HTML, sidhuvudets mål-fel, diagramdata, omritningar, pollning, lättare siffror, småpunkter). Före/efter mätt i TV-vy.
 
 - [x] Minska hack när rengöringskorten visas och döljs på TV: synka båda glidytorna och förenkla den rörliga ytan. In/ut verifierat i TV-vy utan sidfel; faktisk Chromecast återstår att känna av.

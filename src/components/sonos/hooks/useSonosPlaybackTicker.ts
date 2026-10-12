@@ -108,6 +108,9 @@ export function useSonosPlaybackTicker(params: UseSonosPlaybackTickerParams) {
     let lastWritten: number | null = null;
 
     const ticker = window.setInterval(() => {
+      if (localProgressRef.current === null && nowPlayingRef.current?.position_ms != null) {
+        localProgressRef.current = nowPlayingRef.current.position_ms;
+      }
       const prev = localProgressRef.current;
       if (prev === null) return;
 

@@ -19,9 +19,23 @@ function MarqueeText({ children, className, innerClassName, isTvMode = false }: 
     const outer = outerRef.current;
     const inner = innerRef.current;
     if (!outer || !inner) return;
-    const diff = inner.scrollWidth - outer.clientWidth;
-    setOverflow(diff > 2 ? diff : 0);
-  }, []); // monteras om per låt (key), så mät bara vid montering
+    let active = true;
+    const measure = () => {
+      if (!active || outer.clientWidth <= 0) return;
+      const diff = inner.scrollWidth - outer.clientWidth;
+      const next = diff >= 3 ? diff : 0;
+      setOverflow(prev => prev === next ? prev : next);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    observer.observe(inner);
+    measure();
+    document.fonts.ready.then(measure);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, []);
 
   return (
     <div ref={outerRef} className={`overflow-hidden text-foreground ${className ?? ''}`} style={className ? undefined : { fontSize: '14px' }}>
@@ -105,7 +119,7 @@ export const SonosWidget = memo(function SonosWidget({
   });
 
   useSonosRealtime({
-    isConnected, showWidget, setNowPlaying,
+    isConnected, showWidget, setNowPlaying, nowPlayingRef,
     localProgressRef,
     bgSentRef, validBgBufferRef, onAlbumArtChangeRef,
     progressBarRef, debugTimeRef,
