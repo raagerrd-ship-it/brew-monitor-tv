@@ -54,9 +54,8 @@ export function BrewingDashboard() {
   // Sequential slide phases: beer cards slide fully first, then the brew day
   // card (reversed on exit) so the two never compete for CPU on Chromecast.
   const [brewDayPhase, setBrewDayPhase] = useState<'prepare' | 'row' | 'beer0' | 'beer1' | 'card' | 'footer' | null>(null);
-  const EXP = new URLSearchParams(window.location.search);
-  const perCardSlide = EXP.get('slide') === 'card' && brews.length === 2;
-  const gateSlide = EXP.get('gate') === '1';
+  // With two beer cards each slides on its own (measured smoother on Chromecast than moving the whole row).
+  const perCardSlide = brews.length === 2;
   const rowRef = useRef<HTMLDivElement>(null);
   const [beerShiftPx, setBeerShiftPx] = useState(0);
   const [brewDayTransition, setBrewDayTransition] = useState(false);
@@ -96,20 +95,8 @@ export function BrewingDashboard() {
     if (brewDayPhase === 'prepare' && perCardSlide && rowRef.current) setBeerShiftPx((rowRef.current.offsetWidth - 8) / 6);
   }, [brewDayPhase, perCardSlide]);
   function afterPrepare(start: () => void) {
-    let frame = 0;
-    const cap = setTimeout(() => { cancelAnimationFrame(frame); start(); }, 2500);
-    const min = setTimeout(() => {
-      if (!gateSlide) { clearTimeout(cap); start(); return; }
-      // Start only after two calm frames in a row (relative to the fastest frame seen).
-      let last = performance.now(), fastest = Infinity, calm = 0;
-      const tick = (t: number) => {
-        const d = t - last; last = t; fastest = Math.min(fastest, d);
-        calm = d <= Math.max(50, fastest * 1.5) ? calm + 1 : 0;
-        if (calm >= 2) { clearTimeout(cap); start(); } else frame = requestAnimationFrame(tick);
-      };
-      frame = requestAnimationFrame(tick);
-    }, 700);
-    return () => { clearTimeout(min); clearTimeout(cap); cancelAnimationFrame(frame); };
+    const t = setTimeout(start, 700);
+    return () => clearTimeout(t);
   }
   const phasePause = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
