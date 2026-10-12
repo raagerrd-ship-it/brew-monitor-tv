@@ -190,6 +190,15 @@ export const TimerFooter = memo(function TimerFooter() {
   // Step finished: derived from the local second tick, no fetch needed.
   const isDone = timer.totalSeconds > 0 && timer.remainingSeconds === 0;
   const isUntimed = timer.totalSeconds === 0;
+
+  // Untimed steps are pushed as paused, so the second tick never runs —
+  // re-render every 30 s to keep "pågått X min" moving.
+  const [, setUntimedTick] = useState(0);
+  useEffect(() => {
+    if (!isUntimed || !liveTimer.isActive) return;
+    const id = setInterval(() => setUntimedTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [isUntimed, liveTimer.isActive]);
   const zeroMilestone = timer.milestones.find(m => m.time === 0) ?? null;
   const doneNextLabel = (zeroMilestone?.label || timer.nextConfig?.label || '').replace(/🔥\s*/g, '') || null;
   const doneAlertShownRef = useRef<string | null>(null);
