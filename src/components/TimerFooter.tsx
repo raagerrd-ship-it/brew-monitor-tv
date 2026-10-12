@@ -374,7 +374,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, slidePhase = nul
     <>
       {/* Main footer - 3 column grid layout for TV */}
       <div 
-        className="absolute bottom-0 left-0 right-0 z-20 motion-reduce:!transition-none"
+        className="brew-timer-footer absolute bottom-0 left-0 right-0 z-20 motion-reduce:!transition-none"
         onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform') onSlideEnd?.(); }}
         style={{
           height: `${TIMER_FOOTER_HEIGHT}px`,

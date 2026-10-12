@@ -16,7 +16,7 @@ export function BrewDayCard({ day, hasAlbumArtBackground, isTvMode }: { day: Bre
   const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
   return (
     <Card
-      className={`relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`brew-day-card relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
