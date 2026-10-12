@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState } from 'react';
+import { memo, useRef, useEffect, useState, type Ref } from 'react';
 import { isLocked } from "@/lib/motion-lock";
 import { Flame, Pause, AlertTriangle, Thermometer, ArrowRight } from 'lucide-react';
 import { TimerMilestone, type ExternalTimerState } from '@/hooks/use-external-timer';
@@ -171,7 +171,7 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
 // MilestoneScrollRow removed - replaced by improved VisualTimeline for TV display
 
 // While `sliding`, BrewingDashboard moves the footer element itself (via slideRef).
-export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false, slideRef }: { brewDay: BrewDay | null; sliding?: boolean; slideRef?: React.Ref<HTMLDivElement> }) {
+export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false, slideRef }: { brewDay: BrewDay | null; sliding?: boolean; slideRef?: Ref<HTMLDivElement> }) {
   const liveTimer = useSharedExternalTimer()!;
   const { timerTvModeOnly } = useExternalUserSettings();
   const { isTvMode } = useTvMode();
