@@ -1,9 +1,9 @@
+import { formatStockholm } from '@/lib/stockholm-time';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { notifyBrewDay } from '@/hooks/use-brew-day';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { toast as sonnerToast } from 'sonner';
 import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData } from '@/types/brew';
 import { FermentationProfileStep } from '@/types/fermentation';
 import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/brew-utils';
@@ -440,7 +440,7 @@ export function useBrewData(): UseBrewDataReturn {
         originalGravity: reading.original_gravity,
         finalGravity: reading.final_gravity,
         lastUpdate: effectiveLastUpdate
-          ? new Date(effectiveLastUpdate).toLocaleString('sv-SE', {
+          ? formatStockholm(effectiveLastUpdate, {
               day: 'numeric',
               month: 'short',
               year: 'numeric',
@@ -686,7 +686,7 @@ export function useBrewData(): UseBrewDataReturn {
               abv: updatedReading.abv,
               battery: updatedReading.battery,
               lastUpdate: updatedReading.last_update
-                ? new Date(updatedReading.last_update).toLocaleString('sv-SE', {
+                ? formatStockholm(updatedReading.last_update, {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
@@ -927,34 +927,40 @@ export function useBrewData(): UseBrewDataReturn {
   // Tala om att den här hooken äger headerns källa (reservpollen i use-rapt-bar-data hoppar då över)
   useEffect(() => acquireRaptBarOwner(), []);
 
-  // Channel 2: Config/session changes (just trigger reload, no payload needed)
+
+  // Channel 2: session/profile changes. (selected_rapt_* finns inte i realtime-publikationen
+  // och fick servern att avvisa hela kanalen.)
   useEffect(() => {
-
-
-    const handleConfigChange = (table: string) => {
-      if (table === 'selected_rapt_pills') {
-        sonnerToast('Inställningar uppdaterade', { description: 'RAPT Pill-listan har ändrats från en annan enhet', duration: 5000 });
-        loadRaptData();
-      } else if (table === 'selected_rapt_temp_controllers') {
-        sonnerToast('Inställningar uppdaterade', { description: 'RAPT-kontrollerlistan har ändrats från en annan enhet', duration: 5000 });
-        loadRaptData();
-      } else if (table === 'fermentation_sessions' || table === 'fermentation_profile_steps') {
-        loadBrews();
-      }
+    const logStatus = (status: string, err?: Error) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn(`[realtime] session-updates ${status}`, err?.message ?? '');
     };
-
     const channel = supabase
-      .channel(`config-updates-${Date.now()}`)
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_pills' }, () => handleConfigChange('selected_rapt_pills'))
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'selected_rapt_temp_controllers' }, () => handleConfigChange('selected_rapt_temp_controllers'))
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, () => handleConfigChange('fermentation_sessions'))
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_profile_steps' }, () => handleConfigChange('fermentation_profile_steps'))
-      .subscribe();
+      .channel(`session-updates-${Date.now()}`)
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_sessions' }, (payload: any) => {
+        const row = payload.new;
+        if (payload.eventType !== 'UPDATE' || !row?.id) { loadBrews(); return; }
+        // Rollupen skriver var 3:e minut — patcha på plats, ladda bara om vid stegbyte/status/profil.
+        const s = brewsRef.current.find(b => b.fermentationSession?.id === row.id)?.fermentationSession;
+        if (!s || s.current_step_index !== row.current_step_index || s.status !== row.status || s.profile_id !== row.profile_id) {
+          loadBrews();
+          return;
+        }
+        setBrews(prev => prev.map(b => b.fermentationSession?.id !== row.id ? b : { ...b, fermentationSession: {
+          ...b.fermentationSession,
+          step_started_at: row.step_started_at,
+          started_at: row.started_at,
+          step_start_temp: row.step_start_temp,
+          ramp_triggered_at: row.ramp_triggered_at ?? null,
+          step_progress: row.step_progress ?? null,
+        } }));
+      })
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'fermentation_profile_steps' }, () => loadBrews())
+      .subscribe(logStatus);
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadBrews, loadRaptData]);
+  }, [loadBrews]);
 
   // Initial data load - single parallel load
   useEffect(() => {

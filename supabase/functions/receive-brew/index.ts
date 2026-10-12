@@ -85,8 +85,8 @@ Deno.serve(async (req) => {
     .eq("batch_id", batchId)
     .maybeSingle();
 
-  // Redan skickad till Pi:n eller i tank: uppdatera bara recept, namn, stil och volym.
-  if (existing && (existing.pi_pending_at || existing.linked_controller_id)) {
+  // I tank: uppdatera bara recept, namn, stil och volym. Bara köad: allt får uppdateras.
+  if (existing?.linked_controller_id) {
     const { data: upd, error: updError } = await supabase
       .from("brew_readings")
       .update({ recipe: row.recipe, name: row.name, style: row.style, ...(row.volume_l != null ? { volume_l: row.volume_l } : {}) })
@@ -105,7 +105,8 @@ Deno.serve(async (req) => {
 
   if (error) return json({ error: error.message }, 400);
 
-  if (!existing?.pi_pending_at) {
+  // Ingen ny notis vid omsändning.
+  if (!existing) {
     await supabase.from("pending_notifications").insert({
       type: "brew_pending",
       title: "Ny brygg från Dashboard",

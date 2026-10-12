@@ -24,6 +24,7 @@ interface GravityStatProps {
   brew: BrewData;
   updatedFields: Record<string, Record<string, boolean>>;
   onSyncedDataClick?: () => void;
+  hideReadyToCrash?: boolean;
 }
 
 function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: { 
@@ -139,7 +140,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   );
 }
 
-function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: GravityStatProps) {
+function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash }: GravityStatProps) {
   const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
@@ -253,7 +254,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
                     <span>{phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}</span>
                   </span>
                   <span>{brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `⚡${brew.fermentationMetrics.activity_score}%`}</span>
-                  {brew.fermentationMetrics.ready_to_crash && (
+                  {brew.fermentationMetrics.ready_to_crash && !hideReadyToCrash && (
                     <span className="text-blue-400 font-semibold">🧊 Redo</span>
                   )}
                 </div>
@@ -263,7 +264,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
                   {phaseDescriptions[brew.fermentationMetrics.fermentation_phase] ?? 'Okänd fas'}
                 </p>
                 <p>⚡ Aktivitet: {brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `${brew.fermentationMetrics.activity_score}%`} — mått på hur aktiv jäsningen är just nu (0–100%)</p>
-                {brew.fermentationMetrics.ready_to_crash && (
+                {brew.fermentationMetrics.ready_to_crash && !hideReadyToCrash && (
                   <p className="mt-1">🧊 SG stabil + hög utjäsningsgrad → redo för coldcrash</p>
                 )}
               </TooltipContent>

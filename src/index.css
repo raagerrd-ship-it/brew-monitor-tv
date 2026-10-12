@@ -4,7 +4,6 @@
 
 .album-accent-card {
   border: 1px solid color-mix(in srgb, var(--album-accent, hsl(var(--primary))) 35%, transparent);
-  transition: border-color 800ms ease;
 }
 .album-accent-progress {
   background-color: var(--album-accent, hsl(var(--primary)));

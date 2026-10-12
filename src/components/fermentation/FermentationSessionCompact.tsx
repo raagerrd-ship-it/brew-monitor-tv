@@ -135,13 +135,19 @@ export function FermentationSessionCompact({
     stabilityDuration,
     stabilityProgress,
     sgProgress,
-    waitingForTemp,
+    waitingForTemp: localWaitingForTemp,
     tempDifference,
-    isRampingUp,
+    isRampingUp: localIsRampingUp,
   } = progress;
 
+  // Med Pi:ns delfaser kommer väntar/ramp från den aktiva fasens villkor, inte lokal timing.
+  const piWaiting = hasPiPhases && !!cond && (cond.value == null || cond.target == null);
+  const piRamp = hasPiPhases && cond?.unit === '°C';
+  const waitingForTemp = hasPiPhases ? piWaiting : localWaitingForTemp;
+  const isRampingUp = piRamp ? (cond!.target ?? 0) >= (cond!.value ?? 0) : localIsRampingUp;
+
   // Use props for ramping state (passed from parent) or fall back to calculated
-  const isRamping = isRampingProp;
+  const isRamping = hasPiPhases ? piRamp : isRampingProp;
   const rampProgress = rampProgressProp;
 
   // Gradual ramp trigger status — for gradual_ramp: uses activity_trigger, for diacetyl_rest: uses attenuation_trigger
@@ -414,7 +420,7 @@ export function FermentationSessionCompact({
           isRamping={isRamping}
           isRampingUp={isRampingUp}
           isTvMode={true}
-          stepType={currentStep?.step_type}
+          stepType={hasPiPhases ? (piWaiting ? 'wait_for_acknowledgement' : undefined) : currentStep?.step_type}
         />
       </div>
       
@@ -492,7 +498,7 @@ export function FermentationSessionCompact({
           )}
         </div>
         
-        {currentStep && currentStep.step_type === 'wait_for_acknowledgement' && currentStep.notes && (
+        {!hasPiPhases && currentStep && currentStep.step_type === 'wait_for_acknowledgement' && currentStep.notes && (
           <div
             className="mt-1 truncate font-medium"
             style={{ fontSize: '12px', color: 'hsl(38 92% 75%)' }}
@@ -501,16 +507,20 @@ export function FermentationSessionCompact({
             {currentStep.notes}
           </div>
         )}
-        {currentStep && currentStep.step_type !== 'wait_for_acknowledgement' && (
+        {(hasPiPhases ? !!activePhase : currentStep && currentStep.step_type !== 'wait_for_acknowledgement') && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1" style={{ fontSize: '12px' }}>
             {/* Temperature display */}
-            <TemperatureDisplay
+            {hasPiPhases && !currentStep ? (
+              displayTargetTemp != null && (
+                <span className="text-muted-foreground font-medium whitespace-nowrap">Mål {displayTargetTemp.toFixed(1).replace('.', ',')}°</span>
+              )
+            ) : <TemperatureDisplay
               currentStep={currentStep}
               isRamping={isRamping}
               stepStartTemp={stepStartTemp}
               targetTemp={displayTargetTemp}
               waitingForTemp={waitingForTemp}
-            />
+            />}
             
             {/* SG target indicator */}
             {targetSg != null && (
@@ -535,7 +545,7 @@ export function FermentationSessionCompact({
               <>
                 <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
                   <Activity className="h-3 w-3 shrink-0" />
-                  <span className="font-semibold">{activePhase?.label ?? piStepName ?? getStepTypeLabel(currentStep.step_type)}</span>
+                  <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
                 </span>
                 {conditionText && (
                   <>

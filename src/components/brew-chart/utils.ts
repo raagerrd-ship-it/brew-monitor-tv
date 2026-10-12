@@ -1,3 +1,4 @@
+import { stockholmMidnight, stockholmParts } from '@/lib/stockholm-time';
 import { 
   ChartDataPoint, 
   ChartDataPointWithTimestamp, 
@@ -138,26 +139,11 @@ export function addTimestamps(data: ChartDataPoint[]): ChartDataPointWithTimesta
  */
 export function generateDayBoundaries(chartData: ChartDataPointWithTimestamp[]): number[] {
   if (chartData.length === 0) return [];
-  
   const dayBoundaries: number[] = [];
-  const firstTimestamp = chartData[0].timestamp;
-  const lastDate = new Date(chartData[chartData.length - 1].date);
-  const firstDate = new Date(chartData[0].date);
-  
-  // Start from midnight of the first day
-  const firstMidnight = new Date(firstDate);
-  firstMidnight.setHours(0, 0, 0, 0);
-  
-  // Day boundary lines start from midnight AFTER first day
-  const currentMidnight = new Date(firstMidnight);
-  currentMidnight.setDate(currentMidnight.getDate() + 1);
-  
-  // Generate midnight for each day until the last data point
-  while (currentMidnight <= lastDate) {
-    dayBoundaries.push(currentMidnight.getTime());
-    currentMidnight.setDate(currentMidnight.getDate() + 1);
-  }
-  
+  const last = new Date(chartData[chartData.length - 1].date).getTime();
+  // Svensk midnatt efter första dagen, sedan varje dag fram till sista punkten.
+  const first = new Date(chartData[0].date).getTime();
+  for (let i = 1, m = stockholmMidnight(first, 1); m <= last; i++, m = stockholmMidnight(first, i)) dayBoundaries.push(m);
   return dayBoundaries;
 }
 
@@ -166,32 +152,15 @@ export function generateDayBoundaries(chartData: ChartDataPointWithTimestamp[]):
  */
 export function generateDayTicks(chartData: ChartDataPointWithTimestamp[]): number[] {
   if (chartData.length === 0) return [];
-  
-  const uniqueDayTicks: number[] = [];
   const firstTimestamp = chartData[0].timestamp;
   const lastTimestamp = chartData[chartData.length - 1].timestamp;
-  const firstDate = new Date(chartData[0].date);
-  const lastDate = new Date(chartData[chartData.length - 1].date);
-  
-  // First tick should be at the first data point (not midnight)
-  uniqueDayTicks.push(firstTimestamp);
-  
-  // Start from midnight of the first day
-  const firstMidnight = new Date(firstDate);
-  firstMidnight.setHours(0, 0, 0, 0);
-  
-  // Add subsequent day ticks at midnight (only if different from first day)
-  const currentDay = new Date(firstMidnight);
-  currentDay.setDate(currentDay.getDate() + 1);
-  while (currentDay <= lastDate) {
-    const dayTimestamp = currentDay.getTime();
-    // Only add if it's within the data range
-    if (dayTimestamp >= firstTimestamp && dayTimestamp <= lastTimestamp) {
-      uniqueDayTicks.push(dayTimestamp);
-    }
-    currentDay.setDate(currentDay.getDate() + 1);
+  // First tick at the first data point, then each Swedish midnight within range.
+  const uniqueDayTicks: number[] = [firstTimestamp];
+  const first = new Date(chartData[0].date).getTime();
+  const last = new Date(chartData[chartData.length - 1].date).getTime();
+  for (let i = 1, m = stockholmMidnight(first, 1); m <= last; i++, m = stockholmMidnight(first, i)) {
+    if (m >= firstTimestamp && m <= lastTimestamp) uniqueDayTicks.push(m);
   }
-  
   return uniqueDayTicks;
 }
 
@@ -252,9 +221,9 @@ export function formatXAxisTick(timestamp: number): string {
   try {
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return '';
-    const day = date.getDate();
+    const { day, month: m } = stockholmParts(date.getTime());
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
-    const month = monthNames[date.getMonth()];
+    const month = monthNames[m - 1];
     return `${day} ${month}`;
   } catch (e) {
     return '';

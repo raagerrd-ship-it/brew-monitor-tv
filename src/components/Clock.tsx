@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { RollingNumber } from "./RollingNumber";
+import { stockholmFormat } from "@/lib/stockholm-time";
 
-const TIME_FORMAT = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const DATE_FORMAT = new Intl.DateTimeFormat("sv-SE", { weekday: "short", day: "numeric", month: "short" });
+const TIME_FORMAT = stockholmFormat({ hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const DATE_FORMAT = stockholmFormat({ weekday: "short", day: "numeric", month: "short" });
 
 function ClockComponent() {
   const [now, setNow] = useState(new Date());
@@ -15,7 +16,7 @@ function ClockComponent() {
   }, []);
 
   const time = TIME_FORMAT.format(now);
-  const day = now.toDateString();
+  const day = DATE_FORMAT.format(now);
   const date = useMemo(() => DATE_FORMAT.format(now).replace(/\.$/, ''), [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
