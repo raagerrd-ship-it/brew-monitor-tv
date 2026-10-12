@@ -33,6 +33,5 @@
 - [x] Händelseprickar i diagrammen med vertikalt läst förklaringstext ovanför pricken, jäst/pitch inkluderad.
 - [x] TV-kortet visar steg/delfas/framsteg rakt ur Pi:ns step_phases (kontrakt v26): nya fält step_name/step_count i brew_status, stegstatus var 60:e s, badge "Steg x/y · namn", aktiv fas label+villkor, en overlay för h/%, fallback oförändrad utan step_phases. Verifierad med Pi:ns riktiga fasdata i TV-vyn. Verifierad på skarp data 2026-10-12.
 - [x] Kontrakt v27: klar-tid från Pi:ns condition.ends_at/remaining_h (UTC) i stället för egen uträkning, alltid svensk tid, dag med vid >1 dygn ("klart ons 08:10"). Verifierat i TV-vyn: "3,3 av 12 h · klart ca 20:09".
-- [ ] AI-funktion med Claude (användaren bad om det; väntar på val av typ — skrivskyddad, ingen styrning av Pi:n).
 
 - [x] Rörelselås + glidning utan React för bryggdag/rengöring
