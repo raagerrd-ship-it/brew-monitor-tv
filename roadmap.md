@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Bryggdagens TV-layout: toppjusterad lista, tydligt Nästa-fält, hela målgrader, 0/3 ölkort, korrekt footer och glesade tidslinjeetiketter. Verifiera med enbart mockade svar; inga testrader eller publicering.
+- [x] Bryggdagens TV-layout: toppjusterad lista, tydligt Nästa-fält, hela målgrader, 0/3 ölkort, korrekt footer och glesade tidslinjeetiketter. Verifierat i 1920×1080 med mockade svar och blockerade pushanrop; 19 tester och automatiskt bygge gröna. Tre ölkort ritas rent med bryggdagen på 1/3; långt tillsatsnamn förkortas fortfarande. Inga testrader eller publicering.
 
 - [x] Bryggdag: TV larmar själv vid förfallna milstolpar, steg/Nästa på kortet, gemensam timer för kort och footer, KLART på kortet, "pågått" för steg utan tid. Verifierat i 1920×1080 TV-vy, ej publicerat.
 
