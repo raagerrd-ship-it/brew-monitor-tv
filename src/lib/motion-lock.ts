@@ -5,18 +5,35 @@
 import { useSyncExternalStore } from "react";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
-let count = 0;
+const owners = new Set<string>();
 const queue: Array<() => void> = [];
 const listeners = new Set<(locked: boolean) => void>();
+// Hårt tak: låset hålls aldrig längre än så här i följd, räknat från första lock().
+export const MAX_LOCK_MS = 15_000;
+let capTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const isLocked = () => count > 0;
+export const isLocked = () => owners.size > 0;
 
-export function lock() {
-  if (count++ === 0) listeners.forEach((l) => l(true));
+export function lock(owner: string) {
+  const was = owners.size > 0;
+  owners.add(owner);
+  if (was) return;
+  capTimer = setTimeout(() => {
+    console.warn("[motionLock] tvångssläppt", [...owners]);
+    release();
+  }, MAX_LOCK_MS);
+  listeners.forEach((l) => l(true));
 }
 
-export function unlock() {
-  if (count === 0 || --count > 0) return;
+export function unlock(owner: string) {
+  if (owners.delete(owner) && owners.size === 0) release();
+}
+
+/** Släpper alla ägare och spelar upp kön. */
+function release() {
+  owners.clear();
+  if (capTimer) clearTimeout(capTimer);
+  capTimer = null;
   listeners.forEach((l) => l(false));
   // En batch: React 18 slår ihop uppdateringarna i samma uppgift.
   for (const fn of queue.splice(0)) {
@@ -25,7 +42,7 @@ export function unlock() {
 }
 
 export function whenUnlocked(fn: () => void) {
-  if (count === 0) fn();
+  if (owners.size === 0) fn();
   else queue.push(fn);
 }
 
@@ -48,21 +65,29 @@ export function gate<A extends unknown[]>(cb: (...args: A) => void) {
 // Realtid: köa varje callback som kommer under låset.
 const proto = RealtimeChannel.prototype as any;
 const on = proto.on;
-proto.on = function (type: unknown, filter: unknown, cb?: unknown) {
-  return on.call(this, type, filter, typeof cb === "function" ? gate(cb as (...a: unknown[]) => void) : cb);
+// sync_settings (force_tv_refresh_at, "Starta om TV") går alltid igenom.
+const BYPASS_TABLE = "sync_settings";
+proto.on = function (type: unknown, filter: any, cb?: unknown) {
+  const bypass = filter?.table === BYPASS_TABLE;
+  return on.call(this, type, filter, typeof cb === "function" && !bypass ? gate(cb as (...a: unknown[]) => void) : cb);
 };
 
 // Nätanrop: starta och leverera först när låset är släppt.
 if (typeof window !== "undefined" && window.fetch) {
+  // En dold sida glider inte: släpp allt.
+  window.addEventListener("pagehide", release);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") release(); });
   const orig = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (count > 0) {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes(`/rest/v1/${BYPASS_TABLE}`)) return orig(input, init);
+    if (owners.size > 0) {
       await untilUnlocked();
       // Anroparens egen tidsgräns kan ha löpt ut medan vi väntade.
       if (init?.signal?.aborted) init = { ...init, signal: undefined };
     }
     const res = await orig(input, init);
-    if (count === 0) return res;
+    if (owners.size === 0) return res;
     const body = await res.arrayBuffer();
     await untilUnlocked();
     return new Response([101, 204, 205, 304].includes(res.status) ? null : body, { status: res.status, statusText: res.statusText, headers: res.headers });
