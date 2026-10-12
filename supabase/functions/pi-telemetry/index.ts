@@ -366,7 +366,8 @@ Deno.serve(async (req) => {
     const row: Record<string, any> = {
       brew_id: brewId,
       fermentation_phase: m.fermentation_phase ?? "unknown",
-      activity_score: Number(m.activity_score ?? 0),
+      // null = pillen tyst, inte 0 %.
+      activity_score: m.activity_score != null ? Number(m.activity_score) : null,
       sg_rate_per_hour: Number(m.sg_rate_per_hour ?? 0),
       eta_to_fg_hours: m.eta_to_fg_hours ?? null,
       peak_delta: Number(m.peak_delta ?? 0),
@@ -563,20 +564,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!sp) return null;
 
-    // volume_l från kopplad brygg-recept (mäsk + lakvatten) när det finns.
+    // volume_l = bryggdens volym (inte mäsk + lakvatten).
     let volume_l: number | null = null;
     {
       const { data: brew } = await supabase
         .from("brew_readings")
-        .select("recipe")
+        .select("volume_l")
         .eq("linked_controller_id", sp.controller_id)
         .in("status", ["fermenting", "active", "Jäsning"])
         .maybeSingle();
-      const r: any = brew?.recipe;
-      const mash = parseFloat(r?.mash_water_liters ?? "");
-      const sparge = parseFloat(r?.sparge_water_liters ?? "");
-      const sum = (Number.isFinite(mash) ? mash : 0) + (Number.isFinite(sparge) ? sparge : 0);
-      if (sum > 0) volume_l = sum;
+      const v = brew?.volume_l != null ? parseFloat(String(brew.volume_l)) : NaN;
+      if (Number.isFinite(v) && v > 0) volume_l = v;
     }
 
     return {

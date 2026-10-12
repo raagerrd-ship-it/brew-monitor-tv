@@ -149,7 +149,7 @@ export type Database = {
       }
       brew_fermentation_metrics: {
         Row: {
-          activity_score: number
+          activity_score: number | null
           brew_id: string
           created_at: string
           eta_to_fg_hours: number | null
@@ -164,7 +164,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          activity_score?: number
+          activity_score?: number | null
           brew_id: string
           created_at?: string
           eta_to_fg_hours?: number | null
@@ -179,7 +179,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          activity_score?: number
+          activity_score?: number | null
           brew_id?: string
           created_at?: string
           eta_to_fg_hours?: number | null
@@ -1211,6 +1211,21 @@ export type Database = {
         }
         Relationships: []
       }
+      push_sent_log: {
+        Row: {
+          sent_at: string
+          tag: string
+        }
+        Insert: {
+          sent_at?: string
+          tag: string
+        }
+        Update: {
+          sent_at?: string
+          tag?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           created_at: string
@@ -1829,6 +1844,7 @@ export type Database = {
     }
     Functions: {
       archive_empty_brew_drafts: { Args: never; Returns: undefined }
+      claim_push_tag: { Args: { p_tag: string }; Returns: boolean }
       generate_share_id: { Args: { length?: number }; Returns: string }
       get_temp_history_sampled: {
         Args: {

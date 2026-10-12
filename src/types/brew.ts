@@ -52,7 +52,8 @@ export interface BrewData {
   };
   fermentationMetrics?: {
     fermentation_phase: string;
-    activity_score: number;
+    /** null = pillen tyst */
+    activity_score: number | null;
     sg_rate_per_hour: number;
     eta_to_fg_hours: number | null;
     peak_delta: number;

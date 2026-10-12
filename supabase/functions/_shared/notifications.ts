@@ -44,7 +44,7 @@ export async function insertNotification(
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (supabaseUrl && serviceRoleKey) {
-      await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,6 +56,7 @@ export async function insertNotification(
           data: { url: "/" },
         }),
       });
+      if (!res.ok) console.error(`Push failed: ${res.status} ${await res.text().catch(() => "")}`);
     }
   } catch (pushError) {
     console.error("Failed to send push notification:", pushError);

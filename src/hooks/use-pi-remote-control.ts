@@ -132,8 +132,11 @@ export function usePiRemoteControl(controllerId: string, active = true) {
   const targetPending = commandedAt != null && !heardAfter(commandedAt);
   // På/av är utfört först när Pi:n visar det kommenderade läget.
   const enabledMatches = state.commandedEnabled != null && state.enabled === state.commandedEnabled;
-  const enabledPending = enabledCommandedAt != null && !enabledMatches && !heardAfter(enabledCommandedAt);
-  const enabledFailed = enabledCommandedAt != null && !enabledMatches && heardAfter(enabledCommandedAt);
+  // Pi:n hämtar pi-control ~var 30:e s — "utförde inte" först när den hörts av ≥ 90 s efter trycket.
+  const heardWellAfter = (at: string) =>
+    state.lastHeartbeat != null && new Date(state.lastHeartbeat).getTime() - new Date(at).getTime() >= 90_000;
+  const enabledPending = enabledCommandedAt != null && !enabledMatches && !heardWellAfter(enabledCommandedAt);
+  const enabledFailed = enabledCommandedAt != null && !enabledMatches && heardWellAfter(enabledCommandedAt);
   const pending = targetPending || enabledPending;
   const lastCommandedAt = [commandedAt, enabledCommandedAt].filter(Boolean).sort().pop() ?? null;
 

@@ -81,9 +81,21 @@ Deno.serve(async (req) => {
   // Fanns bryggen redan i kön? I så fall är det en omsändning och ska inte notifiera.
   const { data: existing } = await supabase
     .from("brew_readings")
-    .select("pi_pending_at")
+    .select("id, pi_pending_at, linked_controller_id")
     .eq("batch_id", batchId)
     .maybeSingle();
+
+  // Redan skickad till Pi:n eller i tank: uppdatera bara recept, namn, stil och volym.
+  if (existing && (existing.pi_pending_at || existing.linked_controller_id)) {
+    const { data: upd, error: updError } = await supabase
+      .from("brew_readings")
+      .update({ recipe: row.recipe, name: row.name, style: row.style, ...(row.volume_l != null ? { volume_l: row.volume_l } : {}) })
+      .eq("id", existing.id)
+      .select("id, batch_id, name, style, volume_l, pi_pending_at")
+      .single();
+    if (updError) return json({ error: updError.message }, 400);
+    return json({ ok: true, brew: upd });
+  }
 
   const { data, error } = await supabase
     .from("brew_readings")

@@ -252,7 +252,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
                     </span>
                     <span>{phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}</span>
                   </span>
-                  <span>⚡{brew.fermentationMetrics.activity_score}%</span>
+                  <span>{brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `⚡${brew.fermentationMetrics.activity_score}%`}</span>
                   {brew.fermentationMetrics.ready_to_crash && (
                     <span className="text-blue-400 font-semibold">🧊 Redo</span>
                   )}
@@ -262,7 +262,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick }: Gravit
                 <p className="font-semibold mb-1">
                   {phaseDescriptions[brew.fermentationMetrics.fermentation_phase] ?? 'Okänd fas'}
                 </p>
-                <p>⚡ Aktivitet: {brew.fermentationMetrics.activity_score}% — mått på hur aktiv jäsningen är just nu (0–100%)</p>
+                <p>⚡ Aktivitet: {brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `${brew.fermentationMetrics.activity_score}%`} — mått på hur aktiv jäsningen är just nu (0–100%)</p>
                 {brew.fermentationMetrics.ready_to_crash && (
                   <p className="mt-1">🧊 SG stabil + hög utjäsningsgrad → redo för coldcrash</p>
                 )}

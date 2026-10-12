@@ -99,8 +99,18 @@ Deno.serve(async (req) => {
   // Uppmätt OG ersätter receptets (receptets finns kvar i recipe.og som "planerat").
   if (body.og_source === "pill" && patch.og != null) brewPatch.original_gravity = patch.og;
   if (patch.fg_expected != null) brewPatch.final_gravity = patch.fg_expected;
+  // Skriv bara fält som faktiskt ändrats — varje skrivning är ett realtime-event.
   if (Object.keys(brewPatch).length) {
-    await supabase.from("brew_readings").update(brewPatch).in("id", brewIds);
+    const { data: current } = await supabase
+      .from("brew_readings").select("id, fermentation_start, original_gravity, final_gravity").in("id", brewIds);
+    const same = (k: string, a: unknown, b: unknown) =>
+      a == null || b == null ? a == b
+        : k === "fermentation_start" ? new Date(a as string).getTime() === new Date(b as string).getTime()
+        : Number(a) === Number(b);
+    for (const row of current ?? []) {
+      const diff = Object.fromEntries(Object.entries(brewPatch).filter(([k, v]) => !same(k, (row as any)[k], v)));
+      if (Object.keys(diff).length) await supabase.from("brew_readings").update(diff).eq("id", row.id);
+    }
   }
 
   // Slutrapport med racked_at = ölet är tappat: kortet blir klart och slutar följa tanken.

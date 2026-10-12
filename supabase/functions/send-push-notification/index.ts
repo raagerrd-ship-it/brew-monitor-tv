@@ -13,7 +13,9 @@ Deno.serve(async (req) => {
   }
 
 
-  if (!(isDevice(req) || await isUser(req))) return unauthorized(corsHeaders);
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const isService = !!serviceKey && req.headers.get('Authorization') === `Bearer ${serviceKey}`;
+  if (!(isService || isCron(req) || isDevice(req) || await isUser(req))) return unauthorized(corsHeaders);
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -21,6 +23,17 @@ Deno.serve(async (req) => {
     );
 
     const { title, body, data } = await req.json();
+
+    // Avdubblering: varje öppen klient skickar samma larm — bara en push per alertId/tag per 10 min.
+    const tag = data?.alertId ?? data?.tag;
+    if (typeof tag === 'string' && tag) {
+      const { data: claimed, error: claimError } = await supabase.rpc('claim_push_tag', { p_tag: tag });
+      if (claimError) console.error('claim_push_tag failed:', claimError.message);
+      else if (claimed !== true) {
+        return new Response(JSON.stringify({ message: 'Duplicate within 10 min', sent: 0, failed: 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
 
     if (!title || !body) {
       return new Response(
