@@ -13,3 +13,4 @@
 - Reservpollar körs bara när realtiden inte täcker (SUBSCRIBED-grind / ingen händelse på 60 s); use-brew-data äger headerns delade källa och use-rapt-bar-data pollar bara utan ägare. Why: färre anrop och reservpollen saknade Pi-målet.
 - RollingNumber ritar i vila bara siffran och vid byte en kort remsa med de passerade siffrorna. Why: mindre DOM på TV:n med samma rullning.
 - Footer slots are keyed and stacked (sum reserved); content-less slots self-render at the bottom and content slots sit above them. Why: brew day timer and alarm timer can be active together.
+- Sonos realtime reads the widget's current-state ref to seed first/wake playback position outside the React updater. Why: progress must not depend on updater scheduling.

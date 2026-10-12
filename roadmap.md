@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Sonos-header: mät text efter bredd/fontändringar, rätta låtlängd och positionsstart; verifiera TV-vy utan publicering.
+- [x] Sonos-header: mät text efter bredd/fontändringar, rätta låtlängd och positionsstart. Fyra tester gröna; kort/lång text och riktigt låtbyte verifierade i 1920×1080 TV-vy, bygge grönt, ej publicerat.
 
 - [x] TV-optimering enligt prioriteringslistan (live-ring som HTML, sidhuvudets mål-fel, diagramdata, omritningar, pollning, lättare siffror, småpunkter). Före/efter mätt i TV-vy.
 
