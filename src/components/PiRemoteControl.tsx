@@ -49,7 +49,7 @@ export function PiRemoteControl({
   const targetWillChange = isPending && commandedTarget != null && shownTarget != null && Math.abs(commandedTarget - shownTarget) >= 0.1;
   const releasingToProfile = isPending && commandedTarget == null && activeMode === 'manual';
   const turningOff = isPending && commandedEnabled === false;
-  const anyPending = isPending && (targetWillChange || releasingToProfile || turningOff || commandedTarget != null);
+  const anyPending = isPending && (targetWillChange || releasingToProfile || turningOff || commandedTarget != null || commandedEnabled != null);
 
   // Vilket läge panelen visar: användarens val om det finns, annars Pi:ns.
   const viewMode: Mode = draftMode ?? activeMode;
@@ -262,7 +262,9 @@ export function PiRemoteControl({
         )}
 
         <div className="text-[10px] text-muted-foreground/60 text-center pt-0.5">
-          {anyPending
+          {remote.enabledFailed
+            ? 'Pi:n utförde inte'
+            : anyPending
             ? 'Skickat — väntar på Pi:ns kvittens…'
             : remote.commandedAt
               ? `Senast kvitterat ${formatDistanceToNow(new Date(remote.commandedAt), { addSuffix: true, locale: sv })}`

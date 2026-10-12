@@ -28,6 +28,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
     profileStatus: null, targetMin: null, targetMax: null, controlSensor: null,
   });
   const [commandedAt, setCommandedAt] = useState<string | null>(null);
+  const [enabledCommandedAt, setEnabledCommandedAt] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
 
@@ -59,6 +60,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         commandedEnabled: row.enabled ?? null,
       }));
       setCommandedAt(row.commanded_at ?? null);
+      setEnabledCommandedAt(row.enabled_commanded_at ?? null);
     };
 
 
@@ -75,7 +77,7 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
       supabase
         .from('pi_setpoint')
-        .select('commanded_at, target_temp, enabled')
+        .select('commanded_at, enabled_commanded_at, target_temp, enabled')
         .eq('controller_id', controllerId)
         .maybeSingle()
         .then(({ data }) => { if (!cancelled) applySetpoint(data); });
@@ -125,9 +127,15 @@ export function usePiRemoteControl(controllerId: string, active = true) {
 
 
   // Kvittens: kommandot är bekräftat först när Pi:n hörts av efter att vi tryckte.
-  const pending = commandedAt != null && (
-    state.lastHeartbeat == null || new Date(state.lastHeartbeat) < new Date(commandedAt)
-  );
+  const heardAfter = (at: string | null) =>
+    at != null && state.lastHeartbeat != null && new Date(state.lastHeartbeat) >= new Date(at);
+  const targetPending = commandedAt != null && !heardAfter(commandedAt);
+  // På/av är utfört först när Pi:n visar det kommenderade läget.
+  const enabledMatches = state.commandedEnabled != null && state.enabled === state.commandedEnabled;
+  const enabledPending = enabledCommandedAt != null && !enabledMatches && !heardAfter(enabledCommandedAt);
+  const enabledFailed = enabledCommandedAt != null && !enabledMatches && heardAfter(enabledCommandedAt);
+  const pending = targetPending || enabledPending;
+  const lastCommandedAt = [commandedAt, enabledCommandedAt].filter(Boolean).sort().pop() ?? null;
 
   const command = useCallback(async (patch: Record<string, unknown>) => {
     setSending(true);
@@ -138,7 +146,8 @@ export function usePiRemoteControl(controllerId: string, active = true) {
         controller_id: controllerId,
         set_by: 'cloud',
         set_at: now,
-        commanded_at: now,
+        ...('target_temp' in patch ? { commanded_at: now } : {}),
+        ...('enabled' in patch ? { enabled_commanded_at: now } : {}),
         ...patch,
       } as any, { onConflict: 'controller_id' });
     setSending(false);
@@ -149,13 +158,15 @@ export function usePiRemoteControl(controllerId: string, active = true) {
       commandedTarget: 'target_temp' in patch ? (patch.target_temp as number | null) : prev.commandedTarget,
       commandedEnabled: 'enabled' in patch ? (patch.enabled as boolean) : prev.commandedEnabled,
     }));
-    setCommandedAt(now);
+    if ('target_temp' in patch) setCommandedAt(now);
+    if ('enabled' in patch) setEnabledCommandedAt(now);
   }, [controllerId]);
 
   return {
     ...state,
-    commandedAt,
+    commandedAt: lastCommandedAt,
     pending,
+    enabledFailed,
     sending,
     // Manuellt mål pausar profilen på Pi:n.
     setManualTarget: (temp: number) => command({ target_temp: temp, enabled: true }),
