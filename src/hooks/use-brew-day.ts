@@ -19,7 +19,7 @@ export interface BrewDay {
   updated_at: string;
 }
 
-const STALE_MS = 6 * 60 * 60 * 1000;
+const STALE_MS = 24 * 60 * 60 * 1000;
 
 type Row = (BrewDay & { active: boolean }) | null;
 type Listener = (row: Row | undefined) => void; // undefined = ladda om
