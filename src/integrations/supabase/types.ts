@@ -78,9 +78,15 @@ export type Database = {
           active: boolean
           id: number
           items: Json
+          next_step_items: number | null
+          next_step_minutes: number | null
+          next_step_title: string | null
           recipe_name: string | null
+          step_count: number | null
           step_id: string | null
+          step_index: number | null
           step_kind: string | null
+          step_started_at: string | null
           step_title: string | null
           target_temp_c: number | null
           updated_at: string
@@ -89,9 +95,15 @@ export type Database = {
           active?: boolean
           id?: number
           items?: Json
+          next_step_items?: number | null
+          next_step_minutes?: number | null
+          next_step_title?: string | null
           recipe_name?: string | null
+          step_count?: number | null
           step_id?: string | null
+          step_index?: number | null
           step_kind?: string | null
+          step_started_at?: string | null
           step_title?: string | null
           target_temp_c?: number | null
           updated_at?: string
@@ -100,9 +112,15 @@ export type Database = {
           active?: boolean
           id?: number
           items?: Json
+          next_step_items?: number | null
+          next_step_minutes?: number | null
+          next_step_title?: string | null
           recipe_name?: string | null
+          step_count?: number | null
           step_id?: string | null
+          step_index?: number | null
           step_kind?: string | null
+          step_started_at?: string | null
           step_title?: string | null
           target_temp_c?: number | null
           updated_at?: string

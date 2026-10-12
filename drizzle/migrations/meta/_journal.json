@@ -204,6 +204,13 @@
       "when": 1791822874363,
       "tag": "0028_metrics_activity_nullable_push_dedupe",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791828906234,
+      "tag": "0029_brew_day_step_progress",
+      "breakpoints": true
     }
   ]
 }
