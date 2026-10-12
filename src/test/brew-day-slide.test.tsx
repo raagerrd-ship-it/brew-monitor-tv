@@ -35,23 +35,23 @@ describe('brew day slide', () => {
     expect(screen.getByText('14:55', { exact: false })).toBeTruthy();
   });
 
-  it('reserves height during preparation but waits for the footer phase to enter', () => {
+  it('reserves height while sliding, lets the dashboard move it, and settles afterwards', () => {
     vi.useFakeTimers();
     state.timer = { ...state.timer, isActive: true };
-    const view = render(<TimerFooter brewDay={day} slidePhase="prepare" />);
+    const view = render(<TimerFooter brewDay={day} sliding />);
     expect(state.setSlot).toHaveBeenCalledWith(null, 112, 'brew-timer');
     act(() => vi.advanceTimersByTime(3000));
     const footer = view.container.querySelector('.bottom-0') as HTMLElement;
     expect(footer.style.transform).toBe('translateY(100%)');
-    view.rerender(<TimerFooter brewDay={day} slidePhase="footer" />);
+    expect(footer.dataset.footerVisible).toBe('1');
+    view.rerender(<TimerFooter brewDay={day} />);
     act(() => vi.advanceTimersByTime(100));
     expect(footer.style.transform).toBe('translateY(0)');
     state.timer = { ...state.timer, isActive: false };
-    view.rerender(<TimerFooter brewDay={null} slidePhase="prepare" />);
+    view.rerender(<TimerFooter brewDay={null} sliding />);
     expect(state.clearSlot).toHaveBeenCalledWith('brew-timer');
-    expect(footer.style.transform).toBe('translateY(0)');
-    view.rerender(<TimerFooter brewDay={null} slidePhase="footer" />);
-    act(() => vi.advanceTimersByTime(10));
-    expect(footer.style.transform).toBe('translateY(100%)');
+    expect(footer.dataset.footerVisible).toBe('0');
+    view.rerender(<TimerFooter brewDay={null} />);
+    expect(view.container.querySelector('.bottom-0')).toBeNull();
   });
 });
