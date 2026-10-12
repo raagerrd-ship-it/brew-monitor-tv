@@ -184,7 +184,14 @@ export const TimerFooter = memo(function TimerFooter() {
   const prevLabelRef = useRef<string>(timer.label);
 
 
-  const isMash = timer.label === 'Mäskschema';
+  // Brew Master sends the step title (e.g. "Mäska in & håll @ 66 °C").
+  const isMash = (timer.wizardStep ?? '').startsWith('Mäsk') || (timer.label ?? '').startsWith('Mäsk');
+  // Step finished: derived from the local second tick, no fetch needed.
+  const isDone = timer.totalSeconds > 0 && timer.remainingSeconds === 0;
+  const isUntimed = timer.totalSeconds === 0;
+  const zeroMilestone = timer.milestones.find(m => m.time === 0) ?? null;
+  const doneNextLabel = (zeroMilestone?.label || timer.nextConfig?.label || '').replace(/🔥\s*/g, '') || null;
+  const doneAlertShownRef = useRef<string | null>(null);
   const isWhirlpool = timer.label?.toLowerCase().includes('whirlpool') || timer.label?.toLowerCase().includes('hopstand');
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
@@ -230,6 +237,7 @@ export const TimerFooter = memo(function TimerFooter() {
     if (prevLabelRef.current !== timer.label) {
       lastTriggeredRef.current = new Set();
       dismissAlert('timer-milestone');
+      dismissAlert('timer-done');
 
       prevLabelRef.current = timer.label;
     }
@@ -289,6 +297,41 @@ export const TimerFooter = memo(function TimerFooter() {
     }
   }, [timer.milestones, timer.isActive, showAlert]);
 
+  // Step finished: show once per step; closed on label change (above) or when the 0-s milestone is acknowledged.
+  const zeroAcked = zeroMilestone?.acknowledged === true;
+  useEffect(() => {
+    if (!liveTimer.isActive || !isDone || zeroAcked) return;
+    if (doneAlertShownRef.current === timer.label) return;
+    doneAlertShownRef.current = timer.label;
+    showAlert({
+      id: 'timer-done',
+      autoDismissMs: null,
+      content: (
+        <div
+          className="relative flex flex-col items-center px-16 py-10 rounded-2xl max-w-[90vw]"
+          style={{
+            background: 'linear-gradient(145deg, hsl(142 60% 16%) 0%, hsl(142 70% 11%) 100%)',
+            border: '2px solid hsl(142 60% 40% / 0.6)',
+          }}
+        >
+          <div className="text-green-100 text-5xl md:text-7xl font-bold text-center leading-tight">
+            Klart: {timer.label}
+          </div>
+          {doneNextLabel && (
+            <div className="text-green-300/80 text-xl md:text-2xl mt-4 text-center font-medium">
+              Nästa: {doneNextLabel}
+            </div>
+          )}
+          <div className="text-green-300/80 text-lg mt-4 font-medium">Kvittera i bryggappen</div>
+        </div>
+      ),
+    });
+  }, [liveTimer.isActive, isDone, zeroAcked, timer.label, doneNextLabel, showAlert]);
+
+  useEffect(() => {
+    if (zeroAcked) dismissAlert('timer-done');
+  }, [zeroAcked, dismissAlert]);
+
   // Dismiss alert when acknowledged externally via synced data
   useEffect(() => {
     // Only check if we've actually triggered alerts
@@ -324,12 +367,16 @@ export const TimerFooter = memo(function TimerFooter() {
           transform: entered ? 'translateY(0)' : 'translateY(100%)',
           opacity: entered ? 1 : 0,
           transition: `transform 2000ms cubic-bezier(0.45, 0, 0.55, 1), opacity 2000ms cubic-bezier(0.45, 0, 0.55, 1)`,
-          background: isMash
+          background: isDone
+            ? `linear-gradient(145deg, hsl(142 60% 12% / 0.45) 0%, ${footerBase} 100%)`
+            : isMash
              ? `linear-gradient(145deg, hsl(24 70% 9% / 0.35) 0%, ${footerBase} 100%)`
             : isWhirlpool
                ? `linear-gradient(145deg, hsl(180 50% 9% / 0.35) 0%, ${footerBase} 100%)`
                : footerBase,
-          borderTop: isMash
+          borderTop: isDone
+            ? '1px solid hsl(142 60% 40% / 0.2)'
+            : isMash
             ? '1px solid hsl(24 80% 40% / 0.15)'
             : isWhirlpool
               ? '1px solid hsl(180 60% 40% / 0.15)'
@@ -358,13 +405,15 @@ export const TimerFooter = memo(function TimerFooter() {
                 "text-sm uppercase tracking-wide flex-shrink-0 font-bold",
                 isMash ? "text-green-300" : "text-green-400"
               )}>
-                Nu:
+                {isDone ? 'Klart:' : 'Nu:'}
               </span>
               <span className={cn(
                 "text-xl font-bold truncate",
                 isMash ? "text-green-100" : "text-foreground"
               )}>
-                 {currentMilestone
+                 {isDone || isUntimed
+                  ? timer.label || 'Pågår'
+                  : currentMilestone
                   ? currentMilestone.label.replace(/🔥\s*/g, '') 
                   : timer.label || 'Pågår'}
               </span>
@@ -418,7 +467,9 @@ export const TimerFooter = memo(function TimerFooter() {
               )}>
                 Nästa:
               </span>
-              {timer.nextMilestone ? (
+              {isDone ? (
+                <span className="text-sm font-medium truncate text-foreground">{doneNextLabel ?? '—'}</span>
+              ) : timer.nextMilestone ? (
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Flame className={cn(
                     "w-3.5 h-3.5 flex-shrink-0",
@@ -557,8 +608,12 @@ export const TimerFooter = memo(function TimerFooter() {
               </div>
             )}
             
+            {isDone && (
+              <span className="font-bold text-3xl text-green-300 tracking-wider">KLART</span>
+            )}
+
             {/* Time to next milestone - PRIMARY (large for TV) */}
-            {timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+            {!isDone && !isUntimed && timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
               <div className="flex items-baseline gap-2">
                 <span className={cn(
                   "text-sm",
@@ -583,8 +638,8 @@ export const TimerFooter = memo(function TimerFooter() {
               </div>
             )}
             
-            {/* Total remaining time - secondary */}
-            <div 
+ {/* Total remaining time - secondary */}
+            {!isDone && !isUntimed && <div 
               className={cn(
                 "font-mono tabular-nums text-base",
                 isLowTime && "animate-pulse text-red-400",
@@ -592,7 +647,7 @@ export const TimerFooter = memo(function TimerFooter() {
               )}
             >
               {formatTime(timer.remainingSeconds)} totalt
-            </div>
+            </div>}
           </div>
         </div>
       </div>
