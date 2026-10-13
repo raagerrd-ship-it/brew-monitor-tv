@@ -16,34 +16,38 @@ interface RollingNumberProps {
 
 // I vila ritas bara siffran; vid byte ritas en kort remsa med just de siffror som passeras
 // (strip) eller [gammal, ny] (step), som glider med transform och sedan kollapsar.
-const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mode }: { digit: number; direction: number; duration: number; mode: "strip" | "step" }) {
+const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mode, signChanged, newLeadingDigit }: { digit: number; direction: number; duration: number; mode: "strip" | "step"; signChanged: boolean; newLeadingDigit: boolean }) {
   const [roll, setRoll] = useState<{ seq: number[]; from: number; to: number } | null>(null);
+  const [appearing, setAppearing] = useState(false);
   const previous = useRef(digit);
   const element = useRef<HTMLSpanElement>(null);
   const directionRef = useRef(direction);
   directionRef.current = direction;
 
   useEffect(() => {
-    if (digit === previous.current) return;
+    if (newLeadingDigit && !element.current?.closest(".cleaning-transition-active")) setAppearing(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (digit === previous.current && !signChanged) return;
     const old = previous.current;
     previous.current = digit;
-    if (element.current?.closest(".cleaning-transition-active") || (mode === "strip" && directionRef.current === 0)) {
+    if (signChanged || element.current?.closest(".cleaning-transition-active") || (mode === "strip" && directionRef.current === 0)) {
       setRoll(null);
       return;
     }
     let next: { seq: number[]; from: number; to: number };
-    if (mode === "step") {
+    const steps = directionRef.current < 0 ? (old - digit + 10) % 10 : (digit - old + 10) % 10;
+    if (mode === "step" || steps > 5) {
       // Ett steg: uppåt vid ökning, nedåt vid minskning
       next = directionRef.current < 0 ? { seq: [digit, old], from: 1, to: 0 } : { seq: [old, digit], from: 0, to: 1 };
     } else if (directionRef.current > 0) {
-      const steps = (digit - old + 10) % 10;
       next = { seq: Array.from({ length: steps + 1 }, (_, i) => (old + i) % 10), from: 0, to: steps };
     } else {
-      const steps = (old - digit + 10) % 10;
       next = { seq: Array.from({ length: steps + 1 }, (_, i) => (digit + i) % 10), from: steps, to: 0 };
     }
     setRoll(next);
-  }, [digit, mode]);
+  }, [digit, mode, signChanged]);
 
   useEffect(() => {
     if (!roll) return;
@@ -57,7 +61,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
         <span key={`${roll.seq.join('')}-${roll.from}-${roll.to}`} className="rolling-number-strip block leading-none" onAnimationEnd={() => setRoll(null)} style={{ '--roll-from': `translateY(-${roll.from}em)`, '--roll-to': `translateY(-${roll.to}em)`, animationDuration: `${duration}ms` } as React.CSSProperties}>
           {roll.seq.map((n, i) => <span key={i} className="block h-[1em] leading-none">{n}</span>)}
         </span>
-      ) : digit}
+      ) : appearing ? <span className="animate-in fade-in" style={{ animationDuration: `${duration}ms` }} onAnimationEnd={() => setAppearing(false)}>{digit}</span> : digit}
     </span>
   );
 });
@@ -68,16 +72,24 @@ export const RollingNumber = memo(function RollingNumber({ value, decimals, mute
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
   const previous = useRef(Number(formatted));
   const numeric = Number(formatted);
-  const direction = numeric === previous.current ? 0 : forcedDirection ?? (numeric > previous.current ? 1 : -1);
-  useEffect(() => { previous.current = numeric; }, [numeric]);
+  const signChanged = Math.sign(numeric) !== Math.sign(previous.current) && (numeric < 0 || previous.current < 0);
+  const direction = signChanged ? 0 : forcedDirection ?? Math.sign(Math.abs(numeric) - Math.abs(previous.current));
+  const unsigned = formatted.replace(/^[+-]/, "");
+  const decimalIndex = unsigned.indexOf(".") < 0 ? unsigned.length : unsigned.indexOf(".");
+  const previousIntegerDigits = useRef(decimalIndex);
+  useEffect(() => { previous.current = numeric; previousIntegerDigits.current = decimalIndex; }, [numeric, decimalIndex]);
 
   return (
     <span className="inline-flex items-baseline whitespace-nowrap tabular-nums leading-none" aria-label={`${formatted}${typeof suffix === "string" ? suffix : ""}`}>
-      {Array.from(formatted).map((char, i) => (
-        <span key={i} className={mutedLastDigit && i === formatted.length - 1 ? "text-muted-foreground/40" : undefined}>
-          {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} mode={mode} /> : char}
-        </span>
-      ))}
+      {formatted !== unsigned && <span key="sign">{formatted[0]}</span>}
+      {Array.from(unsigned).map((char, i) => {
+        const position = i < decimalIndex ? decimalIndex - i - 1 : decimalIndex - i;
+        return (
+          <span key={char === "." ? "decimal" : `digit-${position}`} className={mutedLastDigit && i === unsigned.length - 1 ? "text-muted-foreground/40" : undefined}>
+            {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} mode={mode} signChanged={signChanged} newLeadingDigit={!signChanged && position >= previousIntegerDigits.current} /> : char}
+          </span>
+        );
+      })}
       {suffix}
     </span>
   );
