@@ -214,6 +214,14 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
   const isLowTime = timer.remainingSeconds < 60 && timer.remainingSeconds > 0;
   
   const currentMilestone = isUntimed ? null : pickCurrentMilestone(timer.remainingSeconds, timer.milestones);
+  const detailAction = currentMilestone?.action ??
+    (currentMilestone?.pauseForTemperature ? timer.timerAction : undefined);
+  const detailTarget = currentMilestone?.targetTemperature ??
+    (currentMilestone?.pauseForTemperature ? timer.timerTargetTemperature ?? undefined : undefined);
+  const hasTemperatureBadge = !!detailTarget && !!(currentMilestone?.pauseForTemperature || detailAction);
+  const hasDetails = hasTemperatureBadge || !!currentMilestone?.whirlpoolTime;
+  const hasNext = isDone || !!(timer.nextMilestone || timer.nextConfig || brewDay?.next_step_title);
+  const hasOmCountdown = timer.milestones.length > 0 && timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0;
 
 
   // Check if we should show based on TV mode setting
@@ -417,11 +425,11 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
           }}
         />
         {/* 3-column grid: Current/Next Steps | Timeline | Time (auto-width) */}
-        <div className="grid grid-cols-[minmax(430px,38%)_1fr_auto] h-full">
+        <div className="grid grid-cols-[minmax(430px,38%)_minmax(0,1fr)_auto] h-full">
           
           {/* LEFT COLUMN: Current Step + Next Step */}
           <div className={cn(
-            "flex flex-col justify-center px-4 border-r gap-1",
+            "flex flex-col justify-center min-w-0 px-4 border-r gap-1",
             "border-white/5"
           )}>
             {/* Current Step - show last triggered milestone or timer label */}
@@ -433,7 +441,8 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
                 {isDone ? 'Klart:' : 'Nu:'}
               </span>
               <span className={cn(
-                "text-xl font-bold truncate",
+                "font-bold truncate",
+                isTvMode ? "text-2xl" : "text-xl",
                 isMash ? "text-green-100" : "text-foreground"
               )}>
                  {isDone || isUntimed
@@ -445,16 +454,12 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
             </div>
 
             {/* Current-step details stay below the title so the title remains readable on TV. */}
-            <div className="flex items-center gap-2 min-h-5 pl-10">
+            {hasDetails && <div className="flex items-center gap-2 min-h-5 pl-10">
               {/* Temperature target badge — action-driven (heat/cool/hold) */}
               {(() => {
-                const action =
-                  currentMilestone?.action ??
-                  (currentMilestone?.pauseForTemperature ? timer.timerAction : undefined);
-                const target =
-                  currentMilestone?.targetTemperature ??
-                  (currentMilestone?.pauseForTemperature ? timer.timerTargetTemperature ?? undefined : undefined);
-                if (!target || (!currentMilestone?.pauseForTemperature && !action)) return null;
+                const action = detailAction;
+                const target = detailTarget;
+                if (!hasTemperatureBadge) return null;
                 const isHeat = action === 'heat';
                 const isCool = action === 'cool';
                 const verb = isHeat ? 'Värm till' : isCool ? 'Kyl till' : 'Håll vid';
@@ -483,10 +488,10 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
                   <span>{currentMilestone.whirlpoolTime} min whirlpool</span>
                 </div>
               )}
-            </div>
+            </div>}
             
             {/* Next Step */}
-            <div className="flex items-center gap-2 opacity-60">
+            {hasNext && <div className="flex items-center gap-2 min-w-0 opacity-60">
               <span className={cn(
                 "text-xs uppercase tracking-wide flex-shrink-0 font-medium text-muted-foreground"
               )}>
@@ -544,7 +549,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
                   ✓ Klart!
                 </span>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* CENTER COLUMN: Visual Timeline */}
@@ -618,7 +623,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
 
           {/* RIGHT COLUMN: Time Display */}
           <div className={cn(
-            "flex flex-col justify-center items-end px-4 border-l",
+            "flex flex-col justify-center items-end whitespace-nowrap px-4 border-l",
             "border-white/5"
           )}>
             {timer.isPaused && !isUntimed && (
@@ -664,17 +669,18 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
             )}
 
             {/* Time to next milestone - PRIMARY (large for TV) */}
-            {!isDone && !isUntimed && timer.timeToNextMilestone !== null && timer.timeToNextMilestone > 0 && (
+            {!isDone && !isUntimed && (
               <div className="flex items-baseline gap-2">
-                <span className={cn(
+                {hasOmCountdown && <span className={cn(
                   "text-sm",
                   isMash ? "text-orange-400/80" : isWhirlpool ? "text-cyan-400/80" : "text-muted-foreground"
                 )}>
                   om
-                </span>
+                </span>}
                 <span 
                   className={cn(
-                    "font-mono font-bold tabular-nums text-3xl",
+                    "font-mono font-bold tabular-nums",
+                    isTvMode ? "text-4xl" : "text-3xl",
                     isNextMilestoneImminent 
                       ? "text-yellow-300 animate-pulse drop-shadow-[0_0_8px_rgba(253,224,71,0.5)]" 
                       : isMash 
@@ -684,13 +690,13 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
                           : "text-foreground"
                   )}
                 >
-                  {formatTime(timer.timeToNextMilestone)}
+                  {formatTime(hasOmCountdown ? timer.timeToNextMilestone ?? 0 : timer.remainingSeconds)}
                 </span>
               </div>
             )}
             
  {/* Total remaining time - secondary */}
-            {!isDone && !isUntimed && <div 
+            {!isDone && !isUntimed && hasOmCountdown && <div 
               className={cn(
                 "font-mono tabular-nums text-base",
                 isLowTime && "animate-pulse text-red-400",
