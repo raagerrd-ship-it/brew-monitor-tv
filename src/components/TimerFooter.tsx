@@ -60,9 +60,9 @@ const VisualTimeline = memo(function VisualTimeline({ milestones, totalSeconds, 
   let previousLabelPosition = -Infinity;
 
   return (
-    <div className="relative w-full h-full flex flex-col justify-center -translate-y-2">
+    <div className="relative w-full h-full flex flex-col justify-end pb-6">
       {/* Time labels row */}
-      <div className="relative h-5 mb-1">
+      <div className="relative h-5 mb-3">
         {sortedMilestones.map((milestone, index) => {
           const position = getMarkerPosition(milestone);
           if (position - previousLabelPosition < 3) return null;
@@ -586,7 +586,7 @@ export const TimerFooter = memo(function TimerFooter({ brewDay, sliding = false,
                 isTvMode={isTvMode}
               />
             ) : (
-              <div className="relative w-full rounded-full overflow-hidden"
+              <div className="relative w-full rounded-full overflow-hidden self-end mb-6"
                 style={{
                   height: '10px',
                   background: 'hsl(0 0% 0% / 0.5)',

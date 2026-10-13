@@ -54,6 +54,9 @@ describe('TV timer footer content', () => {
     expect(screen.getByText('4:15 totalt')).toHaveClass('text-base');
     expect(screen.getByText('Värm till 70°C')).toBeInTheDocument();
     expect(screen.getByText('Nästa:')).toBeInTheDocument();
+    const timelineLabels = screen.getByText("4'").parentElement?.parentElement;
+    expect(timelineLabels).toHaveClass('mb-3');
+    expect(timelineLabels?.parentElement).toHaveClass('justify-end', 'pb-6');
   });
 
   it.each([null, 0])('uses remaining as primary when the next countdown is %s', (next) => {
