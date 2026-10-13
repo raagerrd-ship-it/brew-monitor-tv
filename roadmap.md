@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Timer-footer: större huvudtid/titel, dölj tomma rader; verifiera testtimer, mäsk, paus och KLART i 1280×720 och 1920×1080 med mockade svar. Ingen publicering eller dataskrivning.
+
 - [x] Rullande siffror: korrekt riktning för negativa tal, decimalförankrade sifferpositioner och enstegstak för långa hopp; testfall och tankrutor i TV-vyn verifierade. Ingen publicering.
 
 - [x] Recharts kontrollerat: BrewChart har redan alla Line/Area-animationer avstängda, GravityStat/TempStat använder inte Recharts. Controller-diagrammens TV-avstängning provmätt med 2 ölkort, CPU ×6 och återställd utan visad förbättring; de ingår inte i kortens glidflöde. Inga dataskrivningar eller publicering.
