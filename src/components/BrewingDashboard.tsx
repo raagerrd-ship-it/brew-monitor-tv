@@ -99,6 +99,20 @@ export function BrewingDashboard() {
   const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
+  const entrancePlayed = useRef(false);
+  useEffect(() => {
+    if (!splashGone || entrancePlayed.current || !isTvMode) return;
+    entrancePlayed.current = true;
+    if (rootRef.current?.closest('.cleaning-transition-active') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cards = beerRefs.current.filter((el): el is HTMLDivElement => !!el);
+    cards.forEach((el, index) => {
+      const card = el.firstElementChild;
+      if (!(card instanceof HTMLElement)) return;
+      card.style.setProperty('--card-enter-delay', `${index * 80}ms`);
+      card.classList.add('tv-card-enter');
+      card.addEventListener('animationend', () => card.classList.remove('tv-card-enter'), { once: true });
+    });
+  }, [splashGone, isTvMode]);
   useEffect(() => {
     if (showSplash) return;
     const t = setTimeout(() => setSplashGone(true), 600);
@@ -219,8 +233,8 @@ export function BrewingDashboard() {
   }, [cardCount]);
 
   const cardWidthClass = useMemo(() => {
-    return cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
-  }, [cardCount]);
+    return isTvMode && cardCount === 1 ? "w-2/3" : cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
+  }, [cardCount, isTvMode]);
 
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.

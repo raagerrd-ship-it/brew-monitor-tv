@@ -1,0 +1,25 @@
+import { useLayoutEffect, useRef, type RefObject } from "react";
+import { isLocked, onMotionLockChange } from "@/lib/motion-lock";
+
+export function useTvEventAnimation<T extends HTMLElement>(ref: RefObject<T>, value: unknown, className: string, enabled: boolean) {
+  const previous = useRef(value);
+  useLayoutEffect(() => {
+    const changed = previous.current !== value;
+    previous.current = value;
+    const el = ref.current;
+    if (!el || !changed || !enabled || isLocked() || el.closest('.cleaning-transition-active') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.classList.remove(className);
+    const frame = requestAnimationFrame(() => {
+      if (!isLocked() && !el.closest('.cleaning-transition-active')) el.classList.add(className);
+    });
+    const finish = (event: AnimationEvent) => { if (event.target === el) el.classList.remove(className); };
+    el.addEventListener('animationend', finish);
+    const unsubscribe = onMotionLockChange(locked => { if (locked) el.classList.remove(className); });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener('animationend', finish);
+      el.classList.remove(className);
+      unsubscribe();
+    };
+  }, [value, enabled, className, ref]);
+}

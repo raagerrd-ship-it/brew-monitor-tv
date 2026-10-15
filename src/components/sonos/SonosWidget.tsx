@@ -7,6 +7,7 @@ import { useSonosClientPolling } from "./hooks/useSonosClientPolling";
 import { useSonosVisibility } from "./hooks/useSonosVisibility";
 import { useSonosRealtime } from "./hooks/useSonosRealtime";
 import { useAlbumArtSetter } from "@/contexts/AlbumArtContext";
+import { SonosTrackText } from "./SonosTrackText";
 
 
 /** Scrolls children horizontally when they overflow, then scrolls back */
@@ -221,7 +222,8 @@ export const SonosWidget = memo(function SonosWidget({
         </div>
 
         {/* Value row — exact copy of controller temp row, showing track */}
-        <MarqueeText key={headerTrack.track_name} isTvMode={isTvMode} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+        <SonosTrackText identity={`${headerTrack.track_name}|${headerTrack.artist_name}`} enabled={isTvMode}>
+        <MarqueeText key={`${headerTrack.track_name}|${headerTrack.artist_name}`} isTvMode={isTvMode} innerClassName="inline-flex items-baseline gap-1.5 whitespace-nowrap">
           <span ref={trackNameRef} className="font-bold whitespace-nowrap" style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '22px',
@@ -248,6 +250,7 @@ export const SonosWidget = memo(function SonosWidget({
           </span>
 
         </MarqueeText>
+        </SonosTrackText>
 
         {/* Bottom bar — exact copy of controller battery bar, showing progress */}
         {headerTrack.duration_ms && (

@@ -1,4 +1,7 @@
 import { Badge } from "@/components/ui/badge";
+import { useRef } from "react";
+import { useTvMode } from "@/contexts/TvModeContext";
+import { useTvEventAnimation } from "@/hooks/use-tv-event-animation";
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, Thermometer, Clock, Activity, Timer, Loader2, CheckCircle2, Check, Hand } from "lucide-react";
 import { FermentationProfileStep, STEP_TYPE_LABELS, getStepTypeLabel } from "@/types/fermentation";
@@ -95,6 +98,9 @@ export function FermentationSessionCompact({
   piStepIndex,
   piTempTargetC,
 }: FermentationSessionCompactProps) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const { isTvMode } = useTvMode();
+  useTvEventAnimation(boxRef, `${piStepIndex ?? currentStepIndex}:${status}`, 'tv-event-sweep', isTvMode);
 
   // Pi:ns delfaser är sanningen — inget räknas fram lokalt när de finns.
   const hasPiPhases = !!piStepPhases && piStepPhases.length > 0;
@@ -287,6 +293,7 @@ export function FermentationSessionCompact({
   if (isCompleted) {
     return (
       <div 
+        ref={boxRef}
         className="relative flex items-center gap-2 px-3 py-2 rounded-lg overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, hsl(142 70% 30% / 0.42) 0%, hsl(142 70% 20% / 0.32) 100%)',
@@ -379,6 +386,7 @@ export function FermentationSessionCompact({
 
   return (
     <div 
+      ref={boxRef}
       className="relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg overflow-hidden"
       style={{
         background: getBackgroundStyle(visualState),
