@@ -37,6 +37,8 @@ const TYPE_ICONS: Record<string, string> = {
   automation_failure: "🚨",
   controller_conflict: "💥",
   step_timeout: "⏰",
+  profile_step_changed: "📈",
+  profile_completed: "✅",
 };
 
 function NotificationBellComponent() {

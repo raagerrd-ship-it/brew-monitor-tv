@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createBrewSnapshot } from "../_shared/brew-snapshots.ts";
+import { insertNotification } from "../_shared/notifications.ts";
 
 const SECRET = Deno.env.get("PI_BLE_INGEST_SECRET")!;
 
@@ -187,6 +188,15 @@ Deno.serve(async (req) => {
           .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
           .in("id", closedBrewIds);
       }
+      if ((closing || []).length > 0) {
+        await insertNotification(supabase, {
+          type: "profile_completed",
+          title: "Jäsprofilen är klar",
+          body: "Pi:n har avslutat jäsprofilen.",
+          brew_id: closedBrewIds[0] ?? null,
+          controller_id: fullId,
+        });
+      }
       return;
     }
     if (!p.session_id) return;
@@ -206,12 +216,44 @@ Deno.serve(async (req) => {
     else if (p.step_progress !== undefined) patch.step_progress = p.step_progress;
     if (p.status === "completed" && !patch.completed_at) patch.completed_at = new Date().toISOString();
 
+    // Hämta föregående läge för att upptäcka stegbyte/avslut (notiser).
+    const { data: prevSession } = await supabase
+      .from("fermentation_sessions")
+      .select("current_step_index, status, brew_id")
+      .eq("id", p.session_id)
+      .maybeSingle();
+
     const { data: updated, error } = await supabase
       .from("fermentation_sessions")
       .update(patch)
       .eq("id", p.session_id)
       .select("id");
     if (error) console.error("profile state write failed:", error.message);
+
+    if (!error && prevSession) {
+      const brewId = p.brew_id ?? prevSession.brew_id ?? null;
+      if (p.status === "completed" && prevSession.status !== "completed") {
+        await insertNotification(supabase, {
+          type: "profile_completed",
+          title: "Jäsprofilen är klar",
+          body: "Pi:n har avslutat jäsprofilen.",
+          brew_id: brewId,
+          controller_id: fullId ?? null,
+        });
+      } else if (
+        typeof p.current_step_index === "number" &&
+        prevSession.current_step_index !== p.current_step_index
+      ) {
+        const stepLabel = p.step_label ? `: ${p.step_label}` : "";
+        await insertNotification(supabase, {
+          type: "profile_step_changed",
+          title: "Profilsteget byttes",
+          body: `Steg ${p.current_step_index + 1}${stepLabel}`,
+          brew_id: brewId,
+          controller_id: fullId ?? null,
+        });
+      }
+    }
 
     // Pi:n äger sessionen. Finns den inte i molnet ännu speglar vi den hit,
     // annars syns ingen profil i UI:t.
