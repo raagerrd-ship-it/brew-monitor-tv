@@ -7,6 +7,7 @@ export interface RaptBarState {
   piDisabled: Record<string, boolean>;
   piManual: Record<string, boolean>;
   activeSessions: Record<string, boolean>;
+  relays?: Record<string, { cooling: boolean | null; heating: boolean | null }>;
   loaded: boolean;
   updatedAt: number;
 }

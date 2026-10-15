@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
+import { useTvMode } from "@/contexts/TvModeContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 
 const STALL_THRESHOLD = 0.002;
@@ -34,6 +35,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   rate6h?: number | null;
   rate12h?: number | null;
 }) {
+  const { isTvMode } = useTvMode();
   const displayRate = Math.abs(rate6h ?? rate);
   const previousRate = Math.abs(rate12h ?? (rate6h ?? rate));
   const maxRate = Math.max(0.015, displayRate * 1.5, previousRate * 1.5);
@@ -86,19 +88,20 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
                 }}
               >
                 <div 
-                  className="absolute top-0 bottom-0 left-0"
+                  className={`absolute top-0 bottom-0 left-0 w-full ${isTvMode ? 'tv-value-bar' : ''}`}
                   style={{ 
-                    width: `${stallPct}%`,
+                    transform: `scaleX(${stallPct / 100})`,
+                    transformOrigin: 'left',
                     background: 'linear-gradient(90deg, hsl(0 70% 35%), hsl(25 80% 40%))',
                     opacity: 0.7,
                   }}
                 />
                 {trendBarWidth > 0.5 && (
                   <div 
-                    className="absolute top-0 bottom-0"
+                    className={`absolute top-0 bottom-0 left-0 w-full ${isTvMode ? 'tv-value-bar' : ''}`}
                     style={{ 
-                      left: `${trendBarLeft}%`,
-                      width: `${trendBarWidth}%`,
+                      transform: `translateX(${trendBarLeft}%) scaleX(${trendBarWidth / 100})`,
+                      transformOrigin: 'left',
                       background: trendColor,
                       opacity: 0.6,
                       boxShadow: `0 0 6px ${trendColor}`,
@@ -141,6 +144,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash }: GravityStatProps) {
+  const { isTvMode } = useTvMode();
   const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
@@ -194,9 +198,10 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
             }}
           >
             <div 
-              className="absolute top-0 bottom-0 left-0 rounded-full"
+              className={`absolute top-0 bottom-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
               style={{ 
-                width: `${progress}%`,
+                transform: `scaleX(${progress / 100})`,
+                transformOrigin: 'left',
                 background: progressColor,
                 boxShadow: `0 0 12px ${progressColor}, 0 0 6px ${progressColor}`
               }}

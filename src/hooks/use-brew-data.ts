@@ -11,7 +11,7 @@ import { useTvMode } from '@/contexts/TvModeContext';
 import { setRaptBar, acquireRaptBarOwner } from '@/lib/rapt-bar-store';
 import { tvDebug } from '@/lib/tv-debug-log';
 
-type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null };
+type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null; cooling_relay_on: boolean | null; heating_relay_on: boolean | null };
 
 interface UseBrewDataReturn {
   brews: BrewData[];
@@ -515,7 +515,7 @@ export function useBrewData(): UseBrewDataReturn {
       pillIds.length > 0
         ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds) 
         : Promise.resolve({ data: [] }),
-      supabase.from('pi_live_state').select('controller_id, target_temp, enabled, target_source'),
+      supabase.from('pi_live_state').select('controller_id, target_temp, enabled, target_source, cooling_relay_on, heating_relay_on'),
     ]);
     
     // SSOT: Pi:ns aktuella måltemp (pi_live_state) gäller för Pi-styrda tankar
@@ -757,8 +757,8 @@ export function useBrewData(): UseBrewDataReturn {
     if (payload.eventType !== 'UPDATE' || !row?.controller_id) { loadRaptData(); return; }
     setPiLive(prev => {
       const old = prev.find(p => p.controller_id === row.controller_id);
-      if (old && old.enabled === row.enabled && old.target_source === row.target_source && old.target_temp === row.target_temp) return prev;
-      const nextRow = { controller_id: row.controller_id, target_temp: row.target_temp ?? null, enabled: row.enabled ?? null, target_source: row.target_source ?? null };
+      if (old && old.enabled === row.enabled && old.target_source === row.target_source && old.target_temp === row.target_temp && old.cooling_relay_on === row.cooling_relay_on && old.heating_relay_on === row.heating_relay_on) return prev;
+      const nextRow = { controller_id: row.controller_id, target_temp: row.target_temp ?? null, enabled: row.enabled ?? null, target_source: row.target_source ?? null, cooling_relay_on: row.cooling_relay_on ?? null, heating_relay_on: row.heating_relay_on ?? null };
       return old ? prev.map(p => p.controller_id === row.controller_id ? nextRow : p) : [...prev, nextRow];
     });
     if (row.target_temp == null) return;
@@ -922,8 +922,13 @@ export function useBrewData(): UseBrewDataReturn {
     return out;
   }, [sessionKey]);
   useEffect(() => {
-    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions });
-  }, [controllers, pills, piDisabled, piManual, activeSessions]);
+    const relays: Record<string, { cooling: boolean | null; heating: boolean | null }> = {};
+    for (const c of controllers) {
+      const live = piLive.find(l => c.controller_id.startsWith(l.controller_id));
+      if (live) relays[c.controller_id] = { cooling: live.cooling_relay_on, heating: live.heating_relay_on };
+    }
+    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions, relays });
+  }, [controllers, pills, piDisabled, piManual, activeSessions, piLive]);
   // Tala om att den här hooken äger headerns källa (reservpollen i use-rapt-bar-data hoppar då över)
   useEffect(() => acquireRaptBarOwner(), []);
 
