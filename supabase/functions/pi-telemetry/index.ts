@@ -188,6 +188,15 @@ Deno.serve(async (req) => {
           .update({ pi_pending_at: null, updated_at: new Date().toISOString() })
           .in("id", closedBrewIds);
       }
+      if ((closing || []).length > 0) {
+        await insertNotification(supabase, {
+          type: "profile_completed",
+          title: "Jäsprofilen är klar",
+          body: "Pi:n har avslutat jäsprofilen.",
+          brew_id: closedBrewIds[0] ?? null,
+          controller_id: fullId,
+        });
+      }
       return;
     }
     if (!p.session_id) return;
