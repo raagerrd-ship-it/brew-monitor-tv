@@ -12,15 +12,17 @@ export async function insertNotification(
     body: string;
     brew_id?: string | null;
     controller_id?: string | null;
+    /** Dedup-fönster i timmar (standard 1). */
+    dedupe_hours?: number;
   }
 ): Promise<void> {
-  // Deduplicate: skip if same type+target within last hour
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  // Deduplicate: skip if same type+target within the window
+  const since = new Date(Date.now() - (opts.dedupe_hours ?? 1) * 60 * 60 * 1000).toISOString();
   let query = supabase
     .from("pending_notifications")
     .select("id")
     .eq("type", opts.type)
-    .gte("created_at", oneHourAgo)
+    .gte("created_at", since)
     .limit(1);
 
   if (opts.brew_id) query = query.eq("brew_id", opts.brew_id);
