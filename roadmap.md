@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] TV: engångsentré efter splash, Sonos-låtbyte, transform-staplar, relä-pop, steg/status-svep, mätpunktsping, nedtonade avstängda tankar och centrerat ensamt kort; verifiera händelser och rörelselås.
+
 - [x] Timer-footer: större huvudtid/titel, tomma rader dolda; testtimer, mäsk, paus och KLART verifierade i 1280×720 och 1920×1080 med mockade svar. 42 tester och automatiskt bygge gröna. Ingen publicering eller dataskrivning.
 
 - [x] Rullande siffror: korrekt riktning för negativa tal, decimalförankrade sifferpositioner och enstegstak för långa hopp; testfall och tankrutor i TV-vyn verifierade. Ingen publicering.
