@@ -195,7 +195,6 @@ Deno.serve(async (req) => {
           body: "Pi:n har avslutat jäsprofilen.",
           brew_id: closedBrewIds[0] ?? null,
           controller_id: fullId,
-          dedupe_hours: 24,
         });
       }
       return;
