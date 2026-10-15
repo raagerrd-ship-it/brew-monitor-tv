@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] TV-layout: avvikelseikoner i tankrutor, lika över-/undermarginal via korthöjd och höjdförskjutna närliggande händelseetiketter; verifiera utan publicering.
+
 - [x] TV: engångsentré efter splash, Sonos-låtbyte, transform-staplar, relä-pop, steg/status-svep, mätpunktsping, nedtonade avstängda tankar och centrerat ensamt kort. 47 tester och automatiskt bygge gröna; mockade händelser och rörelselås verifierade i 1280×720 och 1920×1080. Ingen dataskrivning eller publicering.
 
 - [x] Timer-footer: större huvudtid/titel, tomma rader dolda; testtimer, mäsk, paus och KLART verifierade i 1280×720 och 1920×1080 med mockade svar. 42 tester och automatiskt bygge gröna. Ingen publicering eller dataskrivning.
