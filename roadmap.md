@@ -39,3 +39,4 @@
 - [x] Kontrakt v27: klar-tid från Pi:ns condition.ends_at/remaining_h (UTC) i stället för egen uträkning, alltid svensk tid, dag med vid >1 dygn ("klart ons 08:10"). Verifierat i TV-vyn: "3,3 av 12 h · klart ca 20:09".
 
 - [x] Rörelselås + glidning utan React för bryggdag/rengöring
+- [ ] Notis-avdubblering: blockera enbart exakt samma notis (typ+titel+text+tank), inget tidsfönster
