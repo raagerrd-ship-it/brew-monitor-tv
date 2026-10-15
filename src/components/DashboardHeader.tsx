@@ -483,7 +483,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
             
             return (() => {
                     const controllerStaleMin = controller.last_update ? (now - new Date(controller.last_update).getTime()) / 60000 : 0;
-                    const isControllerStale = controllerStaleMin > staleThresholdMin;
+                    const isControllerStale = controllerStaleMin > staleThresholdMin || (isTvMode && !controller.last_update);
                     const batteryLevel = linkedPill ? Math.floor(linkedPill.battery_level) : 0;
                     const batteryStale = !!linkedPill && isBatteryStale(linkedPill.last_update);
                     const batteryColor = batteryStale
@@ -586,20 +586,20 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         )}
                         {!isControllerStale && !isCooler && (
                           <>
-                            <Pill style={{
+                            {(!isTvMode || !pillActive) && <Pill style={{
                               width: '0.75rem',
                               height: '0.75rem',
                               opacity: pillActive ? 1 : 0.15,
                               color: pillActive ? controllerColor : 'currentColor',
                               filter: pillActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
-                            }} strokeWidth={2} />
-                            <AirVent style={{
+                            }} strokeWidth={2} />}
+                            {(!isTvMode || !probeActive) && <AirVent style={{
                               width: '0.75rem',
                               height: '0.75rem',
                               opacity: probeActive ? 0.9 : 0.15,
                               color: probeActive ? controllerColor : 'currentColor',
                               filter: probeActive ? `drop-shadow(0 0 2px ${controllerColor}60)` : 'none',
-                            }} />
+                            }} />}
                           </>
                         )}
                       </span>

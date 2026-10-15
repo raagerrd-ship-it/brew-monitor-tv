@@ -65,9 +65,19 @@ describe('TV one-shot feedback', () => {
   });
   it('pops the relay only on a reported change', () => {
     const view = render(<RelayIcon on={false} isTvMode />);
+    expect(view.container.firstElementChild).toHaveClass('hidden');
     expect(view.container.querySelector('.tv-relay-pop')).toBeNull();
     view.rerender(<RelayIcon on={true} isTvMode />);
     act(() => vi.advanceTimersByTime(20));
+    expect(view.container.firstElementChild).not.toHaveClass('hidden');
     expect(view.container.querySelector('.tv-relay-pop')).toBeTruthy();
+    view.rerender(<RelayIcon on={false} isTvMode />);
+    expect(view.container.firstElementChild).toHaveClass('hidden');
+  });
+  it('keeps off and unknown relays visible outside TV mode', () => {
+    const view = render(<RelayIcon on={false} isTvMode={false} />);
+    expect(view.container.firstElementChild).toHaveClass('inline-flex');
+    view.rerender(<RelayIcon on={null} isTvMode={false} />);
+    expect(view.container.firstElementChild).toHaveClass('inline-flex');
   });
 });
