@@ -14,7 +14,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { BrewChartProps } from "./types";
-import { getEventDisplay, getEventsPerDay, formatXAxisTick, formatTooltipLabel } from "./utils";
+import { getEventDisplay, getEventsPerDay, getEventLabelLanes, formatXAxisTick, formatTooltipLabel } from "./utils";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBrewChartData } from "./hooks/useBrewChartData";
@@ -53,6 +53,7 @@ function BrewChartComponent({
   const smoothLines = externalSmoothLines ?? internalSmoothLines;
   const setSmoothLines = onSmoothLinesChange ?? setInternalSmoothLines;
   const { isTvMode } = useTvMode();
+  const [chartWidth, setChartWidth] = useState(0);
   // Live-ringarna ritas som HTML ovanpå diagrammet (GPU-komponerad transform/opacity i stället för SVG-omritning).
   const [rings, setRings] = useState<Record<string, { x: number; y: number; color: string }>>({});
   const ringRef = useRef(rings);
@@ -77,6 +78,11 @@ function BrewChartComponent({
   // Memoize sorted events (pitch marker handled separately as a bottom-edge dot)
   const sortedEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type !== 'jast')), [events]);
   const pitchEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type === 'jast')), [events]);
+  const labelLanes = useMemo(() => {
+    if (!isTvMode || chartData.length === 0) return new Map<string, number>();
+    return getEventLabelLanes([...sortedEvents, ...pitchEvents], chartData[0].timestamp, chartData[chartData.length - 1].timestamp, chartWidth - CHART_MARGINS.left - CHART_MARGINS.right - 120);
+  }, [isTvMode, chartData, sortedEvents, pitchEvents, chartWidth]);
+  const labelLaneHeight = Math.max(0, ...[...sortedEvents, ...pitchEvents].map(event => getEventDisplay(event.event_type).label.length * 6)) + 12;
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
@@ -126,11 +132,11 @@ function BrewChartComponent({
 
   // Event labels: vertical text reading upward from just above the dot
   type DotLabelProps = { viewBox?: { x: number; y: number; width: number; height: number } };
-  const eventLabel = (value: string, color: string) =>
+  const eventLabel = (value: string, color: string, id: string) =>
     ({ viewBox }: DotLabelProps) => {
       if (!viewBox) return <g />;
       const x = viewBox.x + viewBox.width / 2 + 4;
-      const y = viewBox.y - 5;
+       const y = viewBox.y - 5 - (labelLanes.get(id) ?? 0) * labelLaneHeight;
       return (
         <text
           transform={`rotate(-90 ${x} ${y})`}
@@ -150,7 +156,7 @@ function BrewChartComponent({
 
   return (
     <div className="h-full relative group">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" onResize={isTvMode ? (width) => setChartWidth(width) : undefined}>
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
           <defs>
             <linearGradient id={`avgTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
@@ -193,7 +199,7 @@ function BrewChartComponent({
                 r={4}
                 fill={eventDisplay.color}
                 stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color)}
+                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
               />
             );
           })}
@@ -210,7 +216,7 @@ function BrewChartComponent({
                 r={4}
                 fill={eventDisplay.color}
                 stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color)}
+                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
               />
             );
           })}
