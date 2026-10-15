@@ -215,7 +215,7 @@ export function getEventsPerDay(events: BrewChartEvent[]): BrewChartEventWithTim
 }
 
 /**
- * Format timestamp for X-axis display
+ * Assign separate heights to labels less than 30 screen pixels apart.
  */
 export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, number> {
   const lanes = new Map<string, number>();
