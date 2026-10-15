@@ -240,6 +240,7 @@ Deno.serve(async (req) => {
           body: "Pi:n har avslutat jäsprofilen.",
           brew_id: brewId,
           controller_id: fullId ?? null,
+          dedupe_hours: 24,
         });
       } else if (
         typeof p.current_step_index === "number" &&
@@ -252,6 +253,7 @@ Deno.serve(async (req) => {
           body: `Steg ${p.current_step_index + 1}${stepLabel}`,
           brew_id: brewId,
           controller_id: fullId ?? null,
+          dedupe_hours: 24,
         });
       }
     }
