@@ -30,6 +30,7 @@ const SyncedDataDialog = lazy(() => import("./SyncedDataDialog").then(m => ({ de
 const PrintLabelDialog = lazy(() => import("../PrintLabelDialog").then(m => ({ default: m.PrintLabelDialog })));
 import { RecipeView } from "./RecipeView";
 import { useStepPhases } from "@/components/fermentation/StepPhasesList";
+import { useTvEventAnimation } from "@/hooks/use-tv-event-animation";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
@@ -125,6 +126,8 @@ function BrewCardComponent({
   // "Redo att krascha" motsäger Pi:n när kraschen redan pågår.
   const hideReadyToCrash = piPhase === 'conditioning' || piStatus?.stepName === 'Smart cold-crash';
   const piWarnings = piStatus?.warnings ?? [];
+  const statusRef = useRef<HTMLButtonElement>(null);
+  useTvEventAnimation(statusRef, piStatus ? statusText.replace(/ dag \d+$/, '') : null, 'tv-event-sweep', isTvMode);
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
   const isBrewing = brew.status === "Bryggning";
@@ -190,8 +193,9 @@ function BrewCardComponent({
               {/* Status badge as menu trigger */}
               <div className="flex-shrink-0 relative" ref={menuRef}>
                 <button
+                  ref={statusRef}
                   onClick={showInteractiveElements ? () => setMenuOpen(!menuOpen) : undefined}
-                  className={`rounded-full px-2 py-0.5 font-semibold whitespace-nowrap inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
+                  className={`relative overflow-hidden rounded-full px-2 py-0.5 font-semibold whitespace-nowrap inline-flex items-center gap-1 transition-opacity ${showInteractiveElements ? 'cursor-pointer hover:opacity-80 active:opacity-60' : ''}`}
                   style={{ 
                     fontSize: '10px',
                     background: isCompletedOrConditioning 

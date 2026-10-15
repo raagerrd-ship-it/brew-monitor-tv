@@ -9,6 +9,7 @@ interface RaptBarData {
   piDisabled: Record<string, boolean>;
   piManual: Record<string, boolean>;
   activeSessions: Record<string, boolean>;
+  relays?: Record<string, { cooling: boolean | null; heating: boolean | null }>;
   loading: boolean;
 }
 
@@ -31,7 +32,7 @@ async function loadOnce(initial: boolean) {
         ? supabase.from('rapt_pills').select('*').in('pill_id', pillIds)
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('fermentation_sessions').select('controller_id').in('status', ['running', 'paused']),
-      supabase.from('pi_live_state').select('controller_id, enabled, target_source'),
+      supabase.from('pi_live_state').select('controller_id, enabled, target_source, cooling_relay_on, heating_relay_on'),
     ]);
     if (initial ? getRaptBar().loaded : getRaptBar().updatedAt > startedAt) return;
 
@@ -48,7 +49,12 @@ async function loadOnce(initial: boolean) {
       const ls = (liveRes.data || []).find((l: any) => c.controller_id === l.controller_id || c.controller_id.startsWith(l.controller_id));
       if (ls) { piDisabled[c.controller_id] = ls.enabled === false; piManual[c.controller_id] = ls.target_source === 'manual'; }
     }
-    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions });
+    const relays: NonNullable<RaptBarData['relays']> = {};
+    for (const c of controllers) {
+      const live = liveRes.data?.find(l => c.controller_id.startsWith(l.controller_id));
+      if (live) relays[c.controller_id] = { cooling: live.cooling_relay_on, heating: live.heating_relay_on };
+    }
+    setRaptBar({ controllers, pills, piDisabled, piManual, activeSessions, relays });
   } catch (error) {
     console.error('Error loading RAPT bar data:', error);
   }
@@ -62,5 +68,5 @@ export function useRaptBarData(): RaptBarData {
     const id = setInterval(() => { if (!hasRaptBarOwner() && Date.now() - getRaptBar().updatedAt >= 60_000) loadOnce(false); }, 60_000);
     return () => clearInterval(id);
   }, []);
-  return { controllers: s.controllers, pills: s.pills, piDisabled: s.piDisabled, piManual: s.piManual, activeSessions: s.activeSessions, loading: !s.loaded };
+  return { controllers: s.controllers, pills: s.pills, piDisabled: s.piDisabled, piManual: s.piManual, activeSessions: s.activeSessions, relays: s.relays, loading: !s.loaded };
 }

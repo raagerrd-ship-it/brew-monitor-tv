@@ -4,6 +4,7 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
+import { useTvMode } from "@/contexts/TvModeContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
@@ -16,6 +17,7 @@ interface TempStatProps {
 }
 
 function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
+  const { isTvMode } = useTvMode();
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
 
@@ -140,10 +142,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                 >
                   {/* Colored span bar */}
                   <div 
-                    className="absolute h-full rounded-full"
+                    className={`absolute left-0 w-full h-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
                     style={{ 
-                      left: `${leftPct}%`, 
-                      width: `${Math.max(rightPct - leftPct, 2)}%`,
+                      transform: `translateX(${leftPct}%) scaleX(${Math.max(rightPct - leftPct, 2) / 100})`,
+                      transformOrigin: 'left',
                       background: hasBoth
                         ? `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`
                         : (cTemp !== null ? 'hsl(var(--temp-blue) / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'),
@@ -247,9 +249,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
                 >
                   {/* Filled bar from 0 to duty% */}
                   <div 
-                    className="absolute top-0 bottom-0 left-0 rounded-full"
+                    className={`absolute top-0 bottom-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
                     style={{ 
-                      width: `${Math.max(duty, 1)}%`,
+                      transform: `scaleX(${Math.max(duty, 1) / 100})`,
+                      transformOrigin: 'left',
                       background: barColor,
                       opacity: 0.7,
                       boxShadow: `0 0 8px ${barColor}`,

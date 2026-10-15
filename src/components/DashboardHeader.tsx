@@ -20,6 +20,7 @@ import { subscribeSyncSettings } from "@/lib/sync-settings-store";
 import { useRaptBarData } from "@/hooks/use-rapt-bar-data";
 import { RaptControllerDialog } from "./RaptControllerDialog";
 import { HeaderIconButton } from "./header/HeaderIconButton";
+import { RelayIcon } from "./header/RelayIcon";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { useToast } from "@/hooks/use-toast";
 import { useCleaningChecklist } from "@/hooks/use-cleaning-checklist";
@@ -103,7 +104,7 @@ export function DashboardHeader({
   const isOnSettings = location.pathname === '/settings';
 
   // RAPT bar data — self-contained
-  const { controllers, pills, piDisabled, piManual, activeSessions } = useRaptBarData();
+  const { controllers, pills, piDisabled, piManual, activeSessions, relays } = useRaptBarData();
 
   // Keep the slot open until the content has finished fading out.
   const [sonosVisible, setSonosVisible] = useState(false);
@@ -244,7 +245,7 @@ export function DashboardHeader({
 
         {/* RAPT Section - Mobile */}
         {isMobile && controllers.length > 0 && (
-          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={slotOpen} />
+          <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} relays={relays} onControllerClick={handleControllerClick} isMobile={true} isTvMode={isTvMode} compact={slotOpen} />
         )}
 
         {/* Desktop: controllers left, Sonos center, actions + clock right */}
@@ -252,7 +253,7 @@ export function DashboardHeader({
           <>
             <div className="flex items-stretch flex-1 min-w-0 overflow-hidden">
               {controllers.length > 0 && (
-                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={slotOpen} />
+                <RaptControllerBar controllers={controllers} pills={pills} piDisabled={piDisabled} piManual={piManual} activeSessions={activeSessions} relays={relays} onControllerClick={handleControllerClick} isMobile={false} isTvMode={isTvMode} compact={slotOpen} />
               )}
             </div>
 
@@ -366,6 +367,7 @@ interface RaptControllerBarProps {
   piManual?: Record<string, boolean>;
   activeSessions?: Record<string, boolean>;
   compact?: boolean;
+  relays?: Record<string, { cooling: boolean | null; heating: boolean | null }>;
 }
 
 // Helper to format duration like "3t 24m"
@@ -392,6 +394,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   piManual = {},
   activeSessions = {},
   compact = false,
+  relays = {},
 }: RaptControllerBarProps) {
   const [now, setNow] = useState(() => Date.now());
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
@@ -517,8 +520,9 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                       if (el) tileRefs.current.set(controller.id, el);
                       else tileRefs.current.delete(controller.id);
                     } : undefined}
-                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/40 bg-transparent ${isTvMode ? '' : 'cursor-pointer hover:bg-white/[0.03]'}`}
+                    className={`relative flex flex-col justify-center overflow-hidden flex-shrink-0 border-r border-border/40 bg-transparent ${isTvMode ? 'tv-tank-opacity' : 'cursor-pointer hover:bg-white/[0.03]'}`}
                     style={{
+                      opacity: isTvMode && isOff && !isCooler ? 0.5 : 1,
                       flex: isMobile ? undefined : '1 1 0%',
                       width: isMobile
                         ? (isCooler ? (compact ? '118px' : '142px') : (compact ? '142px' : '172px'))
@@ -571,7 +575,13 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                             />
                           </span>
                         )}
-                        {!isControllerStale && isCooler && (
+                        {isTvMode && !isControllerStale && (
+                          <>
+                            <RelayIcon on={relays[controller.controller_id]?.cooling} isTvMode={isTvMode} />
+                            {!isCooler && <RelayIcon on={relays[controller.controller_id]?.heating} heat isTvMode={isTvMode} />}
+                          </>
+                        )}
+                        {!isTvMode && !isControllerStale && isCooler && (
                           <Snowflake style={{ width: '0.75rem', height: '0.75rem', color: 'hsl(200 70% 60%)', filter: 'drop-shadow(0 0 2px hsl(200 70% 60% / 0.35))' }} />
                         )}
                         {!isControllerStale && !isCooler && (
@@ -641,10 +651,12 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                               key={i}
                               className="flex-1 h-full"
                               style={{
-                                background: filled ? batteryColor : `${accent}26`,
-                                boxShadow: filled ? `0 0 8px ${batteryColor}80` : 'none',
+                                background: isTvMode ? `${accent}26` : filled ? batteryColor : `${accent}26`,
+                                boxShadow: !isTvMode && filled ? `0 0 8px ${batteryColor}80` : 'none',
                               }}
-                            />
+                            >
+                              {isTvMode && <div className="tv-value-bar h-full w-full" style={{ transform: `scaleX(${Math.max(0, Math.min(1, batteryLevel / 10 - i))})`, background: batteryColor }} />}
+                            </div>
                           );
                         })
                       ) : (

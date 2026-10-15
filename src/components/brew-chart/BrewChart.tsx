@@ -1,4 +1,5 @@
 import { useState, useMemo, memo, useRef } from "react";
+import { useTvEventAnimation } from "@/hooks/use-tv-event-animation";
 import { useTvMode } from "@/contexts/TvModeContext";
 import {
   Area,
@@ -25,6 +26,12 @@ import {
   DATA_SERIES_CONFIG,
   AXIS_STYLES,
 } from "./chartConfig";
+
+function PointPing({ timestamp, x, y, color, enabled }: { timestamp: number; x: number; y: number; color: string; enabled: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useTvEventAnimation(ref, timestamp, 'tv-ping-active', enabled);
+  return <span ref={ref} aria-hidden="true" className="tv-point-ping pointer-events-none absolute rounded-full" style={{ left: x - 4, top: y - 4, width: 8, height: 8, background: color }} />;
+}
 
 function BrewChartComponent({
   data,
@@ -389,6 +396,9 @@ function BrewChartComponent({
           />
         </ComposedChart>
       </ResponsiveContainer>
+      {isActiveBrew && Object.entries(rings).map(([key, r]) => (
+        <PointPing key={`ping-${key}`} timestamp={chartData[key === 'sg' ? lastSgIndex : lastTempIndex]?.timestamp ?? 0} x={r.x} y={r.y} color={r.color} enabled={isTvMode} />
+      ))}
       {isActiveBrew && Object.entries(rings).map(([key, r]) => (
         <span
           key={key}
