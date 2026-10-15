@@ -14,13 +14,13 @@ export async function insertNotification(
     controller_id?: string | null;
   }
 ): Promise<void> {
-  // Deduplicate: skip if same type+target within last hour
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  // Deduplicate: skip only the exact same notification (type+title+body+target)
   let query = supabase
     .from("pending_notifications")
     .select("id")
     .eq("type", opts.type)
-    .gte("created_at", oneHourAgo)
+    .eq("title", opts.title)
+    .eq("body", opts.body)
     .limit(1);
 
   if (opts.brew_id) query = query.eq("brew_id", opts.brew_id);
