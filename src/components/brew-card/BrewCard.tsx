@@ -127,7 +127,7 @@ function BrewCardComponent({
   const hideReadyToCrash = piPhase === 'conditioning' || piStatus?.stepName === 'Smart cold-crash';
   const piWarnings = piStatus?.warnings ?? [];
   const statusRef = useRef<HTMLButtonElement>(null);
-  useTvEventAnimation(statusRef, piPhase ?? brew.status, 'tv-event-sweep', isTvMode);
+  useTvEventAnimation(statusRef, piStatus ? piPhase ?? brew.status : null, 'tv-event-sweep', isTvMode);
   
   const isCompletedOrConditioning = brew.status === "Konditionering" || brew.status === "Klar";
   const isBrewing = brew.status === "Bryggning";
