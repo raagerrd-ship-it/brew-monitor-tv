@@ -171,10 +171,18 @@ export function useBrewData(): UseBrewDataReturn {
         if (error) throw error;
         activeBrewIds = (data || []).map(b => b.id);
       }
-      const { data: readyBrews, error } = await supabase.from('brew_readings')
-        .select('id, status').in('status', KEG_STATUSES).order('created_at', { ascending: false });
-      if (error) throw error;
-      activeBrewIds = selectTvBrewIds(activeBrewIds, readyBrews || []);
+      const [readyBrewsRes, latestRes] = await Promise.all([
+        supabase.from('brew_readings').select('id, status').in('status', KEG_STATUSES)
+          .order('created_at', { ascending: false }),
+        // Senaste ölet visas alltid på TV:n, även när tre bryggder redan fyller korten.
+        supabase.from('brew_readings').select('id, status')
+          .order('created_at', { ascending: false }).limit(1),
+      ]);
+      if (readyBrewsRes.error) throw readyBrewsRes.error;
+      if (latestRes.error) throw latestRes.error;
+      const latestBrew = (latestRes.data || []).find(b => isTvVisibleBrewStatus(b.status)) || null;
+      activeBrewIds = selectTvBrewIds(activeBrewIds, readyBrewsRes.data || [], latestBrew?.id || null);
+
     }
 
     if (activeBrewIds.length === 0) {
