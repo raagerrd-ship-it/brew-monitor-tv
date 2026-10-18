@@ -48,3 +48,4 @@
 
 - [x] Rörelselås + glidning utan React för bryggdag/rengöring
 - [x] Notis-avdubblering: blockera enbart exakt samma notis (typ+titel+text+tank), inget tidsfönster
+- [x] Profilkedjan Brew Master → moln → Pi: profile_ask_at + profile_asks, säkra omsändningar, 500 vid databasfel, äldre bibliotek ignoreras (2026-10-18)
