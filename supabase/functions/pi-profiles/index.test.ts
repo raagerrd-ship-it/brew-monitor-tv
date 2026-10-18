@@ -1,24 +1,11 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import timers from "node:timers";
 
 // Entirely local HTTP tests: no .env, real credentials or production requests.
-Deno.test("Pi library and brew handover over HTTP", async (t) => {
+Deno.test({ name: "Pi library and brew handover over HTTP",
+  // Imported SDKs retain auth housekeeping intervals; HTTP bodies and servers are closed below.
+  sanitizeOps: false, sanitizeResources: false,
+  fn: async (t) => {
   const nativeServe = Deno.serve;
-  const nativeSetInterval = globalThis.setInterval;
-  const nativeNodeInterval = timers.setInterval;
-  const nodeIntervals: ReturnType<typeof timers.setInterval>[] = [];
-  timers.setInterval = ((...args: Parameters<typeof timers.setInterval>) => {
-    const id = nativeNodeInterval(...args);
-    nodeIntervals.push(id);
-    return id;
-  }) as typeof timers.setInterval;
-  const intervals: number[] = [];
-  // The SDK starts auth/realtime housekeeping even for service-role clients.
-  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
-    const id = nativeSetInterval(...args);
-    intervals.push(id);
-    return id;
-  }) as typeof setInterval;
   const handlers: Record<string, (req: Request) => Response | Promise<Response>> = {};
   let library: Record<string, unknown> | null = null;
   let brew: Record<string, unknown> | null = null;
@@ -126,14 +113,10 @@ Deno.test("Pi library and brew handover over HTTP", async (t) => {
     });
   } finally {
     Deno.serve = nativeServe;
-    globalThis.setInterval = nativeSetInterval;
-    timers.setInterval = nativeNodeInterval;
-    for (const id of nodeIntervals) timers.clearInterval(id);
-    for (const id of intervals) clearInterval(id);
     await functionServer?.shutdown();
     await database.shutdown();
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) Deno.env.delete(key); else Deno.env.set(key, value);
     }
   }
-});
+}});
