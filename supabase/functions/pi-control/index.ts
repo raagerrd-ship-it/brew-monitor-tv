@@ -113,16 +113,33 @@ Deno.serve(async (req) => {
   }
 
   if (!controllerId) {
+    const serverError = () => new Response(JSON.stringify({ error: "Databasfel" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
     // ── Pending brews: skickade från appen, ej kvitterade, max 7 dygn gamla ──
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: pendingRows } = await supabase
+    const brewSelect = "id, batch_id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at, profile_ask_at, recipe";
+    const { data: pendingRows, error: pendingError } = await supabase
       .from("brew_readings")
-      .select("id, name, style, original_gravity, final_gravity, volume_l, fermentation_start, pi_pending_at, recipe")
+      .select(brewSelect)
       .not("pi_pending_at", "is", null)
       .gte("pi_pending_at", cutoff);
+    if (pendingError) return serverError();
 
-    const pending_brews = (pendingRows || []).map((b: any) => ({
+    // ── Profilfrågor: profil skickad (om) efter att bryggen lämnat kön.
+    // Egen lista vid sidan av pending_brews — en brygg i tank får aldrig
+    // se köad ut. Pi:n svarar på varje fråga en gång (hashar dem).
+    const { data: askRows, error: askError } = await supabase
+      .from("brew_readings")
+      .select(brewSelect)
+      .not("profile_ask_at", "is", null)
+      .gte("profile_ask_at", cutoff);
+    if (askError) return serverError();
+
+    const mapBrew = (b: any) => ({
       id: b.id,
+      source_id: typeof b.batch_id === "string" ? b.batch_id.replace(/^custom_/, "") : null,
       name: b.name,
       style: b.style,
       og: b.original_gravity != null ? parseFloat(String(b.original_gravity)) : null,
@@ -145,16 +162,23 @@ Deno.serve(async (req) => {
       notes: b.recipe?.notes ?? null,
       // Allt annat avsändaren skickade, oförändrat. Pi:n får välja vad den vill använda.
       recipe: b.recipe ?? null,
+    });
+
+    const pending_brews = (pendingRows || []).map(mapBrew);
+    const profile_asks = (askRows || []).map((b: any) => ({
+      ...mapBrew(b),
+      profile_ask_at: b.profile_ask_at,
     }));
 
     // Okvitterade kommandon från appen. Ligger kvar tills Pi:n kvitterar —
     // Pi:n tillämpar varje id en gång.
-    const { data: cmdRows } = await supabase
+    const { data: cmdRows, error: cmdError } = await supabase
       .from("pi_commands")
       .select("id, source_id, command, kind, payload, racked_at, issued_at")
       .is("applied_at", null)
       .gte("issued_at", cutoff)
       .order("issued_at", { ascending: true });
+    if (cmdError) return serverError();
 
     const commands = (cmdRows || []).map((c: any) => ({
       id: c.id,
