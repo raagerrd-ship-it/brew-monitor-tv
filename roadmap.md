@@ -1,6 +1,6 @@
 # Roadmap
 
-- [x] TV: färdiga öl (Klar/Completed) fyller till tre befintliga ölkort, aktiva först. Låsta värden och oförändrade kort efter simulerad liveavläsning/mätpunkt verifierade i 1280×720/1920×1080; 58 tester gröna. Ingen publicering eller dataskrivning.
+- [x] TV: färdiga öl (Klar/Completed) fyller till tre befintliga ölkort, aktiva först, och senaste ölet har alltid ett kort även när tre aktiva fyller. Låsta värden, oförändrade kort och senaste-öl-regeln verifierade i 1920×1080; 63 tester gröna. Ingen publicering eller dataskrivning.
 
 - [x] TV-layout: avvikelseikoner och höjdförskjutna närliggande händelseetiketter. Befintlig korthöjd ger redan 8 px över/under, även mot timer, och lämnades därför oförändrad. Verifierat i 1280×720/1920×1080 med simulerade svar; 53 tester och automatiskt bygge gröna. Ingen dataskrivning eller publicering.
 
