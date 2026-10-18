@@ -12,6 +12,7 @@ export interface BrewEvent {
 }
 
 export interface BrewData {
+  frozen?: boolean;
   id: string;
   batch_id: string;
   share_id: string | null;

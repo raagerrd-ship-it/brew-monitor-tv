@@ -112,7 +112,7 @@ function BrewCardComponent({
 
 
   // Kortets läge kommer från Pi:ns brew_status.phase när den finns.
-  const piStatus = useStepPhases(brew.id);
+  const piStatus = useStepPhases(brew.frozen ? undefined : brew.id);
   const piPhase = piStatus?.phase ?? null;
   const piFermStart = piStatus?.fermentationStart ?? null;
   const statusText = useMemo(() => {
@@ -438,7 +438,7 @@ function BrewCardComponent({
       )}
         
       {/* Active Fermentation Session */}
-      <div className={`flex-shrink-0 px-3 overflow-visible ${sessionExpanded ? 'flex-1 py-2' : 'mt-1 px-3 pb-1'}`}>
+      {!brew.frozen && <div className={`flex-shrink-0 px-3 overflow-visible ${sessionExpanded ? 'flex-1 py-2' : 'mt-1 px-3 pb-1'}`}>
         <ActiveFermentationSession 
           brewId={brew.id}
           controllerId={devices.controller?.controller_id ?? undefined}
@@ -453,7 +453,7 @@ function BrewCardComponent({
           attenuation={brew.attenuation}
           onExpandChange={setSessionExpanded}
         />
-      </div>
+      </div>}
 
       {/* Stats Grid - hidden when session is expanded */}
       {!sessionExpanded && (

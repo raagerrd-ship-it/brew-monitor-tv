@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] TV: färdiga öl (Klar/Completed) fyller till tre befintliga ölkort, aktiva först. Låsta värden och oförändrade kort efter simulerad liveavläsning/mätpunkt verifierade i 1280×720/1920×1080; 58 tester gröna. Ingen publicering eller dataskrivning.
+
 - [x] TV-layout: avvikelseikoner och höjdförskjutna närliggande händelseetiketter. Befintlig korthöjd ger redan 8 px över/under, även mot timer, och lämnades därför oförändrad. Verifierat i 1280×720/1920×1080 med simulerade svar; 53 tester och automatiskt bygge gröna. Ingen dataskrivning eller publicering.
 
 - [x] TV: engångsentré efter splash, Sonos-låtbyte, transform-staplar, relä-pop, steg/status-svep, mätpunktsping, nedtonade avstängda tankar och centrerat ensamt kort. 47 tester och automatiskt bygge gröna; mockade händelser och rörelselås verifierade i 1280×720 och 1920×1080. Ingen dataskrivning eller publicering.

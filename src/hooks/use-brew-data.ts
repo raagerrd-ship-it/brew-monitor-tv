@@ -10,6 +10,7 @@ import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/bre
 import { useTvMode } from '@/contexts/TvModeContext';
 import { setRaptBar, acquireRaptBarOwner } from '@/lib/rapt-bar-store';
 import { tvDebug } from '@/lib/tv-debug-log';
+import { KEG_STATUSES, selectTvBrewIds, freezeKegBrew } from '@/lib/tv-brew-selection';
 
 type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null; cooling_relay_on: boolean | null; heating_relay_on: boolean | null };
 
@@ -55,7 +56,7 @@ function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]
     return viaController !== 99 ? viaController : getColorSortIndex(brew.name);
   };
 
-  return [...brews].sort((a, b) => indexOf(a) - indexOf(b));
+  return [...brews].sort((a, b) => Number(!!a.frozen) - Number(!!b.frozen) || indexOf(a) - indexOf(b));
 }
 
 export function useBrewData(): UseBrewDataReturn {
@@ -158,16 +159,31 @@ export function useBrewData(): UseBrewDataReturn {
 
     if (fermentingError) throw fermentingError;
 
-    const activeBrewIds = [...new Set([
+    let activeBrewIds = [...new Set([
       ...(piSessions || []).map(s => s.brew_id as string),
       ...(fermentingBrews || []).map(b => b.id as string),
     ])];
+
+    if (isTvMode) {
+      if (activeBrewIds.length > 0) {
+        const { data, error } = await supabase.from('brew_readings').select('id')
+          .in('id', activeBrewIds).not('status', 'in', '("Arkiverad","Konditionering","Conditioning","Klar","Completed")');
+        if (error) throw error;
+        activeBrewIds = (data || []).map(b => b.id);
+      }
+      const { data: readyBrews, error } = await supabase.from('brew_readings')
+        .select('id, status').in('status', KEG_STATUSES).order('created_at', { ascending: false });
+      if (error) throw error;
+      activeBrewIds = selectTvBrewIds(activeBrewIds, readyBrews || []);
+    }
 
     if (activeBrewIds.length === 0) {
       return [];
     }
 
-    const HIDDEN_STATUSES = ['Arkiverad', 'Klar', 'Completed', 'Konditionering', 'Conditioning'];
+    const HIDDEN_STATUSES = isTvMode
+      ? ['Arkiverad', 'Konditionering', 'Conditioning']
+      : ['Arkiverad', 'Klar', 'Completed', 'Konditionering', 'Conditioning'];
 
     const [brewReadingsRes, eventsRes, sessionsRes, metricsRes] = await Promise.all([
       supabase
@@ -409,7 +425,7 @@ export function useBrewData(): UseBrewDataReturn {
       snapshotsByBrew.set(snap.brew_id, list);
     }
 
-    return brewReadings.map((reading: any) => {
+    const mapped: BrewData[] = brewReadings.map((reading: any) => {
       const sgData = snapshotsByBrew.get(reading.id) || [];
       const snapshotDuty = latestDutyByBrew.get(reading.id);
 
@@ -495,7 +511,9 @@ export function useBrewData(): UseBrewDataReturn {
         })(),
       };
     });
-  }, []);
+    return mapped.map(b => isTvMode && KEG_STATUSES.includes(b.status)
+      ? freezeKegBrew(b) : b).sort((a, b) => Number(!!a.frozen) - Number(!!b.frozen));
+  }, [isTvMode]);
 
   // Internal function to load RAPT data (returns data instead of setting state)
   const loadRaptDataInternal = useCallback(async (): Promise<{ pills: PillData[], controllers: TempController[], piLive: PiLiveRow[] }> => {
@@ -585,6 +603,9 @@ export function useBrewData(): UseBrewDataReturn {
       setBrews(sortedBrews.map(b => {
         const prev = prevById.get(b.id);
         if (!prev) return b;
+        if (prev.frozen && b.frozen) return { ...b, currentSG: prev.currentSG, currentTemp: prev.currentTemp,
+          attenuation: prev.attenuation, abv: prev.abv, originalGravity: prev.originalGravity,
+          finalGravity: prev.finalGravity, sgData: prev.sgData, lastUpdate: prev.lastUpdate, lastUpdateRaw: prev.lastUpdateRaw };
         const sameSg = JSON.stringify(prev.sgData) === JSON.stringify(b.sgData);
         const next = sameSg ? { ...b, sgData: prev.sgData } : b;
         return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
@@ -622,6 +643,12 @@ export function useBrewData(): UseBrewDataReturn {
 
       if (!currentBrew) {
         loadBrews();
+        return;
+      }
+
+      if (isTvMode && (currentBrew.frozen || KEG_STATUSES.includes(updatedReading.status))) {
+        if (updatedReading.status && !KEG_STATUSES.includes(updatedReading.status)) loadBrews();
+        else if (!currentBrew.frozen) loadBrews();
         return;
       }
 
@@ -726,7 +753,7 @@ export function useBrewData(): UseBrewDataReturn {
     } else {
       loadBrews();
     }
-  }, [loadBrews]);
+  }, [loadBrews, isTvMode]);
 
   // Optimized realtime handlers - update in-place where possible
   const handlePillUpdate = useCallback((payload: { eventType: string; new: Record<string, any> | null }) => {
@@ -780,7 +807,7 @@ export function useBrewData(): UseBrewDataReturn {
     setBrews(prev => {
       let changed = false;
       const next = prev.map(brew => {
-        if (brew.id !== s.brew_id) return brew;
+        if (brew.id !== s.brew_id || brew.frozen) return brew;
         changed = true;
         const sgData = s.sg != null
           ? [...brew.sgData, { date: s.recorded_at, value: s.sg, temp: s.pill_temp ?? 0 }]
@@ -1013,6 +1040,7 @@ export function useBrewData(): UseBrewDataReturn {
         }
         const lastByBrew = new Map<string, string>();
         for (const b of brewsRef.current) {
+          if (b.frozen) continue;
           const last = b.sgData[b.sgData.length - 1]?.date;
           if (last) lastByBrew.set(b.id, last);
         }
