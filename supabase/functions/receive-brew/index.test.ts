@@ -141,7 +141,7 @@ Deno.test({
         assertEquals(ask.source_id, "s1");
         assertEquals(ask.profile_id, "novalager-v2");
         assertEquals(ask.profile_request, { template: "smart" });
-        assertEquals(ask.yeasts, [{ name: "NovaLager", min_temp: 10, max_temp: 15 }]);
+        assertEquals(ask.yeasts.map((y: Row) => [y.name, y.min_temp, y.max_temp]), [["NovaLager", 10, 15]]);
         assertEquals(ask.recipe.profile_id, "novalager-v2");
       });
 
