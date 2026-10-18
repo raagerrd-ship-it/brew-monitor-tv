@@ -1124,6 +1124,27 @@ export type Database = {
         }
         Relationships: []
       }
+      pi_profile_library: {
+        Row: {
+          id: number
+          payload: Json
+          published_at: string
+          received_at: string
+        }
+        Insert: {
+          id?: number
+          payload: Json
+          published_at: string
+          received_at?: string
+        }
+        Update: {
+          id?: number
+          payload?: Json
+          published_at?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
       pi_setpoint: {
         Row: {
           commanded_at: string | null
