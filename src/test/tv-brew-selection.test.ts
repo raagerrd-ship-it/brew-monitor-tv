@@ -18,7 +18,7 @@ describe('TV keg cards', () => {
   it('keeps measured values while disconnecting live tank and profile data', () => {
     const brew = { currentSG: 1.012, currentTemp: 4.2, abv: 5.6, attenuation: 78,
       linked_controller_id: 'tank', linked_pill_id: 'pill', dutyPct: 50, sgData: [{ date: '2026-10-01', value: 1.012, temp: 4.2 }] } as BrewData;
-    expect(freezeKegBrew(brew)).toMatchObject({ frozen: true, currentSG: 1.012, currentTemp: 4.2,
+    expect(freezeKegBrew(brew)).toMatchObject({ status: 'Klar', frozen: true, currentSG: 1.012, currentTemp: 4.2,
       abv: 5.6, attenuation: 78, linked_controller_id: null, linked_pill_id: null, dutyPct: null, fermentationSession: null });
     expect(freezeKegBrew(brew).sgData).toBe(brew.sgData);
   });

@@ -647,7 +647,8 @@ export function useBrewData(): UseBrewDataReturn {
       }
 
       if (isTvMode && (currentBrew.frozen || KEG_STATUSES.includes(updatedReading.status))) {
-        if (updatedReading.status && updatedReading.status !== currentBrew.status) loadBrews();
+        if (updatedReading.status && !KEG_STATUSES.includes(updatedReading.status)) loadBrews();
+        else if (!currentBrew.frozen) loadBrews();
         return;
       }
 

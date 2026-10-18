@@ -10,7 +10,7 @@ export function selectTvBrewIds(activeIds: string[], ready: { id: string; status
 
 export function freezeKegBrew(brew: BrewData): BrewData {
   return {
-    ...brew, frozen: true, linked_controller_id: null, linked_pill_id: null,
+    ...brew, status: 'Klar', frozen: true, linked_controller_id: null, linked_pill_id: null,
     fermentationSession: null, fermentationRate: 0, fermentationTrend: undefined,
     fermentationMetrics: null, dutyPct: null, dutyMode: null,
     overshootReason: null, originalTarget: null, pidReason: null,
