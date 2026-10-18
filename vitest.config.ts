@@ -8,6 +8,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
+    // Edge-funktionernas Deno-tester körs med deno test, inte vitest.
+    exclude: ["supabase/**", "node_modules/**"],
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
