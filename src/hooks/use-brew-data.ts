@@ -56,7 +56,7 @@ function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]
     return viaController !== 99 ? viaController : getColorSortIndex(brew.name);
   };
 
-  return [...brews].sort((a, b) => indexOf(a) - indexOf(b));
+  return [...brews].sort((a, b) => Number(!!a.frozen) - Number(!!b.frozen) || indexOf(a) - indexOf(b));
 }
 
 export function useBrewData(): UseBrewDataReturn {
@@ -165,6 +165,12 @@ export function useBrewData(): UseBrewDataReturn {
     ])];
 
     if (isTvMode) {
+      if (activeBrewIds.length > 0) {
+        const { data, error } = await supabase.from('brew_readings').select('id')
+          .in('id', activeBrewIds).not('status', 'in', '("Arkiverad","Konditionering","Conditioning","Klar","Completed")');
+        if (error) throw error;
+        activeBrewIds = (data || []).map(b => b.id);
+      }
       const { data: readyBrews, error } = await supabase.from('brew_readings')
         .select('id, status').in('status', KEG_STATUSES).order('created_at', { ascending: false });
       if (error) throw error;
