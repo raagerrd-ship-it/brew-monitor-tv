@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
       params_version: sp.params_version,
     }));
 
-    return new Response(JSON.stringify({ setpoints: result, pending_brews, commands }), {
+    return new Response(JSON.stringify({ setpoints: result, pending_brews, profile_asks, commands }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
