@@ -29,7 +29,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   // Molnet visar dem rakt av — ingen fallback, inget givarval här.
   const pillTemp = controller?.pill_temp ?? null;
   const probeTemp = controller?.pt100_temp ?? null;
-  const displayTemp = controller?.actual_temp ?? null;
+  const displayTemp = brew.frozen ? brew.currentTemp : controller?.actual_temp ?? null;
   const tempLabel = getActualTempLabel(pillTemp, probeTemp, true);
   const tempColor = isPillStale && controller ? 'hsl(var(--primary))' : (pill?.color || 'hsl(var(--primary))');
   const showStaleWarning = controller && isPillStale && !isInactive;
