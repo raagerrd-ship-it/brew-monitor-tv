@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectTvBrewIds, freezeKegBrew } from '@/lib/tv-brew-selection';
+import { selectTvBrewIds, freezeKegBrew, isTvVisibleBrewStatus } from '@/lib/tv-brew-selection';
 import type { BrewData } from '@/types/brew';
 
 describe('TV keg cards', () => {
