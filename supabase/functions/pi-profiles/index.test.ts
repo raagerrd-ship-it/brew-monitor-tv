@@ -13,12 +13,16 @@ Deno.test({ name: "Pi library and brew handover over HTTP",
     const table = new URL(req.url).pathname.split("/").pop();
     if (req.method === "POST") {
       const row = await req.json();
+      // Simulerat Postgres invalid-input (SQLSTATE-klass 22).
+      if (row?.payload?.force22) {
+        return new Response(JSON.stringify({ code: "22P02", message: "invalid input" }), { status: 400 });
+      }
       if (table === "pi_profile_library") library = row;
       if (table === "brew_readings") brew = { ...row, id: "test-brew", linked_controller_id: null };
     }
     const objectResponse = req.headers.get("Accept")?.includes("vnd.pgrst.object");
     let data: unknown = [];
-    if (table === "pi_profile_library" && library) data = { payload: library.payload, received_at: library.received_at };
+    if (table === "pi_profile_library" && library) data = library;
     if (table === "brew_readings" && brew) data = objectResponse ? brew : [brew];
     return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
   });
@@ -93,6 +97,20 @@ Deno.test({ name: "Pi library and brew handover over HTTP",
     await t.step("GET and POST reject wrong secrets and cross-use", async () => {
       assertEquals((await call("pi-profiles", "POST", "x-pi-secret", env.BREW_INGEST_SECRET, document)).status, 401);
       assertEquals((await call("pi-profiles", "GET", "x-brew-secret", env.PI_BLE_INGEST_SECRET)).status, 401);
+    });
+    await t.step("older document is ignored, never rolls the library back", async () => {
+      const before = library;
+      const older = { ...document, profiles: [], published_at: "2026-10-18T11:00:00Z" };
+      assertEquals(await call("pi-profiles", "POST", "x-pi-secret", env.PI_BLE_INGEST_SECRET, older), {
+        status: 200, data: { ok: true, ignored: "older" },
+      });
+      assertEquals(library, before);
+      // Samma tidsstämpel (omsändning) accepteras fortfarande.
+      assertEquals((await call("pi-profiles", "POST", "x-pi-secret", env.PI_BLE_INGEST_SECRET, document)).status, 200);
+    });
+    await t.step("Postgres invalid-input (SQLSTATE 22) maps to 400", async () => {
+      const result = await call("pi-profiles", "POST", "x-pi-secret", env.PI_BLE_INGEST_SECRET, { ...document, force22: true });
+      assertEquals(result.status, 400);
     });
     await t.step("receive-brew payload reaches pi-control unchanged, without a cloud UUID", async () => {
       const payload = {

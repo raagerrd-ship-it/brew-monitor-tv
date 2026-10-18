@@ -1,8 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { corsHeaders as baseCorsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const PI_SECRET = Deno.env.get("PI_BLE_INGEST_SECRET");
 const BREW_SECRETS = [Deno.env.get("BREW_INGEST_SECRET"), Deno.env.get("BREW_INGEST_SECRET_2")].filter(Boolean);
+
+// Brew Master hämtar biblioteket med x-brew-secret — den måste vara tillåten i CORS.
+const corsHeaders = {
+  ...baseCorsHeaders,
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-pi-secret, x-brew-secret",
+};
 
 Deno.serve(async (req) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -53,9 +60,24 @@ Deno.serve(async (req) => {
   if (typeof body.published_at !== "string" || !Number.isFinite(Date.parse(body.published_at))) {
     return json({ error: "published_at must be a timestamp" }, 400);
   }
+
+  // Ett äldre dokument som skickas om sent får aldrig rulla biblioteket tillbaka.
+  const { data: stored, error: readError } = await supabase.from("pi_profile_library")
+    .select("published_at").eq("id", 1).maybeSingle();
+  if (readError) return json({ error: "Library read failed" }, 500);
+  if (stored && Date.parse(body.published_at) < Date.parse(stored.published_at)) {
+    return json({ ok: true, ignored: "older" });
+  }
+
   const { error } = await supabase.from("pi_profile_library").upsert({
     id: 1, payload: body, published_at: body.published_at, received_at: new Date().toISOString(),
   }, { onConflict: "id" });
-  if (error) return json({ error: "Library write failed" }, 500);
+  if (error) {
+    // Postgres invalid-input (SQLSTATE-klass 22) är klientfel, inte serverfel.
+    if (typeof error.code === "string" && error.code.startsWith("22")) {
+      return json({ error: "Invalid input" }, 400);
+    }
+    return json({ error: "Library write failed" }, 500);
+  }
   return json({ ok: true });
 });

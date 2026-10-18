@@ -1,0 +1,2 @@
+ALTER TABLE public.brew_readings ADD COLUMN profile_ask_at timestamp with time zone;
+COMMENT ON COLUMN public.brew_readings.profile_ask_at IS 'Senaste gången avsändaren skickade en jäsprofil (profile_id/profile_request) för bryggen. Pi:n hämtar dessa via pi-control profile_asks. Rensas aldrig av rollups.';
