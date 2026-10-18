@@ -1,9 +1,17 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import timers from "node:timers";
 
 // Entirely local HTTP tests: no .env, real credentials or production requests.
 Deno.test("Pi library and brew handover over HTTP", async (t) => {
   const nativeServe = Deno.serve;
   const nativeSetInterval = globalThis.setInterval;
+  const nativeNodeInterval = timers.setInterval;
+  const nodeIntervals: ReturnType<typeof timers.setInterval>[] = [];
+  timers.setInterval = ((...args: Parameters<typeof timers.setInterval>) => {
+    const id = nativeNodeInterval(...args);
+    nodeIntervals.push(id);
+    return id;
+  }) as typeof timers.setInterval;
   const intervals: number[] = [];
   // The SDK starts auth/realtime housekeeping even for service-role clients.
   globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
@@ -119,6 +127,8 @@ Deno.test("Pi library and brew handover over HTTP", async (t) => {
   } finally {
     Deno.serve = nativeServe;
     globalThis.setInterval = nativeSetInterval;
+    timers.setInterval = nativeNodeInterval;
+    for (const id of nodeIntervals) timers.clearInterval(id);
     for (const id of intervals) clearInterval(id);
     await functionServer?.shutdown();
     await database.shutdown();
