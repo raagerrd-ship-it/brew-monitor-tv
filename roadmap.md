@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Pi-profilbibliotek: service-role-lagring, pi-profiles POST/GET och oförändrad profilbegäran till Pi:n. Lokala HTTP-tester (10 kontroller) med testhemligheter gröna; inga produktionsrader, UI-ändringar eller publicering.
+
 - [x] TV: färdiga öl (Klar/Completed) fyller till tre befintliga ölkort, aktiva först, och senaste ölet har alltid ett kort även när tre aktiva fyller. Låsta värden, oförändrade kort och senaste-öl-regeln verifierade i 1920×1080; 63 tester gröna. Ingen publicering eller dataskrivning.
 
 - [x] TV-layout: avvikelseikoner och höjdförskjutna närliggande händelseetiketter. Befintlig korthöjd ger redan 8 px över/under, även mot timer, och lämnades därför oförändrad. Verifierat i 1280×720/1920×1080 med simulerade svar; 53 tester och automatiskt bygge gröna. Ingen dataskrivning eller publicering.
