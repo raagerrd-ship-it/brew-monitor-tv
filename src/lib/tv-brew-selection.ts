@@ -2,11 +2,29 @@ import type { BrewData } from '@/types/brew';
 
 export const KEG_STATUSES = ['Klar', 'Completed'];
 
-export function selectTvBrewIds(activeIds: string[], ready: { id: string; status: string }[]): string[] {
+/** Statuses TV-korten kan visa — senaste ölet väljs bland dessa. */
+const TV_VISIBLE_EXCLUDED = ['Arkiverad', 'Archived', 'Konditionering', 'Conditioning'];
+
+export function selectTvBrewIds(
+  activeIds: string[],
+  ready: { id: string; status: string }[],
+  latestId?: string | null,
+): string[] {
+  const chosen: string[] = [];
+  if (latestId) chosen.push(latestId);
+  for (const id of activeIds) if (!chosen.includes(id)) chosen.push(id);
   const kegIds = ready.filter(b => KEG_STATUSES.includes(b.status)).map(b => b.id);
-  const active = [...new Set(activeIds)].filter(id => !kegIds.includes(id));
-  return [...active, ...kegIds.slice(0, Math.max(0, 3 - active.length))];
+  for (const id of kegIds) {
+    if (chosen.length >= 3) break;
+    if (!chosen.includes(id)) chosen.push(id);
+  }
+  return chosen.slice(0, 3);
 }
+
+export function isTvVisibleBrewStatus(status: string): boolean {
+  return !TV_VISIBLE_EXCLUDED.includes(status);
+}
+
 
 export function freezeKegBrew(brew: BrewData): BrewData {
   return {
