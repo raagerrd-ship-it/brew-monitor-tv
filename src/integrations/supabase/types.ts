@@ -245,6 +245,7 @@ export type Database = {
           original_gravity: number
           pi_pending_at: string | null
           pill_compensation: boolean
+          profile_ask_at: string | null
           recipe: Json | null
           share_id: string | null
           status: string
@@ -275,6 +276,7 @@ export type Database = {
           original_gravity: number
           pi_pending_at?: string | null
           pill_compensation?: boolean
+          profile_ask_at?: string | null
           recipe?: Json | null
           share_id?: string | null
           status: string
@@ -305,6 +307,7 @@ export type Database = {
           original_gravity?: number
           pi_pending_at?: string | null
           pill_compensation?: boolean
+          profile_ask_at?: string | null
           recipe?: Json | null
           share_id?: string | null
           status?: string
