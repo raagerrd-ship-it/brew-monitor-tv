@@ -6,7 +6,7 @@ import { useTvMode } from "@/contexts/TvModeContext";
 
 import { LazyBrewChart } from "../brew-chart/LazyBrewChart";
 import { ActiveFermentationSession } from "../fermentation/ActiveFermentationSession";
-import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
+import { Share2, TrendingUp, Plus, FlaskConical, PackageCheck, Snowflake, CheckCircle2, Lock, Printer, Flame, FileText, Clock, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -212,7 +212,7 @@ function BrewCardComponent({
                     boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.1), inset 0 -1px 0 hsl(0 0% 0% / 0.05)",
                   }}
                 >
-                  <StatusIcon status={brew.status} />
+                  {brew.frozen ? <Lock className="h-3 w-3" /> : <StatusIcon status={brew.status} />}
                   {statusText}
                 </button>
                 {menuOpen && showInteractiveElements && (
