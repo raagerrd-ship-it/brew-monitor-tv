@@ -191,25 +191,27 @@ Deno.serve(async (req) => {
     }));
 
     // Return all setpoints for this Pi
-    const { data: controllers } = await supabase
+    const { data: controllers, error: controllersError } = await supabase
       .from("rapt_temp_controllers")
       .select("controller_id, name, actuation, is_glycol_cooler")
       // Glykolkylaren härleder sitt börvärde lokalt (lägsta tankmål − 6) och
       // ska aldrig få ett börvärde uppifrån.
       .eq("actuation", "pi")
       .neq("is_glycol_cooler", true);
+    if (controllersError) return serverError();
 
     if (!controllers || controllers.length === 0) {
-      return new Response(JSON.stringify({ setpoints: [], pending_brews, commands }), {
+      return new Response(JSON.stringify({ setpoints: [], pending_brews, profile_asks, commands }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const ids = controllers.map((c: any) => c.controller_id);
-    const { data: setpoints } = await supabase
+    const { data: setpoints, error: setpointsError } = await supabase
       .from("pi_setpoint")
       .select("*")
       .in("controller_id", ids);
+    if (setpointsError) return serverError();
 
     const result = (setpoints || []).map((sp: any) => ({
       // Pi config uses the 8-char short id; DB uses the full uuid.
