@@ -107,8 +107,14 @@ export function useBrewManagement() {
 
   /** Skriver in manuellt ifylld jäst på receptet innan bryggden köas till Pi:n. */
   const saveYeast = useCallback(async (brewId: string, yeast: unknown) => {
-    const brew = customBrews.find(b => b.id === brewId);
-    const recipe = { ...(brew?.recipe as Record<string, unknown> ?? {}), yeasts: [yeast] };
+    // Läs om receptet precis innan skrivning så fält som kommit efter
+    // sidladdningen (profile_id, profile_request m.fl.) inte raderas.
+    const { data: current } = await supabase
+      .from('brew_readings').select('recipe').eq('id', brewId).maybeSingle();
+    const base = (current?.recipe && typeof current.recipe === 'object' && !Array.isArray(current.recipe))
+      ? current.recipe as Record<string, unknown>
+      : (customBrews.find(b => b.id === brewId)?.recipe as Record<string, unknown> ?? {});
+    const recipe = { ...base, yeasts: [yeast] };
     const { error } = await supabase.from('brew_readings').update({ recipe: recipe as never }).eq('id', brewId);
     if (error) {
       toast({ title: "Fel", description: "Kunde inte spara jästen", variant: "destructive" });

@@ -416,6 +416,14 @@ export function CustomBrewDialog({
       const fermStart = fermentationStart ? new Date(fermentationStart).toISOString() : null;
 
       if (isEditMode && editBrew) {
+        // Läs om receptet precis innan skrivning så fält som kommit efter
+        // sidladdningen (profile_id, profile_request m.fl.) inte raderas.
+        const { data: currentBrew } = await supabase
+          .from('brew_readings').select('recipe').eq('id', editBrew.id).maybeSingle();
+        const latestRecipe = (currentBrew?.recipe && typeof currentBrew.recipe === 'object' && !Array.isArray(currentBrew.recipe))
+          ? currentBrew.recipe as Record<string, unknown>
+          : rawRecipe;
+
         // Prepare update data
         const updateData: Record<string, unknown> = {
           name: name.trim(),
