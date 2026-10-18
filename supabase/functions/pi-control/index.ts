@@ -130,8 +130,9 @@ Deno.serve(async (req) => {
       // Uppmätt FG, null tills den mätts. Skild från den planerade fg.
       measured_fg: b.recipe?.measurements?.fg ?? null,
       volume_l: b.volume_l != null ? parseFloat(String(b.volume_l)) : null,
-      // Profiler redigeras lokalt på Pi:n — molnet väljer aldrig profil.
-      profile_id: null,
+      // Appens Pi-profil-id och begäran vidarebefordras, aldrig molnets profil-UUID.
+      profile_id: b.recipe?.profile_id ?? null,
+      profile_request: b.recipe?.profile_request ?? null,
       // Gissning, inte instruktion: Pi:n förväljer profil på namnlikhet.
       profile_hint: b.style || null,
       // Pitchtid eller null — aldrig platshållare.
