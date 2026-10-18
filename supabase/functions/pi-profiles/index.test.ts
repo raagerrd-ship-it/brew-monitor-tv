@@ -43,6 +43,7 @@ Deno.test("Pi library and brew handover over HTTP", async (t) => {
       const handler = handlers[new URL(req.url).pathname.split("/").pop() ?? ""];
       return handler ? handler(req) : new Response("Not found", { status: 404 });
     });
+    if (functionServer.addr.transport !== "tcp") throw new Error("Expected TCP server");
     const base = `http://127.0.0.1:${functionServer.addr.port}/functions/v1`;
     const call = async (name: string, method: string, header: string, secret: string, body?: unknown) => {
       const response = await fetch(`${base}/${name}`, {
