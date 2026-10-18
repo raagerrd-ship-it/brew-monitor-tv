@@ -85,7 +85,9 @@ Deno.serve(async (req) => {
 
   // Spara hela nyttolasten så inget avsändaren skickar går förlorat.
   // yeasts lyfts ut på toppnivå eftersom pi-control läser spannet därifrån.
-  const recipe = { ...storedRecipe, ...body, yeasts: mergedYeasts };
+  // Profilfälten styrs helt av bodyn: gamla val får aldrig överleva ett byte.
+  const { profile_id: _oldId, profile_request: _oldReq, ...storedWithoutProfile } = storedRecipe;
+  const recipe = { ...storedWithoutProfile, ...body, yeasts: mergedYeasts };
 
   // Profilfrågan stämplas i varje gren så den når Pi:n även efter tankval.
   const profileAsk = hasProfile ? { profile_ask_at: new Date().toISOString() } : {};

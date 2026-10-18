@@ -190,6 +190,42 @@ Deno.test({
         assertEquals(brew.pi_pending_at, null);
       });
 
+      await t.step("profilbyte: bara bodyns profilfält finns kvar", async () => {
+        tables.brew_readings.push({
+          id: "switch-1", batch_id: "custom_s4", name: "Byte", style: "Lager",
+          status: "Fermenting", original_gravity: 1.05, final_gravity: 1.01,
+          pi_pending_at: new Date().toISOString(), linked_controller_id: null,
+          recipe: { name: "Byte", profile_id: "gammal", yeasts: [{ name: "W-34/70", min_temp: 9, max_temp: 15 }] },
+        });
+        const req = { template: "smart", temp: 12 };
+        assertEquals((await sendBrew({ source_id: "s4", name: "Byte", profile_request: req })).status, 200);
+        const stored = storedBrew("s4")!.recipe as Row;
+        assertEquals("profile_id" in stored, false);
+        assertEquals(stored.profile_request, req);
+        const poll = await pollPi();
+        const pending = poll.data.pending_brews.find((b: Row) => b.source_id === "s4");
+        const ask = poll.data.profile_asks.find((b: Row) => b.source_id === "s4");
+        for (const item of [pending, ask]) {
+          assertEquals(item.profile_id ?? null, null);
+          assertEquals(item.profile_request, req);
+          assertEquals("profile_id" in item.recipe, false);
+          assertEquals(item.recipe.profile_request, req);
+        }
+      });
+
+      await t.step("profil borttagen: varken profile_id eller profile_request", async () => {
+        assertEquals((await sendBrew({ source_id: "s4", name: "Byte" })).status, 200);
+        const stored = storedBrew("s4")!.recipe as Row;
+        assertEquals("profile_id" in stored, false);
+        assertEquals("profile_request" in stored, false);
+        assertEquals(stored.yeasts, [{ name: "W-34/70", min_temp: 9, max_temp: 15 }]);
+        const pending = (await pollPi()).data.pending_brews.find((b: Row) => b.source_id === "s4");
+        assertEquals(pending.profile_id ?? null, null);
+        assertEquals(pending.profile_request ?? null, null);
+        assertEquals("profile_id" in pending.recipe, false);
+        assertEquals("profile_request" in pending.recipe, false);
+      });
+
       await t.step("body utan yeasts behåller lagrad jäst", async () => {
         const brew = storedBrew("s2")!;
         const before = (brew.recipe as Row).yeasts;
