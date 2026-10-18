@@ -10,7 +10,7 @@ import { calculateFermentationRate, calculateFermentationTrend } from '@/lib/bre
 import { useTvMode } from '@/contexts/TvModeContext';
 import { setRaptBar, acquireRaptBarOwner } from '@/lib/rapt-bar-store';
 import { tvDebug } from '@/lib/tv-debug-log';
-import { KEG_STATUSES, selectTvBrewIds, freezeKegBrew } from '@/lib/tv-brew-selection';
+import { KEG_STATUSES, selectTvBrewIds, freezeKegBrew, isTvVisibleBrewStatus } from '@/lib/tv-brew-selection';
 
 type PiLiveRow = { controller_id: string; target_temp: number | null; enabled: boolean | null; target_source: string | null; cooling_relay_on: boolean | null; heating_relay_on: boolean | null };
 
@@ -176,7 +176,7 @@ export function useBrewData(): UseBrewDataReturn {
           .order('created_at', { ascending: false }),
         // Senaste ölet visas alltid på TV:n, även när tre bryggder redan fyller korten.
         supabase.from('brew_readings').select('id, status')
-          .order('created_at', { ascending: false }).limit(1),
+          .order('created_at', { ascending: false }).limit(5),
       ]);
       if (readyBrewsRes.error) throw readyBrewsRes.error;
       if (latestRes.error) throw latestRes.error;
