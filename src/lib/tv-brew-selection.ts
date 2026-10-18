@@ -12,14 +12,17 @@ export function selectTvBrewIds(
 ): string[] {
   const chosen: string[] = [];
   if (latestId) chosen.push(latestId);
-  for (const id of activeIds) if (!chosen.includes(id)) chosen.push(id);
   const kegIds = ready.filter(b => KEG_STATUSES.includes(b.status)).map(b => b.id);
+  const activeFresh = activeIds.filter(id => !kegIds.includes(id));
+  const activeKeg = activeIds.filter(id => kegIds.includes(id));
+  for (const id of [...activeFresh, ...activeKeg]) if (!chosen.includes(id)) chosen.push(id);
   for (const id of kegIds) {
     if (chosen.length >= 3) break;
     if (!chosen.includes(id)) chosen.push(id);
   }
   return chosen.slice(0, 3);
 }
+
 
 export function isTvVisibleBrewStatus(status: string): boolean {
   return !TV_VISIBLE_EXCLUDED.includes(status);
