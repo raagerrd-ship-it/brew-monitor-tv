@@ -227,7 +227,9 @@ export function BrewingDashboard() {
 
   // Memoized grid layout helpers — beer cards resize in one step (no animated
   // layout); the motion comes from the row and brew day card sliding sideways.
-  const cardCount = brews.length + (displayedBrewDay ? 1 : 0);
+  // With three cards where the last is a keg beer, the brew day card takes its place: keg out right, then brew day in.
+  const swapKeg = isTvMode && !isMobile && brews.length === 3 && !!brews[2].frozen;
+  const cardCount = brews.length + (displayedBrewDay && !swapKeg ? 1 : 0);
   const gridLayout = useMemo(() => {
     return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
   }, [cardCount]);
@@ -239,8 +241,8 @@ export function BrewingDashboard() {
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.
   const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
-  const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay;
-  const brewDayWidth = soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
+  const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay && !swapKeg;
+  const brewDayWidth = swapKeg ? 'calc((100% - 5rem) / 3)' : soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
