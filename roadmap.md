@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] TV: statusglöden runt jäskortens statusikon och skuggorna under Sonos låttitel/artist borttagna (onödiga/tunga på Chromecast). Endast TV-läge; dator/mobil oförändrade. Ingen publicering.
+
 - [x] TV: inga skuggor under korten och tätare rad (12 px i stället för 24 px). Öl- och bryggdagskort tappar skuggan i TV-läge, övriga lägen behåller den; glidningarnas bredd/förskjutning följde med. Verifierat i 1920×1080: 621/622/621 px kort med 12 px mellanrum, bryggdagskortet landar exakt i fatölets plats och max 18 px per bildruta i toppfart; 64 tester och automatiskt bygge gröna. Ingen publicering.
 
 - [x] TV: timer-footern glider ut utan att tonas (bara transform ut; toning kvar vid entré). Nytt test och 64 tester gröna, automatiskt bygge grönt. Ingen publicering.

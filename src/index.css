@@ -155,6 +155,11 @@
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
+/* TV: pulserande glöd runt statusikonen är borttagen (onödig och tung på Chromecast) */
+.tv .session-status-glow::after {
+  content: none;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

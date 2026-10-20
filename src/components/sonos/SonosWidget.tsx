@@ -325,12 +325,12 @@ export const SonosWidget = memo(function SonosWidget({
 
       <div className={`relative h-full flex flex-col justify-center ${isMobile ? "px-3 py-2" : "px-5 py-3"}`}>
         <div className="overflow-hidden">
-          <div ref={trackNameRef} className="whitespace-nowrap font-semibold text-white drop-shadow-lg" style={{ fontSize: trackFontSize }}>
+          <div ref={trackNameRef} className={`whitespace-nowrap font-semibold text-white ${isTvMode ? '' : 'drop-shadow-lg'}`} style={{ fontSize: trackFontSize }}>
             {nowPlaying.track_name}
           </div>
         </div>
         {nowPlaying.artist_name && (
-          <div ref={artistNameRef} className="truncate text-white/80 drop-shadow-md" style={{ fontSize: artistFontSize }}>
+          <div ref={artistNameRef} className={`truncate text-white/80 ${isTvMode ? '' : 'drop-shadow-md'}`} style={{ fontSize: artistFontSize }}>
             {nowPlaying.artist_name}
           </div>
         )}
