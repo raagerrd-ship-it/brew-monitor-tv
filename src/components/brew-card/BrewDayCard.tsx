@@ -36,7 +36,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
           <ChefHat className={`${compact ? "h-5 w-5" : "h-6 w-6"} text-foreground/70`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`${compact ? "text-sm tracking-[0.15em] truncate" : "text-base tracking-[0.2em]"} font-bold uppercase text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
+          <div className={`${compact ? "text-xs tracking-[0.12em] truncate" : "text-base tracking-[0.2em]"} font-bold uppercase text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
           <div className={`${compact ? "text-lg" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
           <div className={`${compact ? "text-2xl leading-tight" : "text-3xl"} font-bold tracking-tight break-words mt-1`}>{day.step_title ?? "—"}</div>
           {isDone && <div className="text-base font-semibold text-green-300 mt-1">Tryck Klar i appen</div>}
