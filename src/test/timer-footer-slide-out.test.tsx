@@ -50,6 +50,8 @@ describe('timer footer slide out', () => {
     advance(700); advance(2700); advance(300); advance(2900); advance(400);
     expect(footer().style.transform).toBe('translateY(0)');
     expect(footer().style.opacity).toBe('1');
+    // Proves the exit assertion below is not vacuous: jsdom keeps the shorthand.
+    expect(footer().style.transition).toContain('opacity');
 
     // Exit: the footer slides down first and must stay fully opaque on the way out.
     state.day = null;
