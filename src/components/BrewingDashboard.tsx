@@ -44,7 +44,7 @@ export function BrewingDashboard() {
 
   // Use the optimized brew data hook
   const {
-    brews: allBrews, pills, controllers, loading, updatedFields, isAuthenticated,
+    brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
   } = useBrewData();
   const brewDay = useBrewDay();
@@ -52,9 +52,6 @@ export function BrewingDashboard() {
   const [cleaningEntered, setCleaningEntered] = useState(false);
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
-  // During a brew day the third card, if it is a keg beer, gives its place to the brew day card.
-  const brews = useMemo(() => (brewDay || exitingBrewDay) && allBrews.length === 3 && allBrews[2].frozen
-    ? allBrews.slice(0, 2) : allBrews, [allBrews, brewDay, exitingBrewDay]);
   // True from preparation until the last slide phase is done: freezes the
   // card countdown and keeps the footer mounted. The phases themselves run
   // outside React (runSlide) so nothing re-renders while anything moves.
@@ -230,7 +227,9 @@ export function BrewingDashboard() {
 
   // Memoized grid layout helpers — beer cards resize in one step (no animated
   // layout); the motion comes from the row and brew day card sliding sideways.
-  const cardCount = brews.length + (displayedBrewDay ? 1 : 0);
+  // With three cards where the last is a keg beer, the brew day card takes its place: keg out right, then brew day in.
+  const swapKeg = isTvMode && !isMobile && brews.length === 3 && !!brews[2].frozen;
+  const cardCount = brews.length + (displayedBrewDay && !swapKeg ? 1 : 0);
   const gridLayout = useMemo(() => {
     return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
   }, [cardCount]);
@@ -242,8 +241,8 @@ export function BrewingDashboard() {
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.
   const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
-  const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay;
-  const brewDayWidth = soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
+  const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay && !swapKeg;
+  const brewDayWidth = swapKeg ? 'calc((100% - 5rem) / 3)' : soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
@@ -268,7 +267,7 @@ export function BrewingDashboard() {
     if (enter) {
       // Start positions, applied before the first paint.
       for (const el of beers) { el.style.transition = 'none'; el.style.transform = beerShift; }
-      if (row && !perCardSlide) { row.style.transition = 'none'; row.style.transform = rowShift; }
+      if (row && !perCardSlide && !swapKeg) { row.style.transition = 'none'; row.style.transform = rowShift; }
       if (card) { card.style.transition = 'none'; card.style.transform = cardOut; }
     }
     type Step = { el: HTMLElement; transform: string; ms: number; pause: number; opacity?: string };
@@ -313,7 +312,10 @@ export function BrewingDashboard() {
     timers.push(setTimeout(() => {
       const footer = footerRef.current;
       const footerSlides = !!footer && footer.dataset.footerVisible === (enter ? '1' : '0');
-      const rowSteps: Step[] = perCardSlide
+      const keg = swapKeg ? beerRefs.current[2] : null;
+      const rowSteps: Step[] = keg
+        ? [{ el: keg, transform: enter ? cardOut : 'translateX(0)', ms: 1200, pause: 300 }]
+        : perCardSlide
         ? (enter ? beers : [...beers].reverse()).map(el => ({ el, transform: enter ? 'translateX(0)' : beerShift, ms: 1200, pause: 300 }))
         : row ? [{ el: row, transform: enter ? 'translateX(0)' : rowShift, ms: 1200, pause: 300 }] : [];
       const cardStep: Step[] = card ? [{ el: card, transform: enter ? 'translateX(0)' : cardOut, ms: enter ? 1400 : 1200, pause: enter ? 400 : 200 }] : [];
@@ -453,7 +455,7 @@ export function BrewingDashboard() {
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
               </div>
             ))}
-            {displayedBrewDay && (
+            {displayedBrewDay && !swapKeg && (
               <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} style={threeBrewsWithDay ? { flex: `0 0 ${brewDayWidth}` } : undefined} aria-hidden="true" />
             )}
             {displayedBrewDay && (
