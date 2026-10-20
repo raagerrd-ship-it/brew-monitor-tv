@@ -469,7 +469,7 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                 }}
               >
-                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} compact={threeBrewsWithDay} />
+                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} compact={isTvMode && (swapKeg || cardCount >= 3)} />
               </div>
             )}
           </div>
