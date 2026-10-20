@@ -455,7 +455,7 @@ export function BrewingDashboard() {
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
               </div>
             ))}
-            {displayedBrewDay && (
+            {displayedBrewDay && !swapKeg && (
               <div className={`${cardWidthClass} invisible motion-reduce:!transition-none`} style={threeBrewsWithDay ? { flex: `0 0 ${brewDayWidth}` } : undefined} aria-hidden="true" />
             )}
             {displayedBrewDay && (
