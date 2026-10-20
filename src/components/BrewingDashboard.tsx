@@ -319,7 +319,8 @@ export function BrewingDashboard() {
         ? (enter ? beers : [...beers].reverse()).map(el => ({ el, transform: enter ? 'translateX(0)' : beerShift, ms: 1200, pause: 300 }))
         : row ? [{ el: row, transform: enter ? 'translateX(0)' : rowShift, ms: 1200, pause: 300 }] : [];
       const cardStep: Step[] = card ? [{ el: card, transform: enter ? 'translateX(0)' : cardOut, ms: enter ? 1400 : 1200, pause: enter ? 400 : 200 }] : [];
-      const footerStep: Step[] = footerSlides ? [{ el: footer!, transform: enter ? 'translateY(0)' : 'translateY(100%)', opacity: enter ? '1' : '0', ms: 2000, pause: 200 }] : [];
+      // On the way out the footer leaves the screen anyway, so it only slides (no fade).
+      const footerStep: Step[] = footerSlides ? [{ el: footer!, transform: enter ? 'translateY(0)' : 'translateY(100%)', opacity: enter ? '1' : undefined, ms: 2000, pause: 200 }] : [];
       run(enter ? [...rowSteps, ...cardStep, ...footerStep] : [...footerStep, ...cardStep, ...rowSteps], 0);
     }, 700));
     return () => {
