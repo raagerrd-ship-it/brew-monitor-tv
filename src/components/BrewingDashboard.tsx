@@ -230,25 +230,29 @@ export function BrewingDashboard() {
   // With three cards where the last is a keg beer, the brew day card takes its place: keg out right, then brew day in.
   const swapKeg = isTvMode && !isMobile && brews.length === 3 && !!brews[2].frozen;
   const cardCount = brews.length + (displayedBrewDay && !swapKeg ? 1 : 0);
+  // The TV row has no card shadows, so the cards sit tighter (12 px) than elsewhere (24 px).
   const gridLayout = useMemo(() => {
-    return cardCount >= 3 ? "flex justify-center gap-6" : "flex flex-wrap justify-center gap-6";
-  }, [cardCount]);
+    const gap = isTvMode ? "gap-3" : "gap-6";
+    return cardCount >= 3 ? `flex justify-center ${gap}` : `flex flex-wrap justify-center ${gap}`;
+  }, [cardCount, isTvMode]);
 
   const cardWidthClass = useMemo(() => {
-    return isTvMode && cardCount === 1 ? "w-2/3" : cardCount >= 3 ? "flex-1 min-w-0" : "w-[calc(50%-0.75rem)]";
+    return isTvMode && cardCount === 1 ? "w-2/3" : cardCount >= 3 ? "flex-1 min-w-0"
+      : isTvMode ? "w-[calc(50%-0.375rem)]" : "w-[calc(50%-0.75rem)]";
   }, [cardCount, isTvMode]);
 
   // Brew day card matches one card's width; the row starts shifted right by
   // width + gap and slides to 0 while the card glides in from the right.
   const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
   const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay && !swapKeg;
-  const brewDayWidth = swapKeg ? 'calc((100% - 5rem) / 3)' : soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
-    ? `calc((100% - ${(cardCount - 1) * 1.5}rem) / ${cardCount})`
+  // Same 0.5rem of extra slack as the wide-gap layout, scaled to the TV gap.
+  const brewDayWidth = swapKeg ? (isTvMode ? 'calc((100% - 2.75rem) / 3)' : 'calc((100% - 5rem) / 3)') : soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
+    ? `calc((100% - ${(cardCount - 1) * (isTvMode ? 0.75 : 1.5)}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
   // of (card width + gap); start shifted by that much so they don't jump.
   // translateX % uses the row's full width incl. its 2rem padding, so subtract it.
-  const brewDayShift = threeBrewsWithDay ? 'calc(16.666667% + 0.75rem)' : cardCount >= 3
+  const brewDayShift = threeBrewsWithDay ? (isTvMode ? 'calc(16.666667% + 0.375rem)' : 'calc(16.666667% + 0.75rem)') : cardCount >= 3
     ? `calc((100% - 0.5rem) / ${cardCount * 2})`
     : 'calc(25% - 0.125rem)';
 

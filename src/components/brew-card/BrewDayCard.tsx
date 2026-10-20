@@ -23,7 +23,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
   const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
   return (
     <Card
-      className={`relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
