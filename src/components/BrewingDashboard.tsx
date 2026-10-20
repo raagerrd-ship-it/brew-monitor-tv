@@ -267,7 +267,7 @@ export function BrewingDashboard() {
     if (enter) {
       // Start positions, applied before the first paint.
       for (const el of beers) { el.style.transition = 'none'; el.style.transform = beerShift; }
-      if (row && !perCardSlide) { row.style.transition = 'none'; row.style.transform = rowShift; }
+      if (row && !perCardSlide && !swapKeg) { row.style.transition = 'none'; row.style.transform = rowShift; }
       if (card) { card.style.transition = 'none'; card.style.transform = cardOut; }
     }
     type Step = { el: HTMLElement; transform: string; ms: number; pause: number; opacity?: string };
@@ -312,7 +312,10 @@ export function BrewingDashboard() {
     timers.push(setTimeout(() => {
       const footer = footerRef.current;
       const footerSlides = !!footer && footer.dataset.footerVisible === (enter ? '1' : '0');
-      const rowSteps: Step[] = perCardSlide
+      const keg = swapKeg ? beerRefs.current[2] : null;
+      const rowSteps: Step[] = keg
+        ? [{ el: keg, transform: enter ? cardOut : 'translateX(0)', ms: 1200, pause: 300 }]
+        : perCardSlide
         ? (enter ? beers : [...beers].reverse()).map(el => ({ el, transform: enter ? 'translateX(0)' : beerShift, ms: 1200, pause: 300 }))
         : row ? [{ el: row, transform: enter ? 'translateX(0)' : rowShift, ms: 1200, pause: 300 }] : [];
       const cardStep: Step[] = card ? [{ el: card, transform: enter ? 'translateX(0)' : cardOut, ms: enter ? 1400 : 1200, pause: enter ? 400 : 200 }] : [];
