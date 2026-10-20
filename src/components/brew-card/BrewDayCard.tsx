@@ -28,7 +28,8 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
           : 'hsl(222 18% 15%)',
-        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
+        // On the TV the cards sit close together, so the drop shadow is dropped.
+        boxShadow: isTvMode ? 'none' : '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
       <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>
