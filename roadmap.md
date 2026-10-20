@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] TV: timer-footern glider ut utan att tonas (bara transform ut; toning kvar vid entré). Nytt test och 64 tester gröna, automatiskt bygge grönt. Ingen publicering.
+
 - [x] Pi-profilbibliotek: service-role-lagring, pi-profiles POST/GET och oförändrad profilbegäran till Pi:n. Lokala HTTP-tester (10 kontroller) med testhemligheter gröna; inga produktionsrader, UI-ändringar eller publicering.
 
 - [x] TV: färdiga öl (Klar/Completed) fyller till tre befintliga ölkort, aktiva först, och senaste ölet har alltid ett kort även när tre aktiva fyller. Låsta värden, oförändrade kort och senaste-öl-regeln verifierade i 1920×1080; 63 tester gröna. Ingen publicering eller dataskrivning.
