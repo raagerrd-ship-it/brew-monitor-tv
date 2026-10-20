@@ -44,7 +44,7 @@ export function BrewingDashboard() {
 
   // Use the optimized brew data hook
   const {
-    brews: allBrews, pills, controllers, loading, updatedFields, isAuthenticated,
+    brews, pills, controllers, loading, updatedFields, isAuthenticated,
     loadBrewEvents, loadBrews, loadRaptData,
   } = useBrewData();
   const brewDay = useBrewDay();
@@ -52,9 +52,6 @@ export function BrewingDashboard() {
   const [cleaningEntered, setCleaningEntered] = useState(false);
   const previousCleaningView = useRef(cleaningView);
   const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
-  // During a brew day the third card, if it is a keg beer, gives its place to the brew day card.
-  const brews = useMemo(() => (brewDay || exitingBrewDay) && allBrews.length === 3 && allBrews[2].frozen
-    ? allBrews.slice(0, 2) : allBrews, [allBrews, brewDay, exitingBrewDay]);
   // True from preparation until the last slide phase is done: freezes the
   // card countdown and keeps the footer mounted. The phases themselves run
   // outside React (runSlide) so nothing re-renders while anything moves.
