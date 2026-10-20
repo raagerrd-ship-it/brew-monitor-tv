@@ -23,12 +23,13 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
   const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
   return (
     <Card
-      className={`relative border-white/15 shadow-deep h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
           : 'hsl(222 18% 15%)',
-        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
+        // On the TV the cards sit close together, so the drop shadow is dropped.
+        boxShadow: isTvMode ? 'none' : '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
       <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>

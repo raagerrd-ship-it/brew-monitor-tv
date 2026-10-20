@@ -137,14 +137,15 @@ function BrewCardComponent({
 
   return (
     <Card 
-      className={`album-accent-card shadow-deep flex flex-col overflow-hidden h-full relative ${
+      className={`album-accent-card ${isTvMode ? '' : 'shadow-deep'} flex flex-col overflow-hidden h-full relative ${
         showInteractiveElements ? 'group' : ''
       }`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
           : 'hsl(222 18% 15%)',
-        boxShadow: '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
+        // On the TV the cards sit close together, so the drop shadow is dropped.
+        boxShadow: isTvMode ? 'none' : '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
       
