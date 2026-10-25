@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] TV: diagrammens händelseetiketter står längst ner igen och staplas bara uppåt när de faktiskt skulle överlappa (x-avstånd < etikettbredd), i stället för de tidigare höjdlanes som lyfte långa etiketter mitt i diagrammet. Nytt test och uppdaterade etiketttester; ingen publicering.
+
+
 - [x] TV: statusglöden runt jäskortens statusikon och skuggorna under Sonos låttitel/artist borttagna (onödiga/tunga på Chromecast). Endast TV-läge; dator/mobil oförändrade. Ingen publicering.
 
 - [x] TV: inga skuggor under korten och tätare rad (12 px i stället för 24 px). Öl- och bryggdagskort tappar skuggan i TV-läge, övriga lägen behåller den; glidningarnas bredd/förskjutning följde med. Verifierat i 1920×1080: 621/622/621 px kort med 12 px mellanrum, bryggdagskortet landar exakt i fatölets plats och max 18 px per bildruta i toppfart; 64 tester och automatiskt bygge gröna. Ingen publicering.
