@@ -215,21 +215,26 @@ export function getEventsPerDay(events: BrewChartEvent[]): BrewChartEventWithTim
 }
 
 /**
- * Assign separate heights to labels less than 30 screen pixels apart.
+ * Vertical pixel offsets for bottom-edge event labels.
+ * All labels anchor just above the axis dot; only labels whose x positions
+ * are closer than the rendered label width (~14 px) are stacked upward, each
+ * clearing the tops of the labels it would otherwise overlap.
  */
 export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, number> {
-  const lanes = new Map<string, number>();
-  const lastXByLane: number[] = [];
-  if (end <= start || plotWidth <= 0) return lanes;
+  const offsets = new Map<string, number>();
+  if (end <= start || plotWidth <= 0) return offsets;
+  const placed: { x: number; top: number }[] = [];
   for (const event of [...events].sort((a, b) => a.timestamp - b.timestamp)) {
     if (event.timestamp < start || event.timestamp > end) continue;
     const x = (event.timestamp - start) / (end - start) * plotWidth;
-    let lane = lastXByLane.findIndex(lastX => x - lastX >= 30);
-    if (lane < 0) lane = lastXByLane.length;
-    lastXByLane[lane] = x;
-    lanes.set(event.id, lane);
+    let offset = 0;
+    for (const p of placed) {
+      if (Math.abs(x - p.x) < 14) offset = Math.max(offset, p.top);
+    }
+    placed.push({ x, top: offset + getEventDisplay(event.event_type).label.length * 6 + 4 });
+    offsets.set(event.id, offset);
   }
-  return lanes;
+  return offsets;
 }
 
 /**
