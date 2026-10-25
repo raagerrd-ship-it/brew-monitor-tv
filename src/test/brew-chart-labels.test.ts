@@ -15,6 +15,7 @@ describe('TV event label offsets', () => {
     expect([...getEventLabelLanes(events, 0, 1000, 100).values()]).toEqual([0, LABEL_H]);
   });
   it('stacks coincident labels upward without overlap and ignores events outside the visible range', () => {
-    expect([...getEventLabelLanes([event('a', 100), { ...event('pitch', 100), event_type: 'jast' }, event('c', 100), event('outside', 1100)], 0, 1000, 1000).values()]).toEqual([0, LABEL_H, LABEL_H * 2]);
+    const JAST_H = 'Jäst'.length * 6 + 4; // 28 px
+    expect([...getEventLabelLanes([event('a', 100), { ...event('pitch', 100), event_type: 'jast' }, event('c', 100), event('outside', 1100)], 0, 1000, 1000).values()]).toEqual([0, LABEL_H, LABEL_H + JAST_H]);
   });
 });
