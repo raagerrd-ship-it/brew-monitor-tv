@@ -82,7 +82,6 @@ function BrewChartComponent({
     if (!isTvMode || chartData.length === 0) return new Map<string, number>();
     return getEventLabelLanes([...sortedEvents, ...pitchEvents], chartData[0].timestamp, chartData[chartData.length - 1].timestamp, chartWidth - CHART_MARGINS.left - CHART_MARGINS.right - 120);
   }, [isTvMode, chartData, sortedEvents, pitchEvents, chartWidth]);
-  const labelLaneHeight = Math.max(0, ...[...sortedEvents, ...pitchEvents].map(event => getEventDisplay(event.event_type).label.length * 6)) + 12;
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
@@ -136,7 +135,7 @@ function BrewChartComponent({
     ({ viewBox }: DotLabelProps) => {
       if (!viewBox) return <g />;
       const x = viewBox.x + viewBox.width / 2 + 4;
-       const y = viewBox.y - 5 - (labelLanes.get(id) ?? 0) * labelLaneHeight;
+      const y = viewBox.y - 5 - (labelLanes.get(id) ?? 0);
       return (
         <text
           transform={`rotate(-90 ${x} ${y})`}
