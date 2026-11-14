@@ -465,6 +465,8 @@ export function BrewingDashboard() {
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
+                  // If the side card was already there when the keg arrived, no slide ran: keep the keg hidden beneath it.
+                  ...(swapKeg && index === 2 && displayedBrewDay && !brewDayTransition ? { visibility: 'hidden' as const } : {}),
                     }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
