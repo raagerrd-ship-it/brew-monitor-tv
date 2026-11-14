@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chillerVisibility, chillerTitle, fmtC, fmtEta, fmtRate, type ChillerSession } from "@/lib/chiller-session";
+import { chillerVisibility, chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, type ChillerSession } from "@/lib/chiller-session";
 
 const now = Date.parse("2026-11-14T17:00:00Z");
 const base: ChillerSession = {
@@ -40,6 +40,11 @@ describe("formatering", () => {
   it("svensk decimalkomma och takt", () => {
     expect(fmtC(-3.25)).toBe("−3,3");
     expect(fmtRate(-0.12)).toBe("−0,12 °/min");
+  });
+  it("mål utan decimal vid hela grader", () => {
+    expect(fmtTarget(0)).toBe("0");
+    expect(fmtTarget(17.2)).toBe("17,2");
+    expect(fmtTarget(-2)).toBe("−2");
   });
   it("ETA i svensk tid", () => {
     expect(fmtEta("2026-11-14T17:24:00Z")).toBe("18:24");
