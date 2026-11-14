@@ -13,6 +13,9 @@ import { toast as sonnerToast } from "sonner";
 import { useBrewData } from "@/hooks/use-brew-data";
 import { useBrewDay, type BrewDay } from "@/hooks/use-brew-day";
 import { BrewDayCard } from "./brew-card/BrewDayCard";
+import { ChillerCard } from "./brew-card/ChillerCard";
+import { useChillerSession } from "@/hooks/use-chiller-session";
+import type { ChillerSession } from "@/lib/chiller-session";
 import { useSplashScreen } from "@/hooks/use-splash-screen";
 import { useBrewCarousel } from "@/hooks/use-brew-carousel";
 import { useTvRefresh } from "@/hooks/use-tv-refresh";
@@ -31,6 +34,8 @@ import { TempController } from "@/types/brew";
 import { supabase } from "@/integrations/supabase/client";
 import { TvDebugOverlay } from "./TvDebugOverlay";
 import { lock, unlock, onMotionLockChange } from "@/lib/motion-lock";
+
+type SideCard = { type: 'brew'; day: BrewDay } | { type: 'chiller'; s: ChillerSession };
 
 const SLIDE_EASE = 'cubic-bezier(0.45, 0, 0.55, 1)';
 
@@ -51,7 +56,8 @@ export function BrewingDashboard() {
   const { view: cleaningView } = useCleaningChecklist();
   const [cleaningEntered, setCleaningEntered] = useState(false);
   const previousCleaningView = useRef(cleaningView);
-  const [exitingBrewDay, setExitingBrewDay] = useState<BrewDay | null>(null);
+  const [exitingSide, setExitingSide] = useState<SideCard | null>(null);
+  const lastSide = useRef<SideCard | null>(null);
   // True from preparation until the last slide phase is done: freezes the
   // card countdown and keeps the footer mounted. The phases themselves run
   // outside React (runSlide) so nothing re-renders while anything moves.
@@ -96,7 +102,11 @@ export function BrewingDashboard() {
     const watchdog = setTimeout(finish, 700 + 4000 + 1500);
     return finish;
   }, [cleaningView, isTvMode]);
-  const displayedBrewDay = !isMobile || isTvMode ? brewDay ?? exitingBrewDay : brewDay;
+  // The side slot holds the brew day card, otherwise the glycol chiller card (TV only); both slide the same way.
+  const chiller = useChillerSession(isTvMode);
+  const side: SideCard | null = useMemo(() => brewDay ? { type: 'brew', day: brewDay } : chiller ? { type: 'chiller', s: chiller } : null, [brewDay, chiller]);
+  if (side) lastSide.current = side;
+  const displayedBrewDay = !isMobile || isTvMode ? side ?? exitingSide : side;
   const { showSplash } = useSplashScreen(loading);
   const [splashGone, setSplashGone] = useState(false);
   const entrancePlayed = useRef(false);
@@ -258,10 +268,10 @@ export function BrewingDashboard() {
 
   useLayoutEffect(() => {
     if (isMobile && !isTvMode) return;
-    const enter = !!brewDay;
-    if (!enter && !exitingBrewDay) return;
+    const enter = !!side;
+    if (!enter && !exitingSide) return;
     lock('brew-day');
-    if (enter) setExitingBrewDay(brewDay);
+    setExitingSide(enter ? side : lastSide.current);
     setBrewDayTransition(true);
     const row = rowRef.current, card = cardRef.current;
     const beers = perCardSlide ? beerRefs.current.slice(0, 2).filter((el): el is HTMLDivElement => !!el) : [];
@@ -283,7 +293,7 @@ export function BrewingDashboard() {
       finished = true;
       for (const el of moved) el.style.willChange = '';
       setBrewDayTransition(false);
-      if (!enter) setExitingBrewDay(null);
+      if (!enter) setExitingSide(null);
       unlock('brew-day');
     };
     const run = (steps: Step[], i: number) => {
@@ -332,7 +342,7 @@ export function BrewingDashboard() {
       timers.forEach(clearTimeout);
       if (!finished) unlock('brew-day');
     };
-  }, [isTvMode, isMobile, !!brewDay]);
+  }, [isTvMode, isMobile, !!side]);
   // After the exit the card is gone and the row is back to its own layout.
   useLayoutEffect(() => {
     if (displayedBrewDay) return;
@@ -455,6 +465,8 @@ export function BrewingDashboard() {
                 className={`${cardWidthClass} motion-reduce:!transition-none`}
                 style={{
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
+                  // If the side card was already there when the keg arrived, no slide ran: keep the keg hidden beneath it.
+                  ...(swapKeg && index === 2 && displayedBrewDay && !brewDayTransition ? { visibility: 'hidden' as const } : {}),
                     }}
               >
                 <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
@@ -474,7 +486,9 @@ export function BrewingDashboard() {
                   height: isAspectRatioLocked ? `${getCardHeight()}px` : `calc(100% - 16px)`,
                 }}
               >
-                 <BrewDayCard day={displayedBrewDay} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} compact={isTvMode && (swapKeg || cardCount >= 3)} />
+                 {displayedBrewDay.type === 'brew'
+                   ? <BrewDayCard day={displayedBrewDay.day} hasAlbumArtBackground isTvMode={isTvMode} transitionActive={brewDayTransition} compact={isTvMode && (swapKeg || cardCount >= 3)} />
+                   : <ChillerCard s={displayedBrewDay.s} hasAlbumArtBackground compact={isTvMode && (swapKeg || cardCount >= 3)} />}
               </div>
             )}
           </div>

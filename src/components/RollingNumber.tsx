@@ -11,6 +11,7 @@ interface RollingNumberProps {
   suffix?: React.ReactNode;
   direction?: 1 | -1;
   maxDuration?: number;
+  decimalSeparator?: string;
   mode?: "strip" | "step";
 }
 
@@ -66,7 +67,7 @@ const RollingDigit = memo(function RollingDigit({ digit, direction, duration, mo
   );
 });
 
-export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection, maxDuration, mode = "strip" }: RollingNumberProps) {
+export const RollingNumber = memo(function RollingNumber({ value, decimals, mutedLastDigit = false, suffix, direction: forcedDirection, maxDuration, mode = "strip", decimalSeparator = "." }: RollingNumberProps) {
   const { isTvMode } = useTvMode();
   const duration = Math.min(isTvMode ? DURATION_TV : DURATION_DESKTOP, maxDuration ?? Infinity);
   const formatted = typeof value === "number" ? value.toFixed(decimals ?? 0) : value;
@@ -86,7 +87,7 @@ export const RollingNumber = memo(function RollingNumber({ value, decimals, mute
         const position = i < decimalIndex ? decimalIndex - i - 1 : decimalIndex - i;
         return (
           <span key={char === "." ? "decimal" : `digit-${position}`} className={mutedLastDigit && i === unsigned.length - 1 ? "text-muted-foreground/40" : undefined}>
-            {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} mode={mode} signChanged={signChanged} newLeadingDigit={!signChanged && position >= previousIntegerDigits.current} /> : char}
+            {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} mode={mode} signChanged={signChanged} newLeadingDigit={!signChanged && position >= previousIntegerDigits.current} /> : char === "." ? decimalSeparator : char}
           </span>
         );
       })}

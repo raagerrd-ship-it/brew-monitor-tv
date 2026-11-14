@@ -2,6 +2,7 @@ import { formatStockholm } from '@/lib/stockholm-time';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { notifyBrewDay } from '@/hooks/use-brew-day';
+import { notifyChiller } from '@/hooks/use-chiller-session';
 import { externalSupabase } from '@/integrations/external-supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BrewData, BrewEvent, PillData, TempController, FermentationSessionData } from '@/types/brew';
@@ -890,11 +891,15 @@ export function useBrewData(): UseBrewDataReturn {
         lastRtEventAtRef.current = Date.now();
         notifyBrewDay(p.new);
       })
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'chiller_session' }, (p: any) => {
+        lastRtEventAtRef.current = Date.now();
+        notifyChiller(p.new);
+      })
       .subscribe((status) => {
         dataChannelSubscribedRef.current = status === 'SUBSCRIBED';
         // Catch up on events missed while the realtime connection was down
         if (status === 'SUBSCRIBED') {
-          if (hasSubscribed) { loadRaptData(); loadBrews(); notifyBrewDay(); }
+          if (hasSubscribed) { loadRaptData(); loadBrews(); notifyBrewDay(); notifyChiller(); }
           hasSubscribed = true;
         }
       });
@@ -911,6 +916,7 @@ export function useBrewData(): UseBrewDataReturn {
       loadRaptData();
       loadBrews();
       notifyBrewDay();
+      notifyChiller();
       lastRtEventAtRef.current = Date.now();
       watchdogIntervalMsRef.current = Math.min(watchdogIntervalMsRef.current * 2, 900_000);
       setWatchdogNonce(n => n + 1);
