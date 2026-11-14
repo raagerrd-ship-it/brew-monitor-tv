@@ -50,6 +50,8 @@ export const LEVEL_LABEL: Record<string, string> = {
 
 /** En decimal, svenskt decimalkomma (minus som −). */
 export const fmtC = (v: number) => v.toFixed(1).replace(".", ",").replace("-", "−");
+/** Mål: hela grader utan decimal, annars en decimal (som bryggdagskortets målgrader). */
+export const fmtTarget = (v: number) => fmtC(v).replace(/,0$/, "");
 export const fmtRate = (v: number) => `${v.toFixed(2).replace(".", ",").replace("-", "−")} °/min`;
 const HM = stockholmFormat({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 export const fmtEta = (iso: string) => HM.format(new Date(iso));

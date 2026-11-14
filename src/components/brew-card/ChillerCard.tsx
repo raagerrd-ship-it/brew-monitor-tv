@@ -2,7 +2,7 @@ import { memo } from "react";
 import { AlertTriangle, Snowflake } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { RollingNumber } from "@/components/RollingNumber";
-import { chillerTitle, fmtC, fmtEta, fmtRate, LEVEL_LABEL, type ChillerSession } from "@/lib/chiller-session";
+import { chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, LEVEL_LABEL, type ChillerSession } from "@/lib/chiller-session";
 
 const LEVEL_STYLE: Record<string, string> = {
   fill: "border-green-400/40 bg-green-500/20 text-green-300",
@@ -19,8 +19,8 @@ export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground,
       style={{ background: hasAlbumArtBackground ? 'hsl(222 18% 15% / 0.75)' : 'hsl(222 18% 15%)', boxShadow: 'none' }}
     >
       {s.warnings.map((w, i) => (
-        <div key={i} className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/15 px-3 py-1.5 text-base font-semibold text-destructive">
-          <AlertTriangle className="h-4 w-4 shrink-0" /><span className="truncate">{w}</span>
+        <div key={i} className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/15 px-3 py-1.5 text-base font-semibold text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-1" /><span className="line-clamp-3">{w}</span>
         </div>
       ))}
       <div className="flex items-center gap-3">
@@ -35,14 +35,14 @@ export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground,
         <div>
           <div className={`${compact ? "text-5xl" : "text-6xl"} font-bold tracking-tight`}><RollingNumber value={s.bath_c} decimals={1} decimalSeparator="," suffix="°" /></div>
           {(s.bath_from_c != null || s.stop_c != null) && (
-            <div className="text-lg text-muted-foreground mt-1">från {s.bath_from_c != null ? fmtC(s.bath_from_c) : "—"}° → {s.stop_c != null ? fmtC(s.stop_c) : "—"}°</div>
+            <div className="text-lg text-muted-foreground mt-1">från {s.bath_from_c != null ? fmtC(s.bath_from_c) : "—"}° → {s.stop_c != null ? fmtTarget(s.stop_c) : "—"}°</div>
           )}
         </div>
       )}
       {(s.rate_c_min != null || (s.eta_at && s.stop_c != null)) && (
         <div className="flex gap-4 text-lg font-semibold tabular-nums whitespace-nowrap">
           {s.rate_c_min != null && <span>{fmtRate(s.rate_c_min)}</span>}
-          {s.eta_at && s.stop_c != null && <span>{fmtC(s.stop_c)}° ca {fmtEta(s.eta_at)}</span>}
+          {s.eta_at && s.stop_c != null && <span>{fmtTarget(s.stop_c)}° ca {fmtEta(s.eta_at)}</span>}
         </div>
       )}
       {s.kind === "test" && s.after_runs_done != null && (
