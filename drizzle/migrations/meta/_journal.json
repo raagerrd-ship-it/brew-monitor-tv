@@ -225,6 +225,13 @@
       "when": 1792342699200,
       "tag": "0031_add_profile_ask_at",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794677116621,
+      "tag": "0032_create_chiller_session",
+      "breakpoints": true
     }
   ]
 }

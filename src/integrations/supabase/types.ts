@@ -560,6 +560,78 @@ export type Database = {
         }
         Relationships: []
       }
+      chiller_session: {
+        Row: {
+          active: boolean
+          advice: string | null
+          after_runs_done: number | null
+          bath_c: number | null
+          bath_from_c: number | null
+          chiller_locked: boolean
+          compressor_on: boolean
+          ended_at: string | null
+          ends_by: string | null
+          eta_at: string | null
+          id: string
+          kind: string | null
+          level: string | null
+          lift_pct: number | null
+          rate_c_min: number | null
+          result: string | null
+          sent_at: string | null
+          started_at: string | null
+          stop_c: number | null
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          active?: boolean
+          advice?: string | null
+          after_runs_done?: number | null
+          bath_c?: number | null
+          bath_from_c?: number | null
+          chiller_locked?: boolean
+          compressor_on?: boolean
+          ended_at?: string | null
+          ends_by?: string | null
+          eta_at?: string | null
+          id?: string
+          kind?: string | null
+          level?: string | null
+          lift_pct?: number | null
+          rate_c_min?: number | null
+          result?: string | null
+          sent_at?: string | null
+          started_at?: string | null
+          stop_c?: number | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          active?: boolean
+          advice?: string | null
+          after_runs_done?: number | null
+          bath_c?: number | null
+          bath_from_c?: number | null
+          chiller_locked?: boolean
+          compressor_on?: boolean
+          ended_at?: string | null
+          ends_by?: string | null
+          eta_at?: string | null
+          id?: string
+          kind?: string | null
+          level?: string | null
+          lift_pct?: number | null
+          rate_c_min?: number | null
+          result?: string | null
+          sent_at?: string | null
+          started_at?: string | null
+          stop_c?: number | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: []
+      }
       controller_outage_log: {
         Row: {
           controller_id: string
