@@ -73,7 +73,7 @@ export function chartAxis([min, max]: [number, number], maxLabels: number) {
     for (const unit of [1, 2, 5, 10]) {
       const step = unit * magnitude;
       const lower = Math.floor(min / step) * step;
-      const upper = Math.max(lower + step, Math.ceil(max / step) * step);
+      const upper = Math.max(lower + step * (maxLabels === 5 ? 2 : 1), Math.ceil(max / step) * step);
       const count = Math.round((upper - lower) / step) + 1;
       if (count <= maxLabels) return { domain: [lower, upper] as [number, number], ticks: Array.from({ length: count }, (_, i) => lower + i * step), step };
     }
