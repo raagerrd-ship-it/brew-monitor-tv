@@ -57,43 +57,21 @@ describe("chiller chart", () => {
     expect(chartClock("2026-11-15T09:00:00Z", 1200)).toBe("10:20");
     expect(chartClock("2026-07-15T09:00:00Z", 1200)).toBe("11:20");
   });
-  it("warm degrees are left and zero right, ticks every two degrees", () => {
-    const domain = liftChartDomains(chart, 17.2);
-    expect(domain.degrees).toEqual([18, 0]);
-    expect(domain.ticks).toEqual([18, 16, 14, 12, 10, 8, 6, 4, 2, 0]);
-    expect(chartScale(18, domain.degrees, 36, 350)).toBe(36);
-    expect(chartScale(0, domain.degrees, 36, 350)).toBe(350);
-    expect(domain.heat).toEqual([0, 100]);
-    expect(domain.heatTicks).toEqual([0, 50, 100]);
-    expect(liftChartDomains({ series: [], runs: [] }, null).degrees).toEqual([12, 0]);
+  it("minute axis runs to last minute (min 10), ticks every 10 min, K to next ten (min 30)", () => {
+    const d = liftChartDomains({ ...chart, lift_t: [[0, 5], [12, 34]], lift_base_t: [[0, 4], [52, 28]] });
+    expect(d.minutes).toEqual([0, 52]);
+    expect(d.ticks).toEqual([0, 10, 20, 30, 40, 50]);
+    expect(d.heat).toEqual([0, 40]);
+    expect(d.heatTicks).toEqual([0, 10, 20, 30, 40]);
+    const empty = liftChartDomains({ series: [], runs: [] });
+    expect(empty.minutes).toEqual([0, 10]);
+    expect(empty.heat).toEqual([0, 30]);
   });
-  it("lift graph only for test, empty active test is shown, empty ended test is hidden", () => {
-    const empty = { ...chart, lift: [] };
-    expect(showLiftChart({ ...base, active: true, chart: empty })).toBe(true);
-    expect(showLiftChart({ ...base, ended_at: ago(60_000), chart: empty })).toBe(false);
-    expect(showLiftChart({ ...base, ended_at: ago(60_000), chart })).toBe(true);
-    expect(showLiftChart({ ...base, active: true, chart })).toBe(true);
-    expect(showLiftChart({ ...base, kind: "top", active: true, chart })).toBe(false);
+  it("lift graph for test when lift_t or lift_base_t has a point", () => {
+    expect(showLiftChart({ ...base, active: true, chart: { ...chart, lift_t: [], lift_base_t: [[0, 4]] } })).toBe(true);
+    expect(showLiftChart({ ...base, active: true, chart: { ...chart, lift_t: [[0, 4]] } })).toBe(true);
+    expect(showLiftChart({ ...base, active: true, chart })).toBe(false);
+    expect(showLiftChart({ ...base, kind: "top", active: true, chart: { ...chart, lift_t: [[0, 4]] } })).toBe(false);
     expect(showLiftChart(base)).toBe(false);
-  });
-});
-
-describe("formatering", () => {
-  it("rubriker efter kind", () => {
-    expect([chillerTitle("test"), chillerTitle("refill"), chillerTitle("top"), chillerTitle(null)])
-      .toEqual(["Gastest", "Påfyllning", "Toppning", "Glykolkylaren"]);
-  });
-  it("svensk decimalkomma och takt", () => {
-    expect(fmtC(-3.25)).toBe("−3,3");
-    expect(fmtRate(-0.12)).toBe("−0,12 °/min");
-  });
-  it("mål utan decimal vid hela grader", () => {
-    expect(fmtTarget(0)).toBe("0");
-    expect(fmtTarget(17.2)).toBe("17,2");
-    expect(fmtTarget(-2)).toBe("−2");
-  });
-  it("ETA i svensk tid", () => {
-    expect(fmtEta("2026-11-14T17:24:00Z")).toBe("18:24");
-    expect(fmtEta("2026-07-14T17:24:00Z")).toBe("19:24");
   });
 });

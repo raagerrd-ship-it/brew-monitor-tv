@@ -12,7 +12,7 @@ const LEVEL_STYLE: Record<string, string> = {
 
 export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground, compact }: { s: ChillerSession; hasAlbumArtBackground?: boolean; compact?: boolean }) {
   const level = s.level ? LEVEL_LABEL[s.level] : null;
-  const text = s.ended_at ? s.result : s.advice;
+  const text = s.ended_at ? s.result : null;
   const badge = "shrink-0 rounded-full border px-3 py-1 text-sm font-semibold";
   return (
     <Card
