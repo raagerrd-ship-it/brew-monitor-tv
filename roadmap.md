@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Glykolkylaren: lagra Pi:ns chart, validera mottagningen och visa statiska grafer; verifiera hjälpfunktioner och mockad TV utan dataskrivningar eller publicering.
+
 - [x] TV: diagrammens händelseetiketter står längst ner igen och staplas bara uppåt när de faktiskt skulle överlappa (x-avstånd < etikettbredd), i stället för de tidigare höjdlanes som lyfte långa etiketter mitt i diagrammet. Nytt test och uppdaterade etiketttester; ingen publicering.
 
 

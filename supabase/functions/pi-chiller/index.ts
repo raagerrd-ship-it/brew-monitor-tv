@@ -6,7 +6,7 @@ const PI_SECRET = Deno.env.get("PI_BLE_INGEST_SECRET");
 const FIELDS = [
   "kind", "active", "level", "advice", "started_at", "ends_by", "ended_at", "bath_c", "bath_from_c",
   "stop_c", "rate_c_min", "eta_at", "compressor_on", "after_runs_done", "lift_pct", "result",
-  "chiller_locked", "warnings", "sent_at",
+  "chiller_locked", "warnings", "sent_at", "chart",
 ];
 
 Deno.serve(async (req) => {
@@ -21,6 +21,9 @@ Deno.serve(async (req) => {
   let body;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "body must be an object" }, 400);
+  if ("chart" in body && body.chart !== null && (typeof body.chart !== "object" || Array.isArray(body.chart))) {
+    return json({ error: "chart must be an object or null" }, 400);
+  }
   if ("warnings" in body && !(Array.isArray(body.warnings) && body.warnings.every((w: unknown) => typeof w === "string"))) {
     return json({ error: "warnings must be an array of strings" }, 400);
   }

@@ -1,6 +1,14 @@
 import { stockholmFormat } from "@/lib/stockholm-time";
 
+export type ChillerChart = {
+  series: [number, number | null, number | null, number | null][];
+  runs: [number, number][];
+  lift?: [number, number][];
+  lift_base?: [number, number][];
+};
+
 export interface ChillerSession {
+  chart: ChillerChart | null;
   kind: string | null;
   active: boolean;
   level: string | null;
@@ -55,3 +63,38 @@ export const fmtTarget = (v: number) => fmtC(v).replace(/,0$/, "");
 export const fmtRate = (v: number) => `${v.toFixed(2).replace(".", ",").replace("-", "−")} °/min`;
 const HM = stockholmFormat({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 export const fmtEta = (iso: string) => HM.format(new Date(iso));
+
+export const chartClock = (startedAt: string, seconds: number) => fmtEta(new Date(Date.parse(startedAt) + seconds * 1000).toISOString());
+export const chartTicks = ([min, max]: [number, number], count = 4) => Array.from({ length: count }, (_, i) => min + (max - min) * i / (count - 1));
+export const chartScale = (value: number, [min, max]: [number, number], from: number, to: number) => from + (value - min) / (max - min) * (to - from);
+export const chartLines = (chart: ChillerChart) => ([1, 2, 3] as const).filter((index) => chart.series.some((p) => p[index] != null));
+export function bathChartDomains(chart: ChillerChart, stop: number | null): { time: [number, number]; temperature: [number, number] } {
+  const times = chart.series.map((p) => p[0]);
+  const values = chart.series.flatMap((p) => p.slice(1).filter((v): v is number => v != null));
+  if (stop != null) values.push(stop);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const pad = Math.max((max - min) * 0.08, 0.5);
+  const start = times.length ? Math.min(...times) : 0;
+  return { time: [start, Math.max(start + 1, ...times)], temperature: [min - pad, max + pad] };
+}
+export function liftChartDomains(chart: ChillerChart, bathFrom: number | null): { degrees: [number, number]; heat: [number, number]; ticks: number[] } {
+  const points = [...(chart.lift ?? []), ...(chart.lift_base ?? [])];
+  const top = Math.max(12, Math.ceil(Math.max(bathFrom ?? 0, ...points.map((p) => p[0]))));
+  return {
+    degrees: [top, 0], heat: [0, Math.max(1, ...points.map((p) => p[1])) * 1.15],
+    ticks: Array.from({ length: Math.floor(top / 2) + 1 }, (_, i) => Math.floor(top / 2) * 2 - i * 2),
+  };
+}
+export const showLiftChart = (s: ChillerSession, compact = false) => !compact && s.kind === "test" && !!s.chart && (s.active || (s.chart.lift?.length ?? 0) > 0);
+
+/** Null observations start a new segment, never bridge a missing sensor reading. */
+export function chartPath(points: [number, number | null][], x: (v: number) => number, y: (v: number) => number): string {
+  let penDown = false;
+  return points.map(([a, b]) => {
+    if (b == null) { penDown = false; return ""; }
+    const command = penDown ? "L" : "M";
+    penDown = true;
+    return `${command}${x(a)},${y(b)}`;
+  }).join(" ");
+}
