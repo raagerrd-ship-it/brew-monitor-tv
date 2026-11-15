@@ -5,6 +5,8 @@ export type ChillerChart = {
   runs: [number, number][];
   lift?: [number, number][];
   lift_base?: [number, number][];
+  lift_t?: [number, number][];
+  lift_base_t?: [number, number][];
 };
 
 export interface ChillerSession {
@@ -89,16 +91,17 @@ export function bathChartDomains(chart: ChillerChart, stop: number | null): { ti
   const start = times.length ? Math.min(...times) : 0;
   return { time: [start, Math.max(start + 1, ...times)], temperature: axis.domain, ticks: axis.ticks };
 }
-export function liftChartDomains(chart: ChillerChart, bathFrom: number | null): { degrees: [number, number]; heat: [number, number]; ticks: number[]; heatTicks: number[] } {
-  const points = [...(chart.lift ?? []), ...(chart.lift_base ?? [])];
-  const top = Math.max(12, Math.ceil(Math.max(bathFrom ?? 0, ...points.map((p) => p[0]))));
-  const axis = chartAxis([0, Math.max(1, ...points.map((p) => p[1])) * 1.15], 3);
+export function liftChartDomains(chart: ChillerChart): { minutes: [number, number]; heat: [number, number]; ticks: number[]; heatTicks: number[] } {
+  const points = [...(chart.lift_t ?? []), ...(chart.lift_base_t ?? [])];
+  const end = Math.max(10, ...points.map((p) => p[0]));
+  const top = Math.max(30, Math.ceil(Math.max(0, ...points.map((p) => p[1])) / 10) * 10);
   return {
-    degrees: [top, 0], heat: axis.domain, heatTicks: axis.ticks,
-    ticks: Array.from({ length: Math.floor(top / 2) + 1 }, (_, i) => Math.floor(top / 2) * 2 - i * 2),
+    minutes: [0, end], heat: [0, top],
+    ticks: Array.from({ length: Math.floor(end / 10) + 1 }, (_, i) => i * 10),
+    heatTicks: Array.from({ length: top / 10 + 1 }, (_, i) => i * 10),
   };
 }
-export const showLiftChart = (s: ChillerSession) => s.kind === "test" && !!s.chart && (s.active || (s.chart.lift?.length ?? 0) > 0);
+export const showLiftChart = (s: ChillerSession) => s.kind === "test" && !!s.chart && ((s.chart.lift_t?.length ?? 0) > 0 || (s.chart.lift_base_t?.length ?? 0) > 0);
 
 /** Null observations start a new segment, never bridge a missing sensor reading. */
 export function chartPath(points: [number, number | null][], x: (v: number) => number, y: (v: number) => number): string {
