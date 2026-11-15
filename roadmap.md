@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Glykolkylaren: lagra Pi:ns chart, validera mottagningen och visa statiska grafer; verifiera hjälpfunktioner och mockad TV utan dataskrivningar eller publicering.
+- [x] Glykolkylaren: nullable chart (0033), validerad mottagning och statiska grafer; hjälpfunktioner och mockad TV i 1280×720/1920×1080 verifierade, även kompakt, tom och avslutad kurva. Inga testrader eller publicering.
 
 - [x] TV: diagrammens händelseetiketter står längst ner igen och staplas bara uppåt när de faktiskt skulle överlappa (x-avstånd < etikettbredd), i stället för de tidigare höjdlanes som lyfte långa etiketter mitt i diagrammet. Nytt test och uppdaterade etiketttester; ingen publicering.
 
