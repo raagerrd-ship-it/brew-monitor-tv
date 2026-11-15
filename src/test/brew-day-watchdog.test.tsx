@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-external-timer', () => ({ ExternalTimerProvider: ({ childre
 vi.mock('@/contexts/AlbumArtContext', () => ({ useHasAlbumArtBackground: () => false }));
 vi.mock('@/contexts/DashboardFooterContext', () => ({ useDashboardFooter: () => ({ footerHeight: 0 }) }));
 vi.mock('@/components/AspectRatioContainer', () => ({ useAspectRatio: () => ({ isLocked: true, height: 1080 }) }));
-vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) } }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }), limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) } }));
 vi.mock('@/components/DashboardHeader', () => ({ DashboardHeader: () => null, HEADER_HEIGHT: 180, HEADER_HEIGHT_TV: 56 }));
 vi.mock('@/components/TimerFooter', () => ({ TimerFooter: () => null }));
 vi.mock('@/components/brew-card/BrewDayCard', () => ({ BrewDayCard: ({ transitionActive }: any) => <output data-testid="transition">{String(transitionActive)}</output> }));

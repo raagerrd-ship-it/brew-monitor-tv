@@ -567,6 +567,7 @@ export type Database = {
           after_runs_done: number | null
           bath_c: number | null
           bath_from_c: number | null
+          chart: Json | null
           chiller_locked: boolean
           compressor_on: boolean
           ended_at: string | null
@@ -590,6 +591,7 @@ export type Database = {
           after_runs_done?: number | null
           bath_c?: number | null
           bath_from_c?: number | null
+          chart?: Json | null
           chiller_locked?: boolean
           compressor_on?: boolean
           ended_at?: string | null
@@ -613,6 +615,7 @@ export type Database = {
           after_runs_done?: number | null
           bath_c?: number | null
           bath_from_c?: number | null
+          chart?: Json | null
           chiller_locked?: boolean
           compressor_on?: boolean
           ended_at?: string | null

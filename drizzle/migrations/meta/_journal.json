@@ -232,6 +232,13 @@
       "when": 1794677116621,
       "tag": "0032_create_chiller_session",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794735278155,
+      "tag": "0033_add_chiller_chart",
+      "breakpoints": true
     }
   ]
 }
