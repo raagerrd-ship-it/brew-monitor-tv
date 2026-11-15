@@ -75,3 +75,23 @@ describe("chiller chart", () => {
     expect(showLiftChart(base)).toBe(false);
   });
 });
+
+describe("formatering", () => {
+  it("rubriker efter kind", () => {
+    expect([chillerTitle("test"), chillerTitle("refill"), chillerTitle("top"), chillerTitle(null)])
+      .toEqual(["Gastest", "Påfyllning", "Toppning", "Glykolkylaren"]);
+  });
+  it("svensk decimalkomma och takt", () => {
+    expect(fmtC(-3.25)).toBe("−3,3");
+    expect(fmtRate(-0.12)).toBe("−0,12 °/min");
+  });
+  it("mål utan decimal vid hela grader", () => {
+    expect(fmtTarget(0)).toBe("0");
+    expect(fmtTarget(17.2)).toBe("17,2");
+    expect(fmtTarget(-2)).toBe("−2");
+  });
+  it("ETA i svensk tid", () => {
+    expect(fmtEta("2026-11-14T17:24:00Z")).toBe("18:24");
+    expect(fmtEta("2026-07-14T17:24:00Z")).toBe("19:24");
+  });
+});
