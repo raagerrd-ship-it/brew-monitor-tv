@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chillerVisibility, chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, type ChillerSession } from "@/lib/chiller-session";
-import { bathChartDomains, chartClock, chartLines, chartPath, chartScale, chartTicks, liftChartDomains, showLiftChart, type ChillerChart } from "@/lib/chiller-session";
+import { bathChartDomains, chartAxis, chartClock, chartLines, chartPath, chartScale, liftChartDomains, showLiftChart, type ChillerChart } from "@/lib/chiller-session";
 
 const now = Date.parse("2026-11-14T17:00:00Z");
 const base: ChillerSession = {
@@ -36,11 +36,15 @@ describe("chillerVisibility", () => {
 describe("chiller chart", () => {
   const chart: ChillerChart = { series: [[0, 17.2, -4, null], [600, null, -6, null], [1200, 12, -8, null]], runs: [[0, 600]], lift: [[12, 30], [10, 40]], lift_base: [[14, 50], [0, 60]] };
   it("temperature scale includes sensors and stop target", () => {
-    const { time, temperature } = bathChartDomains(chart, -10);
+    const { time, temperature, ticks } = bathChartDomains(chart, -10);
     expect(time).toEqual([0, 1200]);
-    expect(temperature[0]).toBeLessThan(-10);
-    expect(temperature[1]).toBeGreaterThan(17.2);
-    expect(chartTicks(temperature)).toHaveLength(4);
+    expect(temperature).toEqual([-10, 20]);
+    expect(ticks).toEqual([-10, 0, 10, 20]);
+  });
+  it("selects even 1/2/5/10 steps and rounds the domain outward", () => {
+    expect(chartAxis([-8.8, 19.1], 5)).toEqual({ domain: [-10, 20], ticks: [-10, 0, 10, 20], step: 10 });
+    expect(chartAxis([0, 19], 3)).toEqual({ domain: [0, 20], ticks: [0, 10, 20], step: 10 });
+    expect([chartAxis([0, 3], 5).step, chartAxis([0, 7], 5).step, chartAxis([0, 17], 5).step]).toEqual([1, 2, 5]);
   });
   it("only selects lines with measured values", () => {
     expect(chartLines(chart)).toEqual([1, 2]);
@@ -59,7 +63,8 @@ describe("chiller chart", () => {
     expect(domain.ticks).toEqual([18, 16, 14, 12, 10, 8, 6, 4, 2, 0]);
     expect(chartScale(18, domain.degrees, 36, 350)).toBe(36);
     expect(chartScale(0, domain.degrees, 36, 350)).toBe(350);
-    expect(domain.heat).toEqual([0, 69]);
+    expect(domain.heat).toEqual([0, 100]);
+    expect(domain.heatTicks).toEqual([0, 50, 100]);
     expect(liftChartDomains({ series: [], runs: [] }, null).degrees).toEqual([12, 0]);
   });
   it("lift graph only for test, empty active test is shown, empty ended test is hidden", () => {
@@ -67,7 +72,7 @@ describe("chiller chart", () => {
     expect(showLiftChart({ ...base, active: true, chart: empty })).toBe(true);
     expect(showLiftChart({ ...base, ended_at: ago(60_000), chart: empty })).toBe(false);
     expect(showLiftChart({ ...base, ended_at: ago(60_000), chart })).toBe(true);
-    expect(showLiftChart({ ...base, active: true, chart }, true)).toBe(false);
+    expect(showLiftChart({ ...base, active: true, chart })).toBe(true);
     expect(showLiftChart({ ...base, kind: "top", active: true, chart })).toBe(false);
     expect(showLiftChart(base)).toBe(false);
   });

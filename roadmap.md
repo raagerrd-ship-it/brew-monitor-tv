@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] ChillerCharts: graf B även i TV-sidoplatsen, större diagramtexter och jämna skalsteg; 81 tester gröna och mockad TV i 1920×1080 visar båda graferna utan klippta etiketter. Ingen publicering.
+
 - [x] Glykolkylaren: nullable chart (0033), validerad mottagning och statiska grafer; hjälpfunktioner och mockad TV i 1280×720/1920×1080 verifierade, även kompakt, tom och avslutad kurva. Inga testrader eller publicering.
 
 - [x] TV: diagrammens händelseetiketter står längst ner igen och staplas bara uppåt när de faktiskt skulle överlappa (x-avstånd < etikettbredd), i stället för de tidigare höjdlanes som lyfte långa etiketter mitt i diagrammet. Nytt test och uppdaterade etiketttester; ingen publicering.
