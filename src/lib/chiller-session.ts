@@ -68,25 +68,37 @@ export const chartClock = (startedAt: string, seconds: number) => fmtEta(new Dat
 export const chartTicks = ([min, max]: [number, number], count = 4) => Array.from({ length: count }, (_, i) => min + (max - min) * i / (count - 1));
 export const chartScale = (value: number, [min, max]: [number, number], from: number, to: number) => from + (value - min) / (max - min) * (to - from);
 export const chartLines = (chart: ChillerChart) => ([1, 2, 3] as const).filter((index) => chart.series.some((p) => p[index] != null));
-export function bathChartDomains(chart: ChillerChart, stop: number | null): { time: [number, number]; temperature: [number, number] } {
+export function chartAxis([min, max]: [number, number], maxLabels: number) {
+  for (let magnitude = 1; ; magnitude *= 10) {
+    for (const unit of [1, 2, 5, 10]) {
+      const step = unit * magnitude;
+      const lower = Math.floor(min / step) * step;
+      const upper = Math.max(lower + step, Math.ceil(max / step) * step);
+      const count = Math.round((upper - lower) / step) + 1;
+      if (count <= maxLabels) return { domain: [lower, upper] as [number, number], ticks: Array.from({ length: count }, (_, i) => lower + i * step), step };
+    }
+  }
+}
+export function bathChartDomains(chart: ChillerChart, stop: number | null): { time: [number, number]; temperature: [number, number]; ticks: number[] } {
   const times = chart.series.map((p) => p[0]);
   const values = chart.series.flatMap((p) => p.slice(1).filter((v): v is number => v != null));
   if (stop != null) values.push(stop);
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 1;
-  const pad = Math.max((max - min) * 0.08, 0.5);
+  const axis = chartAxis([min, max], 5);
   const start = times.length ? Math.min(...times) : 0;
-  return { time: [start, Math.max(start + 1, ...times)], temperature: [min - pad, max + pad] };
+  return { time: [start, Math.max(start + 1, ...times)], temperature: axis.domain, ticks: axis.ticks };
 }
-export function liftChartDomains(chart: ChillerChart, bathFrom: number | null): { degrees: [number, number]; heat: [number, number]; ticks: number[] } {
+export function liftChartDomains(chart: ChillerChart, bathFrom: number | null): { degrees: [number, number]; heat: [number, number]; ticks: number[]; heatTicks: number[] } {
   const points = [...(chart.lift ?? []), ...(chart.lift_base ?? [])];
   const top = Math.max(12, Math.ceil(Math.max(bathFrom ?? 0, ...points.map((p) => p[0]))));
+  const axis = chartAxis([0, Math.max(1, ...points.map((p) => p[1])) * 1.15], 3);
   return {
-    degrees: [top, 0], heat: [0, Math.max(1, ...points.map((p) => p[1])) * 1.15],
+    degrees: [top, 0], heat: axis.domain, heatTicks: axis.ticks,
     ticks: Array.from({ length: Math.floor(top / 2) + 1 }, (_, i) => Math.floor(top / 2) * 2 - i * 2),
   };
 }
-export const showLiftChart = (s: ChillerSession, compact = false) => !compact && s.kind === "test" && !!s.chart && (s.active || (s.chart.lift?.length ?? 0) > 0);
+export const showLiftChart = (s: ChillerSession) => s.kind === "test" && !!s.chart && (s.active || (s.chart.lift?.length ?? 0) > 0);
 
 /** Null observations start a new segment, never bridge a missing sensor reading. */
 export function chartPath(points: [number, number | null][], x: (v: number) => number, y: (v: number) => number): string {
