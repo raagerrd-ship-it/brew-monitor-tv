@@ -17,7 +17,7 @@ export function useChillerSession(enabled: boolean): ChillerSession | null {
 
   useEffect(() => {
     if (!enabled) return;
-    const setRow = (r: ChillerSession | null) => setRowRaw((prev) => (prev?.updated_at === r?.updated_at ? prev : r));
+    const setRow = (r: ChillerSession | null) => setRowRaw((prev) => (prev?.updated_at === r?.updated_at ? prev : r ? { ...r, chart: r.chart ?? null } : null));
     const load = async () => {
       const { data } = await supabase.from("chiller_session").select("*").eq("id", "glycol").maybeSingle();
       setRow((data as unknown as ChillerSession) ?? null);

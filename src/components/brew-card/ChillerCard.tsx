@@ -2,6 +2,7 @@ import { memo } from "react";
 import { AlertTriangle, Snowflake } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { RollingNumber } from "@/components/RollingNumber";
+import { ChillerCharts } from "./ChillerCharts";
 import { chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, LEVEL_LABEL, type ChillerSession } from "@/lib/chiller-session";
 
 const LEVEL_STYLE: Record<string, string> = {
@@ -52,6 +53,7 @@ export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground,
         </div>
       )}
       {s.lift_pct != null && <div className="text-base text-muted-foreground">Kylarens värme {s.lift_pct} % av baslinjen</div>}
+      <ChillerCharts s={s} compact={compact} />
       {text && <div className="text-sm text-muted-foreground line-clamp-3 mt-auto">{text}</div>}
     </Card>
   );
