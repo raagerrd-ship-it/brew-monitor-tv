@@ -70,7 +70,12 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         </div>
         <div className="min-w-0 flex-1">
           <div className={`${compact ? "text-xs tracking-[0.12em] truncate" : "text-base tracking-[0.2em]"} font-bold uppercase text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
-          <div className={`${compact ? "text-lg" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
+          <div className="flex items-center gap-2 mt-0.5 min-w-0">
+            {day.label_url && (
+              <img src={day.label_url} alt="" className={`${compact ? "h-7 w-7" : "h-9 w-9"} rounded-md object-cover shrink-0 border border-white/20`} />
+            )}
+            <div className={`${compact ? "text-lg" : "text-2xl"} font-semibold text-foreground/80 truncate`}>{day.recipe_name ?? "—"}</div>
+          </div>
           <div className={`${compact ? "text-2xl leading-tight" : "text-3xl"} font-bold tracking-tight break-words mt-1`}>{day.step_title ?? "—"}</div>
           {isDone && <div className="text-base font-semibold text-green-300 mt-1">Tryck Klar i appen</div>}
         </div>
@@ -154,6 +159,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         </div>
       )}
       {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}
+      </div>
     </Card>
   );
 });
