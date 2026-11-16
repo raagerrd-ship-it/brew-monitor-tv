@@ -239,6 +239,13 @@
       "when": 1794735278155,
       "tag": "0033_add_chiller_chart",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794845727444,
+      "tag": "0034_add_brew_day_label_url",
+      "breakpoints": true
     }
   ]
 }

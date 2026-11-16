@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body.active !== "boolean") return json({ error: "active (boolean) krävs" }, 400);
+  if (body.label_url != null && typeof body.label_url !== "string") return json({ error: "label_url must be a string or null" }, 400);
 
   const step = body.step ?? {};
   const next = body.next_step && typeof body.next_step === "object" ? body.next_step : null;
@@ -47,9 +48,11 @@ Deno.serve(async (req) => {
         next_step_minutes: int(next?.minutes),
         next_step_items: Array.isArray(next?.items) ? next.items.length : int(next?.items),
         step_started_at: str(body.step_started_at ?? step.started_at, 60),
+        label_url: str(body.label_url, 500),
       }
     : {
         id: 1, active: false, items: [], updated_at: new Date().toISOString(),
+        label_url: null,
         step_index: null, step_count: null, next_step_title: null,
         next_step_minutes: null, next_step_items: null, step_started_at: null,
       };

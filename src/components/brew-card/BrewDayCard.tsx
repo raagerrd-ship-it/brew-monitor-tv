@@ -1,10 +1,25 @@
-import { memo, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Check, ChefHat } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
 import { useSharedExternalTimer, type ExternalTimerState } from "@/hooks/use-external-timer";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/** Etikettbakgrund med mjuk övertoning: förra bilden tonas ut över den nya. */
+function useLabelCrossfade(url: string | null) {
+  const [bg, setBg] = useState<{ cur: string | null; prev: string | null; fading: boolean }>({ cur: url, prev: null, fading: false });
+  useEffect(() => {
+    setBg((b) => (url === b.cur ? b : { cur: url, prev: b.cur, fading: false }));
+  }, [url]);
+  useEffect(() => {
+    if (bg.prev == null || bg.fading) return;
+    const raf = requestAnimationFrame(() => setBg((b) => ({ ...b, fading: true })));
+    const t = setTimeout(() => setBg((b) => ({ ...b, prev: null })), 1100);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
+  }, [bg.prev, bg.fading]);
+  return bg;
+}
 
 type BrewDayCardProps = { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean; transitionActive?: boolean; compact?: boolean };
 export function BrewDayCard(props: BrewDayCardProps) {
@@ -21,9 +36,10 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
   const matchedId = nm ? day.items.find((i) => i.at_min != null && i.at_min * 60 === nm.time)?.id : undefined;
   const nextId = matchedId ?? day.items.find((i) => !i.checked)?.id;
   const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
+  const bg = useLabelCrossfade(day.label_url);
   return (
     <Card
-      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4" : "p-5"}`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
@@ -32,13 +48,34 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         boxShadow: isTvMode ? 'none' : '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
+      {(bg.cur || bg.prev) && (
+        <div className="absolute inset-0" aria-hidden>
+          {bg.prev && (
+            <img
+              src={bg.prev}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-cover scale-110 blur-[40px] transition-opacity duration-1000 ${bg.fading ? "opacity-0" : "opacity-100"}`}
+            />
+          )}
+          {bg.cur && (
+            <img src={bg.cur} alt="" className="absolute inset-0 h-full w-full object-cover scale-110 blur-[40px]" />
+          )}
+          <div className="absolute inset-0" style={{ background: 'hsl(0 0% 0% / 0.6)' }} />
+        </div>
+      )}
+      <div className={`relative z-10 flex flex-col flex-1 min-h-0 ${compact ? "gap-2" : isTvMode ? "gap-3" : "gap-4"}`}>
       <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>
         <div className={`shrink-0 flex items-center justify-center rounded-xl bg-foreground/10 ${compact ? "h-9 w-9" : "h-11 w-11"}`}>
           <ChefHat className={`${compact ? "h-5 w-5" : "h-6 w-6"} text-foreground/70`} />
         </div>
         <div className="min-w-0 flex-1">
           <div className={`${compact ? "text-xs tracking-[0.12em] truncate" : "text-base tracking-[0.2em]"} font-bold uppercase text-muted-foreground`}>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1} av ${day.step_count}` : ""}</div>
-          <div className={`${compact ? "text-lg" : "text-2xl"} font-semibold text-foreground/80 truncate mt-0.5`}>{day.recipe_name ?? "—"}</div>
+          <div className="flex items-center gap-2 mt-0.5 min-w-0">
+            {day.label_url && (
+              <img src={day.label_url} alt="" className={`${compact ? "h-7 w-7" : "h-9 w-9"} rounded-md object-cover shrink-0 border border-white/20`} />
+            )}
+            <div className={`${compact ? "text-lg" : "text-2xl"} font-semibold text-foreground/80 truncate`}>{day.recipe_name ?? "—"}</div>
+          </div>
           <div className={`${compact ? "text-2xl leading-tight" : "text-3xl"} font-bold tracking-tight break-words mt-1`}>{day.step_title ?? "—"}</div>
           {isDone && <div className="text-base font-semibold text-green-300 mt-1">Tryck Klar i appen</div>}
         </div>
@@ -122,6 +159,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         </div>
       )}
       {!isTvMode && <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 h-px w-2/3 bg-primary/20 blur-[2px]" aria-hidden />}
+      </div>
     </Card>
   );
 });

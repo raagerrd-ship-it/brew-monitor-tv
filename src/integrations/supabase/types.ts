@@ -78,6 +78,7 @@ export type Database = {
           active: boolean
           id: number
           items: Json
+          label_url: string | null
           next_step_items: number | null
           next_step_minutes: number | null
           next_step_title: string | null
@@ -95,6 +96,7 @@ export type Database = {
           active?: boolean
           id?: number
           items?: Json
+          label_url?: string | null
           next_step_items?: number | null
           next_step_minutes?: number | null
           next_step_title?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           active?: boolean
           id?: number
           items?: Json
+          label_url?: string | null
           next_step_items?: number | null
           next_step_minutes?: number | null
           next_step_title?: string | null
