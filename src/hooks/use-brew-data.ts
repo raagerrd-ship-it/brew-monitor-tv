@@ -165,7 +165,7 @@ export function useBrewData(): UseBrewDataReturn {
       ...(fermentingBrews || []).map(b => b.id as string),
     ])];
 
-    if (isTvMode) {
+    {
       if (activeBrewIds.length > 0) {
         const { data, error } = await supabase.from('brew_readings').select('id')
           .in('id', activeBrewIds).not('status', 'in', '("Arkiverad","Konditionering","Conditioning","Klar","Completed")');
@@ -190,9 +190,7 @@ export function useBrewData(): UseBrewDataReturn {
       return [];
     }
 
-    const HIDDEN_STATUSES = isTvMode
-      ? ['Arkiverad', 'Konditionering', 'Conditioning']
-      : ['Arkiverad', 'Klar', 'Completed', 'Konditionering', 'Conditioning'];
+    const HIDDEN_STATUSES = ['Arkiverad', 'Konditionering', 'Conditioning'];
 
     const [brewReadingsRes, eventsRes, sessionsRes, metricsRes] = await Promise.all([
       supabase
@@ -520,7 +518,7 @@ export function useBrewData(): UseBrewDataReturn {
         })(),
       };
     });
-    return mapped.map(b => isTvMode && KEG_STATUSES.includes(b.status)
+    return mapped.map(b => KEG_STATUSES.includes(b.status)
       ? freezeKegBrew(b) : b).sort((a, b) => Number(!!a.frozen) - Number(!!b.frozen));
   }, [isTvMode]);
 
@@ -655,7 +653,7 @@ export function useBrewData(): UseBrewDataReturn {
         return;
       }
 
-      if (isTvMode && (currentBrew.frozen || KEG_STATUSES.includes(updatedReading.status))) {
+      if ((currentBrew.frozen || KEG_STATUSES.includes(updatedReading.status))) {
         if (updatedReading.status && !KEG_STATUSES.includes(updatedReading.status)) loadBrews();
         else if (!currentBrew.frozen) loadBrews();
         return;
