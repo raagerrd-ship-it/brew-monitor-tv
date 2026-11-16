@@ -1,0 +1,1 @@
+ALTER TABLE public.brew_day_session ADD COLUMN label_url text;
