@@ -1,10 +1,25 @@
-import { memo, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Check, ChefHat } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay } from "@/hooks/use-brew-day";
 import { useSharedExternalTimer, type ExternalTimerState } from "@/hooks/use-external-timer";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/** Etikettbakgrund med mjuk övertoning: förra bilden tonas ut över den nya. */
+function useLabelCrossfade(url: string | null) {
+  const [bg, setBg] = useState<{ cur: string | null; prev: string | null; fading: boolean }>({ cur: url, prev: null, fading: false });
+  useEffect(() => {
+    setBg((b) => (url === b.cur ? b : { cur: url, prev: b.cur, fading: false }));
+  }, [url]);
+  useEffect(() => {
+    if (bg.prev == null || bg.fading) return;
+    const raf = requestAnimationFrame(() => setBg((b) => ({ ...b, fading: true })));
+    const t = setTimeout(() => setBg((b) => ({ ...b, prev: null })), 1100);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
+  }, [bg.prev, bg.fading]);
+  return bg;
+}
 
 type BrewDayCardProps = { day: BrewDay; hasAlbumArtBackground?: boolean; isTvMode?: boolean; transitionActive?: boolean; compact?: boolean };
 export function BrewDayCard(props: BrewDayCardProps) {
