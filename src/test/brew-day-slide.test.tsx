@@ -19,6 +19,7 @@ const day: BrewDay = {
   recipe_name: 'Mätbrygd', step_title: 'Kok', step_kind: 'boil', target_temp_c: 100,
   items: [{ id: 'citra', name: 'Citra', amount: 30, unit: 'g', at_min: 15, checked: false }],
   updated_at: '', step_index: 1, step_count: 3, next_step_title: 'Whirlpool', next_step_minutes: 20, next_step_items: 1, step_started_at: null,
+  label_url: null,
 };
 afterEach(() => vi.useRealTimers());
 
