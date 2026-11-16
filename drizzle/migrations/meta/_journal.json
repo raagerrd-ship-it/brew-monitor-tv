@@ -253,6 +253,13 @@
       "when": 1794846060856,
       "tag": "0035_restrict_writes_to_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794846237797,
+      "tag": "0036_drop_unused_album_backgrounds_policy",
+      "breakpoints": true
     }
   ]
 }

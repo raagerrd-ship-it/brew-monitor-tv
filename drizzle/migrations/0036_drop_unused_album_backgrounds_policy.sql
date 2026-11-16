@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Album backgrounds are publicly accessible" ON storage.objects;
