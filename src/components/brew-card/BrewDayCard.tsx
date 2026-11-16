@@ -36,9 +36,10 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
   const matchedId = nm ? day.items.find((i) => i.at_min != null && i.at_min * 60 === nm.time)?.id : undefined;
   const nextId = matchedId ?? day.items.find((i) => !i.checked)?.id;
   const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
+  const bg = useLabelCrossfade(day.label_url);
   return (
     <Card
-      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4 gap-2" : isTvMode ? "p-5 gap-3" : "p-5 gap-4"}`}
+      className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4" : "p-5"}`}
       style={{
         background: hasAlbumArtBackground
           ? 'hsl(222 18% 15% / 0.75)'
@@ -47,6 +48,22 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         boxShadow: isTvMode ? 'none' : '0 8px 24px hsl(222 30% 3% / 0.7), 0 20px 40px hsl(222 30% 2% / 0.5)',
       }}
     >
+      {(bg.cur || bg.prev) && (
+        <div className="absolute inset-0" aria-hidden>
+          {bg.prev && (
+            <img
+              src={bg.prev}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-cover scale-110 blur-[40px] transition-opacity duration-1000 ${bg.fading ? "opacity-0" : "opacity-100"}`}
+            />
+          )}
+          {bg.cur && (
+            <img src={bg.cur} alt="" className="absolute inset-0 h-full w-full object-cover scale-110 blur-[40px]" />
+          )}
+          <div className="absolute inset-0" style={{ background: 'hsl(0 0% 0% / 0.6)' }} />
+        </div>
+      )}
+      <div className={`relative z-10 flex flex-col flex-1 min-h-0 ${compact ? "gap-2" : isTvMode ? "gap-3" : "gap-4"}`}>
       <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>
         <div className={`shrink-0 flex items-center justify-center rounded-xl bg-foreground/10 ${compact ? "h-9 w-9" : "h-11 w-11"}`}>
           <ChefHat className={`${compact ? "h-5 w-5" : "h-6 w-6"} text-foreground/70`} />
