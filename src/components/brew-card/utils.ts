@@ -50,6 +50,8 @@ export function calculateDaysSinceStart(
  * Get status display text including fermentation day count
  */
 export function getStatusDisplayText(brew: BrewData): string {
+  // Mottagen från Brew Master men ännu inte i någon tank.
+  if ((brew.status === "Jäsning" || brew.status === "Fermenting") && !brew.linked_controller_id && !brew.frozen) return "Väntar på jästank";
   if (brew.status === "Jäsning" && brew.sgData.length > 0) {
     const daysSinceStart = calculateDaysSinceStart(brew.sgData);
     return `${brew.status} dag ${daysSinceStart}`;

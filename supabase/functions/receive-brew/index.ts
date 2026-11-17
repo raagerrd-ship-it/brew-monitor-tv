@@ -57,6 +57,12 @@ Deno.serve(async (req) => {
   // Jästinfo normaliseras om den skickas; kravet ligger i avsändarappen.
   const yeasts = normalizeYeasts(body.yeasts);
 
+  // Etikett: sträng sparas, null tar bort, saknas = oförändrad.
+  if (body.label_url !== undefined && body.label_url !== null && typeof body.label_url !== "string") {
+    return json({ error: "label_url must be a string or null" }, 400);
+  }
+  const label = body.label_url === undefined ? {} : { label_image_url: body.label_url || null };
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -119,6 +125,7 @@ Deno.serve(async (req) => {
     // Lägger satsen direkt i kön till Jäscontrollern.
     pi_pending_at: new Date().toISOString(),
     ...profileAsk,
+    ...label,
   };
 
   // Full omskrivning bara för nya bryggor eller bryggor som fortfarande står i
@@ -140,6 +147,7 @@ Deno.serve(async (req) => {
         style: row.style,
         ...(row.volume_l != null ? { volume_l: row.volume_l } : {}),
         ...profileAsk,
+        ...label,
       })
       .eq("id", existing.id)
       .select("id, batch_id, name, style, volume_l, pi_pending_at")
