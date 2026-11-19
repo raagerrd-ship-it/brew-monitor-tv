@@ -6,7 +6,7 @@ const now = Date.parse("2026-11-14T17:00:00Z");
 const base: ChillerSession = {
   kind: "test", active: false, level: null, advice: null, started_at: null, ends_by: null, ended_at: null,
   bath_c: null, bath_from_c: null, stop_c: null, rate_c_min: null, eta_at: null, compressor_on: false,
-  after_runs_done: null, lift_pct: null, result: null, chiller_locked: false, warnings: [], sent_at: null,
+  after_runs_done: null, lift_pct: null, result: null, chiller_locked: false, warnings: [], notices: [], sent_at: null,
   updated_at: new Date(now).toISOString(), chart: null,
 };
 const ago = (ms: number) => new Date(now - ms).toISOString();
