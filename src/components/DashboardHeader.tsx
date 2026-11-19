@@ -6,7 +6,7 @@ import { RollingNumber } from "./RollingNumber";
 import { SonosWidget } from "./sonos/SonosWidget";
 import { memo, useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Menu, Cpu, Hand, Power, RotateCcw, Droplets } from "lucide-react";
+import { Settings, Pill, AirVent, LogOut, RefreshCw, WifiOff, Timer, Snowflake, AlertTriangle, Info, Menu, Cpu, Hand, Power, RotateCcw, Droplets } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlarmTimerDialog } from "./AlarmTimerDialog";
 import { useAlarmTimer } from "@/contexts/AlarmTimerContext";
@@ -24,6 +24,7 @@ import { RelayIcon } from "./header/RelayIcon";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { useToast } from "@/hooks/use-toast";
 import { useCleaningChecklist } from "@/hooks/use-cleaning-checklist";
+import { useChillerAlerts } from "@/hooks/use-chiller-session";
 
 function PiMenuItem() {
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
@@ -400,6 +401,7 @@ export const RaptControllerBar = memo(function RaptControllerBar({
   const [staleThresholdMin, setStaleThresholdMin] = useState(31);
   const [pillStaleMin, setPillStaleMin] = useState(5);
   const [probeStaleMin, setProbeStaleMin] = useState(31);
+  const chillerAlerts = useChillerAlerts();
   const tileRefs = useRef(new Map<string, HTMLDivElement>());
   const tileLefts = useRef(new Map<string, number>());
   const previousCompact = useRef(compact);
@@ -560,6 +562,20 @@ export const RaptControllerBar = memo(function RaptControllerBar({
                         )}
                         {isControllerStale && (
                           <WifiOff className="w-3 h-3 text-destructive animate-pulse" />
+                        )}
+                        {isCooler && chillerAlerts.warnings.length > 0 && (
+                          <span className="inline-flex" title={chillerAlerts.warnings.join('\n')}>
+                            <AlertTriangle className="w-3 h-3 text-destructive" aria-label="Glykolvarning" />
+                          </span>
+                        )}
+                        {isCooler && chillerAlerts.warnings.length === 0 && chillerAlerts.notices.length > 0 && (
+                          <span className="inline-flex" title={chillerAlerts.notices.join('\n')}>
+                            <Info
+                              className="w-3 h-3 flex-shrink-0"
+                              style={{ color: 'hsl(38 92% 55%)', filter: 'drop-shadow(0 0 2px hsl(38 92% 55% / 0.35))' }}
+                              aria-label="Glykolnotis"
+                            />
+                          </span>
                         )}
                         {!isControllerStale && pillWarn && (
                           <span

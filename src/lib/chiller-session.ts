@@ -29,6 +29,7 @@ export interface ChillerSession {
   result: string | null;
   chiller_locked: boolean;
   warnings: string[];
+  notices: string[];
   sent_at: string | null;
   updated_at: string;
 }

@@ -45,3 +45,31 @@ export function useChillerSession(enabled: boolean): ChillerSession | null {
 
   return enabled && visible ? row : null;
 }
+
+/** Varningar och notiser från glykolraden, oavsett kortets synlighet. */
+export function useChillerAlerts(): { warnings: string[]; notices: string[] } {
+  const [row, setRow] = useState<ChillerSession | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from("chiller_session").select("*").eq("id", "glycol").maybeSingle();
+      setRow((data as unknown as ChillerSession) ?? null);
+    };
+    load();
+    const listener: Listener = (r) => (r === undefined ? load() : setRow(r ?? null));
+    listeners.add(listener);
+    const resume = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      listeners.delete(listener);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
+  }, []);
+
+  return {
+    warnings: Array.isArray(row?.warnings) ? row.warnings : [],
+    notices: Array.isArray(row?.notices) ? row.notices : [],
+  };
+}

@@ -1,0 +1,1 @@
+ALTER TABLE public.chiller_session ADD COLUMN notices jsonb NOT NULL DEFAULT '[]'::jsonb;

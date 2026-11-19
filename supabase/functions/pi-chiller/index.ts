@@ -6,7 +6,7 @@ const PI_SECRET = Deno.env.get("PI_BLE_INGEST_SECRET");
 const FIELDS = [
   "kind", "active", "level", "advice", "started_at", "ends_by", "ended_at", "bath_c", "bath_from_c",
   "stop_c", "rate_c_min", "eta_at", "compressor_on", "after_runs_done", "lift_pct", "result",
-  "chiller_locked", "warnings", "sent_at", "chart",
+  "chiller_locked", "warnings", "notices", "sent_at", "chart",
 ];
 
 Deno.serve(async (req) => {
@@ -27,10 +27,13 @@ Deno.serve(async (req) => {
   if ("warnings" in body && !(Array.isArray(body.warnings) && body.warnings.every((w: unknown) => typeof w === "string"))) {
     return json({ error: "warnings must be an array of strings" }, 400);
   }
+  if ("notices" in body && !(Array.isArray(body.notices) && body.notices.every((w: unknown) => typeof w === "string"))) {
+    return json({ error: "notices must be an array of strings" }, 400);
+  }
   const row: Record<string, unknown> = { id: "glycol", updated_at: new Date().toISOString() };
   for (const f of FIELDS) if (f in body) row[f] = body[f];
   // Ej nullbara kolumner: null betyder standardvärdet.
-  for (const [f, d] of [["active", false], ["compressor_on", false], ["chiller_locked", false], ["warnings", []]] as const) {
+  for (const [f, d] of [["active", false], ["compressor_on", false], ["chiller_locked", false], ["warnings", []], ["notices", []]] as const) {
     if (f in row && row[f] === null) row[f] = d;
   }
 

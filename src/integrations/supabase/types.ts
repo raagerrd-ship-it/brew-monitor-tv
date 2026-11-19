@@ -580,6 +580,7 @@ export type Database = {
           kind: string | null
           level: string | null
           lift_pct: number | null
+          notices: Json
           rate_c_min: number | null
           result: string | null
           sent_at: string | null
@@ -604,6 +605,7 @@ export type Database = {
           kind?: string | null
           level?: string | null
           lift_pct?: number | null
+          notices?: Json
           rate_c_min?: number | null
           result?: string | null
           sent_at?: string | null
@@ -628,6 +630,7 @@ export type Database = {
           kind?: string | null
           level?: string | null
           lift_pct?: number | null
+          notices?: Json
           rate_c_min?: number | null
           result?: string | null
           sent_at?: string | null
