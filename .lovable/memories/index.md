@@ -8,7 +8,7 @@
 - `actual_temp` is the Single Source of Truth (SSOT), set per controller via `dual_sensor_enabled` + `preferred_sensor` (avg / probe / pill). Never recompute elsewhere. Temps use 2 decimals, else 1.
 - Never use hard reloads (`window.location.reload()`) on interactive devices to prevent layout jumps.
 - Never regenerate `pi/brew-ble/ble_scanner.py` from scratch — Kegland 0x4152 PT-V2 decoder is field-verified; only surgical edits.
-- UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Mute the 2nd decimal in temperature displays.
+- UI rules: Glassmorphism (65-85% opacity), Inter font, desktop scaled to 16:9. Tempkortets stora värde avrundas till 1 decimal (16.97 → 17.0).
 - Controllers (DB-namn): **Green** (`6fbbc7db`, cooling+heating), **Blå** (`ffa62be4`), **Gul** (`618b29b0`), **Kylare** (`7e57bd3c`, glycol). Kör average-SSOT (`dual_sensor_enabled=true`) → `actual_temp` = probe+pill-snitt. Använd DB-namnet i loggar/svar; bryggnamn (t.ex. "El Sueco Dorado") tillhör aktiv brygga, inte controllern.
 
 ## Memories

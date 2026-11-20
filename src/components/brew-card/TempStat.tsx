@@ -321,7 +321,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
   return (
     <StatCard
       label={label}
-      value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={2} mutedLastDigit suffix={<span className="text-muted-foreground/40">°</span>} />}
+      value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-muted-foreground/40">°</span>} />}
       
       className="gap-0.5 !py-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
