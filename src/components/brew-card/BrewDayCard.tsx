@@ -42,6 +42,9 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
   const nextId = nextItem?.id;
   const countdown = active && nextItem?.at_min != null ? active.remainingSeconds - nextItem.at_min * 60 : null;
   const bg = useLabelCrossfade(day.label_url);
+  const compactTv = !!isTvMode && !!compact;
+  const checkedCount = day.items.filter(i => i.checked).length;
+  const visibleItems = compactTv ? day.items.filter(i => !i.checked) : day.items;
   return (
     <Card
       className={`relative border-white/15 ${isTvMode ? "" : "shadow-deep"} h-full w-full overflow-hidden flex flex-col ${compact ? "p-4" : "p-5"}`}
@@ -69,7 +72,27 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
         </div>
       )}
       <div className={`relative z-10 flex flex-col flex-1 min-h-0 ${compact ? "gap-2" : isTvMode ? "gap-3" : "gap-4"}`}>
-      <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>
+      {compactTv ? (
+        <div className="shrink-0 min-w-0 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground whitespace-nowrap">
+            <ChefHat className="h-4 w-4 shrink-0" />
+            <span>Bryggdag{day.step_index != null && day.step_count != null ? ` · Steg ${day.step_index + 1}/${day.step_count}` : ""}</span>
+          </div>
+          {day.step_count != null && day.step_index != null && (
+            <div className="flex gap-1 h-1" aria-label={`${day.step_index} av ${day.step_count} steg klara`}>
+              {Array.from({ length: day.step_count }, (_, index) => <span key={index} className={`flex-1 rounded-sm ${index < (day.step_index ?? 0) ? "bg-primary" : "bg-foreground/15"}`} />)}
+            </div>
+          )}
+          <div className="flex items-center gap-2 min-w-0">
+            {day.label_url && <img src={day.label_url} alt="" className="h-7 w-7 rounded-md object-cover shrink-0 border border-border" />}
+            <div className="text-base font-semibold text-foreground/80 line-clamp-2">{day.recipe_name ?? "—"}</div>
+          </div>
+          <div className="text-3xl leading-tight font-bold whitespace-normal break-normal">{day.step_title ?? "—"}</div>
+          {isDone ? <div className="text-base font-semibold text-primary">KLART · Tryck Klar i appen</div> : day.target_temp_c != null && (
+            <span className="inline-flex rounded-md border border-primary/30 bg-primary/15 px-2 py-0.5 text-xl font-bold tabular-nums text-primary">{Number(day.target_temp_c.toFixed(1))}°</span>
+          )}
+        </div>
+      ) : <div className={`flex items-start ${compact ? "gap-2.5" : "gap-4"}`}>
         <div className={`shrink-0 flex items-center justify-center rounded-xl bg-foreground/10 ${compact ? "h-9 w-9" : "h-11 w-11"}`}>
           <ChefHat className={`${compact ? "h-5 w-5" : "h-6 w-6"} text-foreground/70`} />
         </div>
@@ -93,13 +116,21 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
             <div className={`${compact ? "text-3xl" : "text-4xl"} font-bold tabular-nums text-primary leading-tight`}>{Number(day.target_temp_c.toFixed(1))}°</div>
           </div>
         )}
-      </div>
+      </div>}
       <div
         className="shrink-0 h-px bg-border/60 pointer-events-none"
         aria-hidden
       />
-      <ul className="flex-1 min-h-0 overflow-hidden flex flex-col justify-start">
-        {day.items.map((i, index) => {
+      {compactTv && checkedCount > 0 && (
+        <div className="flex shrink-0 items-center gap-2 py-1 text-sm text-muted-foreground">
+          <Check className="h-4 w-4 shrink-0" /><span className="whitespace-nowrap">{checkedCount} av {day.items.length} klara</span>
+          <div className="ml-auto flex gap-0.5 w-20 h-1" aria-hidden>
+            {day.items.map((item) => <span key={item.id} className={`flex-1 rounded-sm ${item.checked ? "bg-primary/70" : "bg-foreground/15"}`} />)}
+          </div>
+        </div>
+      )}
+      <ul className={`flex-1 min-h-0 ${compactTv ? "overflow-y-auto" : "overflow-hidden"} flex flex-col justify-start`}>
+        {visibleItems.map((i, index) => {
           const isNext = i.id === nextId;
           const itemState = getBrewDayItemState(i, isNext, countdown);
           const isNow = itemState === "now";
@@ -160,8 +191,8 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
       </ul>
       {day.next_step_title && (
         <div className={`shrink-0 border-t border-border/60 ${compact ? "pt-2" : "pt-3"}`}>
-          <div className={`${compact ? "text-sm" : "text-base"} font-bold uppercase tracking-[0.2em] text-muted-foreground`}>Nästa</div>
-          <div className={`${compact ? "text-lg leading-snug" : "text-xl"} font-medium text-foreground break-words`}>
+          <div className={`${compactTv ? "text-xs" : compact ? "text-sm tracking-[0.2em]" : "text-base tracking-[0.2em]"} font-bold uppercase text-muted-foreground`}>Nästa</div>
+          <div className={`${compactTv ? "text-sm truncate" : compact ? "text-lg leading-snug break-words" : "text-xl break-words"} font-medium text-foreground`}>
           {day.next_step_title}
           {day.next_step_minutes != null ? ` · ${day.next_step_minutes} min` : ""}
           {day.next_step_items != null && day.next_step_items > 0 ? ` · ${day.next_step_items} ${day.next_step_items === 1 ? "tillsats" : "tillsatser"}` : ""}

@@ -237,8 +237,8 @@ export function BrewingDashboard() {
 
   // Memoized grid layout helpers — beer cards resize in one step (no animated
   // layout); the motion comes from the row and brew day card sliding sideways.
-  // With three cards where the last is a keg beer, the brew day card takes its place: keg out right, then brew day in.
-  const swapKeg = isTvMode && !isMobile && brews.length === 3 && !!brews[2].frozen;
+  // Brew day keeps all three beer cards; the chiller can still replace the last keg card.
+  const swapKeg = isTvMode && !isMobile && brews.length === 3 && !!brews[2].frozen && displayedBrewDay?.type !== 'brew';
   const cardCount = brews.length + (displayedBrewDay && !swapKeg ? 1 : 0);
   // The TV row has no card shadows, so the cards sit tighter (12 px) than elsewhere (24 px).
   const gridLayout = useMemo(() => {
@@ -256,13 +256,13 @@ export function BrewingDashboard() {
   const soloBrewDay = isTvMode && brews.length === 0 && !!displayedBrewDay;
   const threeBrewsWithDay = isTvMode && brews.length === 3 && !!displayedBrewDay && !swapKeg;
   // Same 0.5rem of extra slack as the wide-gap layout, scaled to the TV gap.
-  const brewDayWidth = swapKeg ? (isTvMode ? 'calc((100% - 2.75rem) / 3)' : 'calc((100% - 5rem) / 3)') : soloBrewDay ? '66.666667%' : threeBrewsWithDay ? '33.333333%' : cardCount >= 3
+  const brewDayWidth = swapKeg ? (isTvMode ? 'calc((100% - 2.75rem) / 3)' : 'calc((100% - 5rem) / 3)') : soloBrewDay ? '66.666667%' : cardCount >= 3
     ? `calc((100% - ${(cardCount - 1) * (isTvMode ? 0.75 : 1.5)}rem) / ${cardCount})`
     : 'calc(50% - 0.75rem)';
   // The row is centered, so adding a card moves existing cards left by half
   // of (card width + gap); start shifted by that much so they don't jump.
   // translateX % uses the row's full width incl. its 2rem padding, so subtract it.
-  const brewDayShift = threeBrewsWithDay ? (isTvMode ? 'calc(16.666667% + 0.375rem)' : 'calc(16.666667% + 0.75rem)') : cardCount >= 3
+  const brewDayShift = cardCount >= 3
     ? `calc((100% - 0.5rem) / ${cardCount * 2})`
     : 'calc(25% - 0.125rem)';
 
@@ -469,7 +469,7 @@ export function BrewingDashboard() {
                   ...(swapKeg && index === 2 && displayedBrewDay && !brewDayTransition ? { visibility: 'hidden' as const } : {}),
                     }}
               >
-                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} />
+                <BrewCard brew={brew} updatedFields={updatedFields} isAuthenticated={isAuthenticated} pills={pills} controllers={controllers} onShareBrew={handleShareBrew} onEventsChange={loadBrewEvents} onControllerClick={handleControllerClick} cardIndex={index} hasAlbumArtBackground brewCount={brews.length} compact={isTvMode && cardCount === 4} />
               </div>
             ))}
             {displayedBrewDay && !swapKeg && (

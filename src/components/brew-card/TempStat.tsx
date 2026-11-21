@@ -14,9 +14,10 @@ interface TempStatProps {
   devices: DeviceMatch;
   updatedFields: Record<string, Record<string, boolean>>;
   onControllerClick?: (controller: import("@/types/brew").TempController) => void;
+  compact?: boolean;
 }
 
-function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: TempStatProps) {
+function TempStatComponent({ brew, devices, updatedFields, onControllerClick, compact = false }: TempStatProps) {
   const { isTvMode } = useTvMode();
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
@@ -320,7 +321,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
 
   return (
     <StatCard
-      label={label}
+      label={compact ? 'Temp' : label}
       value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-muted-foreground/40">°</span>} />}
       
       className="gap-0.5 !py-1.5"
@@ -330,14 +331,14 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick }: 
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
       rowSpan={2}
       labelSize="18px"
-      valueSize="48px"
+      valueSize={compact ? "38px" : "48px"}
       onClick={handleClick}
       clickable={!!handleClick}
     >
-      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
+      {!compact && <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
         {spanBar}
         {dutyBar}
-      </div>
+      </div>}
     </StatCard>
   );
 }

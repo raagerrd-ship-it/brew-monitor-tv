@@ -62,6 +62,7 @@ function BrewCardComponent({
   cardIndex = 0,
   hasAlbumArtBackground = false,
   brewCount,
+  compact = false,
 }: BrewCardProps) {
   const [syncedDataOpen, setSyncedDataOpen] = useState(false);
   const [printLabelOpen, setPrintLabelOpen] = useState(false);
@@ -150,7 +151,7 @@ function BrewCardComponent({
     >
       
       {/* Header - fixed height */}
-      <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${CARD_HEADER_HEIGHT}px`, containerType: 'size' }}>
+      <div className="px-3 py-2 flex-shrink-0 relative" style={{ height: `${compact ? 100 : CARD_HEADER_HEIGHT}px` }}>
         {/* Gradient header border */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-[1px]"
@@ -178,9 +179,9 @@ function BrewCardComponent({
           {/* Title + subtitle column */}
           <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
             {/* Title row */}
-            <div className="flex items-center gap-2">
+            <div className={`flex ${compact ? "flex-col items-start gap-1" : "items-center gap-2"}`}>
               <h2 
-                className="font-bold text-foreground leading-tight truncate tracking-tight flex-1 min-w-0 cursor-pointer hover:text-primary "
+                className={`font-bold text-foreground leading-tight ${compact ? "whitespace-normal w-full line-clamp-2" : "truncate flex-1"} tracking-tight min-w-0 cursor-pointer hover:text-primary `}
                 style={{ 
                   fontSize: '18px',
                   textShadow: '0 2px 8px hsl(0 0% 0% / 0.4)',
@@ -444,6 +445,7 @@ function BrewCardComponent({
           brewId={brew.id}
           controllerId={devices.controller?.controller_id ?? undefined}
           compact 
+          narrow={compact}
           preloadedSession={brew.fermentationSession}
           isAuthenticated={showInteractiveElements}
           currentSg={brew.currentSG}
@@ -461,6 +463,7 @@ function BrewCardComponent({
         <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px`, overflow: 'visible' }}>
           <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full overflow-visible">
             <GravityStat 
+              compact={compact}
               brew={brew} 
               hideReadyToCrash={hideReadyToCrash}
               updatedFields={updatedFields} 
@@ -468,6 +471,7 @@ function BrewCardComponent({
             />
             <AbvStat brew={brew} updatedFields={updatedFields} />
             <TempStat 
+              compact={compact}
               brew={brew} 
               devices={devices} 
               updatedFields={updatedFields}

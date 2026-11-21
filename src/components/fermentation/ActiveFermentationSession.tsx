@@ -20,6 +20,7 @@ interface ActiveFermentationSessionProps {
   controllerId?: string;
   brewId?: string;
   compact?: boolean;
+  narrow?: boolean;
   preloadedSession?: FermentationSessionData | null;
   isAuthenticated?: boolean;
   currentSg?: number | null;
@@ -32,7 +33,7 @@ interface ActiveFermentationSessionProps {
 }
 
 export function ActiveFermentationSession({
-  controllerId, brewId, compact = false, preloadedSession,
+  controllerId, brewId, compact = false, narrow = false, preloadedSession,
   isAuthenticated: isAuthenticatedProp, currentSg, originalGravity,
   sgData, activityScore, fermentationPhase, attenuation, onExpandChange,
 }: ActiveFermentationSessionProps) {
@@ -256,6 +257,7 @@ export function ActiveFermentationSession({
           />
         ) : (
         <FermentationSessionCompact
+          narrow={narrow}
           profileName={session.profile?.name || ''}
           status={session.status}
           currentStepIndex={session.current_step_index}

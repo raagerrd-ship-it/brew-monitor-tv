@@ -26,6 +26,7 @@ interface GravityStatProps {
   updatedFields: Record<string, Record<string, boolean>>;
   onSyncedDataClick?: () => void;
   hideReadyToCrash?: boolean;
+  compact?: boolean;
 }
 
 function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: { 
@@ -143,7 +144,7 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
   );
 }
 
-function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash }: GravityStatProps) {
+function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash, compact = false }: GravityStatProps) {
   const { isTvMode } = useTvMode();
   const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
@@ -180,13 +181,13 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       rowSpan={2}
       customBackground={customBackground}
       labelSize="18px"
-      valueSize="48px"
+      valueSize={compact ? "38px" : "48px"}
       className="gap-0.5 !py-1.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
+      {!compact && <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
         {/* Gravity progress bar */}
         <div className="w-full px-1">
           <div 
@@ -276,7 +277,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
             </Tooltip>
           </TooltipProvider>
         )}
-      </div>
+      </div>}
     </StatCard>
   );
 }

@@ -27,6 +27,7 @@ interface SgDataPoint {
 }
 
 interface FermentationSessionCompactProps {
+  narrow?: boolean;
   profileName: string;
   status: string;
   currentStepIndex: number;
@@ -65,6 +66,7 @@ interface FermentationSessionCompactProps {
 }
 
 export function FermentationSessionCompact({
+  narrow = false,
   profileName,
   status,
   currentStepIndex,
@@ -434,14 +436,14 @@ export function FermentationSessionCompact({
       
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <div className="flex-1" />
+        <div className={`flex items-center gap-1.5 ${narrow ? "flex-wrap" : ""}`}>
+          {!narrow && <div className="flex-1" />}
           {(() => {
             const progress = totalSteps > 0 ? (currentStepIndex + 1) / totalSteps : 0;
             return (
               <Badge 
                 variant="outline"
-                className="shrink-0 font-medium border-primary/30 px-2 py-0.5"
+                className={`${narrow ? "min-w-0 flex-1 whitespace-normal leading-snug" : "shrink-0"} font-medium border-primary/30 px-2 py-0.5`}
                 style={{ 
                   fontSize: '14px',
                   background: `linear-gradient(135deg, hsl(var(--primary) / ${0.05 + progress * 0.25}) 0%, hsl(var(--primary) / ${0.02 + progress * 0.15}) 100%)`,

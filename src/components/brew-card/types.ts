@@ -15,6 +15,7 @@ export interface BrewCardProps {
   hasAlbumArtBackground?: boolean;
   /** Number of brews displayed - affects TV chart proportions */
   brewCount?: number;
+  compact?: boolean;
 }
 
 export interface DeviceMatch {
