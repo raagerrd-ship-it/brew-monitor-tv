@@ -181,7 +181,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       rowSpan={2}
       customBackground={customBackground}
       labelSize="18px"
-      valueSize={compact ? "38px" : "48px"}
+      valueSize={compact ? "26px" : "48px"}
       className="gap-0.5 !py-1.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
