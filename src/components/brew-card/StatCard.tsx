@@ -1,5 +1,28 @@
 import { ReactNode, CSSProperties } from "react";
 import { colorWithOpacity } from "./utils";
+import { useTvMode } from "@/contexts/TvModeContext";
+
+/** Gemensam ministapel: spår + en fyllnad (transform-only) + valfri markör. */
+export function MiniBar({ from = 0, to, color, marker }: { from?: number; to: number; color: string; marker?: number }) {
+  const { isTvMode } = useTvMode();
+  const clamp = (v: number) => Math.max(0, Math.min(100, v));
+  const left = clamp(from);
+  const width = Math.max(clamp(to) - left, 0);
+  return (
+    <div className="relative w-full h-[7px] rounded-full overflow-hidden bg-foreground/10">
+      <div
+        className={`absolute inset-y-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
+        style={{ transform: `translateX(${left}%) scaleX(${width / 100})`, transformOrigin: 'left', background: color }}
+      />
+      {marker !== undefined && (
+        <div className="absolute inset-y-0 w-[3px] rounded-full bg-foreground" style={{ left: `${clamp(marker)}%`, transform: 'translateX(-1.5px)' }} />
+      )}
+    </div>
+  );
+}
+
+/** Etikettrad för ministaplar: läsbar utan tooltip. */
+export const statDetailClass = "flex flex-wrap justify-between items-baseline gap-x-1.5 text-muted-foreground/80 tabular-nums tracking-tight leading-none text-[12px] whitespace-nowrap";
 
 interface StatCardProps {
   label: ReactNode;
@@ -40,6 +63,7 @@ export function StatCard({
   labelSize,
   valueSize,
 }: StatCardProps) {
+  const { isTvMode } = useTvMode();
   const defaultLabelSize = '10px';
   const defaultValueSize = '28px';
   
@@ -93,7 +117,7 @@ export function StatCard({
         style={{ 
           color,
           fontSize: finalValueSize,
-          textShadow: `0 0 25px ${colorWithOpacity(color, 0.4)}, 0 2px 6px hsl(0 0% 0% / 0.4)`,
+          textShadow: isTvMode ? 'none' : `0 0 25px ${colorWithOpacity(color, 0.4)}, 0 2px 6px hsl(0 0% 0% / 0.4)`,
           letterSpacing: '-0.02em'
         }}
       >

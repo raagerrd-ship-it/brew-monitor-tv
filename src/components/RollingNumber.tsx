@@ -86,7 +86,7 @@ export const RollingNumber = memo(function RollingNumber({ value, decimals, mute
       {Array.from(unsigned).map((char, i) => {
         const position = i < decimalIndex ? decimalIndex - i - 1 : decimalIndex - i;
         return (
-          <span key={char === "." ? "decimal" : `digit-${position}`} className={mutedLastDigit && i === unsigned.length - 1 ? "text-muted-foreground/40" : undefined}>
+          <span key={char === "." ? "decimal" : `digit-${position}`} className={mutedLastDigit && i === unsigned.length - 1 ? "text-muted-foreground/40" : undefined} style={mutedLastDigit && i === unsigned.length - 1 ? { textShadow: "none" } : undefined}>
             {/\d/.test(char) ? <RollingDigit digit={Number(char)} direction={direction} duration={duration} mode={mode} signChanged={signChanged} newLeadingDigit={!signChanged && position >= previousIntegerDigits.current} /> : char === "." ? decimalSeparator : char}
           </span>
         );

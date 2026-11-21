@@ -1,8 +1,7 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
-import { StatCard } from "./StatCard";
+import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { useTvMode } from "@/contexts/TvModeContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 
 const STALL_THRESHOLD = 0.002;
@@ -29,42 +28,17 @@ interface GravityStatProps {
   compact?: boolean;
 }
 
-function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: { 
+function FermentationRateLine({ rate, trend, stallThreshold, rate6h, rate12h }: { 
   rate: number; 
   trend?: 'rising' | 'falling' | 'stable' | null;
   stallThreshold: number;
   rate6h?: number | null;
   rate12h?: number | null;
 }) {
-  const { isTvMode } = useTvMode();
-  const displayRate = Math.abs(rate6h ?? rate);
-  const previousRate = Math.abs(rate12h ?? (rate6h ?? rate));
-  const maxRate = Math.max(0.015, displayRate * 1.5, previousRate * 1.5);
-  const stallPct = (stallThreshold / maxRate) * 100;
-  const ratePct = Math.min((displayRate / maxRate) * 100, 100);
-  
-  const trendIcon = trend === 'rising' ? '▶' : trend === 'falling' ? '◀' : '•';
-  const trendColor = trend === 'rising' 
-    ? 'hsl(142 70% 50%)' 
-    : trend === 'falling' 
-      ? 'hsl(0 70% 55%)' 
-      : 'hsl(38 70% 50%)';
-
+  const shownRate = rate6h ?? rate;
   const isStalled = rate <= stallThreshold;
-
-  // Trend bar: visualisera skillnaden mellan föregående 6h och senaste 6h
-  let trendBarLeft = ratePct;
-  let trendBarWidth = 0;
-  if (rate6h != null && rate12h != null && Math.abs(rate6h) > 0 && Math.abs(rate12h) > 0) {
-    const previousPct = Math.min((Math.abs(rate12h) / maxRate) * 100, 100);
-    trendBarLeft = Math.min(ratePct, previousPct);
-    trendBarWidth = Math.abs(ratePct - previousPct);
-  } else if (rate6h != null && rate12h == null && Math.abs(rate) > 0) {
-    // Fallback: jämför 6h-raten mot 24h-raten när 12h-data saknas
-    const fallbackPct = Math.min((Math.abs(rate) / maxRate) * 100, 100);
-    trendBarLeft = Math.min(ratePct, fallbackPct);
-    trendBarWidth = Math.abs(ratePct - fallbackPct);
-  }
+  const arrow = trend === 'rising' ? '↗' : trend === 'falling' ? '↘' : '→';
+  const rateText = `${shownRate > 0 ? '−' : '+'}${Math.abs(shownRate).toFixed(3).replace('.', ',')}/dygn`;
 
   const tooltipLines = [
     `Fart (24h): ${rate > 0 ? '-' : '+'}${Math.abs(rate).toFixed(4)}/d`,
@@ -77,63 +51,8 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="w-full flex flex-col gap-0.5 cursor-help">
-            {/* Bar */}
-            <div className="w-full px-1">
-              <div 
-                className="w-full rounded-full overflow-hidden relative"
-                style={{ 
-                  height: '6px',
-                  background: 'hsl(0 0% 0% / 0.5)',
-                  boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
-                }}
-              >
-                <div 
-                  className={`absolute top-0 bottom-0 left-0 w-full ${isTvMode ? 'tv-value-bar' : ''}`}
-                  style={{ 
-                    transform: `scaleX(${stallPct / 100})`,
-                    transformOrigin: 'left',
-                    background: 'linear-gradient(90deg, hsl(0 70% 35%), hsl(25 80% 40%))',
-                    opacity: 0.7,
-                  }}
-                />
-                {trendBarWidth > 0.5 && (
-                  <div 
-                    className={`absolute top-0 bottom-0 left-0 w-full ${isTvMode ? 'tv-value-bar' : ''}`}
-                    style={{ 
-                      transform: `translateX(${trendBarLeft}%) scaleX(${trendBarWidth / 100})`,
-                      transformOrigin: 'left',
-                      background: trendColor,
-                      opacity: 0.6,
-                      boxShadow: `0 0 6px ${trendColor}`,
-                    }}
-                  />
-                )}
-                <div 
-                  className="absolute inset-0 rounded-full pointer-events-none"
-                  style={{
-                    background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
-                  }}
-                />
-                <div 
-                  className="absolute top-[-1px] bottom-[-1px] w-[2px] rounded-full"
-                  style={{ 
-                    left: `${ratePct}%`,
-                    background: isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 95%)',
-                    boxShadow: `0 0 4px ${isStalled ? 'hsl(0 70% 55%)' : 'hsl(0 0% 100% / 0.6)'}`,
-                  }}
-                />
-              </div>
-            </div>
-            {/* Scale labels */}
-            <div 
-              className="flex justify-between items-center text-muted-foreground/60 tabular-nums" 
-              style={{ fontSize: '9px' }}
-            >
-              <span>0</span>
-              <span className="text-muted-foreground/40">{displayRate > 0 ? '-' : '+'}{Math.abs(displayRate).toFixed(3)}/d</span>
-              <span>{maxRate.toFixed(3)}</span>
-            </div>
+          <div className={`${statDetailClass} cursor-help`} style={isStalled ? { color: 'hsl(var(--destructive))' } : undefined}>
+            {isStalled ? <span className="font-semibold">{arrow} Avstannat</span> : <span>{arrow} {rateText}</span>}
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="whitespace-pre text-xs tabular-nums">
@@ -145,7 +64,6 @@ function FermentationRateBar({ rate, trend, stallThreshold, rate6h, rate12h }: {
 }
 
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash, compact = false }: GravityStatProps) {
-  const { isTvMode } = useTvMode();
   const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
   const isColdcrash = brew.coldcrashAcknowledged;
@@ -182,53 +100,22 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       customBackground={customBackground}
       labelSize="18px"
       valueSize={compact ? "26px" : "48px"}
-      className="gap-0.5 !py-1.5"
+      className="gap-0.5 !py-1.5 !px-1.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      {!compact && <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
-        {/* Gravity progress bar */}
-        <div className="w-full px-1">
-          <div 
-            className="w-full rounded-full overflow-hidden relative"
-            style={{ 
-              height: '6px',
-              background: 'hsl(0 0% 0% / 0.5)',
-              boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
-            }}
-          >
-            <div 
-              className={`absolute top-0 bottom-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
-              style={{ 
-                transform: `scaleX(${progress / 100})`,
-                transformOrigin: 'left',
-                background: progressColor,
-                boxShadow: `0 0 12px ${progressColor}, 0 0 6px ${progressColor}`
-              }}
-            />
-            <div 
-              className="absolute inset-0 rounded-full pointer-events-none"
-              style={{
-                background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)'
-              }}
-            />
-          </div>
+      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
+        <div className={statDetailClass}>
+          <span>{`OG\u202F${brew.originalGravity.toFixed(3)}`}</span>
+          <span>{`FG\u202F${brew.finalGravity.toFixed(3)}`}</span>
         </div>
-        
-        {/* OG and FG labels */}
-        <div 
-          className="flex justify-between text-muted-foreground/60 tabular-nums" 
-          style={{ fontSize: '9px' }}
-        >
-          <span>{brew.originalGravity.toFixed(3)}</span>
-          <span className="text-muted-foreground/40">{progress.toFixed(0)}%</span>
-          <span>{brew.finalGravity.toFixed(3)}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex-1"><MiniBar to={progress} color={progressColor} /></div>
+          <span className="text-[12px] font-semibold tabular-nums leading-none text-foreground whitespace-nowrap">{progress.toFixed(0)} %</span>
         </div>
-        
-        {/* Fermentation rate bar */}
         {!isInactive && brew.fermentationRate !== null && (
-          <FermentationRateBar 
+          <FermentationRateLine 
             rate={brew.fermentationRate} 
             trend={brew.fermentationTrend?.trend}
             stallThreshold={stallThreshold}
@@ -237,29 +124,17 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
           />
         )}
         {!isInactive && brew.fermentationRate === null && (
-          <p 
-            className="font-medium text-muted-foreground/70 truncate leading-tight" 
-            style={{ fontSize: '10px' }}
-          >
-            Beräknar...
-          </p>
+          <p className={statDetailClass}>Beräknar...</p>
         )}
-        {/* Fermentation metrics row - hidden on mobile */}
         {!isInactive && brew.fermentationMetrics && (
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="hidden sm:flex items-center justify-between gap-1 text-muted-foreground/70 tabular-nums cursor-help" style={{ fontSize: '9px' }}>
-                  <span className="inline-flex items-center gap-1">
-                    <span>
-                      {brew.fermentationMetrics.fermentation_phase === 'exponential' ? '🚀' : 
-                       brew.fermentationMetrics.fermentation_phase === 'declining' ? '↘' : 
-                       brew.fermentationMetrics.fermentation_phase === 'stationary' ? '⏳' : 
-                       brew.fermentationMetrics.fermentation_phase === 'lag' ? '⏳' : ''}
-                    </span>
+                <div className={`${statDetailClass} hidden sm:flex cursor-help h-[1em] overflow-hidden`}>
+                  <span>{brew.fermentationMetrics.activity_score == null ? 'Pillen tyst' : `Aktivitet ${brew.fermentationMetrics.activity_score} %`}</span>
+                  {brew.fermentationRate !== null && brew.fermentationRate > stallThreshold && (
                     <span>{phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}</span>
-                  </span>
-                  <span>{brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `⚡${brew.fermentationMetrics.activity_score}%`}</span>
+                  )}
                   {brew.fermentationMetrics.ready_to_crash && !hideReadyToCrash && (
                     <span className="text-blue-400 font-semibold">🧊 Redo</span>
                   )}

@@ -2,9 +2,8 @@ import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
-import { StatCard } from "./StatCard";
+import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { useTvMode } from "@/contexts/TvModeContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
@@ -18,7 +17,6 @@ interface TempStatProps {
 }
 
 function TempStatComponent({ brew, devices, updatedFields, onControllerClick, compact = false }: TempStatProps) {
-  const { isTvMode } = useTvMode();
   const { pill, controller } = devices;
   const isInactive = isBrewInactive(brew.status);
 
@@ -66,11 +64,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
   const showBothTargets = compensation !== null && Math.abs(compensation) >= 0.1;
   
   const profileGoal = displayTarget?.toFixed(1);
-  const label: React.ReactNode = profileGoal
-    ? <>Temp <span className="text-muted-foreground/50">({profileGoal}°)</span></>
-    : targetTemp !== null && targetTemp !== undefined
-      ? <>Temp <span className="text-muted-foreground/50">({targetTemp.toFixed(1)}°)</span></>
-      : 'Temp';
+  const goalTemp = displayTarget ?? targetTemp ?? null;
+  const fmtC = (t: number) => `${t.toFixed(1).replace('.', ',')}°`;
 
   // Build tooltip text showing temp source
   const tooltipParts: string[] = [];
@@ -110,7 +105,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     const ctrlPct = cTemp !== null ? pct(cTemp) : null;
     const pillPct = pTemp !== null ? pct(pTemp) : null;
     const profilePct = pct(profileT);
-    const compensatedPct = pct(compensatedT);
     
     // Span bar: if both sensors, show range; if single, show a thin marker
     const hasBoth = ctrlPct !== null && pillPct !== null;
@@ -120,90 +114,23 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     const showCompensatedMarker = Math.abs(profileT - compensatedT) >= 0.1;
 
     // Scale labels
-    const leftLabel = cTemp !== null ? `${cTemp.toFixed(1)}°` : `${(pTemp!).toFixed(1)}°`;
-    const rightLabel = hasBoth ? `${pTemp!.toFixed(1)}°` : '';
-    const centerLabel = hasBoth
-      ? `Δ ${delta !== null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}°` : '—'}`
-      : (cTemp !== null ? 'Probe' : 'Pill');
+    // Vänster = givaren (PT100, kärna), höger = pillen (yta); stapeln ligger på profilmål ±3°.
+    const leftLabel = cTemp !== null ? fmtC(cTemp) : fmtC(pTemp!);
+    const rightLabel = hasBoth ? fmtC(pTemp!) : '';
 
     return (
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="w-full flex flex-col gap-0.5 cursor-help">
-              {/* Bar */}
-              <div className="w-full px-1">
-                <div 
-                  className="w-full rounded-full overflow-hidden relative"
-                  style={{ 
-                    height: '6px',
-                    background: 'hsl(0 0% 0% / 0.5)',
-                    boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
-                  }}
-                >
-                  {/* Colored span bar */}
-                  <div 
-                    className={`absolute left-0 w-full h-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
-                    style={{ 
-                      transform: `translateX(${leftPct}%) scaleX(${Math.max(rightPct - leftPct, 2) / 100})`,
-                      transformOrigin: 'left',
-                      background: hasBoth
-                        ? `linear-gradient(90deg, hsl(var(--temp-blue) / 0.8), ${isOvershoot ? 'hsl(38 92% 50% / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'})`
-                        : (cTemp !== null ? 'hsl(var(--temp-blue) / 0.8)' : 'hsl(var(--ferment-green) / 0.7)'),
-                    }} 
-                  />
-                  {/* Glass highlight */}
-                  <div 
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
-                  />
-                  {/* Profile target marker (solid yellow) */}
-                  <div 
-                    className="absolute rounded-sm"
-                    style={{ 
-                      left: `${profilePct}%`, 
-                      top: '-3px',
-                      width: '2px',
-                      height: '12px',
-                      background: 'hsl(38 92% 50%)',
-                      transform: 'translateX(-1px)',
-                      boxShadow: '0 0 6px hsl(38 92% 50% / 0.6)',
-                    }} 
-                  />
-                  {/* Compensated target marker (dashed yellow) */}
-                  {showCompensatedMarker && (
-                    <div 
-                      className="absolute"
-                      style={{ 
-                        left: `${compensatedPct}%`, 
-                        top: '-4px',
-                        width: '2px',
-                        height: '14px',
-                        backgroundImage: 'repeating-linear-gradient(to bottom, hsl(38 92% 50% / 0.9), hsl(38 92% 50% / 0.9) 2px, transparent 2px, transparent 4px)',
-                        transform: 'translateX(-1px)',
-                        boxShadow: '0 0 4px hsl(38 92% 50% / 0.4)',
-                      }} 
-                    />
-                  )}
-                  {/* Display temp dot */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{ 
-                      left: `${pct(displayTemp ?? profileT)}%`, 
-                      top: '50%',
-                      width: '6px',
-                      height: '6px',
-                      background: 'hsl(var(--foreground))',
-                      transform: 'translate(-3px, -50%)',
-                      boxShadow: '0 0 4px hsl(var(--foreground) / 0.5)',
-                    }} 
-                  />
-                </div>
-              </div>
-              {/* Scale labels */}
-              <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
+              <MiniBar
+                from={hasBoth ? leftPct : leftPct - 1}
+                to={hasBoth ? Math.max(rightPct, leftPct + 2) : leftPct + 1}
+                color={isOvershoot ? 'hsl(38 92% 50%)' : 'hsl(var(--ferment-green))'}
+                marker={profilePct}
+              />
+              <div className={statDetailClass}>
                 <span>{leftLabel}</span>
-                <span className="text-muted-foreground/40">{centerLabel}</span>
                 <span>{rightLabel}</span>
               </div>
             </div>
@@ -238,55 +165,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full flex flex-col gap-0.5 cursor-help">
-              <div className="w-full px-1">
-                <div 
-                  className="w-full rounded-full overflow-hidden relative"
-                  style={{ 
-                    height: '6px',
-                    background: 'hsl(0 0% 0% / 0.5)',
-                    boxShadow: 'inset 0 2px 4px hsl(0 0% 0% / 0.6), inset 0 -1px 0 hsl(0 0% 100% / 0.05)'
-                  }}
-                >
-                  {/* Filled bar from 0 to duty% */}
-                  <div 
-                    className={`absolute top-0 bottom-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
-                    style={{ 
-                      transform: `scaleX(${Math.max(duty, 1) / 100})`,
-                      transformOrigin: 'left',
-                      background: barColor,
-                      opacity: 0.7,
-                      boxShadow: `0 0 8px ${barColor}`,
-                    }} 
-                  />
-                  {/* Glass highlight */}
-                  <div 
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: 'linear-gradient(180deg, hsl(0 0% 100% / 0.2) 0%, transparent 40%)' }}
-                  />
-                  {/* Marker dot at duty position */}
-                  {duty > 0 && (
-                    <div 
-                      className="absolute rounded-full"
-                      style={{ 
-                        left: `${duty}%`, 
-                        top: '50%',
-                        width: '6px',
-                        height: '6px',
-                        background: barColor,
-                        transform: 'translate(-3px, -50%)',
-                        boxShadow: `0 0 6px ${barColor}`,
-                      }} 
-                    />
-                  )}
-                </div>
-              </div>
-              {/* Scale labels */}
-              <div className="flex justify-between text-muted-foreground/60 tabular-nums" style={{ fontSize: '9px' }}>
-                <span>0%</span>
-                <span style={{ color: barColor }}>PWM {duty}%</span>
-                <span>100%</span>
-              </div>
+            <div className="w-full flex items-center gap-1.5 cursor-help">
+              <span className="text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap">{mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} {duty} %</span>
+              <div className="flex-1"><MiniBar to={duty} color={barColor} /></div>
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-[260px]">
@@ -321,10 +202,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
 
   return (
     <StatCard
-      label={compact ? 'Temp' : label}
+      label="Temp"
       value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-muted-foreground/40">°</span>} />}
       
-      className="gap-0.5 !py-1.5"
+      className="gap-0.5 !py-1.5 !px-1.5"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
@@ -334,8 +215,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       valueSize={compact ? "38px" : "48px"}
       onClick={handleClick}
       clickable={!!handleClick}
+      subValue={!compact && goalTemp !== null ? <p className={`${statDetailClass} justify-center`}>mål {fmtC(goalTemp)}</p> : undefined}
     >
-      {!compact && <div className="z-10 text-center px-2 w-full flex flex-col min-h-0 gap-1 mt-1">
+      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
         {spanBar}
         {dutyBar}
       </div>}
