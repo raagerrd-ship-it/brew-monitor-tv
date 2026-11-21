@@ -25,11 +25,11 @@ afterEach(() => vi.useRealTimers());
 
 describe('brew day slide', () => {
   it('freezes the card countdown while the shared timer continues and catches up afterwards', () => {
-    state.timer = { ...state.timer, isActive: true, timeToNextMilestone: 900 };
+    state.timer = { ...state.timer, isActive: true, remainingSeconds: 1800, timeToNextMilestone: 900 };
     const view = render(<BrewDayCard day={day} isTvMode />);
     expect(screen.getByText('15:00', { exact: false })).toBeTruthy();
     view.rerender(<BrewDayCard day={day} isTvMode transitionActive />);
-    state.timer = { ...state.timer, timeToNextMilestone: 895 };
+    state.timer = { ...state.timer, remainingSeconds: 1795, timeToNextMilestone: 895 };
     view.rerender(<BrewDayCard day={day} isTvMode transitionActive />);
     expect(screen.getByText('15:00', { exact: false })).toBeTruthy();
     view.rerender(<BrewDayCard day={day} isTvMode />);

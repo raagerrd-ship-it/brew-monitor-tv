@@ -15,6 +15,7 @@
 - RollingNumber ritar i vila bara siffran och vid byte en kort remsa med de passerade siffrorna. Why: mindre DOM på TV:n med samma rullning.
 - Footer slots are keyed and stacked (sum reserved); content-less slots self-render at the bottom and content slots sit above them. Why: brew day timer and alarm timer can be active together.
 - TimerFooter receives the active brew day from BrewingDashboard rather than opening another subscription. Why: its next-step label must use the same row as BrewDayCard.
+- BrewDayCard derives readiness of its first unchecked item from the shared timer's remainingSeconds and at_min. Why: advancing nextMilestone must not skip a due unchecked item or require another timer.
 - Sonos realtime reads the widget's current-state ref to seed first/wake playback position outside the React updater. Why: progress must not depend on updater scheduling.
 - TV event effects use useTvEventAnimation with stable event identities, skip the initial value and cancel on the motion lock; bar values use full-width transform layers. Why: one-shot feedback must not compete with the existing slide sequences or animate layout.
 - Header relay indicators read cooling_relay_on/heating_relay_on from the existing shared Pi live-state feed, not controller enable flags. Why: enabled regulation is not the relay's actual on/off state.

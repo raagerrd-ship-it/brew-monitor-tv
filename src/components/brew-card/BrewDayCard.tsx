@@ -1,10 +1,16 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, ChefHat } from "lucide-react";
+import { Check, ChefHat, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import type { BrewDay } from "@/hooks/use-brew-day";
+import type { BrewDay, BrewDayItem } from "@/hooks/use-brew-day";
 import { useSharedExternalTimer, type ExternalTimerState } from "@/hooks/use-external-timer";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+export function getBrewDayItemState(item: BrewDayItem, isNext: boolean, countdown: number | null) {
+  if (item.checked) return "done";
+  if (isNext && (item.at_min == null || (countdown != null && countdown <= 0))) return "now";
+  return "waiting";
+}
 
 /** Etikettbakgrund med mjuk övertoning: förra bilden tonas ut över den nya. */
 function useLabelCrossfade(url: string | null) {
@@ -31,11 +37,10 @@ export function BrewDayCard(props: BrewDayCardProps) {
 const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBackground, isTvMode, compact, timer }: BrewDayCardProps & { timer: ExternalTimerState | null }) {
   const active = timer?.isActive ? timer : null;
   const isDone = !!active && active.totalSeconds > 0 && active.remainingSeconds === 0;
-  // Same row as the footer's next milestone; otherwise first unchecked.
-  const nm = active?.nextMilestone;
-  const matchedId = nm ? day.items.find((i) => i.at_min != null && i.at_min * 60 === nm.time)?.id : undefined;
-  const nextId = matchedId ?? day.items.find((i) => !i.checked)?.id;
-  const countdown = matchedId && active?.timeToNextMilestone != null ? active.timeToNextMilestone : null;
+  // Keep the first unchecked item current even when the timer advances to its next milestone.
+  const nextItem = day.items.find((i) => !i.checked);
+  const nextId = nextItem?.id;
+  const countdown = active && nextItem?.at_min != null ? active.remainingSeconds - nextItem.at_min * 60 : null;
   const bg = useLabelCrossfade(day.label_url);
   return (
     <Card
@@ -96,48 +101,50 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
       <ul className={`flex-1 min-h-0 overflow-hidden flex flex-col justify-start ${compact ? "gap-2" : isTvMode ? "gap-2.5" : "gap-2"}`}>
         {day.items.map((i) => {
           const isNext = i.id === nextId;
+          const itemState = getBrewDayItemState(i, isNext, countdown);
+          const isNow = itemState === "now";
           return (
             <li
               key={i.id}
-              className={`flex shrink-0 items-center ${compact ? "gap-2 px-2" : isTvMode ? "gap-3 px-3" : "gap-4 px-3"} ${
-                isNext
+              className={`flex shrink-0 items-start ${compact ? "gap-2 px-2" : isTvMode ? "gap-3 px-3" : "gap-4 px-3"} ${
+                isNow
                   ? `bg-primary/10 border border-primary/40 rounded-2xl ${isTvMode ? "" : "shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)]"} ${compact ? "py-2" : "py-2.5"}`
                   : i.checked
                     ? "opacity-30"
-                    : "opacity-60"
+                    : "text-foreground/70"
               }`}
             >
               <span className={`${compact ? "h-6 w-6" : isTvMode ? "h-7 w-7" : "h-6 w-6"} rounded-full border-2 flex items-center justify-center shrink-0 ${
                 i.checked
                   ? "border-muted-foreground/50"
-                  : isNext
+                  : isNow
                     ? "border-primary"
                     : "border-muted-foreground/40"
               }`}>
                 {i.checked
                   ? <Check className={`${isTvMode ? "h-4.5 w-4.5" : "h-3.5 w-3.5"} text-foreground`} strokeWidth={3} />
-                  : isNext
+                  : isNow
                     ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
-                    : null}
+                    : <Clock className="h-3.5 w-3.5 text-muted-foreground" />}
               </span>
-              <span className={`flex-1 min-w-0 truncate ${compact ? (isNext ? "text-xl" : "text-lg") : isNext ? "text-2xl" : "text-xl"} font-medium ${i.checked ? "line-through" : ""} ${isNext ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/90"}`}>{i.name}</span>
-              <span className={`flex items-center ${compact ? "gap-1.5" : isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
+              <span className={`flex-1 min-w-0 line-clamp-3 break-words ${compact ? (isNow ? "text-xl" : "text-lg") : isNow ? "text-2xl" : "text-xl"} font-medium ${i.checked ? "line-through" : ""} ${isNow ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/70"}`}>{i.name}</span>
+              <span className={`flex items-start ${compact ? "gap-1.5" : isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
                 {i.amount != null && (
-                  <span className={`flex items-baseline shrink-0 ${compact ? (isNext ? "text-2xl" : "text-xl") : isNext ? "text-3xl" : "text-2xl"} font-bold ${isNext ? "text-primary" : "text-foreground"} tabular-nums whitespace-nowrap`}>
+                  <span className={`flex items-baseline shrink-0 ${compact ? (isNow ? "text-2xl" : "text-xl") : isNow ? "text-3xl" : "text-2xl"} font-bold ${isNow ? "text-primary" : "text-foreground/70"} tabular-nums whitespace-nowrap`}>
                     <span className={`${compact ? "" : "w-16"} text-right`}>{i.amount}</span>
                     <span className={`${compact ? "" : "w-8"} text-left text-[0.6em] font-semibold text-muted-foreground ml-0.5`}>{i.unit ?? ""}</span>
                   </span>
                 )}
                 {i.amount != null && i.at_min != null && (
-                  <span className={`w-px self-stretch shrink-0 ${isNext ? "bg-primary/30" : "bg-foreground/15"}`} aria-hidden />
+                  <span className={`w-px self-stretch shrink-0 ${isNow ? "bg-primary/30" : "bg-foreground/15"}`} aria-hidden />
                 )}
                 {i.at_min != null && (
-                  <span className={`flex items-baseline shrink-0 ${compact ? (isNext ? "text-2xl" : "text-xl") : isNext ? "text-3xl" : i.checked ? "text-xl" : "text-2xl"} font-medium tabular-nums whitespace-nowrap ${isNext ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`flex items-baseline shrink-0 ${compact ? (isNow ? "text-2xl" : "text-xl") : isNow ? "text-3xl" : i.checked ? "text-xl" : "text-2xl"} font-medium tabular-nums whitespace-nowrap ${isNow ? "text-foreground" : "text-muted-foreground"}`}>
                     <span className={`${compact ? "" : "w-12"} text-right`}>{i.at_min}</span>
                     <span className={`${compact ? "" : "w-10"} text-left text-[0.6em] font-semibold ml-0.5`}>min</span>
                   </span>
                 )}
-                {isNext && countdown != null && (
+                {isNext && itemState === "waiting" && countdown != null && countdown > 0 && (
                   <span className={`flex items-baseline shrink-0 ${compact ? "text-2xl" : "text-3xl"} font-medium tabular-nums whitespace-nowrap text-foreground`}>
                     <span className="text-[0.6em] font-semibold mr-1">om</span>{fmt(countdown)}
                   </span>
