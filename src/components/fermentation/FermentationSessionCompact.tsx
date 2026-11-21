@@ -435,16 +435,6 @@ export function FermentationSessionCompact({
       {/* Content */}
       <div className="relative z-10 flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span 
-            className="font-bold tracking-tight truncate"
-            style={{ 
-              fontSize: '14px',
-              color: 'hsl(var(--primary))',
-              textShadow: '0 0 20px hsl(var(--primary) / 0.4), 0 2px 6px hsl(0 0% 0% / 0.4)',
-            }}
-          >
-            {profileName}
-          </span>
           <div className="flex-1" />
           {(() => {
             const progress = totalSteps > 0 ? (currentStepIndex + 1) / totalSteps : 0;
@@ -555,7 +545,7 @@ export function FermentationSessionCompact({
                   <Activity className="h-3 w-3 shrink-0" />
                   <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
                 </span>
-                {conditionText && (
+                {conditionText && cond?.unit !== '°C' && (
                   <>
                     <Separator />
                     <span
@@ -641,27 +631,14 @@ function TemperatureDisplay({
       />
       
       {isRamping && stepStartTemp != null && currentStep?.target_temp != null ? (
-        <>
-          <span className="text-muted-foreground/70">
-            {stepStartTemp.toFixed(0)}°
+        targetTemp != null && (
+          <span
+            className="font-semibold"
+            style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
+          >
+            {targetTemp.toFixed(1).replace('.', ',')}°
           </span>
-          <span className="text-muted-foreground/40">→</span>
-          
-          {targetTemp != null && (
-            <span
-              className="font-semibold"
-              style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
-            >
-              {targetTemp.toFixed(1).replace('.', ',')}°
-            </span>
-          )}
-
-          <span className="text-muted-foreground/40">→</span>
-          
-          <span className="font-medium text-muted-foreground">
-            {currentStep.target_temp.toFixed(0)}°
-          </span>
-        </>
+        )
       ) : (
         <>
           {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && (
