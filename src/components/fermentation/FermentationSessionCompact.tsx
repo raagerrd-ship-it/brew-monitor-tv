@@ -648,14 +648,14 @@ function TemperatureDisplay({
           <span className="text-muted-foreground/40">→</span>
           
           {targetTemp != null && (
-            <span 
+            <span
               className="font-semibold"
               style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
             >
-              {targetTemp.toFixed(1)}°
+              {targetTemp.toFixed(1).replace('.', ',')}°
             </span>
           )}
-          
+
           <span className="text-muted-foreground/40">→</span>
           
           <span className="font-medium text-muted-foreground">
@@ -669,7 +669,7 @@ function TemperatureDisplay({
               className="font-semibold"
               style={{ color: 'hsl(var(--primary))' }}
             >
-              {currentStep.target_temp.toFixed(1)}°
+              {currentStep.target_temp.toFixed(1).replace('.', ',')}°
             </span>
           )}
           {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && targetTemp != null && (
@@ -682,7 +682,7 @@ function TemperatureDisplay({
                 ? { color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(var(--primary))' } 
                 : undefined}
             >
-              {targetTemp.toFixed(1)}°
+              {targetTemp.toFixed(1).replace('.', ',')}°
             </span>
           )}
         </>
