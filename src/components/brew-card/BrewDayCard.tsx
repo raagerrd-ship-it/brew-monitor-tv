@@ -109,7 +109,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
           return (
             <li
               key={i.id}
-              className={`flex shrink-0 items-start ${index === 0 ? "" : i.checked && day.items[index - 1]?.checked ? "mt-1" : compact ? "mt-2" : isTvMode ? "mt-2.5" : "mt-2"} ${compact ? "gap-2 px-2" : isTvMode ? "gap-3 px-3" : "gap-4 px-3"} ${
+              className={`${isExpanded ? "grid grid-cols-[auto_minmax(0,1fr)]" : "flex"} shrink-0 items-start ${index === 0 ? "" : i.checked && day.items[index - 1]?.checked ? "mt-1" : compact ? "mt-2" : isTvMode ? "mt-2.5" : "mt-2"} ${compact ? "gap-2 px-2" : isTvMode ? "gap-3 px-3" : "gap-4 px-3"} ${
                 isNow
                   ? `bg-primary/10 border border-primary/40 rounded-2xl ${isTvMode ? "" : "shadow-[0_0_32px_-8px_hsl(var(--primary)/0.3)]"} ${compact ? "py-2" : "py-2.5"}`
                   : i.checked
@@ -130,12 +130,12 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
                     ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
                     : <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
               </span>
-              <span className={`flex-1 min-w-0 ${isExpanded ? "line-clamp-4 break-words" : "truncate"} ${i.checked ? smallSize : isExpanded ? compact ? "text-xl" : "text-2xl" : waitingSize} font-medium ${i.checked ? "line-through" : ""} ${isNow ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/70"}`}>{i.name}</span>
-              <span className={`flex items-start ${compact ? "gap-1.5" : isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
+              <span className={`flex-1 min-w-0 ${isExpanded ? "col-start-2 row-start-2 break-words" : "truncate"} ${i.checked ? smallSize : isExpanded ? compact ? "text-xl" : "text-2xl" : waitingSize} font-medium ${i.checked ? "line-through" : ""} ${isNow ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/70"}`}>{i.name}</span>
+              <span className={`flex items-start ${isExpanded ? "col-start-2 row-start-1 min-w-0" : "shrink-0"} ${compact ? "gap-1.5" : isTvMode ? "gap-3" : "gap-4"}`}>
                 {i.amount != null && (
                   <span className={`flex items-baseline shrink-0 ${i.checked ? smallSize : !isExpanded ? waitingSize : compact ? (isNow ? "text-2xl" : "text-xl") : isNow ? "text-3xl" : "text-2xl"} font-bold ${isNow ? "text-primary" : "text-foreground/70"} tabular-nums whitespace-nowrap`}>
-                    <span className={`${compact || i.checked ? "" : "w-16"} text-right`}>{i.amount}</span>
-                    <span className={`${compact || i.checked ? "" : "w-8"} text-left text-[0.6em] font-semibold text-muted-foreground ml-0.5`}>{i.unit ?? ""}</span>
+                    <span className={`${compact || i.checked || isExpanded ? "" : "w-16"} text-right`}>{i.amount}</span>
+                    <span className={`${compact || i.checked || isExpanded ? "" : "w-8"} text-left text-[0.6em] font-semibold text-muted-foreground ml-0.5`}>{i.unit ?? ""}</span>
                   </span>
                 )}
                 {i.amount != null && i.at_min != null && (
@@ -143,12 +143,12 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
                 )}
                 {i.at_min != null && (
                   <span className={`flex items-baseline shrink-0 ${i.checked ? smallSize : !isExpanded ? waitingSize : compact ? (isNow ? "text-2xl" : "text-xl") : isNow ? "text-3xl" : "text-2xl"} font-medium tabular-nums whitespace-nowrap ${isNow ? "text-foreground" : "text-muted-foreground"}`}>
-                    <span className={`${compact || i.checked ? "" : "w-12"} text-right`}>{i.at_min}</span>
-                    <span className={`${compact || i.checked ? "" : "w-10"} text-left text-[0.6em] font-semibold ml-0.5`}>min</span>
+                    <span className={`${compact || i.checked || isExpanded ? "" : "w-12"} text-right`}>{i.at_min}</span>
+                    <span className={`${compact || i.checked || isExpanded ? "" : "w-10"} text-left text-[0.6em] font-semibold ml-0.5`}>min</span>
                   </span>
                 )}
                 {isNext && itemState === "waiting" && countdown != null && countdown > 0 && (
-                  <span className={`flex items-baseline shrink-0 ${compact ? "text-2xl" : "text-3xl"} font-medium tabular-nums whitespace-nowrap text-foreground`}>
+                  <span className={`flex items-baseline shrink-0 ml-auto ${compact ? "text-2xl" : "text-3xl"} font-medium tabular-nums whitespace-nowrap text-foreground`}>
                     <span className="text-[0.6em] font-semibold mr-1"><span className="text-muted-foreground">Låst · </span>om</span>{fmt(countdown)}
                   </span>
                 )}
