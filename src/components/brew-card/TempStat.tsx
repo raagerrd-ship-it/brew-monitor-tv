@@ -99,9 +99,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
         dot={displayTemp !== null ? pctOf(displayTemp) : undefined}
         under={{ pct: duty, color: dutyColor }}
       />
-      <div className={`${statDetailClass} !flex-nowrap !gap-x-0 tracking-tighter ${probeTemp === null ? '!justify-end' : ''}`}>
-        {probeTemp !== null && <span>{`PT100\u202F${fmtC(probeTemp)}`}</span>}
-        {pillTemp !== null && <span className={isPillStale ? 'opacity-40' : ''}>{`Pill\u202F${fmtC(pillTemp)}`}</span>}
+      <div className={`${statDetailClass} !flex-nowrap gap-x-2`}>
+        {probeTemp !== null && <span>{fmtC(probeTemp)}</span>}
+        {displayTemp !== null && <span>{fmtC(displayTemp)}</span>}
+        {pillTemp !== null && <span className={isPillStale ? 'opacity-40' : ''}>{fmtC(pillTemp)}</span>}
       </div>
     </>
   ) : null;
