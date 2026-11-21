@@ -51,7 +51,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
     <span className={`${valueClass} ${tempIsOffTarget(displayTemp, target) ? "text-primary" : "text-foreground"}`}>
       <span className="stat-panel-value-fit">{displayTemp === null ? "—" : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="opacity-40">°</span>} />}</span>
     </span>
-    <span className="stat-panel-detail text-muted-foreground/80">
+    <span className="stat-panel-detail flex flex-wrap w-full gap-x-1 text-muted-foreground/80">
       {target !== null && <span className="whitespace-nowrap">mål <span className="text-primary">{fmtTemp(target)}</span></span>}
       {duty > 0 && <span className={`whitespace-nowrap ${heating ? "text-destructive" : "text-temp-blue"}`}>{target !== null && " · "}{heating ? "värme" : "kyla"} {duty} %</span>}
     </span>
