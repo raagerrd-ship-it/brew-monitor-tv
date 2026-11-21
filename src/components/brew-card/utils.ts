@@ -23,6 +23,11 @@ export function colorWithOpacity(color: string, opacity: number): string {
 /**
  * Check if brew status indicates inactive state (Conditioning or Completed)
  */
+/** Levererad effekt i procent, klämd till 0–100 (snapshot duty_pct kan överstiga 100 när PWM-fönstret är längre än antaget). */
+export function toDutyPct(v: number | null | undefined): number {
+  return Math.round(Math.max(0, Math.min(100, v ?? 0)));
+}
+
 export function isBrewInactive(status: string): boolean {
   return status === "Konditionering" || status === "Klar";
 }

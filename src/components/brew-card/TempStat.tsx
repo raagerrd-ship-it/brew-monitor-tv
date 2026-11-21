@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { BrewData } from "@/types/brew";
 import { DeviceMatch } from "./types";
-import { isBrewInactive } from "./utils";
+import { isBrewInactive, toDutyPct } from "./utils";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
@@ -85,10 +85,11 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
   const centerT = currentProfileTarget ?? targetTemp ?? null;
   const pctOf = (t: number) => centerT === null ? 50 : ((t - (centerT - 3)) / 6) * 100;
   const sensors = [probeTemp, pillTemp].filter((t): t is number => t !== null);
-  const duty = brew.dutyPct ?? 0;
+  const duty = toDutyPct(brew.dutyPct);
   const dutyColor = brew.dutyMode === 'heating' ? 'hsl(15 85% 55%)' : 'hsl(var(--temp-blue))';
   const tempBar = !isInactive && centerT !== null && sensors.length > 0 ? (
     <>
+      {duty > 0 && <p className={`${statDetailClass} !justify-end`}>{brew.dutyMode === 'heating' ? 'värme' : 'kyla'} {duty} %</p>}
       <MiniBar
         from={pctOf(Math.min(...sensors))}
         to={Math.max(pctOf(Math.max(...sensors)), pctOf(Math.min(...sensors)) + 2)}
@@ -98,7 +99,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
         dot={displayTemp !== null ? pctOf(displayTemp) : undefined}
         under={{ pct: duty, color: dutyColor }}
       />
-      {duty > 0 && <p className={`${statDetailClass} !justify-end`}>{brew.dutyMode === 'heating' ? 'värme' : 'kyla'} {duty} %</p>}
+      <div className={`${statDetailClass} !flex-nowrap !gap-x-0 tracking-tighter ${probeTemp === null ? '!justify-end' : ''}`}>
+        {probeTemp !== null && <span>{`PT100\u202F${fmtC(probeTemp)}`}</span>}
+        {pillTemp !== null && <span className={isPillStale ? 'opacity-40' : ''}>{`Pill\u202F${fmtC(pillTemp)}`}</span>}
+      </div>
     </>
   ) : null;
 
@@ -107,7 +111,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       label="Temp"
       value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-muted-foreground/40">°</span>} />}
       
-      className="gap-0.5 !py-1.5 !px-1.5 !justify-start"
+      className="gap-0.5 !py-1.5 !px-1 !justify-start"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
