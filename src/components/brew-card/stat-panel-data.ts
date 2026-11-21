@@ -3,6 +3,10 @@ import { calculateDaysSinceStart, isBrewInactive } from "./utils";
 
 export const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
+export function formatPointsPerDay(points: number) {
+  return points >= 1 ? String(Math.round(points)) : points.toFixed(1).replace(".", ",");
+}
+
 export function gravityPanelData(brew: BrewData, hideReadyToCrash = false) {
   const inactive = isBrewInactive(brew.status);
   const prePitch = !inactive && (calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === "lag");
@@ -14,7 +18,7 @@ export function gravityPanelData(brew: BrewData, hideReadyToCrash = false) {
   const progress = range > 0 ? clampPct((brew.originalGravity - brew.currentSG) / range * 100) : 0;
   return {
     prePitch, ready, stalled, progress,
-    pointsPerDay: showRate && rate !== null ? Math.round(rate * 1000) : null,
+    pointsPerDay: showRate && rate !== null ? formatPointsPerDay(rate * 1000) : null,
     projected: showRate && rate !== null && range > 0 ? clampPct((brew.originalGravity - brew.currentSG + rate) / range * 100) : progress,
   };
 }

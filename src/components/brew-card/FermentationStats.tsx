@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useLayoutEffect, useRef } from "react";
 import { BrewData, TempController } from "@/types/brew";
 import { RollingNumber } from "@/components/RollingNumber";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,21 @@ interface Props {
 }
 
 const fmtTemp = (value: number) => `${value.toFixed(1).replace(".", ",")}°`;
+
+function FitValue({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const column = el?.closest(".stat-panel-column");
+    if (!el || !column) return;
+    el.style.fontSize = "";
+    const styles = getComputedStyle(column);
+    const available = column.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    const natural = el.scrollWidth;
+    if (natural > available && natural > 0) el.style.fontSize = `${Math.floor(available / natural * 100)}%`;
+  });
+  return <span ref={ref} className="stat-panel-value-fit">{children}</span>;
+}
 const segment = (from: number, to: number) => ({ transform: `translateX(${from}%) scaleX(${Math.max(0, to - from) / 100})` });
 const position = (pct: number) => ({ transform: `translateX(${pct}%)` });
 
@@ -37,11 +52,11 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
   const to = target !== null && sensors.length > 0 ? tempScalePosition(Math.max(...sensors), target) : 50;
   const clickable = brew.batch_id.startsWith("custom_") && !!onSyncedDataClick;
   const tempClick = controller && onControllerClick ? () => onControllerClick(controller) : undefined;
-  const valueClass = "stat-panel-value font-bold leading-none tabular-nums";
+  const valueClass = "stat-panel-value";
 
   const gravityContent = <>
     <span className="stat-panel-label">Gravity</span>
-    <span className={`${valueClass} text-primary`}><span className="stat-panel-value-fit"><RollingNumber value={brew.currentSG} decimals={4} mutedLastDigit /></span></span>
+    <span className={`${valueClass} text-primary`}><FitValue><RollingNumber value={brew.currentSG} decimals={4} mutedLastDigit /></FitValue></span>
     <span className={`stat-panel-detail ${gravity.ready ? "text-temp-blue" : gravity.stalled ? "text-destructive" : "text-muted-foreground/80"}`}>
       {gravity.ready ? "🧊 vid FG" : gravity.prePitch ? "väntar på jäst" : gravity.stalled ? "står still" : gravity.pointsPerDay !== null ? `−${gravity.pointsPerDay} p/dygn` : "\u00a0"}
     </span>
@@ -49,7 +64,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
   const tempContent = <>
     <span className="stat-panel-label">Temp</span>
     <span className={`${valueClass} ${tempIsOffTarget(displayTemp, target) ? "text-primary" : "text-foreground"}`}>
-      <span className="stat-panel-value-fit">{displayTemp === null ? "—" : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="opacity-40">°</span>} />}</span>
+      <FitValue>{displayTemp === null ? "—" : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-[0.6em] opacity-40">°</span>} />}</FitValue>
     </span>
     <span className="stat-panel-detail flex flex-wrap w-full gap-x-1 text-muted-foreground/80">
       {target !== null && <span className="whitespace-nowrap">mål <span className="text-primary">{fmtTemp(target)}</span></span>}
@@ -62,7 +77,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
       {clickable ? <Button variant="ghost" className="stat-panel-column stat-panel-control" onClick={onSyncedDataClick} title="Visa synkad data">{gravityContent}</Button> : <div className="stat-panel-column">{gravityContent}</div>}
       <div className="stat-panel-column border-l border-foreground/10">
         <span className="stat-panel-label">ABV</span>
-        <span className={`${valueClass} text-primary`}><span className="stat-panel-value-fit"><RollingNumber value={brew.abv} decimals={1} suffix={<span className="text-[0.6em] opacity-40">%</span>} /></span></span>
+        <span className={`${valueClass} text-primary`}><FitValue><RollingNumber value={brew.abv} decimals={1} suffix={<span className="text-[0.6em] opacity-40">%</span>} /></FitValue></span>
         <span className="stat-panel-detail text-muted-foreground/80"><span className="text-ferment-green font-bold">{Math.round(brew.attenuation)} %</span> utjäst</span>
       </div>
       {tempClick ? <Button variant="ghost" className="stat-panel-column stat-panel-control border-l border-foreground/10" onClick={tempClick}>{tempContent}</Button> : <div className="stat-panel-column border-l border-foreground/10">{tempContent}</div>}

@@ -11,11 +11,15 @@ const brew = {
 describe("B2 gravity", () => {
   it("visar fyra punkter per dygn och 24 h prognos från rate6h", () => {
     const result = gravityPanelData(brew);
-    expect(result.pointsPerDay).toBe(4);
+    expect(result.pointsPerDay).toBe("4");
     expect(result.projected).toBeCloseTo(76.470588);
   });
   it("använder befintlig rate när rate6h saknas", () => {
-    expect(gravityPanelData({ ...brew, fermentationTrend: undefined }).pointsPerDay).toBe(4);
+    expect(gravityPanelData({ ...brew, fermentationTrend: undefined }).pointsPerDay).toBe("4");
+  });
+  it("visar en decimal med decimalkomma under en punkt per dygn", () => {
+    const result = gravityPanelData({ ...brew, fermentationTrend: { rate6h: 0.0003, rate12h: 0.0003, trend: "falling" } });
+    expect(result.pointsPerDay).toBe("0,3");
   });
   it("visar inte stall eller prognos före pitch", () => {
     const result = gravityPanelData({ ...brew, sgData: [], fermentationRate: 0 });

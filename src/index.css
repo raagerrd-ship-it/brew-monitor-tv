@@ -18,10 +18,10 @@
 .stat-panel-column:first-child { padding-left: 0; }
 .stat-panel-column:last-child { padding-right: 0; }
 .fermentation-stats .stat-panel-control { height: auto; border-radius: 0; justify-content: flex-start; text-align: left; white-space: normal; padding-top: 0; padding-bottom: 0; gap: 2px; }
-.stat-panel-label { font-size: 12px; line-height: 14px; text-transform: uppercase; color: hsl(var(--muted-foreground) / 0.8); }
-.stat-panel-value { font-size: 46px; white-space: nowrap; }
-.stat-panel-value-fit { display: inline-block; transform: scaleX(0.75); transform-origin: left; }
-.stat-panel-detail { font-size: 12px; line-height: 14px; font-variant-numeric: tabular-nums; }
+.stat-panel-label { font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: hsl(var(--muted-foreground) / 0.8); }
+.stat-panel-value { font-size: 46px; font-weight: 800; letter-spacing: -0.025em; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat-panel-value-fit { display: inline-block; }
+.stat-panel-detail { font-size: 12.5px; line-height: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .stat-panel-scale { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; }
 .stat-panel-track { position: relative; border-radius: 999px; background: hsl(var(--foreground) / 0.1); overflow: hidden; }
 .stat-panel-layer { position: absolute; inset: 0; transform-origin: left; }
@@ -32,7 +32,7 @@
 .stat-panel-probe { grid-column: 1; justify-self: end; margin-right: 6px; }
 .stat-panel-pill { grid-column: 3; justify-self: start; margin-left: 6px; }
 .stat-panel-compact .stat-panel-value { font-size: 26px; }
-.stat-panel-compact .stat-panel-value-fit { transform: none; width: auto; }
+.stat-panel-compact .stat-panel-label { font-size: 9px; }
 .stat-panel-compact .stat-panel-column { padding-left: 5px; padding-right: 5px; }
 .stat-panel-compact .stat-panel-column:first-child { padding-left: 0; }
 .stat-panel-compact .stat-panel-column:last-child { padding-right: 0; }
