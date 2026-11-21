@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chillerVisibility, chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, type ChillerSession } from "@/lib/chiller-session";
+import { chillerVisibility, chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, type ChillerSession, type ChillerWatchStart, watchStartText, watchMode, watchScaleMax } from "@/lib/chiller-session";
 import { bathChartDomains, chartAxis, chartClock, chartLines, chartPath, chartScale, liftChartDomains, showLiftChart, type ChillerChart } from "@/lib/chiller-session";
 
 const now = Date.parse("2026-11-14T17:00:00Z");
@@ -93,5 +93,22 @@ describe("formatering", () => {
   it("ETA i svensk tid", () => {
     expect(fmtEta("2026-11-14T17:24:00Z")).toBe("18:24");
     expect(fmtEta("2026-07-14T17:24:00Z")).toBe("19:24");
+  });
+});
+
+describe("vaktläge", () => {
+  const watch = { starts: [["2026-11-21T14:39:00Z", 267, 20, 1.0, 15, 19, 2], ["2026-11-21T15:05:00Z", 182, 35, 6.7, 15.8, 19.7, 2]] as ChillerWatchStart[], levels: { M: 305, info: 279.9, weak: 262.3, one: 234.3 } };
+  it("klartext för senaste start, varm omstart när restlyft > 2 K", () => {
+    expect(watchStartText(watch.starts[1])).toBe("16:05 · 182 % · lyft 35,0 K · restlyft 6,7 K · bad 15,8° · luft 19,7° · varm omstart – bedöms inte");
+    expect(watchStartText(watch.starts[0])).not.toContain("varm omstart");
+  });
+  it("vaktläge bara när ingen session är aktiv och starter finns", () => {
+    const s = { ...base, chart: { series: [], runs: [], watch } };
+    expect(watchMode(s)).toBe(true);
+    expect(watchMode({ ...s, active: true })).toBe(false);
+    expect(watchMode({ ...s, chart: { series: [], runs: [] } })).toBe(false);
+  });
+  it("skala över högsta värde", () => {
+    expect(watchScaleMax({ ...watch, starts: [["2026-11-21T14:39:00Z", 314, null, null, null, null, 0]] })).toBe(350);
   });
 });

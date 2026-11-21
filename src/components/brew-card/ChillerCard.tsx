@@ -3,7 +3,8 @@ import { AlertTriangle, Snowflake } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { RollingNumber } from "@/components/RollingNumber";
 import { ChillerCharts } from "./ChillerCharts";
-import { chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, LEVEL_LABEL, type ChillerSession } from "@/lib/chiller-session";
+import { ChillerWatch } from "./ChillerWatch";
+import { chillerTitle, fmtC, fmtEta, fmtTarget, fmtRate, LEVEL_LABEL, watchMode, type ChillerSession } from "@/lib/chiller-session";
 
 const LEVEL_STYLE: Record<string, string> = {
   fill: "border-green-400/40 bg-green-500/20 text-green-300",
@@ -11,7 +12,8 @@ const LEVEL_STYLE: Record<string, string> = {
 };
 
 export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground, compact }: { s: ChillerSession; hasAlbumArtBackground?: boolean; compact?: boolean }) {
-  const level = s.level ? LEVEL_LABEL[s.level] : null;
+  const watch = watchMode(s);
+  const level = !watch && s.level ? LEVEL_LABEL[s.level] : null;
   const text = s.ended_at ? s.result : null;
   const badge = "shrink-0 rounded-full border px-3 py-1 text-sm font-semibold";
   return (
@@ -28,10 +30,11 @@ export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground,
         <div className={`shrink-0 flex items-center justify-center rounded-xl bg-foreground/10 ${compact ? "h-9 w-9" : "h-11 w-11"}`}>
           <Snowflake className={`${compact ? "h-5 w-5" : "h-6 w-6"} ${s.compressor_on ? "text-accent" : "text-muted-foreground"}`} style={{ opacity: s.compressor_on ? 1 : 0.3 }} aria-label={`Kompressor: ${s.compressor_on ? "PÅ" : "AV"}`} />
         </div>
-        <div className={`min-w-0 flex-1 font-bold uppercase text-muted-foreground truncate ${compact ? "text-xs tracking-[0.12em]" : "text-base tracking-[0.2em]"}`}>{chillerTitle(s.kind)}</div>
+        <div className={`min-w-0 flex-1 font-bold uppercase text-muted-foreground truncate ${compact ? "text-xs tracking-[0.12em]" : "text-base tracking-[0.2em]"}`}>{watch ? "Kylaren nu" : chillerTitle(s.kind)}</div>
         {s.chiller_locked && <span className={`${badge} border-destructive/50 bg-destructive/20 text-destructive`}>Spärrad</span>}
         {level && <span className={`${badge} ${LEVEL_STYLE[s.level!] ?? "border-primary/30 bg-primary/15 text-primary"}`}>{level}</span>}
       </div>
+      {watch ? <ChillerWatch w={s.chart!.watch!} /> : <>
       {s.bath_c != null && (
         <div>
           <div className={`${compact ? "text-5xl" : "text-6xl"} font-bold tracking-tight`}><RollingNumber value={s.bath_c} decimals={1} decimalSeparator="," suffix="°" /></div>
@@ -55,6 +58,7 @@ export const ChillerCard = memo(function ChillerCard({ s, hasAlbumArtBackground,
       {s.lift_pct != null && <div className="text-base text-muted-foreground">Kylarens värme {s.lift_pct} % av baslinjen</div>}
       <ChillerCharts s={s} compact={compact} />
       {text && <div className="text-sm text-muted-foreground line-clamp-3 mt-auto">{text}</div>}
+      </>}
     </Card>
   );
 });

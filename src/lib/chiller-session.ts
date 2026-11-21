@@ -7,7 +7,41 @@ export type ChillerChart = {
   lift_base?: [number, number][];
   lift_t?: [number, number][];
   lift_base_t?: [number, number][];
+  watch?: ChillerWatch;
 };
+
+/** Vaktens egna data: [iso_tid, procent, lyft_K, restlyft_K, bad_C, luft_C, pumpar], äldst först. */
+export type ChillerWatchStart = [string, number | null, number | null, number | null, number | null, number | null, unknown];
+export type ChillerWatch = {
+  starts: ChillerWatchStart[];
+  levels: { M: number; info: number; weak: number; one: number };
+  run?: [string, string];
+};
+
+/** Restlyft över denna gräns = varm omstart, som vakten inte bedömer. */
+export const WARM_RESTART_K = 2;
+
+export const watchMode = (s: ChillerSession) => !s.active && !!s.chart?.watch?.starts?.length;
+
+/** Klartextrad för en start, t.ex. "16:05 · 182 % · lyft 35,0 K · restlyft 6,7 K · bad 15,8° · luft 19,7°". */
+export function watchStartText([at, pct, lift, rest, bath, air]: ChillerWatchStart): string {
+  const parts = [
+    fmtEta(at),
+    pct != null ? `${Math.round(pct)} %` : null,
+    lift != null ? `lyft ${fmtC(lift)} K` : null,
+    rest != null ? `restlyft ${fmtC(rest)} K` : null,
+    bath != null ? `bad ${fmtC(bath)}°` : null,
+    air != null ? `luft ${fmtC(air)}°` : null,
+  ].filter(Boolean);
+  if (rest != null && rest > WARM_RESTART_K) parts.push("varm omstart – bedöms inte");
+  return parts.join(" · ");
+}
+
+/** Övre gräns för stapelskalan: jämnt 50-tal över högsta värde/nivå. */
+export function watchScaleMax(w: ChillerWatch): number {
+  const top = Math.max(w.levels.M, ...w.starts.map((p) => p[1] ?? 0));
+  return Math.ceil((top * 1.08) / 50) * 50;
+}
 
 export interface ChillerSession {
   chart: ChillerChart | null;

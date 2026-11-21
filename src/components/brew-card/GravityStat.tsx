@@ -2,23 +2,10 @@ import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 
 const STALL_THRESHOLD = 0.002;
 
-const phaseLabels: Record<string, string> = {
-  lag: 'Lagfas',
-  exponential: 'Exponentiell',
-  declining: 'Avtagande',
-  stationary: 'Stationär',
-};
 
-const phaseDescriptions: Record<string, string> = {
-  lag: '⏳ Lagfas — jästen anpassar sig, ingen märkbar SG-förändring ännu',
-  exponential: '🚀 Exponentiell — jäsningen är som mest aktiv',
-  declining: '↘ Avtagande — jäsningen saktar ner, närmar sig slutet',
-  stationary: '⏳ Stationär — minimal aktivitet, SG stabil',
-};
 
 interface GravityStatProps {
   brew: BrewData;
@@ -28,38 +15,25 @@ interface GravityStatProps {
   compact?: boolean;
 }
 
-function FermentationRateLine({ rate, trend, stallThreshold, rate6h, rate12h }: { 
+function FermentationRateLine({ rate, trend, stallThreshold, rate6h, activity, ready }: { 
   rate: number; 
   trend?: 'rising' | 'falling' | 'stable' | null;
   stallThreshold: number;
   rate6h?: number | null;
-  rate12h?: number | null;
+  activity?: number | null;
+  ready?: boolean;
 }) {
   const shownRate = rate6h ?? rate;
   const isStalled = rate <= stallThreshold;
   const arrow = trend === 'rising' ? '↗' : trend === 'falling' ? '↘' : '→';
-  const rateText = `${shownRate > 0 ? '−' : '+'}${Math.abs(shownRate).toFixed(3).replace('.', ',')}/dygn`;
-
-  const tooltipLines = [
-    `Fart (24h): ${rate > 0 ? '-' : '+'}${Math.abs(rate).toFixed(4)}/d`,
-    rate6h != null ? `Senaste 6h: ${rate6h > 0 ? '-' : '+'}${Math.abs(rate6h).toFixed(4)}/d` : null,
-    rate12h != null ? `Föregående 6h: ${rate12h > 0 ? '-' : '+'}${Math.abs(rate12h).toFixed(4)}/d` : null,
-    rate6h != null && rate12h != null ? `Δ: ${(rate6h - rate12h) > 0 ? '+' : ''}${(rate6h - rate12h).toFixed(4)}/d` : null,
-  ].filter(Boolean).join('\n');
-
+  const parts = isStalled
+    ? []
+    : [`${arrow} ${shownRate > 0 ? '−' : '+'}${Math.abs(shownRate).toFixed(3).replace('.', ',')}/dygn`, activity != null ? `aktivitet ${activity} %` : null].filter(Boolean);
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={`${statDetailClass} cursor-help`} style={isStalled ? { color: 'hsl(var(--destructive))' } : undefined}>
-            {isStalled ? <span className="font-semibold">{arrow} Avstannat</span> : <span>{arrow} {rateText}</span>}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="whitespace-pre text-xs tabular-nums">
-          {tooltipLines}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <p className="text-[12px] leading-tight tabular-nums text-muted-foreground/80">
+      {isStalled ? <span className="font-semibold" style={{ color: 'hsl(var(--destructive))' }}>Avstannat</span> : parts.join(' · ')}
+      {ready && <span className="text-blue-400 font-semibold"> · 🧊 Redo</span>}
+    </p>
   );
 }
 
@@ -120,37 +94,12 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
             trend={brew.fermentationTrend?.trend}
             stallThreshold={stallThreshold}
             rate6h={brew.fermentationTrend?.rate6h}
-            rate12h={brew.fermentationTrend?.rate12h}
+            activity={brew.fermentationMetrics?.activity_score}
+            ready={!!brew.fermentationMetrics?.ready_to_crash && !hideReadyToCrash}
           />
         )}
         {!isInactive && brew.fermentationRate === null && (
           <p className={statDetailClass}>Beräknar...</p>
-        )}
-        {!isInactive && brew.fermentationMetrics && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={`${statDetailClass} hidden sm:flex cursor-help h-[1em] overflow-hidden`}>
-                  <span>{brew.fermentationMetrics.activity_score == null ? 'Pillen tyst' : `Aktivitet ${brew.fermentationMetrics.activity_score} %`}</span>
-                  {brew.fermentationRate !== null && brew.fermentationRate > stallThreshold && (
-                    <span>{phaseLabels[brew.fermentationMetrics.fermentation_phase] ?? brew.fermentationMetrics.fermentation_phase}</span>
-                  )}
-                  {brew.fermentationMetrics.ready_to_crash && !hideReadyToCrash && (
-                    <span className="text-blue-400 font-semibold">🧊 Redo</span>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-                <p className="font-semibold mb-1">
-                  {phaseDescriptions[brew.fermentationMetrics.fermentation_phase] ?? 'Okänd fas'}
-                </p>
-                <p>⚡ Aktivitet: {brew.fermentationMetrics.activity_score == null ? 'pillen tyst' : `${brew.fermentationMetrics.activity_score}%`} — mått på hur aktiv jäsningen är just nu (0–100%)</p>
-                {brew.fermentationMetrics.ready_to_crash && !hideReadyToCrash && (
-                  <p className="mt-1">🧊 SG stabil + hög utjäsningsgrad → redo för coldcrash</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         )}
       </div>}
     </StatCard>

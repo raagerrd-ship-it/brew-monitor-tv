@@ -46,9 +46,6 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     && surfaceTemp >= targetTemp + 0.3
     && (delta ?? 0) > 2.0;
 
-  // Overshoot data now comes pre-fetched from the hook (no per-card DB query)
-  const overshootReason = brew.overshootReason;
-  const originalTarget = brew.originalTarget;
 
 
   // SSOT: centralized target temp calculation
@@ -60,10 +57,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     currentProfileTarget,
     targetTemp
   );
-  const profileTarget = currentProfileTarget;
   const showBothTargets = compensation !== null && Math.abs(compensation) >= 0.1;
   
-  const profileGoal = displayTarget?.toFixed(1);
   const goalTemp = displayTarget ?? targetTemp ?? null;
   const fmtC = (t: number) => `${t.toFixed(1).replace('.', ',')}°`;
 
@@ -87,71 +82,10 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     ? () => onControllerClick(controller) 
     : undefined;
 
-  // Temperature span bar: visual range showing sensor(s) relative to target
-  const hasAnySensor = (pillTemp !== null || probeTemp !== null);
-  const spanBar = hasAnySensor && !isInactive && targetTemp !== null && targetTemp !== undefined ? (() => {
-    const pTemp = pillTemp;       // pill (surface) — may be null
-    const cTemp = probeTemp;      // controller (core) — may be null
-    const profileT = profileTarget ?? targetTemp;
-    const compensatedT = targetTemp;
-    
-    // Fixed range: profile target ±3°
-    const rangeMin = profileT - 3;
-    const rangeMax = profileT + 3;
-    const range = rangeMax - rangeMin;
-    
-    const pct = (t: number) => Math.max(2, Math.min(98, ((t - rangeMin) / range) * 100));
-    
-    const ctrlPct = cTemp !== null ? pct(cTemp) : null;
-    const pillPct = pTemp !== null ? pct(pTemp) : null;
-    const profilePct = pct(profileT);
-    
-    // Span bar: if both sensors, show range; if single, show a thin marker
-    const hasBoth = ctrlPct !== null && pillPct !== null;
-    const leftPct = hasBoth ? Math.min(ctrlPct, pillPct) : (ctrlPct ?? pillPct!);
-    const rightPct = hasBoth ? Math.max(ctrlPct, pillPct) : leftPct;
-    
-    const showCompensatedMarker = Math.abs(profileT - compensatedT) >= 0.1;
-
-    // Scale labels
-    // Vänster = givaren (PT100, kärna), höger = pillen (yta); stapeln ligger på profilmål ±3°.
-    const leftLabel = cTemp !== null ? fmtC(cTemp) : fmtC(pTemp!);
-    const rightLabel = hasBoth ? fmtC(pTemp!) : '';
-
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="w-full flex flex-col gap-0.5 cursor-help">
-              <MiniBar
-                from={hasBoth ? leftPct : leftPct - 1}
-                to={hasBoth ? Math.max(rightPct, leftPct + 2) : leftPct + 1}
-                color={isOvershoot ? 'hsl(38 92% 50%)' : 'hsl(var(--ferment-green))'}
-                marker={profilePct}
-              />
-              <div className={statDetailClass}>
-                <span>{leftLabel}</span>
-                <span>{rightLabel}</span>
-              </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
-            <div className="space-y-0.5">
-              {cTemp !== null && <p><span style={{ color: 'hsl(var(--temp-blue))' }}>●</span> Controller: {cTemp.toFixed(1)}°</p>}
-              {pTemp !== null && <p><span style={{ color: 'hsl(var(--ferment-green))' }}>●</span> Pill: {pTemp.toFixed(1)}°</p>}
-              <p><span style={{ color: 'hsl(38 92% 50%)' }}>│</span> Profilmål: {profileT.toFixed(1)}°</p>
-              {showCompensatedMarker && (
-                <p><span style={{ color: 'hsl(38 92% 50% / 0.7)' }}>┊</span> Kompenserat: {compensatedT.toFixed(1)}°</p>
-              )}
-              {hasBoth && displayTemp !== null && <p><span style={{ color: 'hsl(var(--foreground) / 0.7)' }}>│</span> Snitt: {displayTemp.toFixed(1)}°</p>}
-              {isOvershoot && <p style={{ color: 'hsl(38 92% 50%)' }}>⚠ Overshoot</p>}
-              {overshootReason && <p className="text-foreground border-t border-border pt-0.5 mt-0.5"><span className="font-medium">AI:</span> {overshootReason}</p>}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  })() : null;
+  // Skiktning: visas bara när botten (givare) och yta (pill) skiljer ≥ 1,0°.
+  const stratText = !isInactive && probeTemp !== null && pillTemp !== null && Math.abs(pillTemp - probeTemp) >= 1
+    ? <><span className="whitespace-nowrap">botten {fmtC(probeTemp)} ·</span> <span className="whitespace-nowrap">yta {fmtC(pillTemp)}</span></>
+    : null;
 
   // PWM Duty Cycle bar — show for all active controllers (default 0% when no data)
   const effectiveDutyPct = brew.dutyPct ?? (controller && !isInactive ? 0 : null);
@@ -166,7 +100,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="w-full flex items-center gap-1.5 cursor-help">
-              <span className="text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap">{mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} {duty} %</span>
+              <span className="text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap">{duty === 0 ? 'Av' : `${mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} ${duty} %`}</span>
               <div className="flex-1"><MiniBar to={duty} color={barColor} /></div>
             </div>
           </TooltipTrigger>
@@ -218,8 +152,8 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       subValue={!compact && goalTemp !== null ? <p className={`${statDetailClass} justify-center`}>mål {fmtC(goalTemp)}</p> : undefined}
     >
       {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
-        {spanBar}
         {dutyBar}
+        {stratText && <p className="text-[12px] leading-tight tabular-nums tracking-tight text-center text-muted-foreground/80">{stratText}</p>}
       </div>}
     </StatCard>
   );
