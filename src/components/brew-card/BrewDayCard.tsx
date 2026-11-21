@@ -87,7 +87,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
             {day.label_url && <img src={day.label_url} alt="" className="h-7 w-7 rounded-md object-cover shrink-0 border border-border" />}
             <div className="text-base font-semibold text-foreground/80 line-clamp-2">{day.recipe_name ?? "—"}</div>
           </div>
-          <div className="text-3xl leading-tight font-bold whitespace-normal break-normal">{day.step_title ?? "—"}</div>
+          <div className="text-xl leading-tight font-bold whitespace-normal break-normal">{day.step_title ?? "—"}</div>
           {isDone ? <div className="text-base font-semibold text-primary">KLART · Tryck Klar i appen</div> : day.target_temp_c != null && (
             <span className="inline-flex rounded-md border border-primary/30 bg-primary/15 px-2 py-0.5 text-xl font-bold tabular-nums text-primary">{Number(day.target_temp_c.toFixed(1))}°</span>
           )}
