@@ -19,18 +19,7 @@ interface Props {
 const fmtTemp = (value: number) => `${value.toFixed(1).replace(".", ",")}°`;
 
 function FitValue({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const column = el?.closest(".stat-panel-column");
-    if (!el || !column) return;
-    el.style.fontSize = "";
-    const styles = getComputedStyle(column);
-    const available = column.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
-    const natural = el.scrollWidth;
-    if (natural > available && natural > 0) el.style.fontSize = `${Math.floor(available / natural * 100)}%`;
-  });
-  return <span ref={ref} className="stat-panel-value-fit">{children}</span>;
+  return <span className="stat-panel-value-fit">{children}</span>;
 }
 const segment = (from: number, to: number) => ({ transform: `translateX(${from}%) scaleX(${Math.max(0, to - from) / 100})` });
 const position = (pct: number) => ({ transform: `translateX(${pct}%)` });
@@ -53,6 +42,20 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
   const clickable = brew.batch_id.startsWith("custom_") && !!onSyncedDataClick;
   const tempClick = controller && onControllerClick ? () => onControllerClick(controller) : undefined;
   const valueClass = "stat-panel-value";
+  const panelRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const values = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(".stat-panel-value-fit") ?? []);
+    values.forEach((el) => { el.style.fontSize = ""; });
+    let factor = 1;
+    for (const el of values) {
+      const column = el.closest(".stat-panel-column");
+      if (!column) continue;
+      const styles = getComputedStyle(column);
+      const available = column.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+      if (el.scrollWidth > available && el.scrollWidth > 0) factor = Math.min(factor, available / el.scrollWidth);
+    }
+    if (factor < 1) values.forEach((el) => { el.style.fontSize = `${Math.floor(factor * 100)}%`; });
+  });
 
   const gravityContent = <>
     <span className="stat-panel-label">Gravity</span>
@@ -64,7 +67,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
   const tempContent = <>
     <span className="stat-panel-label">Temp</span>
     <span className={`${valueClass} ${tempIsOffTarget(displayTemp, target) ? "text-primary" : "text-foreground"}`}>
-      <FitValue>{displayTemp === null ? "—" : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-[0.6em] opacity-40">°</span>} />}</FitValue>
+      <FitValue>{displayTemp === null ? "—" : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="opacity-40">°</span>} />}</FitValue>
     </span>
     <span className="stat-panel-detail flex flex-wrap w-full gap-x-1 text-muted-foreground/80">
       {target !== null && <span className="whitespace-nowrap">mål <span className="text-primary">{fmtTemp(target)}</span></span>}
@@ -72,7 +75,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
     </span>
   </>;
 
-  return <div className={`fermentation-stats ${compact ? "stat-panel-compact" : ""}`} data-stat-panel>
+  return <div className={`fermentation-stats ${compact ? "stat-panel-compact" : ""}`} data-stat-panel ref={panelRef}>
     <div className="stat-panel-columns">
       {clickable ? <Button variant="ghost" className="stat-panel-column stat-panel-control" onClick={onSyncedDataClick} title="Visa synkad data">{gravityContent}</Button> : <div className="stat-panel-column">{gravityContent}</div>}
       <div className="stat-panel-column border-l border-foreground/10">
