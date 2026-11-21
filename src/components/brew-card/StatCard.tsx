@@ -2,20 +2,35 @@ import { ReactNode, CSSProperties } from "react";
 import { colorWithOpacity } from "./utils";
 import { useTvMode } from "@/contexts/TvModeContext";
 
-/** Gemensam ministapel: spår + en fyllnad (transform-only) + valfri markör. */
-export function MiniBar({ from = 0, to, color, marker }: { from?: number; to: number; color: string; marker?: number }) {
+/** Gemensam kombinerad stapel: spår + fyllnad + valfritt streckat segment, markör, punkt och tunn underlinje. Allt flyttas med transform. */
+export function MiniBar({ from = 0, to, color, ghost, marker, markerColor, dot, under }: {
+  from?: number; to: number; color: string;
+  ghost?: [number, number]; marker?: number; markerColor?: string; dot?: number;
+  under?: { pct: number; color: string };
+}) {
   const { isTvMode } = useTvMode();
+  const anim = isTvMode ? 'tv-value-bar' : '';
   const clamp = (v: number) => Math.max(0, Math.min(100, v));
-  const left = clamp(from);
-  const width = Math.max(clamp(to) - left, 0);
+  const seg = (a: number, b: number) => ({ transform: `translateX(${clamp(a)}%) scaleX(${Math.max(clamp(b) - clamp(a), 0) / 100})`, transformOrigin: 'left' });
+  const at = (v: number) => ({ transform: `translateX(${clamp(v)}%)` });
   return (
-    <div className="relative w-full h-[7px] rounded-full overflow-hidden bg-foreground/10">
-      <div
-        className={`absolute inset-y-0 left-0 w-full rounded-full ${isTvMode ? 'tv-value-bar' : ''}`}
-        style={{ transform: `translateX(${left}%) scaleX(${width / 100})`, transformOrigin: 'left', background: color }}
-      />
-      {marker !== undefined && (
-        <div className="absolute inset-y-0 w-[3px] rounded-full bg-foreground" style={{ left: `${clamp(marker)}%`, transform: 'translateX(-1.5px)' }} />
+    <div className="w-full">
+      <div className="relative w-full h-[8px] rounded-full overflow-hidden bg-foreground/10">
+        <div className={`absolute inset-y-0 left-0 w-full rounded-full ${anim}`} style={{ ...seg(from, to), background: color }} />
+        {ghost && ghost[1] - ghost[0] > 0.5 && (
+          <div className={`absolute inset-y-0 left-0 w-full ${anim}`} style={{ ...seg(ghost[0], ghost[1]), background: `repeating-linear-gradient(90deg, ${color} 0 3px, transparent 3px 6px)`, opacity: 0.55 }} />
+        )}
+        {marker !== undefined && (
+          <div className={`absolute inset-0 ${anim}`} style={at(marker)}><div className="absolute inset-y-0 left-0 w-[3px] -translate-x-1/2 rounded-full" style={{ background: markerColor ?? 'hsl(var(--foreground))' }} /></div>
+        )}
+        {dot !== undefined && (
+          <div className={`absolute inset-0 ${anim}`} style={at(dot)}><div className="absolute top-0 left-0 h-[8px] w-[8px] -translate-x-1/2 rounded-full bg-foreground" /></div>
+        )}
+      </div>
+      {under && (
+        <div className="relative w-full h-[3px] mt-[2px] rounded-full overflow-hidden bg-foreground/10">
+          <div className={`absolute inset-y-0 left-0 w-full rounded-full ${anim}`} style={{ ...seg(0, under.pct), background: under.color }} />
+        </div>
       )}
     </div>
   );

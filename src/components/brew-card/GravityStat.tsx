@@ -16,31 +16,6 @@ interface GravityStatProps {
   compact?: boolean;
 }
 
-function FermentationRateLine({ rate, trend, stallThreshold, rate6h, activity, ready, prePitch }: { 
-  rate: number; 
-  trend?: 'rising' | 'falling' | 'stable' | null;
-  stallThreshold: number;
-  rate6h?: number | null;
-  activity?: number | null;
-  ready?: boolean;
-  prePitch?: boolean;
-}) {
-  const shownRate = rate6h ?? rate;
-  const isStalled = !prePitch && rate <= stallThreshold;
-  const arrow = trend === 'rising' ? '↗' : trend === 'falling' ? '↘' : '→';
-  const parts = prePitch
-    ? ['väntar på jäst']
-    : isStalled
-    ? []
-    : [`${arrow} ${shownRate > 0 ? '−' : '+'}${Math.abs(shownRate).toFixed(3).replace('.', ',')}/dygn`, activity != null ? `aktivitet ${activity} %` : null].filter(Boolean);
-  return (
-    <p className="text-[12px] leading-tight tabular-nums text-muted-foreground/80">
-      {isStalled ? <span className="font-semibold" style={{ color: 'hsl(var(--destructive))' }}>Avstannat</span> : parts.join(' · ')}
-      {ready && <span className="text-blue-400 font-semibold"> · 🧊 Redo</span>}
-    </p>
-  );
-}
-
 function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideReadyToCrash, compact = false }: GravityStatProps) {
   const stallThreshold = STALL_THRESHOLD;
   const isCustomBrew = brew.batch_id.startsWith('custom_');
@@ -67,6 +42,15 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
     return Math.max(0, Math.min(100, pct));
   }, [brew.originalGravity, brew.finalGravity, brew.currentSG]);
 
+  // Farten som segmentets längd: var SG beräknas vara om 24 h (rate = SG-fall per dygn).
+  const rate = brew.fermentationTrend?.rate6h ?? brew.fermentationRate;
+  const prePitch = calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === 'lag';
+  const isStalled = !isInactive && !prePitch && brew.fermentationRate !== null && brew.fermentationRate <= stallThreshold;
+  const showRate = !isInactive && !prePitch && !isStalled && rate != null && rate > 0;
+  const range = brew.originalGravity - brew.finalGravity;
+  const projectedPct = showRate && range > 0 ? ((brew.originalGravity - (brew.currentSG - rate!)) / range) * 100 : progress;
+  const ready = !isInactive && !!brew.fermentationMetrics?.ready_to_crash && !hideReadyToCrash;
+
   return (
     <StatCard
       label="Gravity"
@@ -83,29 +67,21 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
+      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px] mt-0.5">
+        <div className={`${statDetailClass} !justify-end`}>
+          <span className="font-semibold text-foreground">{progress.toFixed(0)} %</span>
+        </div>
+        <MiniBar
+          to={progress}
+          color={prePitch ? 'hsl(var(--muted-foreground))' : progressColor}
+          ghost={showRate ? [progress, projectedPct] : undefined}
+          marker={isStalled ? progress : undefined}
+          markerColor="hsl(var(--destructive))"
+        />
         <div className={`${statDetailClass} !flex-nowrap !gap-x-0`}>
           <span>OG {brew.originalGravity.toFixed(3)}</span>
-          <span>FG {brew.finalGravity.toFixed(3)}</span>
+          <span>{ready && '🧊 '}FG {brew.finalGravity.toFixed(3)}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="flex-1"><MiniBar to={progress} color={progressColor} /></div>
-          <span className="text-[12px] font-semibold tabular-nums leading-none text-foreground whitespace-nowrap">{progress.toFixed(0)} %</span>
-        </div>
-        {!isInactive && brew.fermentationRate !== null && (
-          <FermentationRateLine 
-            rate={brew.fermentationRate} 
-            trend={brew.fermentationTrend?.trend}
-            stallThreshold={stallThreshold}
-            rate6h={brew.fermentationTrend?.rate6h}
-            activity={brew.fermentationMetrics?.activity_score}
-            ready={!!brew.fermentationMetrics?.ready_to_crash && !hideReadyToCrash}
-            prePitch={calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === 'lag'}
-          />
-        )}
-        {!isInactive && brew.fermentationRate === null && (
-          <p className={statDetailClass}>Beräknar...</p>
-        )}
       </div>}
     </StatCard>
   );

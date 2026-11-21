@@ -4,7 +4,6 @@ import { DeviceMatch } from "./types";
 import { isBrewInactive } from "./utils";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tv-tooltip";
 import { getActualTempLabel, getDisplayTarget } from "@/lib/temp-display";
 
 
@@ -82,57 +81,26 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
     ? () => onControllerClick(controller) 
     : undefined;
 
-  // Skiktning: visas bara när botten (givare) och yta (pill) skiljer ≥ 1,0°.
-  const stratText = !isInactive && probeTemp !== null && pillTemp !== null && Math.abs(pillTemp - probeTemp) >= 1
-    ? <><span className="whitespace-nowrap">botten {fmtC(probeTemp)} ·</span> <span className="whitespace-nowrap">yta {fmtC(pillTemp)}</span></>
-    : null;
-
-  // PWM Duty Cycle bar — show for all active controllers (default 0% when no data)
-  const effectiveDutyPct = brew.dutyPct ?? (controller && !isInactive ? 0 : null);
-  const dutyBar = effectiveDutyPct !== null ? (() => {
-    const duty = effectiveDutyPct;
-    const mode = brew.dutyMode;
-    const isCooling = mode === 'cooling';
-    const barColor = isCooling ? 'hsl(var(--temp-blue))' : 'hsl(0 70% 50%)';
-
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="w-full flex flex-col gap-[3px] cursor-help">
-              <span className={`text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap ${duty === 0 ? 'text-center' : 'text-right font-semibold text-foreground'}`}>{duty === 0 ? (mode === 'cooling' ? 'Kyla av' : 'Av') : `${mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} ${duty} %`}</span>
-              {duty > 0 && <MiniBar to={duty} color={barColor} />}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs max-w-[260px]">
-            <div className="space-y-0.5">
-              <p className="font-medium">PWM Duty: {duty}% — {isCooling ? 'Kylning' : 'Värmning'}</p>
-              {(() => {
-                const reason = brew.pidReason;
-                if (!reason) return null;
-                const piMatch = reason.match(/PI=([+-]?\d+\.?\d*)°C\(P=([+-]?\d+\.?\d*),I=([+-]?\d+\.?\d*)/);
-                const deltaMatch = reason.match(/delta=([+-]?\d+\.?\d*)/);
-                const learnedMatch = reason.match(/learned=([+-]?\d+\.?\d*)\[([^\]]+)\]n=(\d+)/);
-                
-                return (
-                  <>
-                    <div className="border-t border-border/50 my-1" />
-                    {deltaMatch && <p>Delta (pill−probe): {deltaMatch[1]}°</p>}
-                    {piMatch && (
-                      <p>PI-korrigering: {piMatch[1]}° <span className="text-muted-foreground">(P={piMatch[2]}, I={piMatch[3]})</span></p>
-                    )}
-                    {learnedMatch && (
-                      <p>Inlärd baseline: {learnedMatch[1]}° <span className="text-muted-foreground">[{learnedMatch[2]}] n={learnedMatch[3]}</span></p>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  })() : null;
+  // Kombinerad stapel: profilmål ±3°, segment botten (givare) → yta (pill), punkt för visat värde, tunn effektlinje under.
+  const centerT = currentProfileTarget ?? targetTemp ?? null;
+  const pctOf = (t: number) => centerT === null ? 50 : ((t - (centerT - 3)) / 6) * 100;
+  const sensors = [probeTemp, pillTemp].filter((t): t is number => t !== null);
+  const duty = brew.dutyPct ?? 0;
+  const dutyColor = brew.dutyMode === 'heating' ? 'hsl(15 85% 55%)' : 'hsl(var(--temp-blue))';
+  const tempBar = !isInactive && centerT !== null && sensors.length > 0 ? (
+    <>
+      <MiniBar
+        from={pctOf(Math.min(...sensors))}
+        to={Math.max(pctOf(Math.max(...sensors)), pctOf(Math.min(...sensors)) + 2)}
+        color={isOvershoot ? 'hsl(38 92% 50% / 0.7)' : 'hsl(var(--ferment-green) / 0.6)'}
+        marker={50}
+        markerColor="hsl(38 92% 55%)"
+        dot={displayTemp !== null ? pctOf(displayTemp) : undefined}
+        under={{ pct: duty, color: dutyColor }}
+      />
+      {duty > 0 && <p className={`${statDetailClass} !justify-end`}>{brew.dutyMode === 'heating' ? 'värme' : 'kyla'} {duty} %</p>}
+    </>
+  ) : null;
 
   return (
     <StatCard
@@ -152,8 +120,7 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       subValue={!compact && goalTemp !== null ? <p className={`${statDetailClass} justify-center`}>mål {fmtC(goalTemp)}</p> : undefined}
     >
       {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
-        {dutyBar}
-        {stratText && <p className="text-[12px] leading-tight tabular-nums tracking-tight text-center text-muted-foreground/80">{stratText}</p>}
+        {tempBar}
       </div>}
     </StatCard>
   );
