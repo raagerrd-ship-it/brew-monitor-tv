@@ -6,6 +6,7 @@ import { DeviceMatch } from "./types";
 import { toDutyPct } from "./utils";
 import { getDisplayTarget } from "@/lib/temp-display";
 import { gravityPanelData, tempScalePosition, tempIsOffTarget } from "./stat-panel-data";
+import { getBackgroundStyle, getBorderColor, getBoxShadow, getTopReflection } from "@/components/fermentation/sessionStyles";
 
 interface Props {
   brew: BrewData;
@@ -75,7 +76,9 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
     </span>
   </>;
 
-  return <div className={`fermentation-stats ${compact ? "stat-panel-compact" : ""}`} data-stat-panel ref={panelRef}>
+  return <div className={`fermentation-stats ${compact ? "stat-panel-compact" : ""}`} data-stat-panel ref={panelRef}
+    style={{ background: getBackgroundStyle('normal'), border: `1px solid ${getBorderColor('normal')}`, boxShadow: getBoxShadow('normal') }}>
+    <div className="absolute inset-x-0 top-0 h-[1px] pointer-events-none" style={{ background: getTopReflection() }} />
     <div className="stat-panel-columns">
       {clickable ? <Button variant="ghost" className="stat-panel-column stat-panel-control" onClick={onSyncedDataClick} title="Visa synkad data">{gravityContent}</Button> : <div className="stat-panel-column">{gravityContent}</div>}
       <div className="stat-panel-column border-l border-foreground/10">
