@@ -17,10 +17,7 @@ import { findDevicesForBrew } from "@/lib/brew-utils";
 import { isBatteryStale, batteryAgeLabel } from "@/lib/battery-age";
 import { BrewCardProps } from "./types";
 import { getStatusDisplayText, isBrewInactive } from "./utils";
-import { GravityStat } from "./GravityStat";
-import { AbvStat } from "./AbvStat";
-import { TempStat } from "./TempStat";
-import { AttenuationStat } from "./AttenuationStat";
+import { FermentationStats } from "./FermentationStats";
 
 
 // Interactive-only dialogs: loaded on demand (keeps jspdf/qrcode/printer driver out of the TV bundle)
@@ -34,7 +31,7 @@ import { useTvEventAnimation } from "@/hooks/use-tv-event-animation";
 
 // Fixed heights in pixels for consistent layout (optimized for 720p)
 const CARD_HEADER_HEIGHT = 80;
-const CARD_STATS_HEIGHT = 148;
+const CARD_STATS_HEIGHT = 184;
 
 /** Small icon for brew status badge */
 function StatusIcon({ status }: { status: string }) {
@@ -461,24 +458,14 @@ function BrewCardComponent({
       {/* Stats Grid - hidden when session is expanded */}
       {!sessionExpanded && (
         <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px`, overflow: 'visible' }}>
-          <div className="grid grid-cols-3 grid-rows-2 gap-1.5 h-full overflow-visible">
-            <GravityStat 
+            <FermentationStats
               compact={compact}
-              brew={brew} 
+              brew={brew}
+              devices={devices}
               hideReadyToCrash={hideReadyToCrash}
-              updatedFields={updatedFields} 
               onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}
-            />
-            <AbvStat brew={brew} updatedFields={updatedFields} />
-            <TempStat 
-              compact={compact}
-              brew={brew} 
-              devices={devices} 
-              updatedFields={updatedFields}
               onControllerClick={onControllerClick}
             />
-            <AttenuationStat brew={brew} updatedFields={updatedFields} />
-          </div>
         </div>
       )}
       
