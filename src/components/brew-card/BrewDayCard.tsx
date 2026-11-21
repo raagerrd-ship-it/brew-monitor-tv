@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Check, ChefHat, Clock } from "lucide-react";
+import { Check, ChefHat, Lock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { BrewDay, BrewDayItem } from "@/hooks/use-brew-day";
 import { useSharedExternalTimer, type ExternalTimerState } from "@/hooks/use-external-timer";
@@ -128,7 +128,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
                   ? <Check className="h-3.5 w-3.5 text-foreground" strokeWidth={3} />
                   : isNow
                     ? <span className={`${isTvMode ? "h-2.5 w-2.5" : "h-1.5 w-1.5"} rounded-full bg-primary`} />
-                    : <Clock className="h-3.5 w-3.5 text-muted-foreground" />}
+                    : <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
               </span>
               <span className={`flex-1 min-w-0 ${isExpanded ? "line-clamp-4 break-words" : "truncate"} ${i.checked ? smallSize : isExpanded ? compact ? "text-xl" : "text-2xl" : waitingSize} font-medium ${i.checked ? "line-through" : ""} ${isNow ? "font-semibold text-foreground" : i.checked ? "text-muted-foreground" : "text-foreground/70"}`}>{i.name}</span>
               <span className={`flex items-start ${compact ? "gap-1.5" : isTvMode ? "gap-3" : "gap-4"} shrink-0`}>
@@ -149,7 +149,7 @@ const BrewDayCardContent = memo(function BrewDayCardContent({ day, hasAlbumArtBa
                 )}
                 {isNext && itemState === "waiting" && countdown != null && countdown > 0 && (
                   <span className={`flex items-baseline shrink-0 ${compact ? "text-2xl" : "text-3xl"} font-medium tabular-nums whitespace-nowrap text-foreground`}>
-                    <span className="text-[0.6em] font-semibold mr-1">om</span>{fmt(countdown)}
+                    <span className="text-[0.6em] font-semibold mr-1"><span className="text-muted-foreground">Låst · </span>om</span>{fmt(countdown)}
                   </span>
                 )}
               </span>
