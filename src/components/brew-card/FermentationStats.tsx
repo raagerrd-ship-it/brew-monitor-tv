@@ -61,7 +61,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
     <span className="stat-panel-label">Gravity</span>
     <span className={`${valueClass} text-primary`}><FitValue><RollingNumber value={brew.currentSG} decimals={4} mutedLastDigit /></FitValue></span>
     <span className={`stat-panel-detail ${gravity.ready ? "text-temp-blue" : gravity.stalled ? "text-destructive" : "text-muted-foreground/80"}`}>
-      {gravity.ready ? "🧊 vid FG" : gravity.prePitch ? "väntar på jäst" : gravity.stalled ? "står still" : gravity.pointsPerDay !== null ? `−${gravity.pointsPerDay} p/dygn` : "\u00a0"}
+      {gravity.ready ? gravity.done ? "🧊 klar" : "🧊 vid FG" : gravity.prePitch ? "väntar på jäst" : gravity.stalled ? "står still" : gravity.pointsPerDay !== null ? `−${gravity.pointsPerDay} p/dygn` : "\u00a0"}
     </span>
   </>;
   const tempContent = <>
@@ -89,7 +89,7 @@ function FermentationStatsComponent({ brew, devices, compact = false, hideReadyT
       <div className={`stat-panel-track h-[10px] ${gravity.stalled ? "ring-1 ring-destructive" : ""}`}>
         <div className="stat-panel-layer stat-panel-gravity-fill" style={segment(0, gravity.progress)} />
         {gravity.projected > gravity.progress && <div className="stat-panel-layer stat-panel-ghost" style={segment(gravity.progress, gravity.projected)} />}
-        <div className="stat-panel-layer" style={position(gravity.progress)}><span className={`stat-panel-dot h-[10px] w-[10px] ${gravity.ready ? "bg-temp-blue" : "bg-primary"}`} /></div>
+        <div className="stat-panel-layer stat-panel-dot-layer" style={position(gravity.progress)}><span className={`stat-panel-dot h-[10px] w-[10px] ${gravity.ready ? "bg-temp-blue" : "bg-primary"}`} /></div>
       </div>
       <div className="stat-panel-detail flex justify-between text-muted-foreground/80"><span>{brew.originalGravity.toFixed(3)}</span><span className={gravity.ready ? "text-temp-blue" : ""}>{brew.finalGravity.toFixed(3)}</span></div>
     </div>

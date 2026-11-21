@@ -37,6 +37,19 @@ describe("B2 gravity", () => {
     expect(result.ready).toBe(true);
     expect(result.pointsPerDay).toBeNull();
   });
+  it("visar inaktiv brygd som klar även när ready_to_crash är dold", () => {
+    const result = gravityPanelData({ ...brew, status: "Klar" }, true);
+    expect(result.ready).toBe(true);
+    expect(result.done).toBe(true);
+    expect(result.stalled).toBe(false);
+    expect(result.pointsPerDay).toBeNull();
+    expect(result.projected).toBe(result.progress);
+  });
+  it("visar ingen fart när den avrundas till noll punkter per dygn", () => {
+    const result = gravityPanelData({ ...brew, fermentationTrend: { rate6h: 0.00004, rate12h: 0.00004, trend: "falling" } });
+    expect(result.pointsPerDay).toBeNull();
+    expect(result.projected).toBe(result.progress);
+  });
 });
 
 describe("B2 temperaturskala mål ±3°", () => {
