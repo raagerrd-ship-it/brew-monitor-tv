@@ -107,19 +107,19 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       label="Temp"
       value={displayTemp === null ? '—' : <RollingNumber value={displayTemp} decimals={1} suffix={<span className="text-muted-foreground/40">°</span>} />}
       
-      className="gap-0.5 !py-1.5 !px-1.5"
+      className="gap-0.5 !py-1.5 !px-1.5 !justify-start"
       color={isOvershoot ? 'hsl(38 92% 50%)' : tempColor}
       isUpdated={updatedFields[brew.batch_id]?.temp}
       isInactive={isInactive}
       title={tooltipParts.length > 0 ? tooltipParts.join(' | ') : undefined}
       rowSpan={2}
       labelSize="18px"
-      valueSize={compact ? "38px" : "48px"}
+      valueSize={compact ? "26px" : "46px"}
       onClick={handleClick}
       clickable={!!handleClick}
       subValue={!compact && goalTemp !== null ? <p className={`${statDetailClass} justify-center`}>mål {fmtC(goalTemp)}</p> : undefined}
     >
-      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
+      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px] mt-auto">
         {tempBar}
       </div>}
     </StatCard>

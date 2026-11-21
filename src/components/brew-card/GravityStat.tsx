@@ -61,16 +61,14 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       rowSpan={2}
       customBackground={customBackground}
       labelSize="18px"
-      valueSize={compact ? "26px" : "42px"}
-      className="gap-0.5 !py-1.5 !px-1.5"
+      valueSize={compact ? "26px" : "46px"}
+      className="gap-0.5 !py-1.5 !px-1.5 !justify-start"
+      subValue={!compact ? <div className={`${statDetailClass} !flex-nowrap !justify-center !gap-x-0`}><span>OG {brew.originalGravity.toFixed(3)}</span><span className="mx-1 opacity-40">|</span><span>{ready && '🧊 '}FG {brew.finalGravity.toFixed(3)}</span></div> : undefined}
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
-      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px] mt-0.5">
-        <div className={`${statDetailClass} !justify-end`}>
-          <span className="font-semibold text-foreground">{progress.toFixed(0)} %</span>
-        </div>
+      {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px] mt-auto">
         <MiniBar
           to={progress}
           color={prePitch ? 'hsl(var(--muted-foreground))' : progressColor}
@@ -78,10 +76,6 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
           marker={isStalled ? progress : undefined}
           markerColor="hsl(var(--destructive))"
         />
-        <div className={`${statDetailClass} !flex-nowrap !gap-x-0`}>
-          <span>OG {brew.originalGravity.toFixed(3)}</span>
-          <span>{ready && '🧊 '}FG {brew.finalGravity.toFixed(3)}</span>
-        </div>
       </div>}
     </StatCard>
   );
