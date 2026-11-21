@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
-import { calculateDaysSinceStart } from "./utils";
+import { calculateDaysSinceStart, toRatePct } from "./utils";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
 
@@ -75,6 +75,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
           ghost={showRate ? [progress, projectedPct] : undefined}
           marker={isStalled ? progress : undefined}
           markerColor="hsl(var(--destructive))"
+          under={showRate ? { pct: toRatePct(rate), color: 'hsl(var(--ferment-green))' } : undefined}
         />
         <div className={`${statDetailClass} !flex-nowrap`}>
           <span>{brew.originalGravity.toFixed(3)}</span>

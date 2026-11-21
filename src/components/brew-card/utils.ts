@@ -28,6 +28,11 @@ export function toDutyPct(v: number | null | undefined): number {
   return Math.round(Math.max(0, Math.min(100, v ?? 0)));
 }
 
+/** Jäsfart i SG per dygn skalad till 0–100 mot max 0,010/dygn, klämd. */
+export function toRatePct(v: number | null | undefined): number {
+  return Math.round(Math.max(0, Math.min(100, ((v ?? 0) / 0.01) * 100)));
+}
+
 export function isBrewInactive(status: string): boolean {
   return status === "Konditionering" || status === "Klar";
 }
