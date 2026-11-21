@@ -536,15 +536,18 @@ export function FermentationSessionCompact({
               </>
             )}
             
-            <Separator />
-            
             {/* Step type label + next step condition — med Pi:ns delfaser ritas den aktiva fasen rakt av */}
             {hasPiPhases ? (
               <>
-                <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
-                  <Activity className="h-3 w-3 shrink-0" />
-                  <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
-                </span>
+                {cond?.unit !== '°C' && (
+                  <>
+                    <Separator />
+                    <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
+                      <Activity className="h-3 w-3 shrink-0" />
+                      <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
+                    </span>
+                  </>
+                )}
                 {conditionText && cond?.unit !== '°C' && (
                   <>
                     <Separator />
@@ -559,6 +562,7 @@ export function FermentationSessionCompact({
               </>
             ) : (
               <>
+                <Separator />
                 {(() => {
                   const { icon, color } = getStepIconWithColor(currentStep.step_type);
                   return (
@@ -631,14 +635,27 @@ function TemperatureDisplay({
       />
       
       {isRamping && stepStartTemp != null && currentStep?.target_temp != null ? (
-        targetTemp != null && (
-          <span
-            className="font-semibold"
-            style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
-          >
-            {targetTemp.toFixed(1).replace('.', ',')}°
+        <>
+          <span className="text-muted-foreground/70">
+            {stepStartTemp.toFixed(0)}°
           </span>
-        )
+          <span className="text-muted-foreground/40">→</span>
+
+          {targetTemp != null && (
+            <span
+              className="font-semibold"
+              style={{ color: waitingForTemp ? 'hsl(200 90% 60%)' : 'hsl(38 92% 60%)' }}
+            >
+              {targetTemp.toFixed(1).replace('.', ',')}°
+            </span>
+          )}
+
+          <span className="text-muted-foreground/40">→</span>
+
+          <span className="font-medium text-muted-foreground">
+            {(currentStep.target_temp + ((currentStep.step_type === 'gradual_ramp' || currentStep.step_type === 'diacetyl_rest') ? (currentStep.temp_increase ?? 0) : 0)).toFixed(0)}°
+          </span>
+        </>
       ) : (
         <>
           {currentStep.target_temp != null && currentStep.target_temp !== targetTemp && (
