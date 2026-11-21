@@ -99,9 +99,9 @@ function TempStatComponent({ brew, devices, updatedFields, onControllerClick, co
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full flex items-center gap-1.5 cursor-help">
-              <span className="text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap">{duty === 0 ? 'Av' : `${mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} ${duty} %`}</span>
-              <div className="flex-1"><MiniBar to={duty} color={barColor} /></div>
+            <div className="w-full flex flex-col gap-[3px] cursor-help">
+              <span className={`text-[12px] text-muted-foreground/80 tabular-nums tracking-tight leading-none whitespace-nowrap ${duty === 0 ? 'text-center' : 'text-right font-semibold text-foreground'}`}>{duty === 0 ? (mode === 'cooling' ? 'Kyla av' : 'Av') : `${mode === 'cooling' ? 'Kyla' : mode === 'heating' ? 'Värme' : 'Effekt'} ${duty} %`}</span>
+              {duty > 0 && <MiniBar to={duty} color={barColor} />}
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-[260px]">

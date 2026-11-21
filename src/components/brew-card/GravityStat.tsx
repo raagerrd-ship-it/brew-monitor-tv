@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
+import { calculateDaysSinceStart } from "./utils";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
 
@@ -15,18 +16,21 @@ interface GravityStatProps {
   compact?: boolean;
 }
 
-function FermentationRateLine({ rate, trend, stallThreshold, rate6h, activity, ready }: { 
+function FermentationRateLine({ rate, trend, stallThreshold, rate6h, activity, ready, prePitch }: { 
   rate: number; 
   trend?: 'rising' | 'falling' | 'stable' | null;
   stallThreshold: number;
   rate6h?: number | null;
   activity?: number | null;
   ready?: boolean;
+  prePitch?: boolean;
 }) {
   const shownRate = rate6h ?? rate;
-  const isStalled = rate <= stallThreshold;
+  const isStalled = !prePitch && rate <= stallThreshold;
   const arrow = trend === 'rising' ? '↗' : trend === 'falling' ? '↘' : '→';
-  const parts = isStalled
+  const parts = prePitch
+    ? ['väntar på jäst']
+    : isStalled
     ? []
     : [`${arrow} ${shownRate > 0 ? '−' : '+'}${Math.abs(shownRate).toFixed(3).replace('.', ',')}/dygn`, activity != null ? `aktivitet ${activity} %` : null].filter(Boolean);
   return (
@@ -73,16 +77,16 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
       rowSpan={2}
       customBackground={customBackground}
       labelSize="18px"
-      valueSize={compact ? "26px" : "48px"}
+      valueSize={compact ? "26px" : "42px"}
       className="gap-0.5 !py-1.5 !px-1.5"
       clickable={isCustomBrew && !!onSyncedDataClick}
       onClick={isCustomBrew ? onSyncedDataClick : undefined}
       title={isCustomBrew ? "Visa synkad data" : undefined}
     >
       {!compact && <div className="z-10 w-full flex flex-col min-h-0 gap-[3px]">
-        <div className={statDetailClass}>
-          <span>{`OG\u202F${brew.originalGravity.toFixed(3)}`}</span>
-          <span>{`FG\u202F${brew.finalGravity.toFixed(3)}`}</span>
+        <div className={`${statDetailClass} !flex-nowrap !gap-x-0`}>
+          <span>OG {brew.originalGravity.toFixed(3)}</span>
+          <span>FG {brew.finalGravity.toFixed(3)}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="flex-1"><MiniBar to={progress} color={progressColor} /></div>
@@ -96,6 +100,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
             rate6h={brew.fermentationTrend?.rate6h}
             activity={brew.fermentationMetrics?.activity_score}
             ready={!!brew.fermentationMetrics?.ready_to_crash && !hideReadyToCrash}
+            prePitch={calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === 'lag'}
           />
         )}
         {!isInactive && brew.fermentationRate === null && (
