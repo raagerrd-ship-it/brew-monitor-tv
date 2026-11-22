@@ -79,9 +79,9 @@ function BrewChartComponent({
   const sortedEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type !== 'jast')), [events]);
   const pitchEvents = useMemo(() => getEventsPerDay(events.filter(event => event.event_type === 'jast')), [events]);
   const labelLanes = useMemo(() => {
-    if (!isTvMode || chartData.length === 0) return new Map<string, number>();
-    return getEventLabelLanes([...sortedEvents, ...pitchEvents], chartData[0].timestamp, chartData[chartData.length - 1].timestamp, chartWidth - CHART_MARGINS.left - CHART_MARGINS.right - 120);
-  }, [isTvMode, chartData, sortedEvents, pitchEvents, chartWidth]);
+    if (chartData.length === 0) return new Map<string, { left: number; width: number; row: number }>();
+    return getEventLabelLanes([...sortedEvents, ...pitchEvents], chartData[0].timestamp, chartData[chartData.length - 1].timestamp, chartWidth - CHART_MARGINS.left - CHART_MARGINS.right - 120 - 8);
+  }, [chartData, sortedEvents, pitchEvents, chartWidth]);
 
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
@@ -129,33 +129,26 @@ function BrewChartComponent({
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
 
-  // Event labels: vertical text reading upward from just above the dot
+  // Pills stay inside the plot; the axis dots keep their existing coordinates.
   type DotLabelProps = { viewBox?: { x: number; y: number; width: number; height: number } };
   const eventLabel = (value: string, color: string, id: string) =>
     ({ viewBox }: DotLabelProps) => {
-      if (!viewBox) return <g />;
-      const x = viewBox.x + viewBox.width / 2 + 4;
-      const y = viewBox.y - 5 - (labelLanes.get(id) ?? 0);
+      const layout = labelLanes.get(id);
+      if (!viewBox || !layout) return <g />;
+      const x = CHART_MARGINS.left + 60 + 4 + layout.left;
+      const y = viewBox.y + 4 + layout.row * 21;
       return (
-        <text
-          transform={`rotate(-90 ${x} ${y})`}
-          x={x}
-          y={y}
-          textAnchor="start"
-          fill={color}
-          fontSize={10}
-          fontWeight={600}
-        >
-          {value}
-        </text>
+        <g className="chart-event-pill" data-event-id={id} pointerEvents="none">
+          <rect x={x} y={y} width={layout.width} height={18} rx={9} fill={color} fillOpacity={0.15} stroke={color} strokeOpacity={0.4} strokeWidth={1} />
+          <text x={x + layout.width / 2} y={y + 12} textAnchor="middle" fill={color} fontSize={10.5} fontWeight={600}>{value}</text>
+        </g>
       );
     };
 
 
-
   return (
     <div className="h-full relative group">
-      <ResponsiveContainer width="100%" height="100%" onResize={isTvMode ? (width) => setChartWidth(width) : undefined}>
+      <ResponsiveContainer width="100%" height="100%" onResize={(width) => setChartWidth(width)}>
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
           <defs>
             <linearGradient id={`avgTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
@@ -186,7 +179,7 @@ function BrewChartComponent({
             />
           ))}
 
-          {/* Event markers - dots at the bottom edge with label above the dot */}
+          {/* Event markers - unchanged dots at the bottom edge */}
           {sortedEvents.map((event) => {
             const eventDisplay = getEventDisplay(event.event_type);
             return (
@@ -198,12 +191,11 @@ function BrewChartComponent({
                 r={4}
                 fill={eventDisplay.color}
                 stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
               />
             );
           })}
 
-          {/* Pitch marker - dot at the bottom edge with label above the dot */}
+          {/* Pitch marker - unchanged dot at the bottom edge */}
           {pitchEvents.map((event) => {
             const eventDisplay = getEventDisplay('jast');
             return (
@@ -215,7 +207,6 @@ function BrewChartComponent({
                 r={4}
                 fill={eventDisplay.color}
                 stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
               />
             );
           })}
@@ -399,6 +390,20 @@ function BrewChartComponent({
             isAnimationActive={isAnimationActive}
             connectNulls={false}
           />
+          {/* Full-height event guides and top pills, above the curves. */}
+          {[...sortedEvents, ...pitchEvents].map(event => {
+            const display = getEventDisplay(event.event_type);
+            return <ReferenceLine
+              key={`guide-${event.id}`}
+              x={event.timestamp}
+              yAxisId="temp"
+              stroke={display.color}
+              strokeOpacity={0.35}
+              strokeWidth={1}
+              strokeDasharray="2 3"
+              label={eventLabel(display.label, display.color, event.id)}
+            />;
+          })}
         </ComposedChart>
       </ResponsiveContainer>
       {isActiveBrew && Object.entries(rings).map(([key, r]) => (

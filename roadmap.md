@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Chart events: dashed guides and clamped horizontal top pills; all three named brews checked with real data on 390px phone and 1280×720 DPR 1.5 TV, including four-column layout (mocked brew-day only); 111 tests passed. No data writes or publishing.
+
 - [x] B2: gemensam statpanel med tre lika stora värden och två fullbreda skalor; tillstånd, kompakt TV och Gravity-klick verifierade i 1280×720 DPR 1,5; tester utan publicering.
 
 - [x] TV fyrkolumner: kompakt bryggdag med klarsammanfattning och hel punkttext; jäskort med hela titlar/värden och radbruten stegbanner. Exakt Whirlpool 9/10, 5/7 klara skärmdumpad i 1920×1080; hela värden och aktiv/sista punkt ryms. Trekolumnsläge verifierat med tidigare storlekar/detaljrader, 92 tester gröna. Ingen publicering eller dataskrivning.

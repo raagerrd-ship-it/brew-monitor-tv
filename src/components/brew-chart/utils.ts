@@ -214,27 +214,22 @@ export function getEventsPerDay(events: BrewChartEvent[]): BrewChartEventWithTim
     }));
 }
 
-/**
- * Vertical pixel offsets for bottom-edge event labels.
- * All labels anchor just above the axis dot; only labels whose x positions
- * are closer than the rendered label width (~14 px) are stacked upward, each
- * clearing the tops of the labels it would otherwise overlap.
- */
-export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, number> {
-  const offsets = new Map<string, number>();
-  if (end <= start || plotWidth <= 0) return offsets;
-  const placed: { x: number; top: number }[] = [];
+/** Horizontal pill bounds and collision rows, relative to the plot's left edge. */
+export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, { left: number; width: number; row: number }> {
+  const labels = new Map<string, { left: number; width: number; row: number }>();
+  if (end <= start || plotWidth <= 0) return labels;
+  const rowEnds: number[] = [];
   for (const event of [...events].sort((a, b) => a.timestamp - b.timestamp)) {
     if (event.timestamp < start || event.timestamp > end) continue;
     const x = (event.timestamp - start) / (end - start) * plotWidth;
-    let offset = 0;
-    for (const p of placed) {
-      if (Math.abs(x - p.x) < 14) offset = Math.max(offset, p.top);
-    }
-    placed.push({ x, top: offset + getEventDisplay(event.event_type).label.length * 6 + 4 });
-    offsets.set(event.id, offset);
+    const width = Math.min(plotWidth, getEventDisplay(event.event_type).label.length * 6.5 + 12);
+    const left = Math.max(0, Math.min(plotWidth - width, x - width / 2));
+    let row = 0;
+    while (rowEnds[row] !== undefined && left < rowEnds[row] + 4) row++;
+    rowEnds[row] = left + width;
+    labels.set(event.id, { left, width, row });
   }
-  return offsets;
+  return labels;
 }
 
 /**
