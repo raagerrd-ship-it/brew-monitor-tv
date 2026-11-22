@@ -1,31 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { getEventLabelLanes, getEventStripHeight } from '@/components/brew-chart/utils';
+import { getEventLabelLanes } from '@/components/brew-chart/utils';
 
 const event = (id: string, timestamp: number) => ({ id, timestamp, event_type: 'other', event_date: new Date(timestamp).toISOString(), notes: null });
 
-describe('event pill placement', () => {
-  it('reserves no strip without visible events and exactly 21px per occupied row', () => {
-    expect(getEventStripHeight(new Map())).toBe(0);
-    expect(getEventStripHeight(getEventLabelLanes([event('a', 0)], 0, 1000, 200))).toBe(21);
-    expect(getEventStripHeight(getEventLabelLanes([event('a', 0), event('b', 0)], 0, 1000, 200))).toBe(42);
-    expect(getEventStripHeight(getEventLabelLanes([event('a', 0), event('b', 0), event('c', 0)], 0, 1000, 200))).toBe(63);
-    expect(getEventStripHeight(getEventLabelLanes([event('outside', 1100)], 0, 1000, 200))).toBe(0);
-  });
-  it('keeps distant events in the first row', () => {
+describe('slanted event label offsets', () => {
+  it('leaves distant labels next to their dots', () => {
     const labels = getEventLabelLanes([event('a', 100), event('b', 800)], 0, 1000, 400);
-    expect([...labels.values()].map(label => label.row)).toEqual([0, 0]);
+    expect(labels.get('a')).toBe(0);
+    expect(labels.get('b')).toBe(0);
   });
-  it('reflows collisions when the plot narrows', () => {
-    const events = [event('a', 100), event('b', 400)];
-    expect([...getEventLabelLanes(events, 0, 1000, 400).values()].map(label => label.row)).toEqual([0, 0]);
-    expect([...getEventLabelLanes(events, 0, 1000, 100).values()].map(label => label.row)).toEqual([0, 1]);
+  it('shifts close labels right just enough to clear the preceding label', () => {
+    const labels = getEventLabelLanes([event('a', 100), event('b', 110), event('c', 120)], 0, 1000, 400);
+    const width = 'Anteckning'.length * 6.5 * Math.cos(50 * Math.PI / 180) + 8;
+    expect(labels.get('a')).toBeCloseTo(0);
+    expect(labels.get('b')).toBeCloseTo(width);
+    expect(labels.get('c')).toBeCloseTo(width * 2);
   });
-  it('clamps both edges and stacks three coincident events without moving timestamps', () => {
-    const labels = getEventLabelLanes([event('a', 0), { ...event('pitch', 0), event_type: 'jast' }, event('c', 0), event('end', 1000), event('outside', 1100)], 0, 1000, 200);
-    expect([...labels.values()].slice(0, 3).map(label => label.row)).toEqual([0, 1, 2]);
-    expect(labels.get('a')?.left).toBe(0);
-    const last = labels.get('end');
-    expect(last && last.left + last.width).toBe(200);
+  it('moves a right-edge cluster left without moving the dots or overlapping labels', () => {
+    const labels = getEventLabelLanes([event('a', 990), event('b', 1000), event('outside', 1100)], 0, 1000, 200);
+    const width = 'Anteckning'.length * 6.5 * Math.cos(50 * Math.PI / 180) + 8;
+    const leftA = 198 + 4 + (labels.get('a') ?? 0) - 8;
+    const leftB = 200 + 4 + (labels.get('b') ?? 0) - 8;
+    expect(leftA + width + 4).toBeCloseTo(leftB);
+    expect(leftB + width).toBeCloseTo(200);
+    expect(labels.get('b')).toBeLessThan(0);
     expect(labels.has('outside')).toBe(false);
   });
 });

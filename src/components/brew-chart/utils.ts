@@ -214,27 +214,28 @@ export function getEventsPerDay(events: BrewChartEvent[]): BrewChartEventWithTim
     }));
 }
 
-/** Horizontal pill bounds and collision rows, relative to the plot's left edge. */
-export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, { left: number; width: number; row: number }> {
-  const labels = new Map<string, { left: number; width: number; row: number }>();
-  if (end <= start || plotWidth <= 0) return labels;
-  const rowEnds: number[] = [];
+/** Sideways offsets for -50° labels sharing the same bottom baseline. */
+export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, number> {
+  const offsets = new Map<string, number>();
+  if (end <= start || plotWidth <= 0) return offsets;
+  const placed: { id: string; x: number; left: number; width: number }[] = [];
   for (const event of [...events].sort((a, b) => a.timestamp - b.timestamp)) {
     if (event.timestamp < start || event.timestamp > end) continue;
     const x = (event.timestamp - start) / (end - start) * plotWidth;
-    const width = Math.min(plotWidth, getEventDisplay(event.event_type).label.length * 6.5 + 12);
-    const left = Math.max(0, Math.min(plotWidth - width, x - width / 2));
-    let row = 0;
-    while (rowEnds[row] !== undefined && left < rowEnds[row] + 4) row++;
-    rowEnds[row] = left + width;
-    labels.set(event.id, { left, width, row });
+    const width = getEventDisplay(event.event_type).label.length * 6.5 * Math.cos(50 * Math.PI / 180) + 8;
+    const previous = placed[placed.length - 1];
+    const left = Math.max(0, x - 4, previous ? previous.left + previous.width + 4 : 0);
+    placed.push({ id: event.id, x, left, width });
   }
-  return labels;
-}
-
-/** Reserve only the rows used: 18px pills, 3px row/gap clearance. */
-export function getEventStripHeight(labels: Map<string, { row: number }>): number {
-  return [...labels.values()].reduce((height, label) => Math.max(height, (label.row + 1) * 21), 0);
+  // Reflow right-edge collisions leftward, retaining spacing and the shared baseline.
+  let right = plotWidth;
+  for (let i = placed.length - 1; i >= 0; i--) {
+    const label = placed[i];
+    label.left = Math.max(0, Math.min(label.left, right - label.width));
+    right = label.left - 4;
+    offsets.set(label.id, label.left + 8 - (label.x + 4));
+  }
+  return offsets;
 }
 
 /**
