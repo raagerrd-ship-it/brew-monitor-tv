@@ -14,7 +14,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { BrewChartProps } from "./types";
-import { getEventDisplay, getEventsPerDay, getEventLabelLanes, formatXAxisTick, formatTooltipLabel } from "./utils";
+import { getEventDisplay, getEventsPerDay, getEventLabelLanes, getEventChartTimestamp, formatXAxisTick, formatTooltipLabel } from "./utils";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBrewChartData } from "./hooks/useBrewChartData";
@@ -179,11 +179,14 @@ function BrewChartComponent({
 
           {/* Event markers - unchanged dots at the bottom edge */}
           {sortedEvents.map((event) => {
+            if (chartData.length === 0) return null;
+            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
+            if (timestamp === null) return null;
             const eventDisplay = getEventDisplay(event.event_type);
             return (
               <ReferenceDot
                 key={event.id}
-                x={event.timestamp}
+                x={timestamp}
                 y={tempDomain[0]}
                 yAxisId="temp"
                 r={4}
@@ -196,11 +199,14 @@ function BrewChartComponent({
 
           {/* Pitch marker - unchanged dot at the bottom edge */}
           {pitchEvents.map((event) => {
+            if (chartData.length === 0) return null;
+            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
+            if (timestamp === null) return null;
             const eventDisplay = getEventDisplay('jast');
             return (
               <ReferenceDot
                 key={`pitch-${event.id}`}
-                x={event.timestamp}
+                x={timestamp}
                 y={tempDomain[0]}
                 yAxisId="temp"
                 r={4}

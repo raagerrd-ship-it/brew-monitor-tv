@@ -214,14 +214,23 @@ export function getEventsPerDay(events: BrewChartEvent[]): BrewChartEventWithTim
     }));
 }
 
+/** Keep near-start events visible without extending the chart's time range. */
+export function getEventChartTimestamp(timestamp: number, start: number, end: number, eventType?: string): number | null {
+  // Thinned snapshots can start later than pitch; retain its existing one-hour context.
+  const tolerance = (eventType === 'jast' ? 60 : 5) * 60 * 1000;
+  if (timestamp < start - tolerance || timestamp > end) return null;
+  return Math.max(start, timestamp);
+}
+
 /** Sideways offsets for -50° labels sharing the same bottom baseline. */
 export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start: number, end: number, plotWidth: number): Map<string, number> {
   const offsets = new Map<string, number>();
   if (end <= start || plotWidth <= 0) return offsets;
   const placed: { id: string; x: number; left: number; width: number }[] = [];
   for (const event of [...events].sort((a, b) => a.timestamp - b.timestamp)) {
-    if (event.timestamp < start || event.timestamp > end) continue;
-    const x = (event.timestamp - start) / (end - start) * plotWidth;
+    const timestamp = getEventChartTimestamp(event.timestamp, start, end, event.event_type);
+    if (timestamp === null) continue;
+    const x = (timestamp - start) / (end - start) * plotWidth;
     const width = getEventDisplay(event.event_type).label.length * 6.5 * Math.cos(50 * Math.PI / 180) + 8;
     const previous = placed[placed.length - 1];
     const left = Math.max(0, x - 4, previous ? previous.left + previous.width + 4 : 0);

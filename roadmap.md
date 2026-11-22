@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Near-start events clamp to the left edge (5 minutes; pitch retains one-hour context for sparse snapshots). cc45b05 left the existing pitch-minus-one-hour cutoff unchanged. Real TV 1280×720 DPR 1.5 confirms Blå/Gul Jäst dots and slanted labels; 120 tests passed, build clean, no data writes or publishing.
+
 - [x] Pitch-based prePitch and 1-based card age: 118 tests passed; real TV 1280×720 DPR 1.5 shows Gul day 5, Blå day 1 with rate and projection instead of waiting for yeast. Pi start shared by badge, stats and report. No data writes or publishing.
 
 - [x] Restored original chart margins (top 20px) and full plot height; bottom-anchored −50° labels shift sideways with connectors, dots unchanged. All three real brews checked on 390px phone and 1280×720 DPR 1.5 TV including four-column (only brew-day mocked); 111 tests passed. No data writes or publishing.
