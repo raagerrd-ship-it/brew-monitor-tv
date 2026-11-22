@@ -232,6 +232,11 @@ export function getEventLabelLanes(events: BrewChartEventWithTimestamp[], start:
   return labels;
 }
 
+/** Reserve only the rows used: 18px pills, 3px row/gap clearance. */
+export function getEventStripHeight(labels: Map<string, { row: number }>): number {
+  return [...labels.values()].reduce((height, label) => Math.max(height, (label.row + 1) * 21), 0);
+}
+
 /**
  * Format timestamp for X-axis display
  */

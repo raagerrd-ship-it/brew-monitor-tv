@@ -5,6 +5,7 @@ import {
   Area,
   CartesianGrid,
   ComposedChart,
+  Customized,
   Line,
   ReferenceDot,
   ResponsiveContainer,
@@ -14,7 +15,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { BrewChartProps } from "./types";
-import { getEventDisplay, getEventsPerDay, getEventLabelLanes, formatXAxisTick, formatTooltipLabel } from "./utils";
+import { getEventDisplay, getEventsPerDay, getEventLabelLanes, getEventStripHeight, formatXAxisTick, formatTooltipLabel } from "./utils";
 import { useStaggeredRender } from "@/hooks/use-deferred-render";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBrewChartData } from "./hooks/useBrewChartData";
@@ -83,6 +84,8 @@ function BrewChartComponent({
     return getEventLabelLanes([...sortedEvents, ...pitchEvents], chartData[0].timestamp, chartData[chartData.length - 1].timestamp, chartWidth - CHART_MARGINS.left - CHART_MARGINS.right - 120 - 8);
   }, [chartData, sortedEvents, pitchEvents, chartWidth]);
 
+  const eventStripHeight = getEventStripHeight(labelLanes);
+
   // Compute explicit temp domain from actual values (stacked areas skew dataMax)
   const tempDomain = useMemo(() => {
     if (chartData.length === 0) return [0, 30];
@@ -129,27 +132,33 @@ function BrewChartComponent({
   // Disable all animations - data loads in background and chart appears when ready
   const isAnimationActive = false;
 
-  // Pills stay inside the plot; the axis dots keep their existing coordinates.
-  type DotLabelProps = { viewBox?: { x: number; y: number; width: number; height: number } };
-  const eventLabel = (value: string, color: string, id: string) =>
-    ({ viewBox }: DotLabelProps) => {
-      const layout = labelLanes.get(id);
-      if (!viewBox || !layout) return <g />;
-      const x = CHART_MARGINS.left + 60 + 4 + layout.left;
-      const y = viewBox.y + 4 + layout.row * 21;
-      return (
-        <g className="chart-event-pill" data-event-id={id} pointerEvents="none">
-          <rect x={x} y={y} width={layout.width} height={18} rx={9} fill={color} fillOpacity={0.15} stroke={color} strokeOpacity={0.4} strokeWidth={1} />
-          <text x={x + layout.width / 2} y={y + 12} textAnchor="middle" fill={color} fontSize={10.5} fontWeight={600}>{value}</text>
-        </g>
-      );
-    };
+  // Final SVG layer: opaque pills above the plot, connected to the unchanged axis dots.
+  const eventOverlay = ({ offset, xAxisMap }: {
+    offset?: { left: number; top: number; height: number };
+    xAxisMap?: Record<string, { scale: (timestamp: number) => number }>;
+  }) => {
+    const scale = xAxisMap?.['0']?.scale;
+    if (!offset || !scale) return <g />;
+    const positioned = [...sortedEvents, ...pitchEvents].flatMap(event => {
+      const layout = labelLanes.get(event.id);
+      if (!layout) return [];
+      return [{ event, layout, display: getEventDisplay(event.event_type), lineX: scale(event.timestamp), x: offset.left + 4 + layout.left, y: offset.top - eventStripHeight + layout.row * 21 }];
+    });
+    return <g className="chart-event-overlay" pointerEvents="none">
+      {positioned.map(({ event, layout, lineX, x, y, display }) => <polyline key={`guide-${event.id}`} className="chart-event-guide" points={`${Math.max(x + 9, Math.min(x + layout.width - 9, lineX))},${y + 18} ${lineX},${offset.top} ${lineX},${offset.top + offset.height}`} fill="none" stroke={display.color} strokeOpacity={0.35} strokeWidth={1} strokeDasharray="2 3" />)}
+      {positioned.map(({ event, layout, x, y, display }) => <g key={event.id} className="chart-event-pill" data-event-id={event.id}>
+        <rect x={x} y={y} width={layout.width} height={18} rx={9} fill={COLORS.card} />
+        <rect x={x} y={y} width={layout.width} height={18} rx={9} fill={display.color} fillOpacity={0.15} stroke={display.color} strokeOpacity={0.4} strokeWidth={1} />
+        <text x={x + layout.width / 2} y={y + 12} textAnchor="middle" fill={display.color} fontSize={10.5} fontWeight={600}>{display.label}</text>
+      </g>)}
+    </g>;
+  };
 
 
   return (
     <div className="h-full relative group">
       <ResponsiveContainer width="100%" height="100%" onResize={(width) => setChartWidth(width)}>
-        <ComposedChart data={chartData} margin={CHART_MARGINS}>
+        <ComposedChart data={chartData} margin={{ ...CHART_MARGINS, top: CHART_MARGINS.top + eventStripHeight }}>
           <defs>
             <linearGradient id={`avgTempGrad-${chartIndex}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(var(--temp-blue))" stopOpacity={0.15} />
@@ -390,20 +399,7 @@ function BrewChartComponent({
             isAnimationActive={isAnimationActive}
             connectNulls={false}
           />
-          {/* Full-height event guides and top pills, above the curves. */}
-          {[...sortedEvents, ...pitchEvents].map(event => {
-            const display = getEventDisplay(event.event_type);
-            return <ReferenceLine
-              key={`guide-${event.id}`}
-              x={event.timestamp}
-              yAxisId="temp"
-              stroke={display.color}
-              strokeOpacity={0.35}
-              strokeWidth={1}
-              strokeDasharray="2 3"
-              label={eventLabel(display.label, display.color, event.id)}
-            />;
-          })}
+          <Customized component={eventOverlay} />
         </ComposedChart>
       </ResponsiveContainer>
       {isActiveBrew && Object.entries(rings).map(([key, r]) => (

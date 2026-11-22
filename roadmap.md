@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Event pill follow-up: opaque topmost pills reserve 21px per row above the plot; guides connect to unchanged event positions. All three real brews verified on 390px phone and 1280×720 DPR 1.5 TV, including compact four-column (only brew-day mocked); 112 tests passed. No data writes or publishing.
+
 - [x] Chart events: dashed guides and clamped horizontal top pills; all three named brews checked with real data on 390px phone and 1280×720 DPR 1.5 TV, including four-column layout (mocked brew-day only); 111 tests passed. No data writes or publishing.
 
 - [x] B2: gemensam statpanel med tre lika stora värden och två fullbreda skalor; tillstånd, kompakt TV och Gravity-klick verifierade i 1280×720 DPR 1,5; tester utan publicering.

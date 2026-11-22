@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { getEventLabelLanes } from '@/components/brew-chart/utils';
+import { getEventLabelLanes, getEventStripHeight } from '@/components/brew-chart/utils';
 
 const event = (id: string, timestamp: number) => ({ id, timestamp, event_type: 'other', event_date: new Date(timestamp).toISOString(), notes: null });
 
 describe('event pill placement', () => {
+  it('reserves no strip without visible events and exactly 21px per occupied row', () => {
+    expect(getEventStripHeight(new Map())).toBe(0);
+    expect(getEventStripHeight(getEventLabelLanes([event('a', 0)], 0, 1000, 200))).toBe(21);
+    expect(getEventStripHeight(getEventLabelLanes([event('a', 0), event('b', 0)], 0, 1000, 200))).toBe(42);
+    expect(getEventStripHeight(getEventLabelLanes([event('a', 0), event('b', 0), event('c', 0)], 0, 1000, 200))).toBe(63);
+    expect(getEventStripHeight(getEventLabelLanes([event('outside', 1100)], 0, 1000, 200))).toBe(0);
+  });
   it('keeps distant events in the first row', () => {
     const labels = getEventLabelLanes([event('a', 100), event('b', 800)], 0, 1000, 400);
     expect([...labels.values()].map(label => label.row)).toEqual([0, 0]);
