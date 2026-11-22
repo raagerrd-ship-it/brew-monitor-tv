@@ -40,6 +40,7 @@ export interface BrewData {
   description: string | null;
   pill_compensation?: boolean;
   recipe?: RecipeData | null;
+  fermentationStart?: string | null;
   fermentationEnd: string | null;
   overshootReason: string | null;
   originalTarget: number | null;

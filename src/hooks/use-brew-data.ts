@@ -487,6 +487,7 @@ export function useBrewData(): UseBrewDataReturn {
         label_image_url: reading.label_image_url || null,
         description: reading.description || null,
         recipe: (reading.recipe as any) || null,
+        fermentationStart: reading.fermentation_start || null,
         fermentationEnd: reading.fermentation_end || null,
         overshootReason: reading.linked_controller_id 
           ? overshootMap.get(reading.linked_controller_id)?.reason ?? null 
@@ -714,6 +715,7 @@ export function useBrewData(): UseBrewDataReturn {
             return {
               ...brew,
               status: updatedReading.status ?? brew.status,
+              fermentationStart: updatedReading.fermentation_start !== undefined ? updatedReading.fermentation_start : brew.fermentationStart,
               currentSG: updatedReading.current_sg,
               currentTemp: updatedReading.current_temp,
               attenuation: updatedReading.attenuation,

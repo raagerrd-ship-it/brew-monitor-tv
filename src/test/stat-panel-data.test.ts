@@ -3,6 +3,7 @@ import { BrewData } from "@/types/brew";
 import { gravityPanelData, tempScalePosition, tempIsOffTarget } from "@/components/brew-card/stat-panel-data";
 
 const brew = {
+  fermentationStart: "2020-01-01",
   status: "Jäsning", originalGravity: 1.042, finalGravity: 1.008, currentSG: 1.020,
   sgData: [{ date: "2020-01-01", value: 1.042, temp: 19 }],
   fermentationRate: 0.004, fermentationTrend: { rate6h: 0.004 },
@@ -22,10 +23,28 @@ describe("B2 gravity", () => {
     expect(result.pointsPerDay).toBe("0,3");
   });
   it("visar inte stall eller prognos före pitch", () => {
-    const result = gravityPanelData({ ...brew, sgData: [], fermentationRate: 0 });
+    const result = gravityPanelData({ ...brew, fermentationStart: null, sgData: [], fermentationRate: 0 });
     expect(result.prePitch).toBe(true);
     expect(result.stalled).toBe(false);
     expect(result.projected).toBe(result.progress);
+  });
+  it("shows rate and projection for pitched exponential fermentation within the first 24 hours", () => {
+    const result = gravityPanelData({ ...brew, fermentationStart: new Date(Date.now() - 16 * 3600000).toISOString(), originalGravity: 1.055, currentSG: 1.0522, fermentationRate: 0.000447 * 24, fermentationTrend: { rate6h: 0.000447 * 24, rate12h: null, trend: "falling" }, fermentationMetrics: { fermentation_phase: "exponential" } as NonNullable<BrewData["fermentationMetrics"]> });
+    expect(result.prePitch).toBe(false);
+    expect(result.pointsPerDay).toBe("11");
+    expect(result.projected).toBeGreaterThan(result.progress);
+  });
+  it("keeps prePitch true without pitch even with old readings", () => {
+    expect(gravityPanelData({ ...brew, fermentationStart: null }).prePitch).toBe(true);
+  });
+  it("keeps prePitch true for lag at 0.5 percent attenuation", () => {
+    expect(gravityPanelData({ ...brew, originalGravity: 1.055, currentSG: 1.054725, fermentationMetrics: { fermentation_phase: "lag" } as NonNullable<BrewData["fermentationMetrics"]> }).prePitch).toBe(true);
+  });
+  it("does not treat lag above two percent attenuation as prePitch", () => {
+    expect(gravityPanelData({ ...brew, originalGravity: 1.055, currentSG: 1.0522, fermentationMetrics: { fermentation_phase: "lag" } as NonNullable<BrewData["fermentationMetrics"]> }).prePitch).toBe(false);
+  });
+  it("keeps a future pitch in prePitch", () => {
+    expect(gravityPanelData({ ...brew, fermentationStart: new Date(Date.now() + 3600000).toISOString() }).prePitch).toBe(true);
   });
   it("visar stall utan prognos", () => {
     const result = gravityPanelData({ ...brew, fermentationRate: 0.001 });

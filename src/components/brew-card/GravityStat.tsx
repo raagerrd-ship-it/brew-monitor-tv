@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { BrewData } from "@/types/brew";
-import { calculateDaysSinceStart, toRatePct } from "./utils";
+import { isPrePitch, toRatePct } from "./utils";
 import { StatCard, MiniBar, statDetailClass } from "./StatCard";
 import { RollingNumber } from "@/components/RollingNumber";
 
@@ -44,7 +44,7 @@ function GravityStatComponent({ brew, updatedFields, onSyncedDataClick, hideRead
 
   // Farten som segmentets längd: var SG beräknas vara om 24 h (rate = SG-fall per dygn).
   const rate = brew.fermentationTrend?.rate6h ?? brew.fermentationRate;
-  const prePitch = calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === 'lag';
+  const prePitch = isPrePitch(brew);
   const isStalled = !isInactive && !prePitch && brew.fermentationRate !== null && brew.fermentationRate <= stallThreshold;
   const showRate = !isInactive && !prePitch && !isStalled && rate != null && rate > 0;
   const range = brew.originalGravity - brew.finalGravity;

@@ -1,5 +1,5 @@
 import { BrewData } from "@/types/brew";
-import { calculateDaysSinceStart, isBrewInactive } from "./utils";
+import { isPrePitch, isBrewInactive } from "./utils";
 
 export const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
@@ -9,7 +9,7 @@ export function formatPointsPerDay(points: number) {
 
 export function gravityPanelData(brew: BrewData, hideReadyToCrash = false) {
   const inactive = isBrewInactive(brew.status);
-  const prePitch = !inactive && (calculateDaysSinceStart(brew.sgData) === 0 || brew.fermentationMetrics?.fermentation_phase === "lag");
+  const prePitch = !inactive && isPrePitch(brew);
   const ready = inactive || (!!brew.fermentationMetrics?.ready_to_crash && !hideReadyToCrash);
   const stalled = !inactive && !prePitch && !ready && brew.fermentationRate !== null && brew.fermentationRate <= 0.002;
   const rate = brew.fermentationTrend?.rate6h ?? brew.fermentationRate;

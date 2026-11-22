@@ -112,15 +112,16 @@ function BrewCardComponent({
   // Kortets läge kommer från Pi:ns brew_status.phase när den finns.
   const piStatus = useStepPhases(brew.frozen ? undefined : brew.id);
   const piPhase = piStatus?.phase ?? null;
-  const piFermStart = piStatus?.fermentationStart ?? null;
+  const piFermStart = piStatus?.fermentationStart ?? brew.fermentationStart ?? null;
+  const fermentationBrew = useMemo(() => ({ ...brew, fermentationStart: piFermStart }), [brew, piFermStart]);
   const statusText = useMemo(() => {
     if (piPhase === 'fermenting' && piFermStart) {
-      return `Jäsning dag ${Math.max(0, Math.floor((Date.now() - new Date(piFermStart).getTime()) / 86_400_000))}`;
+      return getStatusDisplayText({ ...fermentationBrew, status: "Jäsning" });
     }
     if (piPhase === 'conditioning') return 'Kallagring';
     if (piPhase === 'done') return 'Klar';
-    return getStatusDisplayText(brew);
-  }, [brew.status, brew.fermentationRate, piPhase, piFermStart]); // eslint-disable-line react-hooks/exhaustive-deps
+    return getStatusDisplayText(fermentationBrew);
+  }, [fermentationBrew, piPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   // "Redo att krascha" motsäger Pi:n när kraschen redan pågår.
   const hideReadyToCrash = piPhase === 'conditioning' || piStatus?.stepName === 'Smart cold-crash';
   const piWarnings = piStatus?.warnings ?? [];
@@ -309,7 +310,7 @@ function BrewCardComponent({
                           abv={brew.abv}
                           attenuation={brew.attenuation}
                           batchNumber={brew.batchNumber}
-                          fermentationStart={brew.sgData?.[0]?.date ?? null}
+                          fermentationStart={piFermStart ?? brew.sgData?.[0]?.date ?? null}
                           status={brew.status}
                           controllerId={devices.controller?.controller_id ?? null}
                         /></Suspense>
@@ -460,7 +461,7 @@ function BrewCardComponent({
         <div className="px-3 py-1.5 flex-shrink-0" style={{ height: `${CARD_STATS_HEIGHT}px`, overflow: 'visible' }}>
             <FermentationStats
               compact={compact}
-              brew={brew}
+              brew={fermentationBrew}
               devices={devices}
               hideReadyToCrash={hideReadyToCrash}
               onSyncedDataClick={showInteractiveElements ? () => setSyncedDataOpen(true) : undefined}

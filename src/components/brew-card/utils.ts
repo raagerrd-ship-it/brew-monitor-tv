@@ -42,18 +42,26 @@ export function isBrewInactive(status: string): boolean {
  */
 export function calculateDaysSinceStart(
   sgData: Array<{ date: string; value: number; temp: number }>,
-  fermentationEnd?: string | null
+  fermentationEnd?: string | null,
+  fermentationStart?: string | null
 ): number {
-  if (sgData.length === 0) return 0;
+  if (!fermentationStart && sgData.length === 0) return 0;
   
   const sortedData = [...sgData].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
-  const firstDate = new Date(sortedData[0].date);
+  const firstDate = new Date(fermentationStart ?? sortedData[0].date);
   const endDate = fermentationEnd ? new Date(fermentationEnd) : new Date();
   return Math.floor(
     (endDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
   );
+}
+
+/** Pitch/start, not reading age, determines whether fermentation has begun. */
+export function isPrePitch(brew: BrewData): boolean {
+  const start = brew.fermentationStart ? new Date(brew.fermentationStart).getTime() : NaN;
+  const attenuation = brew.originalGravity > 1 ? (brew.originalGravity - brew.currentSG) / (brew.originalGravity - 1) * 100 : 0;
+  return !Number.isFinite(start) || start > Date.now() || (brew.fermentationMetrics?.fermentation_phase === "lag" && attenuation < 2);
 }
 
 /**
@@ -62,12 +70,12 @@ export function calculateDaysSinceStart(
 export function getStatusDisplayText(brew: BrewData): string {
   // Mottagen från Brew Master men ännu inte i någon tank.
   if ((brew.status === "Jäsning" || brew.status === "Fermenting") && !brew.linked_controller_id && !brew.linked_pill_id && brew.sgData.length === 0 && !brew.frozen) return "Väntar på jästank";
-  if (brew.status === "Jäsning" && brew.sgData.length > 0) {
-    const daysSinceStart = calculateDaysSinceStart(brew.sgData);
+  if ((brew.status === "Jäsning" || brew.status === "Fermenting") && (brew.fermentationStart || brew.sgData.length > 0)) {
+    const daysSinceStart = Math.max(0, calculateDaysSinceStart(brew.sgData, null, brew.fermentationStart) + 1);
     return `${brew.status} dag ${daysSinceStart}`;
   }
   if ((brew.status === "Konditionering" || brew.status === "Klar") && brew.sgData.length > 0 && brew.fermentationEnd) {
-    const fermDays = calculateDaysSinceStart(brew.sgData, brew.fermentationEnd);
+    const fermDays = calculateDaysSinceStart(brew.sgData, brew.fermentationEnd, brew.fermentationStart);
     return `${brew.status} (${fermDays}d jäsning)`;
   }
   return brew.status;
