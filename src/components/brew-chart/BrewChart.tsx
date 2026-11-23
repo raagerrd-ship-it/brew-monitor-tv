@@ -139,7 +139,7 @@ function BrewChartComponent({
       const y = viewBox.y - 5;
       return <g className="chart-event-label" data-event-id={id} pointerEvents="none">
         {Math.abs(offset) > 4 && <line x1={dotX} y1={viewBox.y} x2={x} y2={y} stroke={color} strokeWidth={1} strokeOpacity={0.5} />}
-        <text x={x} y={y} transform={`rotate(-50 ${x} ${y})`} textAnchor="start" fill={color} fontSize={10} fontWeight={600} stroke="hsl(var(--background))" strokeWidth={3} strokeLinejoin="round" paintOrder="stroke">{value}</text>
+        <text x={x} y={y} transform={`rotate(-50 ${x} ${y})`} textAnchor="start" fill={color} fontSize={10} fontWeight={600} stroke="hsl(var(--background))" strokeOpacity={0.5} strokeWidth={3} strokeLinejoin="round" paintOrder="stroke">{value}</text>
       </g>;
     };
 

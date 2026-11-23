@@ -37,6 +37,10 @@
 .stat-panel-compact .stat-panel-column { padding-left: 5px; padding-right: 5px; }
 .stat-panel-compact .stat-panel-column:first-child { padding-left: 0; }
 .stat-panel-compact .stat-panel-column:last-child { padding-right: 0; }
+@media (max-width: 640px) {
+  .stat-panel-value { font-size: 32px; }
+  .stat-panel-compact .stat-panel-value { font-size: 22px; }
+}
 
 @keyframes tv-card-enter {
   from { opacity: 0; transform: translateY(12px); }
