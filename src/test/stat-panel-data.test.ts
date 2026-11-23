@@ -46,6 +46,27 @@ describe("B2 gravity", () => {
   it("keeps a future pitch in prePitch", () => {
     expect(gravityPanelData({ ...brew, fermentationStart: new Date(Date.now() + 3600000).toISOString() }).prePitch).toBe(true);
   });
+  it("visar vid FG i stället för stall när gravity nått målet", () => {
+    const result = gravityPanelData({ ...brew, currentSG: 1.008, fermentationRate: 0.001 });
+    expect(result.atFg).toBe(true);
+    expect(result.stalled).toBe(false);
+  });
+  it("visar vid FG även under målet", () => {
+    const result = gravityPanelData({ ...brew, currentSG: 1.007, fermentationRate: 0.001 });
+    expect(result.atFg).toBe(true);
+    expect(result.stalled).toBe(false);
+  });
+  it("visar stall ovanför FG + 0.0005", () => {
+    const result = gravityPanelData({ ...brew, currentSG: 1.009, fermentationRate: 0.001 });
+    expect(result.atFg).toBe(false);
+    expect(result.stalled).toBe(true);
+  });
+  it("visar klar brygd som done, inte vid FG", () => {
+    const result = gravityPanelData({ ...brew, status: "Klar", currentSG: 1.008 });
+    expect(result.done).toBe(true);
+    expect(result.ready).toBe(true);
+    expect(result.atFg).toBe(false);
+  });
   it("visar stall utan prognos", () => {
     const result = gravityPanelData({ ...brew, fermentationRate: 0.001 });
     expect(result.stalled).toBe(true);
