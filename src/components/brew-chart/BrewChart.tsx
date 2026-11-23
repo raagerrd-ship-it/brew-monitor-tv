@@ -139,7 +139,7 @@ function BrewChartComponent({
       const y = viewBox.y - 5;
       return <g className="chart-event-label" data-event-id={id} pointerEvents="none">
         {Math.abs(offset) > 4 && <line x1={dotX} y1={viewBox.y} x2={x} y2={y} stroke={color} strokeWidth={1} strokeOpacity={0.5} />}
-        <text x={x} y={y} transform={`rotate(-50 ${x} ${y})`} textAnchor="start" fill={color} fontSize={10} fontWeight={600}>{value}</text>
+        <text x={x} y={y} transform={`rotate(-50 ${x} ${y})`} textAnchor="start" fill={color} fontSize={10} fontWeight={600} stroke="hsl(var(--background))" strokeWidth={3} strokeLinejoin="round" paintOrder="stroke">{value}</text>
       </g>;
     };
 
@@ -176,47 +176,6 @@ function BrewChartComponent({
               strokeWidth={DAY_BOUNDARY_CONFIG.strokeWidth}
             />
           ))}
-
-          {/* Event markers - unchanged dots at the bottom edge */}
-          {sortedEvents.map((event) => {
-            if (chartData.length === 0) return null;
-            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
-            if (timestamp === null) return null;
-            const eventDisplay = getEventDisplay(event.event_type);
-            return (
-              <ReferenceDot
-                key={event.id}
-                x={timestamp}
-                y={tempDomain[0]}
-                yAxisId="temp"
-                r={4}
-                fill={eventDisplay.color}
-                stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
-              />
-            );
-          })}
-
-          {/* Pitch marker - unchanged dot at the bottom edge */}
-          {pitchEvents.map((event) => {
-            if (chartData.length === 0) return null;
-            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
-            if (timestamp === null) return null;
-            const eventDisplay = getEventDisplay('jast');
-            return (
-              <ReferenceDot
-                key={`pitch-${event.id}`}
-                x={timestamp}
-                y={tempDomain[0]}
-                yAxisId="temp"
-                r={4}
-                fill={eventDisplay.color}
-                stroke="none"
-                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
-              />
-            );
-          })}
-
 
           {/* X-Axis */}
           <XAxis
@@ -396,6 +355,45 @@ function BrewChartComponent({
             isAnimationActive={isAnimationActive}
             connectNulls={false}
           />
+          {/* Event markers - ritas efter alla linjer så att etiketterna inte hamnar under kurvan */}
+          {sortedEvents.map((event) => {
+            if (chartData.length === 0) return null;
+            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
+            if (timestamp === null) return null;
+            const eventDisplay = getEventDisplay(event.event_type);
+            return (
+              <ReferenceDot
+                key={event.id}
+                x={timestamp}
+                y={tempDomain[0]}
+                yAxisId="temp"
+                r={4}
+                fill={eventDisplay.color}
+                stroke="none"
+                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
+              />
+            );
+          })}
+
+          {/* Pitch marker - unchanged dot at the bottom edge */}
+          {pitchEvents.map((event) => {
+            if (chartData.length === 0) return null;
+            const timestamp = getEventChartTimestamp(event.timestamp, chartData[0].timestamp, chartData[chartData.length - 1].timestamp, event.event_type);
+            if (timestamp === null) return null;
+            const eventDisplay = getEventDisplay('jast');
+            return (
+              <ReferenceDot
+                key={`pitch-${event.id}`}
+                x={timestamp}
+                y={tempDomain[0]}
+                yAxisId="temp"
+                r={4}
+                fill={eventDisplay.color}
+                stroke="none"
+                label={eventLabel(eventDisplay.label, eventDisplay.color, event.id)}
+              />
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
       {isActiveBrew && Object.entries(rings).map(([key, r]) => (
