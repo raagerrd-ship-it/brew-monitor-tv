@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SG_HISTORY_EVENT } from "@/hooks/use-brew-data";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { ChartDataPointWithTimestamp } from "../types";
 import {
@@ -65,6 +66,18 @@ export function useBrewChartData({
   const chartCutoff = useRef<number | null>(null);
   const lastFullFetchAt = useRef(0);
   const rowCount = useRef(0);
+  const [historyNonce, setHistoryNonce] = useState(0);
+
+  // Pi:n skrev om SG-historiken — tvinga en full hämtning för just den här bryggden
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      if ((e as CustomEvent).detail !== brewId) return;
+      fullKey.current = "";
+      setHistoryNonce((n) => n + 1);
+    };
+    window.addEventListener(SG_HISTORY_EVENT, onChange);
+    return () => window.removeEventListener(SG_HISTORY_EVENT, onChange);
+  }, [brewId]);
 
   useEffect(() => {
     if (!brewId) {
@@ -72,7 +85,7 @@ export function useBrewChartData({
       return;
     }
 
-    const fetchKey = `${brewId}-${firstDataDate}-${lastDataDate}`;
+    const fetchKey = `${brewId}-${firstDataDate}-${lastDataDate}-${historyNonce}`;
     if (fetchKey === lastFetchKey.current) return;
 
     const fetchData = async () => {
@@ -128,7 +141,7 @@ export function useBrewChartData({
     };
 
     fetchData();
-  }, [brewId, firstDataDate, lastDataDate, timeRange]);
+  }, [brewId, firstDataDate, lastDataDate, timeRange, historyNonce]);
 
   // Bero bara på den datakälla som faktiskt ritas
   const hasSnapshots = snapshotRows.length > 0;

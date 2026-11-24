@@ -250,6 +250,7 @@ export type Database = {
           pill_compensation: boolean
           profile_ask_at: string | null
           recipe: Json | null
+          sg_history_at: string | null
           share_id: string | null
           status: string
           style: string
@@ -281,6 +282,7 @@ export type Database = {
           pill_compensation?: boolean
           profile_ask_at?: string | null
           recipe?: Json | null
+          sg_history_at?: string | null
           share_id?: string | null
           status: string
           style: string
@@ -312,6 +314,7 @@ export type Database = {
           pill_compensation?: boolean
           profile_ask_at?: string | null
           recipe?: Json | null
+          sg_history_at?: string | null
           share_id?: string | null
           status?: string
           style?: string
@@ -1984,6 +1987,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_pi_sg_history: {
+        Args: { p_brew_id: string; p_rows: Json }
+        Returns: number
+      }
       archive_empty_brew_drafts: { Args: never; Returns: undefined }
       claim_push_tag: { Args: { p_tag: string }; Returns: boolean }
       generate_share_id: { Args: { length?: number }; Returns: string }

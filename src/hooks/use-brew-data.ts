@@ -60,6 +60,9 @@ function sortBrewsByControllers(brews: BrewData[], controllers: TempController[]
   return [...brews].sort((a, b) => Number(!!a.frozen) - Number(!!b.frozen) || indexOf(a) - indexOf(b));
 }
 
+export const SG_HISTORY_EVENT = 'sg-history-changed';
+const sgHistorySeen = new Map<string, string>();
+
 export function useBrewData(): UseBrewDataReturn {
   const [brews, setBrews] = useState<BrewData[]>([]);
   const [pills, setPills] = useState<PillData[]>([]);
@@ -880,7 +883,15 @@ export function useBrewData(): UseBrewDataReturn {
     let hasSubscribed = false;
     const channel = supabase
       .channel(`data-updates-${Date.now()}`)
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => dispatch('brew_readings', p))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'brew_readings' }, (p: any) => {
+        // Pi:n har räknat om SG-kurvan (pi-sg-history) — be grafen hämta om historiken
+        const h = p.new?.sg_history_at;
+        if (h && p.new?.id && sgHistorySeen.get(p.new.id) !== h) {
+          sgHistorySeen.set(p.new.id, h);
+          window.dispatchEvent(new CustomEvent(SG_HISTORY_EVENT, { detail: p.new.id }));
+        }
+        dispatch('brew_readings', p);
+      })
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_pills' }, (p: any) => dispatch('rapt_pills', p))
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'rapt_temp_controllers' }, (p: any) => dispatch('rapt_temp_controllers', p))
       .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'pi_live_state' }, (p: any) => dispatch('pi_live_state', p))
