@@ -34,8 +34,23 @@ describe("B2 gravity", () => {
     expect(result.pointsPerDay).toBe("11");
     expect(result.projected).toBeGreaterThan(result.progress);
   });
-  it("keeps prePitch true without pitch even with old readings", () => {
-    expect(gravityPanelData({ ...brew, fermentationStart: null }).prePitch).toBe(true);
+  it("shows rate and projection without pitch when recorded gravity has fallen", () => {
+    const result = gravityPanelData({ ...brew, fermentationStart: null });
+    expect(result.prePitch).toBe(false);
+    expect(result.pointsPerDay).toBe("4");
+    expect(result.projected).toBeGreaterThan(result.progress);
+  });
+  it("shows stalled above FG without a recorded pitch", () => {
+    const result = gravityPanelData({ ...brew, fermentationStart: null, fermentationRate: 0.001 });
+    expect(result.prePitch).toBe(false);
+    expect(result.stalled).toBe(true);
+  });
+  it("does not use old reading age as evidence of fermentation without pitch", () => {
+    expect(gravityPanelData({ ...brew, fermentationStart: null, currentSG: 1.042 }).prePitch).toBe(true);
+  });
+  it("requires at least two percent attenuation for the missing-pitch fallback", () => {
+    expect(gravityPanelData({ ...brew, fermentationStart: null, originalGravity: 1.05, currentSG: 1.0491 }).prePitch).toBe(true);
+    expect(gravityPanelData({ ...brew, fermentationStart: null, originalGravity: 1.05, currentSG: 1.0489 }).prePitch).toBe(false);
   });
   it("keeps prePitch true for lag at 0.5 percent attenuation", () => {
     expect(gravityPanelData({ ...brew, originalGravity: 1.055, currentSG: 1.054725, fermentationMetrics: { fermentation_phase: "lag" } as NonNullable<BrewData["fermentationMetrics"]> }).prePitch).toBe(true);

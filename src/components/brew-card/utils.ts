@@ -57,11 +57,11 @@ export function calculateDaysSinceStart(
   );
 }
 
-/** Pitch/start, not reading age, determines whether fermentation has begun. */
+/** Prefer pitch/start; without it, recorded SG and at least 2% attenuation establish fermentation. */
 export function isPrePitch(brew: BrewData): boolean {
   const start = brew.fermentationStart ? new Date(brew.fermentationStart).getTime() : NaN;
   const attenuation = brew.originalGravity > 1 ? (brew.originalGravity - brew.currentSG) / (brew.originalGravity - 1) * 100 : 0;
-  return !Number.isFinite(start) || start > Date.now() || (brew.fermentationMetrics?.fermentation_phase === "lag" && attenuation < 2);
+  return (!Number.isFinite(start) && !(brew.sgData.length > 0 && attenuation >= 2)) || start > Date.now() || (brew.fermentationMetrics?.fermentation_phase === "lag" && attenuation < 2);
 }
 
 /**
