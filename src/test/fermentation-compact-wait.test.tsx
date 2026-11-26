@@ -75,6 +75,24 @@ const percentPhases: StepPhase[] = [
   },
 ];
 
+// Lång hållfas — de hela timmarna som gått räknas nedåt som en klocka.
+const longHoldPhases: StepPhase[] = [
+  {
+    label: 'Håller 72 h',
+    status: 'active',
+    condition: { label: 'Håller 72 h', value: 51.1, target: 72, unit: 'h', remaining_h: 20.9 },
+  },
+];
+
+// Fasnamn som inte slutar på timmarna lämnas orört.
+const plainHoldPhases: StepPhase[] = [
+  {
+    label: 'Vilar',
+    status: 'active',
+    condition: { label: 'Vilar', value: 3, target: 48, unit: 'h', remaining_h: 45 },
+  },
+];
+
 function renderPiBanner(phases: StepPhase[], step: FermentationProfileStep) {
   return render(
     <FermentationSessionCompact
@@ -106,7 +124,7 @@ describe('TV-stegbannern med Pi:ns delfaser', () => {
     const row = detailRow(container);
     expect(row).not.toBeNull();
     const text = row?.textContent ?? '';
-    expect(text).toContain('Håller 48 h');
+    expect(text).toContain('Håller 0 / 48 h');
     expect(text).toContain('klart');
     expect(text).not.toContain('av 48 h');
     expect(text).not.toContain('°');
@@ -129,5 +147,23 @@ describe('TV-stegbannern med Pi:ns delfaser', () => {
     const text = detailRow(container)?.textContent ?? '';
     expect(text).toContain('40 av 80 %');
     expect(text).not.toContain('klart');
+  });
+
+  it('lång hållfas visar hela timmar nedåt', () => {
+    const step = { step_type: 'hold', target_temp: 14, duration_hours: 72 } as FermentationProfileStep;
+    const { container } = renderPiBanner(longHoldPhases, step);
+    const text = detailRow(container)?.textContent ?? '';
+    expect(text).toContain('Håller 51 / 72 h');
+    expect(text).toContain('klart');
+    expect(text).not.toContain('av 72 h');
+  });
+
+  it('fasnamn som inte slutar på timmarna lämnas orört', () => {
+    const step = { step_type: 'hold', target_temp: 14, duration_hours: 48 } as FermentationProfileStep;
+    const { container } = renderPiBanner(plainHoldPhases, step);
+    const text = detailRow(container)?.textContent ?? '';
+    expect(text).toContain('Vilar');
+    expect(text).not.toContain('/ 48 h');
+    expect(text).toContain('klart');
   });
 });

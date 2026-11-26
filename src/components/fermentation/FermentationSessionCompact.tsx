@@ -556,7 +556,7 @@ export function FermentationSessionCompact({
                   parts.push(
                     <span key="phase" className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
                       <Activity className="h-3 w-3 shrink-0" />
-                      <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
+                      <span className="font-semibold">{withElapsedHours(activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : ''), cond)}</span>
                     </span>,
                   );
                 }
@@ -636,6 +636,14 @@ export function FermentationSessionCompact({
 // Small sub-components to reduce main component size
 function Separator() {
   return <span className="shrink-0 text-muted-foreground/40 font-light select-none" style={{ fontSize: '10px' }}>│</span>;
+}
+
+// Pi:ns fasnamn får visa de hela timmarna som gått: "Håller 48 h" → "Håller 0 / 48 h".
+function withElapsedHours(label: string, cond: StepPhase["condition"]): string {
+  if (!cond || cond.unit !== 'h' || cond.value == null || cond.target == null) return label;
+  const suffix = `${cond.target.toLocaleString('sv-SE', { maximumFractionDigits: 1 })} h`;
+  if (!label.endsWith(suffix)) return label;
+  return `${label.slice(0, -suffix.length)}${Math.floor(cond.value)} / ${suffix}`;
 }
 
 interface TemperatureDisplayProps {
