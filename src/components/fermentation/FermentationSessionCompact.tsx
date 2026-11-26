@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { useRef } from "react";
+import { Fragment, useRef, type ReactNode } from "react";
 import { useTvMode } from "@/contexts/TvModeContext";
 import { useTvEventAnimation } from "@/hooks/use-tv-event-animation";
 import { Button } from "@/components/ui/button";
@@ -291,6 +291,19 @@ export function FermentationSessionCompact({
   const visualState: VisualState = status === 'completed' ? 'normal' : waitingForTemp ? 'waiting' : isRamping ? 'ramping' : 'normal';
   const isCompleted = status === 'completed';
 
+  // SG-målet är en del av raden under badgen — samma yta i båda grenarna.
+  const sgTargetPart = targetSg != null ? (
+    <span className="flex items-center gap-1 shrink-0">
+      <Activity
+        className="h-3 w-3 shrink-0"
+        style={{ color: 'hsl(142 70% 50%)' }}
+      />
+      <span className="text-muted-foreground font-medium whitespace-nowrap">
+        Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(4)}
+      </span>
+    </span>
+  ) : null;
+
   // Completed session - simplified view
   if (isCompleted) {
     return (
@@ -509,61 +522,74 @@ export function FermentationSessionCompact({
         )}
         {(hasPiPhases ? !!activePhase : currentStep && currentStep.step_type !== 'wait_for_acknowledgement') && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1" style={{ fontSize: '12px' }}>
-            {/* Temperature display */}
-            {hasPiPhases && !currentStep ? (
-              displayTargetTemp != null && (
-                <span className="text-muted-foreground font-medium whitespace-nowrap">Mål {displayTargetTemp.toFixed(1).replace('.', ',')}°</span>
-              )
-            ) : <TemperatureDisplay
-              currentStep={currentStep}
-              isRamping={isRamping}
-              stepStartTemp={stepStartTemp}
-              targetTemp={displayTargetTemp}
-              waitingForTemp={waitingForTemp}
-            />}
-            
-            {/* SG target indicator */}
-            {targetSg != null && (
-              <>
-                <Separator />
-                <span className="flex items-center gap-1 shrink-0">
-                  <Activity 
-                    className="h-3 w-3 shrink-0" 
-                    style={{ color: 'hsl(142 70% 50%)' }}
-                  />
-                  <span className="text-muted-foreground font-medium whitespace-nowrap">
-                    Mål: {sgComparison === 'at_or_below' ? '≤' : ''}{targetSg.toFixed(4)}
-                  </span>
-                </span>
-              </>
-            )}
-            
-            {/* Step type label + next step condition — med Pi:ns delfaser ritas den aktiva fasen rakt av */}
             {hasPiPhases ? (
-              <>
-                {cond?.unit !== '°C' && (
-                  <>
-                    <Separator />
-                    <span className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
+              (() => {
+                // Radens synliga delar — avgränsaren får bara stå mellan dem, aldrig först.
+                const parts: ReactNode[] = [];
+                // Temperaturen visas bara när den aktiva fasen gäller temperatur.
+                if (cond?.unit === '°C') {
+                  if (currentStep) {
+                    parts.push(
+                      <TemperatureDisplay
+                        key="temp"
+                        currentStep={currentStep}
+                        isRamping={isRamping}
+                        stepStartTemp={stepStartTemp}
+                        targetTemp={displayTargetTemp}
+                        waitingForTemp={waitingForTemp}
+                      />,
+                    );
+                  } else if (displayTargetTemp != null) {
+                    parts.push(
+                      <span key="temp" className="text-muted-foreground font-medium whitespace-nowrap">
+                        Mål {displayTargetTemp.toFixed(1).replace('.', ',')}°
+                      </span>,
+                    );
+                  }
+                }
+                if (sgTargetPart) parts.push(sgTargetPart);
+                // Fasens namn och villkor ritas rakt av när fasen inte gäller temperatur.
+                if (cond?.unit !== '°C') {
+                  parts.push(
+                    <span key="phase" className="flex items-center gap-1" style={{ color: 'hsl(var(--primary))' }}>
                       <Activity className="h-3 w-3 shrink-0" />
                       <span className="font-semibold">{activePhase?.label ?? piStepName ?? (currentStep ? getStepTypeLabel(currentStep.step_type) : '')}</span>
-                    </span>
-                  </>
-                )}
-                {conditionText && cond?.unit !== '°C' && (
-                  <>
-                    <Separator />
+                    </span>,
+                  );
+                }
+                if (conditionText && cond?.unit !== '°C') {
+                  parts.push(
                     <span
+                      key="cond"
                       className="flex items-center gap-1 font-medium"
                       style={{ color: conditionWarn ? 'hsl(38 92% 60%)' : 'hsl(var(--muted-foreground) / 0.8)' }}
                     >
                       {conditionText}
-                    </span>
-                  </>
-                )}
-              </>
+                    </span>,
+                  );
+                }
+                return parts.map((part, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <Separator />}
+                    {part}
+                  </Fragment>
+                ));
+              })()
             ) : (
               <>
+                <TemperatureDisplay
+                  currentStep={currentStep}
+                  isRamping={isRamping}
+                  stepStartTemp={stepStartTemp}
+                  targetTemp={displayTargetTemp}
+                  waitingForTemp={waitingForTemp}
+                />
+                {sgTargetPart && (
+                  <>
+                    <Separator />
+                    {sgTargetPart}
+                  </>
+                )}
                 <Separator />
                 {(() => {
                   const { icon, color } = getStepIconWithColor(currentStep.step_type);
