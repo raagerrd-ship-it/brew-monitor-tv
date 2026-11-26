@@ -113,7 +113,10 @@ export function FermentationSessionCompact({
   let phaseOverlay: number | null = null;
   if (hasPiPhases && cond) {
     const parts = formatConditionParts(cond);
-    conditionText = [parts.value, parts.eta].filter(Boolean).join(' · ') || null;
+    // Bakgrundsstapeln visar redan värdet — då räcker sluttiden i raden.
+    conditionText = (parts.progress !== null && parts.eta)
+      ? parts.eta
+      : [parts.value, parts.eta].filter(Boolean).join(' · ') || null;
     conditionWarn = parts.warn;
     phaseOverlay = parts.progress;
   }

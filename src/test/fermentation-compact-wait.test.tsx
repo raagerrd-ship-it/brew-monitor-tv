@@ -66,6 +66,15 @@ const rampPhases: StepPhase[] = [
   },
 ];
 
+// Utan sluttid (t.ex. enhet %) ska värdet visas som i dag.
+const percentPhases: StepPhase[] = [
+  {
+    label: 'Fyller på',
+    status: 'active',
+    condition: { label: 'Fyller på', value: 40, target: 80, unit: '%' },
+  },
+];
+
 function renderPiBanner(phases: StepPhase[], step: FermentationProfileStep) {
   return render(
     <FermentationSessionCompact
@@ -98,7 +107,8 @@ describe('TV-stegbannern med Pi:ns delfaser', () => {
     expect(row).not.toBeNull();
     const text = row?.textContent ?? '';
     expect(text).toContain('Håller 48 h');
-    expect(text).toContain('0,3 av 48 h');
+    expect(text).toContain('klart');
+    expect(text).not.toContain('av 48 h');
     expect(text).not.toContain('°');
     expect(text.startsWith('│')).toBe(false);
   });
@@ -111,5 +121,13 @@ describe('TV-stegbannern med Pi:ns delfaser', () => {
     const text = row?.textContent ?? '';
     expect(text).toContain('17,0°');
     expect(text).not.toContain('│');
+  });
+
+  it('fas utan sluttid visar värdet', () => {
+    const step = { step_type: 'hold', target_temp: 14, duration_hours: null } as FermentationProfileStep;
+    const { container } = renderPiBanner(percentPhases, step);
+    const text = detailRow(container)?.textContent ?? '';
+    expect(text).toContain('40 av 80 %');
+    expect(text).not.toContain('klart');
   });
 });
